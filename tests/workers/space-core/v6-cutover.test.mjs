@@ -1,7 +1,5 @@
 /**
- * 割接（v6 cutover）：网关这一侧——
- * - /api/share（root）：旧进站会话不成立、v6 新会话够 root → 新建 / 列表 / 作废都放行（不要锁侧复验），新建 / 作废经 auditRoot 留痕；
- *   styrigx（不是 root）/ 救援 403 forbidden（2b）、访客 401；旧会话照旧
+ * 割接（v6 cutover）：网关这一侧（v6 P4 起 /api/share 随分享短链删除，旧进站会话删除，对应用例一并删除）——
  * - GET /api/space-audit（root）：v6 root 200；styrigx 403 forbidden（2b）
  * - SpaceVerifier.admit / auditRoot：原样转给账号 Worker（判断不在网关），带 action；没 sgx-session 不问；出错 → allowed:false
  * - normalizeAdmit：要 uid、问了 action 要带回同一个 action
@@ -11,82 +9,36 @@
 import '../account/_cf-workers.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { shareD1 } from '../../fixtures/share-d1.mjs';
-import { makeAuthD1, genKeyPair } from '../_harness.mjs';
-import { testLockSession, testTicket } from './_tickets.mjs';
+import { makeAuthD1 } from '../_harness.mjs';
 import { admitFor, whoOf } from '../_v6admit.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/space-core/src/app.js')).default;
 const IA = await import(REPO + 'workers/space-core/src/core/identity-admit.js');
 const { SpaceVerifier } = await import(REPO + 'workers/space-core/src/rpc/space-verifier.js');
-const { _resetMem } = await import(REPO + 'workers/space-core/src/core/share-open.js');
 const SA = await import(REPO + 'workers/space-core/src/api/space-audit.js');
 
-const LOCK = await genKeyPair();
 const ctx = { waitUntil() {} };
 
 function verifier(rec) {
   return {
-    async authorize() { return { ok: false, reason: 'no-cookie', deviceId: '', scopes: [], reauth: false }; },
     async admit(...args) { const [c, m, p, opts] = args; rec.calls.push(args); if (rec.throws) throw new Error('down'); return admitFor(c, m, p, opts); },
     async auditRoot(c, cmd, ip) { const id = whoOf(c); const ok = !!id && id.uid === 0 && !id.rescue; rec.audits.push([cmd, ip, ok]); return ok; },
   };
 }
 function setup() {
-  const authDb = makeAuthD1();
-  const db = shareD1();
   const rec = { calls: [], audits: [], throws: false };
-  _resetMem();
-  const env = {
-    D1_SPACE: { prepare: (sql) => (/\bshare_(link|fail)\b/.test(sql) ? db : authDb).prepare(sql), batch: (s) => authDb.batch(s) },
-    SGX_SPACE_PRIVATE: LOCK.priv, SGX_SPACE_PUBLIC: LOCK.pub, SGX_SPACE_RECOVERY_KEY: 'r', SGX_SPACE_PASSWORD_PEPPER: 'p',
-    SGX_ENV: 'production', SGX_SITE: 'space', ACCOUNT_VERIFIER: verifier(rec),
-    ANON_LIMITER: { async limit() { return { success: true }; } },
-  };
-  return { env, rec, db };
+  const env = { D1_SPACE: makeAuthD1(), SGX_ENV: 'production', SGX_SITE: 'space', ACCOUNT_VERIFIER: verifier(rec) };
+  return { env, rec };
 }
-async function share(env, body, cookie) {
-  const headers = { 'Content-Type': 'application/json', Origin: 'https://styrigx.com', 'CF-Connecting-IP': '203.0.113.20' };
-  if (cookie) headers.Cookie = cookie;
-  const res = await worker.fetch(new Request('https://styrigx.com/api/share', { method: 'POST', headers, body: JSON.stringify(body) }), env, ctx);
-  return { s: res.status, j: await res.json() };
-}
-
-test('/api/share（root）：v6 root 新建 / 列表 / 作废放行（不要锁侧复验），新建 / 作废留痕 share；styrigx、救援 403 forbidden（2b），过期、访客 401', async () => {
+test('v6 P4：/api/share 随分享短链删除——不在网关路由表，root 打过来也 404，不进身份审计', async () => {
   const { env, rec } = setup();
-  const c = await share(env, { action: 'create', hours: 1 }, 'sgx-session=root');
-  assert.equal(c.s, 200, JSON.stringify(c.j));
-  const l = await share(env, { action: 'list' }, 'sgx-session=root');
-  assert.equal(l.s, 200);
-  assert.equal(l.j.links.length, 1);
-  assert.equal((await share(env, { action: 'revoke', id: c.j.link.id }, 'sgx-session=root')).s, 200);
-  assert.equal((await share(env, { action: 'revoke', all: true }, 'sgx-session=root')).s, 200);
-  assert.deepEqual(rec.audits.map((a) => [a[0], a[1], a[2]]), [['share create', '203.0.113.20', true], ['share revoke', '203.0.113.20', true], ['share revoke --all', '203.0.113.20', true]]);
-  /* 2b：有 v6 身份但不是 root（styrigx、救援）→ 403 forbidden；没身份（过期 / 访客）→ 401 */
-  for (const ck of ['sgx-session=styrigx', 'sgx-session=rescue']) {
-    const r = await share(env, { action: 'list' }, ck);
-    assert.equal(r.s, 403, ck);
-    assert.equal(r.j.error, 'forbidden', ck);
-  }
-  for (const ck of ['sgx-session=expired', '']) {
-    assert.equal((await share(env, { action: 'list' }, ck || undefined)).s, 401, ck || '访客');
-  }
-  assert.ok(rec.calls.every((x) => x[1] === 'POST' && x[2] === '/api/share' && x.length === 3), '按路由档问（/api/share 各 action 都是 root）');
-});
-
-test('/api/share：旧会话照旧（进门 + 锁侧复验；有旧会话时不问 v6、不进身份审计）', async () => {
-  const { env, rec } = setup();
-  const lock = 'sgx-space-session=' + (await testLockSession(LOCK.priv, 0, 'password'));
-  assert.equal((await share(env, { action: 'list' }, lock)).s, 401, '旧：列表要锁侧复验');
-  const full = lock + '; sgx-space-reauth=' + (await testTicket(LOCK.priv, 'LockReauthTicket', 'password', 0));
-  assert.equal((await share(env, { action: 'list' }, full)).s, 200);
-  assert.equal((await share(env, { action: 'create', hours: 1 }, lock)).s, 200);
-  assert.equal(rec.calls.length, 0);
+  const res = await worker.fetch(new Request('https://styrigx.com/api/share', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://styrigx.com', Cookie: 'sgx-session=root' }, body: '{"action":"list"}' }), env, ctx);
+  assert.ok(res.status === 404 || res.status === 403 || res.status === 401, String(res.status));
   assert.equal(rec.audits.length, 0);
 });
 
-test('GET /api/space-audit（root）：v6 root 200；styrigx 403 forbidden（2b）；访客 401（旧会话判定原样）', async () => {
+test('GET /api/space-audit（root）：v6 root 200；styrigx 403 forbidden（2b）；访客 401', async () => {
   const { env } = setup();
   const get = (cookie) => SA.onRequestGet({ request: new Request('https://styrigx.com/api/space-audit', { headers: cookie ? { Cookie: cookie } : {} }), env });
   const ok = await get('sgx-session=root');

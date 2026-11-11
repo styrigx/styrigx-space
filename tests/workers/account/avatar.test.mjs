@@ -2,21 +2,20 @@
  * 主站头像接口
  * - GET /avatar/<尺寸>.webp：没上传过 → 默认图（ETag "d-<尺寸>"）；上传过 → KV 里的图（ETag "<版本>-<尺寸>"）；
  *   If-None-Match 命中 → 304；不认识的尺寸 → 404；公开缓存头。
- * - PUT /api/avatar（P2-2 起：进站会话 + 账号会话 + avatar.write，不看 role）：不同源 403；没有进站会话 401 session；
- *   有进站会话、没账号会话 401 account（分享链接进站同样）；缺尺寸 400；不是 WebP/PNG 415；太大 413；进站会话 + 账号会话 + 四张合法图 → 写四张 + 版本号。
- * - DELETE /api/avatar：同一道门；没账号会话 401 account；有 → 删版本号和四张。
+ * - PUT /api/avatar（v6 P4 起只认 v6 会话 + 路由档）：不同源 403；没有 v6 会话 401 session（旧进站会话 / 旧账号会话都不算）；
+ *   缺尺寸 400；不是 WebP/PNG 415；太大 413；v6 会话 + 四张合法图 → 写四张 + 版本号。
+ * - DELETE /api/avatar：同一道门；没 v6 会话 401 session；有 → 删版本号和四张。
  *
- * 账号 Worker styrigx-account（workers/account，2026-10-24 从网关搬来）；锁屏身份经网关这一跳写成身份头（_auth.mjs）。
+ * 账号 Worker styrigx-account（workers/account，2026-10-24 从网关搬来）；v6 会话测试台见 _auth.mjs。
  *
  * 运行：node --test tests/workers/account/avatar.test.mjs
  */
-import { wrap, testAccountSessionCookie } from './_auth.mjs';
+import { wrap, seedV6, V6_COOKIE } from './_auth.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { testLockSession } from '../space-core/_tickets.mjs';
-import { genKeyPair, authD1For } from '../_harness.mjs';
+import { authD1For } from '../_harness.mjs';
 import { makeAccountD1 } from './_d1.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,10 +25,6 @@ const avatarApi = await import(REPO + '/workers/account/src/api/avatar.js');
 const onRequestPut = wrap(avatarApi.onRequestPut);
 const onRequestDelete = wrap(avatarApi.onRequestDelete);
 const { sniffImage, sizeOfFile } = await import(REPO + '/workers/account/src/lib/avatar.js');
-const { signLockSessionTicket } = await import(REPO + '/workers/space-core/src/core/lock-session.js');
-
-const { priv: PRIV, pub: PUB } = await genKeyPair();
-const ACC = await genKeyPair();
 
 const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 1, 2, 3]);
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9]);
@@ -56,17 +51,20 @@ function makeKv(init = {}) {
 }
 function env(kv) {
   return {
-    SGX_SPACE_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: ACC.pub,
     KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, KV_PROFILE: kv,
-    D1_SPACE: authD1For(kv), D1_ACCOUNT: makeAccountD1(),
+    D1_SPACE: authD1For(kv), D1_ACCOUNT: seedV6(makeAccountD1()),
     ASSETS: { fetch: async (u) => new Response('DEFAULT:' + new URL(u).pathname, { status: 200 }) },
   };
 }
-/** 锁屏 cookie（role 为空 → 不带）+ 账号会话 cookie（acc 为真才带） @param {string|null} role @param {boolean} [acc] */
+/**
+ * v6 P4：role && acc（原「进站 + 账号会话」）→ v6 会话 cookie；其余只带旧 cookie 的样子（服务端不再认）。
+ * @param {string|null} role @param {boolean} [acc]
+ */
 async function cookie(role, acc) {
+  if (role && acc) return V6_COOKIE;
   const c = [];
-  if (role) c.push('sgx-space-session=' + (await testLockSession(PRIV, 0, role)));
-  if (acc) c.push(await testAccountSessionCookie(ACC.priv, 'password', 0, Date.now()));
+  if (role) c.push('sgx-space-session=' + role + '.0.9999999999999.sig');
+  if (acc) c.push('sgx-account-session=password.0.1.2.dev.sig');
   return c.join('; ');
 }
 function form(parts) {
@@ -116,8 +114,8 @@ test('PUT 不同源 → 403', async () => {
   assert.equal(res.status, 403);
 });
 
-test('PUT 没有进站会话 401 session；有进站会话、没账号会话 401 account（锁屏密码 / 分享链接进站一样），不写 KV', async () => {
-  for (const [role, acc, code] of [[null, false, 'session'], [null, true, 'session'], ['password', false, 'account'], ['link', false, 'account']]) {
+test('PUT 没有 v6 会话 401 session（只有旧进站会话 / 旧账号会话都一样），不写 KV', async () => {
+  for (const [role, acc, code] of [[null, false, 'session'], [null, true, 'session'], ['password', false, 'session'], ['link', false, 'session']]) {
     const kv = makeKv();
     const res = await onRequestPut({ request: await putReq({ role, acc, parts: ALL }), env: env(kv) });
     assert.equal(res.status, 401, String(role) + '/' + acc);
@@ -140,7 +138,7 @@ test('PUT 缺尺寸 400 / 格式不对 415 / 太大 413', async () => {
   assert.equal(kv.m.size, 0);
 });
 
-test('PUT 进站会话 + 账号会话 → 写四张 + 版本号；GET 读到新图和新 ETag；DELETE 回到默认', async () => {
+test('PUT v6 会话 → 写四张 + 版本号；GET 读到新图和新 ETag；DELETE 回到默认', async () => {
   const kv = makeKv();
   const e = env(kv);
   const res = await onRequestPut({ request: await putReq({ role: 'password', parts: ALL }), env: e });
@@ -161,7 +159,7 @@ test('PUT 进站会话 + 账号会话 → 写四张 + 版本号；GET 读到新�
     env: e,
   });
   assert.equal(noAccDel.status, 401);
-  assert.equal((await noAccDel.json()).error, 'account');
+  assert.equal((await noAccDel.json()).error, 'session');
   assert.ok(kv.m.has('avatar:ver'));
 
   const del = await onRequestDelete({

@@ -1,26 +1,24 @@
 /**
  * v6 P1 网关 admit 的新路径（workers/space-core/src/core/identity-admit.js + gate.js admit）：
  * - 没有 sgx-session cookie → 不问账号 Worker（线上 P1 没有签发入口，行为不变）
- * - 旧进站会话有效 → 照旧放行，不问；public 接口不问
- * - 带 sgx-session、旧会话不成立 → 经 ACCOUNT_VERIFIER.admit(cookie, 方法, 路径) 问；只认 allowed === true
+ * - public 接口不问；v6 P4 起旧进站会话删除，旧 sgx-space-session 不算进门
+ * - 带 sgx-session → 经 ACCOUNT_VERIFIER.admit(cookie, 方法, 路径) 问；只认 allowed === true
  * - allowed 不是 true / 没 uid / RPC 抛错 / 绑定没有 admit → 401（fail closed）；有 uid 但档不够 → 403 forbidden（2b）
  * - 子站关口同一个 admit
  * - cookie 名与账号 Worker 一致
- * 放行后的接口自己还按旧规则验进站会话（P2 改认新结论），这里只看网关这一道门：门回 {ok:false}，接口回 {error:'unauthorized'}。
+ * 这里只看网关这一道门：门回 {ok:false}，接口回 {error:'unauthorized'}。
  *
  * 运行：node --test tests/workers/space-core/identity-admit.test.mjs
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { testLockSession } from './_tickets.mjs';
-import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
+import { makeAuthD1 } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/space-core/src/app.js')).default;
 const { NEW_SESSION_COOKIE, newSessionAdmits } = await import(REPO + 'workers/space-core/src/core/identity-admit.js');
 const { SESSION_COOKIE } = await import(REPO + 'workers/account/src/core/identity-session.js');
 
-const { priv: PRIV, pub: PUB } = await genKeyPair();
 const CTX = { waitUntil() {} };
 const TOKEN = 'A'.repeat(43);
 
@@ -29,9 +27,8 @@ function env(admit) {
   const calls = [];
   return {
     calls,
-    SGX_ENV: 'production', SGX_SITE: 'space', SGX_SPACE_PUBLIC: PUB,
+    SGX_ENV: 'production', SGX_SITE: 'space',
     D1_SPACE: makeAuthD1(),
-    ANON_LIMITER: { async limit() { return { success: true }; } },
     ACCOUNT_VERIFIER: admit === undefined ? { async authorize() { return { ok: false }; } } : {
       async authorize() { return { ok: false }; },
       async admit(c, m, p) { calls.push([c, m, p]); return admit(c, m, p); },
@@ -58,17 +55,16 @@ test('没有 sgx-session：不问账号 Worker，门照旧 401', async () => {
   assert.deepEqual(e.calls, []);
 });
 
-test('旧进站会话有效 / public 接口：不问', async () => {
+test('public 接口：不问（v6 P4 起旧进站会话删除，旧 sgx-space-session 不算进门）', async () => {
   const e = env(() => ({ allowed: false }));
-  const ck = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'password')) + '; sgx-session=' + TOKEN;
-  const r = await req(e, '/api/status', ck);
-  assert.equal(await gateBlocked(r), false);
   const f = await req(e, '/api/geo', 'sgx-session=' + TOKEN);
   assert.notEqual(f.status, 401);
   assert.deepEqual(e.calls, []);
+  const old = await req(env(), '/api/status', 'sgx-space-session=password.0.9999999999999.');
+  assert.equal(await gateBlocked(old), true, '旧进站 cookie 不再被认');
 });
 
-test('带 sgx-session、旧会话不成立：问 admit(cookie, 方法, 路径)，allowed === true 且有 uid 才过门；档不够 403 forbidden（2b）', async () => {
+test('带 sgx-session：问 admit(cookie, 方法, 路径)，allowed === true 且有 uid 才过门；档不够 403 forbidden（2b）', async () => {
   const e = env((c, m, p) => ({ allowed: p === '/api/status', uid: 1000 }));
   const r = await req(e, '/api/status', 'sgx-session=' + TOKEN);
   assert.equal(await gateBlocked(r), false, '过了门');

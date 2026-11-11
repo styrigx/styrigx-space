@@ -4,11 +4,11 @@
  * POST /api/ai { q, lang, history } → styrigx-ai POST /ask，SSE 原样流回（状态码、Content-Type、X-Styrigx-AI-Scope 不改）。
  * 顺序：
  *   1. 只接受同源 POST（lib/http.js isSameOrigin）→ 否则 403 origin；别的方法 405 method（router 的 pickHandler）
- *   2. 要进门（进站会话，不分进门方式）→ 否则 401 unauthorized。不要账号会话：没有账号会话也能问，只是只召回公开内容
+ *   2. 要 v6 身份（ai 组，账号 Worker 判）→ 没有身份 401 unauthorized、不在组 403 forbidden；私密内容另看第 4 步
  *   3. AI 限流（core/ai-limit.js）：每 IP 每分钟 6 次 → 429 cooldown；全站总闸每分钟 60 次 → 429 busy（D1 出错也 busy）
- *   4. 私密范围（aiConclusionHeaders，2c）：先按 v6 身份——问账号 Worker POST /api/ai 的 action private（ROUTE_ACCESS = owner，permits() 判），
- *      够就写 X-Styrigx-Account-Session: 1（core/conclusion.js writeV6PrivateConclusion）；否则回退旧账号会话：问授权结论（core/account-rpc.js
- *      askAuthorizeFor），写账号结论头（writeAccountConclusion：有账号会话才写 X-Styrigx-Account-Session: 1 等）；都没有 / 出错 → 不写 = 只给公开内容
+ *   4. 私密范围（aiConclusionHeaders，2c）：按 v6 身份——问账号 Worker POST /api/ai 的 action private（ROUTE_ACCESS = owner，permits() 判），
+ *      够就写 X-Styrigx-Account-Session: 1（core/conclusion.js writeV6PrivateConclusion）；不够 / 没有 v6 会话 / 出错 → 不写 = 只给公开内容
+ *      （v6 P4 起旧账号会话的回退删了，定稿 v5.2 §十三）
  *   5. 转给 AI_SERVICE：新建的请求只带 Content-Type 和结论头，不转 cookie、不转浏览器的任何别的头（浏览器伪造的
  *      X-Styrigx-Account-* 在 app.js 第一步已剥掉，这里也不会带过去）；带上浏览器请求的 signal，断开时一起取消
  * 请求体最多 BODY_MAX 字节（超了 413 too-large；styrigx-ai 自己再校验 q / history）。
@@ -19,23 +19,20 @@
  *   要进门（否则 401）；不计 AI 限流（只读 KV，不调模型）；同样写结论头（aiConclusionHeaders；canChoose 跟它走，和 POST 的私密范围同一个结论）。
  *   POST 的 body.model 由 styrigx-ai 只在有账号结论头时采纳（进站一律默认模型）。
  */
-import { lockSessionOf } from '../core/lock-session.js';
-import { entryOrV6, v6AiPrivate } from '../core/identity-admit.js';
-import { askAuthorizeFor } from '../core/account-rpc.js';
-import { writeAccountConclusion, writeV6PrivateConclusion } from '../core/conclusion.js';
+import { v6Gate, v6AiPrivate } from '../core/identity-admit.js';
+import { stripAccountConclusion, writeV6PrivateConclusion } from '../core/conclusion.js';
 import { aiIpLimit, aiGlobalGate } from '../core/ai-limit.js';
 import { isSameOrigin, originDenied, apiError, NO_STORE } from '../lib/http.js';
 
 /**
  * 给 styrigx-ai 的结论头（2c）：私密范围先按 v6 身份判（ROUTE_ACCESS POST /api/ai 的 action private，经账号 Worker permits()），
- * 够 → 只写 X-Styrigx-Account-Session: 1；不够 / 没有 v6 会话 → 回退旧账号会话（askAuthorizeFor + writeAccountConclusion，P4 删）；都没有 = 只给公开内容。
+ * 够 → 只写 X-Styrigx-Account-Session: 1；不够 / 没有 v6 会话 → 不写（剥掉同名头）= 只给公开内容。
  * @param {Request} request @param {any} env @param {Headers} headers
  * @returns {Promise<Headers>}
  */
 export async function aiConclusionHeaders(request, env, headers) {
   if (await v6AiPrivate(env, request)) return writeV6PrivateConclusion(headers);
-  const account = await askAuthorizeFor(request, env);
-  return writeAccountConclusion(headers, account);
+  return stripAccountConclusion(headers);
 }
 
 /** 服务绑定的地址：主机名只用来拼 URL，路径是 styrigx-ai 认的 */
@@ -47,9 +44,8 @@ export async function onRequestPost(context) {
   const { request, env } = context;
   if (request.method !== 'POST') return apiError(405, 'method');
   if (!isSameOrigin(request)) return originDenied();
-  const sess = await lockSessionOf(context);
-  /* 2b：纯 v6 登录（ai 组）也能用；有 v6 身份但不在 ai 组 403 forbidden */
-  const gate = await entryOrV6(context, sess);
+  /* v6 身份（ai 组）才能用；有 v6 身份但不在 ai 组 403 forbidden */
+  const gate = await v6Gate(context);
   if (gate === 'forbidden') return apiError(403, 'forbidden');
   if (gate !== 'ok') return apiError(401, 'unauthorized');
 
@@ -82,9 +78,8 @@ export async function onRequestPost(context) {
 /** @param {{request: Request, env: any, data?: any}} context */
 export async function onRequestGet(context) {
   const { request, env } = context;
-  const sess = await lockSessionOf(context);
-  /* 2b：纯 v6 登录（ai 组）也能用；有 v6 身份但不在 ai 组 403 forbidden */
-  const gate = await entryOrV6(context, sess);
+  /* v6 身份（ai 组）才能用；有 v6 身份但不在 ai 组 403 forbidden */
+  const gate = await v6Gate(context);
   if (gate === 'forbidden') return apiError(403, 'forbidden');
   if (gate !== 'ok') return apiError(401, 'unauthorized');
   const svc = env && env.AI_SERVICE;

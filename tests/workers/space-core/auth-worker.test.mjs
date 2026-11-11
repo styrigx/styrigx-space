@@ -13,20 +13,16 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { testLockSession } from './_tickets.mjs';
-import { genKeyPair, authD1For } from '../_harness.mjs';
+import { v6Space } from '../_v6admit.mjs';
+import { authD1For } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
 const worker = (await import(REPO + '/workers/space-core/src/app.js')).default;
 const { routeKey, pickHandler } = await import(REPO + '/workers/space-core/src/router.js');
-const { API_ROUTES, SHARE_API_PATH } = await import(REPO + '/workers/space-core/src/router.js');
-const { resolveSecrets, SECRET_NAMES, _resetSecretCache } = await import(REPO + '/workers/space-core/src/secrets.js');
+const { API_ROUTES } = await import(REPO + '/workers/space-core/src/router.js');
 const pagesMw = await import(REPO + '/workers/space-core/src/gate.js');
 const htmlKernel = await import(REPO + '/workers/space-core/src/gate.js');
-const { signLockSessionTicket } = await import(REPO + '/workers/space-core/src/core/lock-session.js');
-
-const { priv: PRIV, pub: PUB } = await genKeyPair();
 
 function makeKv() {
   const m = new Map();
@@ -39,34 +35,33 @@ function makeKv() {
     async list() { return { keys: [], list_complete: true }; },
   };
 }
-const store = (v) => ({ get: async () => v });
 function baseEnv() {
   const kv = makeKv();
-  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_SPACE_PUBLIC: PUB, D1_SPACE: authD1For(kv) };
+  return { SGX_ENV: 'production', SGX_SITE: 'space', D1_SPACE: authD1For(kv), ACCOUNT_VERIFIER: v6Space({}) };
 }
 const CTX = { waitUntil() {} };
 
-test('路由表与 src/api/*.js 一一对应（/api/share 例外：分享链接走 router.js routeShare，不经主站关口，进站 v3 L2）', () => {
+test('路由表与 src/api/*.js 一一对应（v6 P4：/api/share 与进站 / 锁屏接口随分享短链、进站签发删除）', () => {
   const files = readdirSync(REPO + '/workers/space-core/src/api').filter(f => f.endsWith('.js')).map(f => '/api/' + f.slice(0, -3)).sort();
-  assert.ok(files.includes(SHARE_API_PATH));
-  assert.ok(!API_ROUTES.has(SHARE_API_PATH));
-  assert.deepEqual([...API_ROUTES.keys()].sort(), files.filter((f) => f !== SHARE_API_PATH));
+  assert.deepEqual([...API_ROUTES.keys()].sort(), files);
+  for (const gone of ['/api/share', '/api/space-auth', '/api/lock-now', '/api/lock-session-check', '/api/lock-password', '/api/lock-passkey', '/api/lock-reset', '/api/lock-reauth', '/api/lock-entry', '/api/lock-credentials', '/api/lock-all-devices']) {
+    assert.ok(!files.includes(gone), gone);
+  }
 });
 
-test('wrangler.toml：不开 workers.dev、生产模式、4 个 SGX_SPACE_* 密钥全走 Secrets Store（v5 收尾删了临时钥匙 pepper）、填了真实 store_id；账号钥匙不绑', () => {
+test('wrangler.toml：不开 workers.dev、生产模式；v6 P4 起不绑任何 Secrets Store 值（SGX_SPACE_* 四个随进站签发删除）；账号钥匙不绑', () => {
   const toml = readFileSync(REPO + '/workers/space-core/wrangler.toml', 'utf8');
   assert.match(toml, /^workers_dev = false$/m);
   assert.match(toml, /^SGX_ENV = "production"$/m);
-  for (const n of SECRET_NAMES) {
-    assert.match(toml, new RegExp(`binding = "${n}"\\nstore_id = "[^"]+"\\nsecret_name = "${n}"`));
-  }
-  assert.deepEqual([...SECRET_NAMES].sort(), ['SGX_SPACE_PASSWORD_PEPPER', 'SGX_SPACE_PRIVATE', 'SGX_SPACE_PUBLIC', 'SGX_SPACE_RECOVERY_KEY']);
-  assert.doesNotMatch(toml.replace(/^\s*#.*$/gm, ''), /SGX_LOCK_|SGX_PW_PEPPER|D1_LOCK_AUTH|SGX_SPACE_TEMPKEY_PEPPER/, '旧名不再绑定');
+  const live = toml.replace(/^\s*#.*$/gm, '');
+  assert.doesNotMatch(live, /secrets_store_secrets|SGX_SPACE_/);
+  assert.equal(existsSync(REPO + '/workers/space-core/src/secrets.js'), false, '没有私密值要解析');
+  assert.doesNotMatch(live, /SGX_LOCK_|SGX_PW_PEPPER|D1_LOCK_AUTH|SGX_SPACE_TEMPKEY_PEPPER/, '旧名不再绑定');
   /* 账号拆分 PR3：账号钥匙、账号根密钥只绑在账号 Worker；进站凭证后台改名为 SGX_SPACE_RECOVERY_KEY（旧名 SGX_ROOT_KEY 不再绑定） */
   const code = toml.split('\n').filter((l) => !l.trim().startsWith('#')).join('\n');
   assert.doesNotMatch(code, /SGX_ACCOUNT_|SGX_ROOT_KEY|D1_ACCOUNT_AUTH|D1_ROOT_AUTH/);
   for (const ep of ['AccountService', 'AccountVerifier']) assert.match(code, new RegExp(`service = "styrigx-account"\\nentrypoint = "${ep}"`), ep);
-  assert.ok(!SECRET_NAMES.includes('TURNSTILE_SECRET'), 'Turnstile 已删，不再绑定');
+  assert.doesNotMatch(code, /TURNSTILE_SECRET/, 'Turnstile 已删，不再绑定');
   /* 2026-10-21：整站通配（不带 * 的规则遇到查询串不命中，锁屏入口 /?lock=1 曾因此绕过网关）。
      只接 styrigx.com 一条通配，不许有精确规则；旧 blog / daymark / curio 子域名不再登记。子站在 styrigx.com/<站>/，由 styrigx.com/* 接住。
      旧图志域名的 301（合并 PR3 起）已于 P4-3 PR-1 删除，路由不再登记。
@@ -93,35 +88,6 @@ test('routeKey / pickHandler 与 Pages 一致', () => {
   assert.equal(pickHandler(mod, 'TRACE'), null);
 });
 
-test('resolveSecrets：绑定 → 字符串；字符串原样；其他绑定不动', async () => {
-  _resetSecretCache();
-  const kv = makeKv();
-  const env = { SGX_SPACE_PRIVATE: store('L'), SGX_SPACE_PASSWORD_PEPPER: 'P', KV_LOCK_DOOR: kv, D1_SPACE: authD1For(kv), KV_ACCOUNT_LOGIN: kv, SGX_SITE: 'space' };
-  const out = await resolveSecrets(env, 1000);
-  assert.equal(out.SGX_SPACE_PRIVATE, 'L');
-  assert.equal(out.SGX_SPACE_PASSWORD_PEPPER, 'P');
-  assert.equal(out.KV_LOCK_DOOR, kv);
-  assert.equal(out.SGX_SITE, 'space');
-  assert.equal('SGX_SPACE_RECOVERY_KEY' in out, false);
-  assert.equal(typeof env.SGX_SPACE_PRIVATE, 'object'); /* 不改原 env */
-});
-
-test('resolveSecrets：60 秒缓存；取值失败留空且不缓存', async () => {
-  _resetSecretCache();
-  let n = 0;
-  const counting = { get: async () => { n++; return 'v' + n; } };
-  assert.equal((await resolveSecrets({ SGX_SPACE_RECOVERY_KEY: counting }, 0)).SGX_SPACE_RECOVERY_KEY, 'v1');
-  assert.equal((await resolveSecrets({ SGX_SPACE_RECOVERY_KEY: counting }, 30_000)).SGX_SPACE_RECOVERY_KEY, 'v1');
-  assert.equal((await resolveSecrets({ SGX_SPACE_RECOVERY_KEY: counting }, 61_000)).SGX_SPACE_RECOVERY_KEY, 'v2');
-
-  _resetSecretCache();
-  let fail = true;
-  const flaky = { get: async () => { if (fail) throw new Error('x'); return 'ok'; } };
-  assert.equal((await resolveSecrets({ SGX_SPACE_RECOVERY_KEY: flaky }, 0)).SGX_SPACE_RECOVERY_KEY, '');
-  fail = false;
-  assert.equal((await resolveSecrets({ SGX_SPACE_RECOVERY_KEY: flaky }, 1)).SGX_SPACE_RECOVERY_KEY, 'ok');
-});
-
 /* 页面：网关验会话，放行后回源（这里把 fetch 换成假的 Pages） */
 async function withOrigin(html, fn, init = {}) {
   const orig = globalThis.fetch;
@@ -135,7 +101,6 @@ async function withOrigin(html, fn, init = {}) {
 const PAGE = '<!DOCTYPE html><html lang="zh"><body><div id="desk">desk</div>x</body></html>';
 
 test('页面（v5 S3）：未登录访问内页 → 回源 200、标 locked，不 302', async () => {
-  _resetSecretCache();
   await withOrigin(PAGE, async (calls) => {
     const res = await worker.fetch(new Request('https://styrigx.com/display/'), baseEnv(), CTX);
     assert.equal(res.status, 200);
@@ -147,7 +112,6 @@ test('页面（v5 S3）：未登录访问内页 → 回源 200、标 locked，�
 });
 
 test('页面：未登录首页 → 回源、锁屏态、内容原样（v5 S3 不再瘦身），会话标记只出现一次', async () => {
-  _resetSecretCache();
   /* 回源拿到的页面 Pages 已注入过一次 */
   const fromPages = PAGE.replace('<html lang="zh">', '<html data-sgx-lock-session="locked" lang="zh">');
   await withOrigin(fromPages, async (calls) => {
@@ -164,10 +128,9 @@ test('页面：未登录首页 → 回源、锁屏态、内容原样（v5 S3 不
   });
 });
 
-test('页面：进门的人（锁屏密码 / 分享链接进门都一样）访问门内页 → 回源、valid，带 cookie 回源，页面上没有等级标记', async () => {
-  for (const by of ['password', 'link']) {
-    _resetSecretCache();
-    const cookie = 'sgx-space-session=' + (await testLockSession(PRIV, 0, by));
+test('页面：有 v6 会话的人（root / 站长 / 普通用户都一样）访问页面 → 回源、valid，带 cookie 回源，页面上没有等级标记', async () => {
+  for (const by of ['root', 'styrigx', 'alice']) {
+    const cookie = 'sgx-session=' + by;
     await withOrigin(PAGE, async (calls) => {
       const res = await worker.fetch(new Request('https://styrigx.com/security/lock/', { headers: { Cookie: cookie } }), baseEnv(), CTX);
       assert.equal(res.status, 200, by);
@@ -182,8 +145,7 @@ test('页面：进门的人（锁屏密码 / 分享链接进门都一样）访�
 });
 
 test('页面：Pages 的跳转（补尾斜杠）原样交回', async () => {
-  _resetSecretCache();
-  const cookie = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'password'));
+  const cookie = 'sgx-session=styrigx';
   await withOrigin('', async () => {
     const res = await worker.fetch(new Request('https://styrigx.com/display', { headers: { Cookie: cookie } }), baseEnv(), CTX);
     assert.equal(res.status, 308);
@@ -202,7 +164,6 @@ test('stripSessionAttrs：只清网关会写的会话标记，保留构建标记
 });
 
 test('页面：锁屏首页保留 <head> 里的分享卡片 meta 和 <html> 上的构建标记', async () => {
-  _resetSecretCache();
   const head = '<head><meta property="og:image" content="https://styrigx.com/og.png"><meta name="twitter:card" content="summary_large_image"><link rel="icon" type="image/svg+xml" href="/favicon.svg"></head>';
   const page = '<!DOCTYPE html><html lang="zh" data-sgx-build="abc1234" data-sgx-lock-session="locked">' + head + '<body>desk x</body></html>';
   await withOrigin(page, async () => {
@@ -217,7 +178,6 @@ test('页面：锁屏首页保留 <head> 里的分享卡片 meta 和 <html> 上�
 });
 
 test('锁着也公开：标签页图标 / 分享卡片图（Pages 中间件放行，不跳锁屏）', async () => {
-  _resetSecretCache();
   for (const p of ['/favicon.ico', '/favicon.svg', '/og.png']) {
     let called = 0;
     const res = await pagesMw.onRequest({
@@ -237,15 +197,14 @@ test('锁着也公开：标签页图标 / 分享卡片图（Pages 中间件放�
 });
 
 test('所有响应带 X-SGX-Runtime: worker，且不改动原有头和正文', async () => {
-  _resetSecretCache();
-  const res = await worker.fetch(new Request('https://styrigx.com/api/lock-session-check'), baseEnv(), CTX);
+  const res = await worker.fetch(new Request('https://styrigx.com/api/status'), baseEnv(), CTX);
   assert.equal(res.status, 401);
   assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
   assert.deepEqual(await res.json(), { ok: false });
 });
 
 test('非 styrigx.com 的 /api 请求 → 403（与 Pages 生产规则一致）', async () => {
-  const res = await worker.fetch(new Request('https://styrigx-space-core.example.workers.dev/api/lock-session-check'), baseEnv(), CTX);
+  const res = await worker.fetch(new Request('https://styrigx-space-core.example.workers.dev/api/status'), baseEnv(), CTX);
   assert.equal(res.status, 403);
 });
 
@@ -264,9 +223,8 @@ async function viaPages(req, env) {
   return pagesMw.onRequest(ctx);
 }
 async function same(makeReq, role) {
-  _resetSecretCache();
   const headers = {};
-  if (role) headers.Cookie = 'sgx-space-session=' + (await testLockSession(PRIV, 0, role));
+  if (role) headers.Cookie = 'sgx-session=' + role;
   const a = await worker.fetch(makeReq(headers), baseEnv(), CTX);
   const b = await viaPages(makeReq(headers), baseEnv());
   assert.equal(a.status, b.status);
@@ -275,26 +233,26 @@ async function same(makeReq, role) {
   return a;
 }
 
-test('一致性：GET /api/lock-session-check 无会话 / 所有进门的人', async () => {
-  const mk = (h) => new Request('https://styrigx.com/api/lock-session-check', { headers: h });
+test('一致性：GET /api/space-audit 无会话 401 / 档不够 403 / 站长与 root 两边一样', async () => {
+  const mk = (h) => new Request('https://styrigx.com/api/space-audit', { headers: h });
   assert.equal((await same(mk)).status, 401);
-  assert.equal((await same(mk, 'link')).status, 200);
-  assert.equal((await same(mk, 'password')).status, 200);
+  assert.equal((await same(mk, 'alice')).status, 403);
+  await same(mk, 'styrigx');
+  await same(mk, 'root');
 });
 
 test('一致性：无会话调非白名单接口', async () => {
-  await same((h) => new Request('https://styrigx.com/api/lock-all-devices', { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: '{}' }), 'link');
+  await same((h) => new Request('https://styrigx.com/api/lock-all-devices', { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: '{}' }), 'alice');
   await same((h) => new Request('https://styrigx.com/api/geo-nope', { headers: h }));
 });
 
 test('账号路径（/api/account、头像、云同步、数字健康）不在网关路由表；有会话打过来但没绑 ACCOUNT → 503 upstream（不落回 404 / 回源）', async () => {
   for (const p of ['/api/account', '/api/avatar', '/api/prefs', '/api/wellbeing']) assert.equal(API_ROUTES.has(p), false, p);
-  _resetSecretCache();
   const env = baseEnv();
-  const ck = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'password'));
+  const ck = 'sgx-session=root';
   await withOrigin('X', async (calls) => {
-    for (const p of ['/api/account', '/api/avatar', '/api/prefs', '/api/wellbeing']) {
-      const res = await worker.fetch(new Request('https://styrigx.com' + p, { headers: { Cookie: ck } }), env, CTX);
+    for (const [m, p] of [['POST', '/api/account/devices'], ['PUT', '/api/avatar'], ['GET', '/api/prefs'], ['POST', '/api/wellbeing']]) {
+      const res = await worker.fetch(new Request('https://styrigx.com' + p, { method: m, headers: { Cookie: ck } }), env, CTX);
       assert.equal(res.status, 503, p);
       assert.deepEqual(await res.json(), { ok: false, error: 'upstream' }, p);
     }
@@ -338,7 +296,6 @@ test('Pages 静态 _worker.js：pages.dev 地址 301 到 styrigx.com，styrigx.c
 });
 
 test('头像 /avatar/*：页面路径公开，转给账号 Worker（ACCOUNT，不带身份头；尺寸对不对由账号 Worker 判）', async () => {
-  _resetSecretCache();
   const seen = [];
   const env = Object.assign(baseEnv(), {
     ACCOUNT: { fetch: async (req) => { seen.push(req); return new Response('IMG', { headers: { 'Content-Type': 'image/webp', 'X-SGX-Runtime': 'account' } }); } },
@@ -358,7 +315,6 @@ test('头像 /avatar/*：页面路径公开，转给账号 Worker（ACCOUNT，�
 });
 
 test('预览（作为 Pages 的 _worker.js 运行，有 env.ASSETS）：页面读 ASSETS 不发子请求；账号路径照样只转 ACCOUNT（组合预览入口 tests/space/e2e/helpers/preview-worker.js 接上）', async () => {
-  _resetSecretCache();
   const seen = [];
   const acct = [];
   const env = {

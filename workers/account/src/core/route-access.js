@@ -4,8 +4,8 @@
  * 规则：
  * 1. 只认表里逐条写出的「主机 + 方法 + 路径」；不在表里的接口一律拒绝（fail closed）。页面和静态文件（不在 /api/、/<子站>/api/ 下）
  *    一律 public，不进表（同 v5 S3：整站放开）。
- * 2. 路径参数只有三种，各自精确一段：/s/:code（分享短链，一段）、/s/:token/:source（代理订阅，两段，主机 proxy-rules.styrigx.com）、
- *    /avatar/:file。/s/ 一段与两段分开列：删分享（P4）只动一段的那条，两段的代理订阅不受影响。
+ * 2. 路径参数只有两种，各自精确一段：/s/:token/:source（代理订阅，两段，主机 proxy-rules.styrigx.com）、/avatar/:file。
+ *    （/s/:code 分享短链一段的那条 v6 P4 删除，两段的代理订阅不受影响。）
  * 3. 一条路由下有多个 action / op 的（POST { action }），level 是进这个接口的最低一档；某个 action 要更高的档写在 actions 里，
  *    由接口在读完 body 后按同一张表判断（levelOf(method, path, { action })）。网关 admit 只看路由这一档。
  * 4. 删除两级（定稿 §十一、Muse 复盘 4）：单条内容删除（del: 'item'）归写组；批量 / 结构删除（del: 'bulk'）只属 root。
@@ -49,31 +49,10 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'GET', path: '/api/find', level: 'public', worker: 'space-core', why: '关键词搜索，只回公开页面元数据（IP 限流）' }),
   R({ method: 'GET', path: '/api/geo', level: 'public', worker: 'space-core', why: '只回调用者自己的城市 / 时区' }),
   R({ method: 'GET', path: '/api/status', level: 'status', worker: 'space-core', why: '旷野状态卡 / 监测页（转 styrigx-status /summary）' }),
-  R({ method: 'GET', path: '/api/space-audit', level: 'root', worker: 'space-core', why: '进站凭证使用审计（含 IP 前缀）', retire: 'P4（审计并入 account_user_audit）' }),
-  R({ method: 'POST', path: '/api/lock-now', level: 'public', worker: 'space-core', why: '只清本机会话（幂等、不验证）', retire: 'P4（v6 lock 清栈并删服务端会话行）' }),
-  R({ method: 'GET', path: '/api/lock-now', level: 'public', worker: 'space-core', why: '只回 405（立即锁定只收 POST）', retire: 'P4' }),
-  R({ method: 'GET', path: '/api/lock-entry', level: 'public', worker: 'space-core', why: '锁屏问设了哪些进站凭证（只回布尔）', retire: 'P4' }),
-  R({ method: 'GET', path: '/api/lock-session-check', level: 'public', worker: 'space-core', why: '前端问「进站了吗」；v6 由 whoami / GET /api/account 取代', retire: 'P4' }),
-  R({ method: 'POST', path: '/api/lock-password', level: 'public', worker: 'space-core', why: '进站密码：verify 公开（登录）；set / change / remove 改的是 styrigx 自己的密码',
-    actions: { verify: 'public', set: 'user', change: 'user', remove: 'user' }, retire: 'P4（v6：su styrigx / passwd）' }),
-  R({ method: 'POST', path: '/api/lock-passkey', level: 'public', worker: 'space-core', why: '进站通行密钥：challenge / auth 公开（登录）；增删改列的是 styrigx 自己的通行密钥',
-    actions: { challenge: 'public', auth: 'public', register: 'user', list: 'user', rename: 'user', delete: 'user' }, retire: 'P4（v6：su styrigx / passkey）' }),
-  R({ method: 'GET', path: '/api/lock-credentials', level: 'user', worker: 'space-core', why: '列进站凭证是否已设置', rescue: true, retire: 'P4' }),
-  R({ method: 'POST', path: '/api/lock-reauth', level: 'user', worker: 'space-core', why: 'sudo -v 的票状态 / 清票', retire: 'P4（sudo -v 删除）' }),
-  R({ method: 'POST', path: '/api/lock-all-devices', level: 'user', worker: 'space-core', why: 'lock --all：自己的全部会话回访客', retire: 'P4（v6：lock / 改密码作废其他会话）',
-    decided: 'Gray 2026-11-11 定 user：v6 只作废自己的会话，不保留复验' }),
-  R({ method: 'POST', path: '/api/lock-reset', level: 'public', worker: 'space-core', why: '恢复钥匙换 reset 票（sudo styrigx reset）', retire: 'P3（恢复钥匙合一 + 救援入口）' }),
-  R({ method: 'POST', path: '/api/space-auth', level: 'public', worker: 'space-core', why: '进站恢复钥匙校验（前端已不用）', retire: 'P3' }),
-
-  /* ---------- 分享短链（space-core routeShare）：/s/ 一段 ---------- */
-  R({ method: 'GET', path: '/s/:code', level: 'public', worker: 'space-core', why: '分享短链：码就是凭证（一段）', retire: 'P4（整套删；删后一段 404，两段仍走代理订阅）' }),
-  R({ method: 'HEAD', path: '/s/:code', level: 'public', worker: 'space-core', why: '同上（链接预览探测）', retire: 'P4' }),
-  R({ method: 'GET', path: '/api/share', level: 'root', worker: 'space-core', why: '只回 405（管理只收 POST）', retire: 'P4' }),
-  R({ method: 'POST', path: '/api/share', level: 'root', worker: 'space-core', why: '分享链接新建 / 列表 / 作废；v6 给别人权限改为 root useradd -e',
-    actions: { create: 'root', list: 'root', revoke: 'root' }, retire: 'P4（删前盘点有效链接逐个处理）' }),
+  R({ method: 'GET', path: '/api/space-audit', level: 'root', worker: 'space-core', why: '进站凭证使用审计（含 IP 前缀）' }),
+  /* v6 P4（定稿 v5.2 §十三）：进站接口（lock-* / space-auth）与分享短链（/s/:code、/api/share）删除 */
 
   /* ---------- 账号 styrigx-account（网关 FORWARDING 转来；workers/account/src/router.js API_ROUTES） ---------- */
-  R({ method: 'GET', path: '/api/account', level: 'public', worker: 'account', why: '账号终端状态（访客也要读提示符状态）' }),
   R({ method: 'POST', path: '/api/identity', level: 'public', worker: 'account', why: 'v6 身份命令（P2）：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>；P3 救援入口 rescue；每个 action 一档',
     actions: {
       whoami: 'public', 'su-challenge': 'public', su: 'public', exit: 'public', idle: 'public', lock: 'public', rescue: 'public',
@@ -82,14 +61,7 @@ export const ROUTE_ACCESS = Object.freeze([
       useradd: 'root', userdel: 'root', usermod: 'root', 'passwd-user': 'root',
     },
     rescue: true, rescueActions: ['whoami', 'exit', 'lock', 'passwd', 'passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete', 'groups'] }),
-  R({ method: 'POST', path: '/api/account/session', level: 'public', worker: 'account', why: '旧 sudo root 登录；v6 = su root（wheel + root 凭据），root 不能从访客直接登录',
-    actions: { 'passkey-challenge': 'wheel', passkey: 'wheel', password: 'wheel', end: 'public' }, retire: 'P4（v6 su / exit）' }),
-  R({ method: 'POST', path: '/api/account/reauth', level: 'root', worker: 'account', why: 'sudo root reauth（3 分钟票）', retire: 'P4（sudo root reauth 删除，改 sudo 每次重验）' }),
-  R({ method: 'POST', path: '/api/account/reset', level: 'public', worker: 'account', why: '恢复密钥换 reset 票；之后的写只在救援会话里',
-    actions: { 'recovery-key': 'public', 'password-set': 'root', 'passkey-list': 'root', 'passkey-add-challenge': 'root', 'passkey-add': 'root', 'passkey-delete': 'root', finish: 'root', end: 'public' },
-    rescue: true, retire: 'P3（救援入口直接签 15 分钟一次性 root 会话）' }),
-  R({ method: 'POST', path: '/api/account/keys', level: 'root', worker: 'account', why: '账号钥匙 = root 的密码 / 通行密钥（v6 迁为 root 凭据）', rescue: true,
-    actions: { 'passkey-list': 'root', 'password-set': 'root', 'passkey-add-challenge': 'root', 'passkey-add': 'root', 'passkey-delete': 'root', 'passkey-rename': 'root' } }),
+  /* v6 P4：旧账号会话（GET /api/account、/session、/reauth、/reset、/keys）删除 */
   R({ method: 'POST', path: '/api/account/devices', level: 'user', worker: 'account', why: '已登录设备 = 自己的会话（v6 who 只看自己）',
     actions: { list: 'user', revoke: 'user', 'revoke-all': 'user' }, decided: 'Gray 2026-11-11 定 user：管自己的会话；root 看全部由 who 做（P2）' }),
   R({ method: 'POST', path: '/api/account/grants', level: 'root', worker: 'account', why: '应用授权 app allow | deny（归 root，定稿 §十）',
@@ -167,9 +139,8 @@ export const SERVICE_ONLY = Object.freeze([
   { worker: 'ai', entry: 'GET /healthz', caller: 'styrigx-status 监测', why: '健康检查' },
   { worker: 'status', entry: 'GET /summary', caller: 'space-core GET /api/status（STATUS）', why: '监测数据（status 组）' },
   { worker: 'account', entry: 'AccountService.fetch', caller: 'space-core FORWARDING（ACCOUNT）', why: '上表 /api/account*、/api/avatar*、/api/profile、/api/prefs、/api/wellbeing、/avatar/*' },
-  { worker: 'account', entry: 'AccountVerifier.authorize / admit', caller: 'space-core（ACCOUNT_VERIFIER）', why: '旧授权结论 / v6 新会话判定（只读）' },
-  { worker: 'space-core', entry: 'SpaceVerifier.session / conclusion', caller: 'curio-core、daymark-core（SPACE）', why: '旧进站会话结论（P4 后改问账号）' },
-  { worker: 'space-core', entry: 'ShareJanitor.purgeShareLinks', caller: 'styrigx-status 每日一轮（JOB_SPACE）', why: '清过期分享链接（P4 随分享删）' },
+  { worker: 'account', entry: 'AccountVerifier.admit / auditRoot', caller: 'space-core（ACCOUNT_VERIFIER）', why: 'v6 会话判定（只读）/ root 特权操作留痕（v6 P4 起 authorize 删除）' },
+  { worker: 'space-core', entry: 'SpaceVerifier.conclusion / admit / auditRoot', caller: 'curio-core、daymark-core（SPACE）', why: 'conclusion 自 v6 P4 起一律 denied；admit / auditRoot 原样转给账号 Worker（v6 P4 起 session 与 ShareJanitor 删除）' },
   { worker: 'account', entry: 'AccountJanitor.purgeExpiredUsers', caller: 'styrigx-status 每日一轮（JOB_ACCOUNT）', why: '到期满 30 天的用户自动删除（v6 P2c）' },
   { worker: 'proxy-rules', entry: 'ProxyAdmin.*', caller: 'account POST /api/account/proxy（PROXY）', why: '代理订阅管理（root 档在调用方）' },
   { worker: 'curio-core / daymark-core / ai', entry: 'HourlyJob.run', caller: 'styrigx-status 每小时一轮', why: '搜索索引 / 照片清理等定时任务' },
@@ -192,7 +163,6 @@ function canonicalPath(host, p) {
     if (p === '/' || p === '/healthz') return p;
     return /^\/[^/]/.test(p) && !p.startsWith('/s/') ? '/:rules' : p;
   }
-  if (/^\/s\/[^/]+$/.test(p)) return '/s/:code';
   if (/^\/avatar\/[^/]+$/.test(p)) return '/avatar/:file';
   return p;
 }

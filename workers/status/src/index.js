@@ -4,7 +4,7 @@
  *     "* * * * *"   每分钟一轮检查（src/monitor.js runOnce）
  *     "41 * * * *"  每小时一次读 Cloudflare 用量（src/usage.js runUsage；没配 SGX_CF_USAGE_TOKEN 就什么都不做），
  *                   同一轮经服务绑定叫 daymark-core、curio-core、ai 的每小时任务（src/hourly.js，2026-11-10；它们不再自带 Cron）；
- *                   03:00 CST（UTC 19 点）那一轮另经 JOB_SPACE 清理过期分享链接（src/daily.js，v5 S2；不另加 Cron）
+ *                   03:00 CST（UTC 19 点）那一轮另经 JOB_ACCOUNT 清理到期用户（src/daily.js，v6 P2c；不另加 Cron；v6 P4 删 JOB_SPACE）
  *   fetch：只接网关服务绑定转来的 GET /summary（没有公开地址，见 wrangler.toml）
  *     → 200 { ok, now, today, all_up, sites: [...], incidents: [...], usage, usage_reason, quota, quota_reason }
  *       （前几项见 monitor.js summary；quota / quota_reason = 今天的免费额度操作次数，src/quota.js readQuota，

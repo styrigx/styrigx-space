@@ -34,7 +34,7 @@ function fakeProxy() {
 
 async function setup() {
   _resetSecretCache();
-  const env = { SGX_ENV: 'production', SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: ORIGIN, SGX_ACCOUNT_PASSWORD_PEPPER: PEP, SGX_SPACE_PASSWORD_PEPPER: 'pepper-space-test',
+  const env = { SGX_ENV: 'production', SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: ORIGIN, SGX_ACCOUNT_PASSWORD_PEPPER: PEP,
     D1_ACCOUNT: makeAccountD1(), PROXY: fakeProxy() };
   const raw = env.D1_ACCOUNT.raw;
   const addUser = async (uid, name, groups) => {
@@ -155,8 +155,7 @@ test('AccountVerifier.admit 带 action：按 action 的档、回答带回 action
   assert.equal((await a(rt, 'GET', '/curio/api/export')).allowed, true);
   assert.equal((await a(sty, 'DELETE', '/daymark/api/collections')).allowed, false, '删整个专题 = root');
   assert.equal((await a(sty, 'DELETE', '/daymark/api/quotes')).allowed, true, '删一句 = 写组');
-  assert.equal((await a(sty, 'POST', '/api/share')).allowed, false);
-  assert.equal((await a(rt, 'POST', '/api/share')).allowed, true);
+  assert.equal((await a(rt, 'POST', '/api/share')).reason, 'not-listed', '分享短链 v6 P4 删除：表里没有这条');
   assert.equal((await a(sty, 'GET', '/api/space-audit')).allowed, false);
   assert.equal((await a(rt, 'GET', '/api/space-audit')).allowed, true);
   assert.equal((await a(ali, 'POST', '/curio/api/music-play')).allowed, true, 'listen');

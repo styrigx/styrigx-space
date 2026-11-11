@@ -1,107 +1,87 @@
 /**
- * 账号 Worker 命名入口（workers/account/src/rpc/account-service.js、rpc/account-verifier.js、gate.js；部署入口 index.js；账号拆分 PR3）：
- * - index.js：默认导出 = app.js 的 default（一律 404），另导出 AccountService / AccountVerifier（只核对源码，单测不 import index.js）
- * - AccountService：只信网关转发来的身份头（白名单校验，lib/gateway.js readLockIdentity），没有任何回调网关的绑定；
- *   路由 = /api/account（状态）+ /api/account/* 六个入口 + 四个账号数据接口；最小门（lockIdentityDenial）结论同网关的门
- * - 信任边界：默认 fetch 一律 404（伪造的 x-styrigx-* 头不起作用）；AccountService 无条件信任这些头，
- *   前提是网关剥掉入站同名头（方案第 3 节第一道保险，forwarding.test 覆盖）
- * - AccountVerifier.authorize(cookieHeader, clientContext, opts)（P2-1）：授权结论 { ok, reason, deviceId, scopes, reauth }；
- *   opts 只认 reauth === true；坏参数、缺钥匙、账号库出错都不抛
- * - 取消授权后各写接口（个人资料、云同步、头像、数字健康）经 AccountService 立即拦下（/api/account/grants 本身见 api-grants.test.mjs）
- *
+ * 账号 Worker 命名入口（workers/account/src/rpc/account-service.js、rpc/account-verifier.js、gate.js；部署入口 index.js）。
+ * v6 P4（定稿 v5.2 §十三）起只认 v6 会话（sgx-session）：旧进站身份头（X-Styrigx-Space-*）、旧账号会话（sgx-account-session）、
+ * AccountVerifier.authorize（作用域结论）与 /api/account 状态、session / reauth / reset / keys 四个入口全部删除，对应用例一并删除。
+ * - index.js：默认导出 = app.js 的 default（一律 404），另导出 AccountService / AccountVerifier / AccountJanitor
+ * - AccountService：路由表；没有 v6 身份 → /api/* 401 {ok:false}（PUBLIC_API 除外）；旧身份头 / 旧账号 cookie 一律不算；v6 会话照常
+ * - 默认 fetch 一律 404、不读 env；账号 Worker 没有回调网关的代码
  * 运行：node --test tests/workers/account/entrypoints.test.mjs
  */
 import './_cf-workers.mjs';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { testLockSession } from '../space-core/_tickets.mjs';
-import { genKeyPair, postReq } from '../_harness.mjs';
 import { makeAccountD1 } from './_d1.mjs';
-import { K, keys, idHeaders, accSession, reauthTicket, resetTicket, seedPassword, setEpoch, one, PEPPER, RECOVERY_KEY, TEST_DEVICE_ID, pickCookie } from './_fixtures.mjs';
 
 const SRC = '../../../workers/account/src/';
 const { WorkerEntrypoint } = await import('cloudflare:workers');
 const app = await import(SRC + 'app.js');
 const router = await import(SRC + 'router.js');
-/* 原 index.js 的两样（默认 fetch、接口路由表）、原 entrypoints.js 的命名入口和门，2026-11-02 起分在 app / router / rpc / gate */
 const index = { default: app.default, API_ROUTES: router.API_ROUTES };
 const ep = { ...(await import(SRC + 'rpc/account-service.js')), ...(await import(SRC + 'rpc/account-verifier.js')), ...(await import(SRC + 'gate.js')) };
+const stack = await import(SRC + 'core/identity-stack.js');
 const { readFileSync } = await import('node:fs');
 const { _resetSecretCache } = await import(SRC + 'secrets.js');
 
-await keys();
-const { priv: LOCK_PRIV, pub: LOCK_PUB } = await genKeyPair();
 const CTX = { waitUntil() {} };
 const ORIGIN = 'https://styrigx.com';
+const OLD_HEADERS = { 'X-Styrigx-Space-Session': '1', 'X-Styrigx-Space-By': 'password', 'X-Styrigx-Space-Level': 'password', 'X-Styrigx-Client-Address': '10.9.9.9' };
 
 beforeEach(() => _resetSecretCache());
 
-/** 账号 Worker env：账号库（一个绑定 D1_ACCOUNT）+ 账号钥匙；没有任何网关绑定（calls 留着证明没人回调网关） */
+/** 账号 Worker env：账号库 + 账号 pepper；styrigx（uid 1000）一个用户 */
 function makeEnv(over = {}) {
   const db = makeAccountD1();
-  const calls = [];
-  const env = {
+  db.raw.prepare("INSERT INTO account_users (uid, name, avatar, expires_at, epoch, disabled, created_at) VALUES (1000, 'styrigx', '', 0, 0, 0, 1)").run();
+  for (const g of ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write']) db.raw.prepare('INSERT INTO account_user_groups (uid, grp, added_at) VALUES (1000, ?, 1)').run(g);
+  return {
     SGX_ENV: 'production',
     D1_ACCOUNT: db,
     KV_PROFILE: { get: async () => null, getWithMetadata: async () => ({ value: null, metadata: null }), put: async () => {}, delete: async () => {} },
     ASSETS: { fetch: async () => new Response('DEFAULT', { status: 200 }) },
-    SGX_ACCOUNT_PRIVATE: K.ACCOUNT.priv,
-    SGX_ACCOUNT_PUBLIC: K.ACCOUNT.pub,
-    SGX_ACCOUNT_RECOVERY_KEY: RECOVERY_KEY,
-    SGX_ACCOUNT_PASSWORD_PEPPER: PEPPER,
+    SGX_ACCOUNT_PASSWORD_PEPPER: 'pep',
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: ORIGIN,
     ...over,
   };
-  return { env, calls };
+}
+async function v6Cookie(env) {
+  const s = await stack.issueSession(env, { uid: 1000, epoch: 0 });
+  return 'sgx-session=' + s.token;
 }
 
 const service = (env) => new ep.AccountService(CTX, env);
 const req = (path, o = {}) => new Request(ORIGIN + path, { method: o.method || 'GET', headers: { Origin: ORIGIN, ...(o.headers || {}) }, body: o.body });
-const accCookie = async (o) => 'sgx-account-session=' + (await accSession('password', 0, Date.now(), o));
 
 /* ---------------- 导出 ---------------- */
 
-test('index.js：默认导出就是 app.js 的 default；AccountService / AccountVerifier / AccountJanitor 是 WorkerEntrypoint 子类', () => {
+test('index.js：默认导出就是 app.js 的 default；AccountService / AccountVerifier / AccountJanitor 是 WorkerEntrypoint 子类；AccountVerifier 没有 authorize（v6 P4）', () => {
   const entry = readFileSync(new URL(SRC + 'index.js', import.meta.url), 'utf8');
   assert.match(entry, /export \{ default \} from '\.\/app\.js'/);
   assert.match(entry, /export \{ AccountService \} from '\.\/rpc\/account-service\.js'/);
   assert.match(entry, /export \{ AccountVerifier \} from '\.\/rpc\/account-verifier\.js'/);
   assert.match(entry, /export \{ AccountJanitor \} from '\.\/rpc\/account-janitor\.js'/);
-  assert.equal((entry.match(/^export /gm) || []).length, 4, '只接线：四条再导出（v6 P2c 加 AccountJanitor）');
+  assert.equal((entry.match(/^export /gm) || []).length, 4, '只接线：四条再导出');
   assert.ok(new ep.AccountService(CTX, {}) instanceof WorkerEntrypoint);
   assert.ok(new ep.AccountVerifier(CTX, {}) instanceof WorkerEntrypoint);
   assert.equal(typeof ep.AccountService.prototype.fetch, 'function');
-  assert.equal(typeof ep.AccountVerifier.prototype.authorize, 'function');
-  assert.equal(ep.AccountVerifier.prototype.session, undefined, '命名 v2：session() 随网关首帧提示一起删');
-  assert.equal(ep.AccountVerifier.prototype.accountSession, undefined);
-  assert.equal(typeof ep.AccountVerifier.prototype.authorize, 'function');
+  assert.equal(typeof ep.AccountVerifier.prototype.admit, 'function');
+  assert.equal(typeof ep.AccountVerifier.prototype.auditRoot, 'function');
+  assert.equal(ep.AccountVerifier.prototype.authorize, undefined, 'v6 P4：旧账号会话的作用域结论删除');
   assert.equal(ep.AccountVerifier.prototype.fetch, undefined);
+  assert.equal(ep.checkAuthorize, undefined);
 });
 
-test('路由表：AccountService = /api/account + 七个入口子路径 + 四个账号数据接口 + v6 身份命令 /api/identity（router.js API_ROUTES 同一张表）', () => {
-  assert.deepEqual([...index.API_ROUTES.keys()].sort(), ['/api/account', '/api/account/devices', '/api/account/grants', '/api/account/keys', '/api/account/proxy', '/api/account/reauth',
-    '/api/account/reset', '/api/account/session', '/api/avatar', '/api/identity', '/api/prefs', '/api/profile', '/api/wellbeing']);
+test('路由表（v6 P4）：/api/account/devices、grants、proxy + 四个账号数据接口 + /api/identity；/api/account 状态与 session / reauth / reset / keys 删除', () => {
+  assert.deepEqual([...index.API_ROUTES.keys()].sort(), ['/api/account/devices', '/api/account/grants', '/api/account/proxy',
+    '/api/avatar', '/api/identity', '/api/prefs', '/api/profile', '/api/wellbeing']);
   assert.equal(ep.SERVICE_API_ROUTES, index.API_ROUTES);
 });
 
 /* ---------------- AccountService ---------------- */
 
-test('AccountService：进站会话身份头 → GET /api/account 200（X-SGX-Runtime: account、no-store），不回调网关', async () => {
-  const { env, calls } = makeEnv();
-  const r = await service(env).fetch(req('/api/account', { headers: idHeaders() }));
-  assert.equal(r.status, 200);
-  const b = await r.json();
-  assert.equal(b.ok, true);
-  assert.deepEqual(b.configured, { password: false, passkey: false });
-  assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
-  assert.match(r.headers.get('Cache-Control'), /no-store/);
-  assert.deepEqual(calls, []);
-});
-
-test('AccountService：没有身份头 → /api/* 401 {ok:false}（最小门，PUBLIC_API 的 GET /api/wellbeing 除外）；头像文件照旧公开', async () => {
-  const { env, calls } = makeEnv();
-  for (const [m, p] of [['GET', '/api/account'], ['POST', '/api/account'], ['GET', '/api/prefs'], ['POST', '/api/wellbeing'], ['GET', '/api/wellbeing/x'], ['PUT', '/api/avatar']]) {
+test('AccountService：没有 v6 身份 → /api/* 401 {ok:false}（最小门，PUBLIC_API 除外）；头像文件照旧公开', async () => {
+  const env = makeEnv();
+  for (const [m, p] of [['GET', '/api/account'], ['POST', '/api/account/devices'], ['GET', '/api/prefs'], ['POST', '/api/wellbeing'], ['GET', '/api/wellbeing/x'], ['PUT', '/api/avatar']]) {
     const r = await service(env).fetch(req(p, { method: m, body: m === 'GET' ? undefined : '{}' }));
     assert.equal(r.status, 401, m + ' ' + p);
     assert.deepEqual(await r.json(), { ok: false });
@@ -109,64 +89,34 @@ test('AccountService：没有身份头 → /api/* 401 {ok:false}（最小门，P
   const av = await service(env).fetch(req('/avatar/96.webp'));
   assert.equal(av.status, 200);
   assert.equal(await av.text(), 'DEFAULT');
-  assert.deepEqual(calls, []);
 });
 
-test('AccountService：没有 X-Styrigx-Space-Session: 1 一律当作没有进站会话 → 401（只有 Role / By 头、Session 不是 1 都不算）', async () => {
-  const { env } = makeEnv();
-  for (const h of [
-    { 'X-Styrigx-Space-Level': 'password' },
-    { 'X-Styrigx-Space-Level': 'password', 'X-Styrigx-Space-By': 'password' },
-    { 'X-Styrigx-Space-By': 'password' },
-    { 'X-Styrigx-Space-Session': '0' },
-    { 'X-Styrigx-Space-Session': 'true' },
-    { 'X-Styrigx-Space-Session': '' },
-    { 'X-Styrigx-Space-Session': '1,1' },
-    { 'X-Sgx-Legacy': 'password' },
-  ]) {
-    const r = await service(env).fetch(req('/api/account', { headers: h }));
-    assert.equal(r.status, 401, JSON.stringify(h));
+test('AccountService（v6 P4）：旧进站身份头、旧账号会话 cookie 一律不算 → 401', async () => {
+  const env = makeEnv();
+  for (const headers of [OLD_HEADERS, { ...OLD_HEADERS, Cookie: 'sgx-account-session=password.0.1.2.dev.sig' }, { Cookie: 'sgx-space-session=password.0.9999999999999.sig' }]) {
+    for (const [m, p] of [['GET', '/api/prefs'], ['POST', '/api/account/devices'], ['POST', '/api/account/grants']]) {
+      const r = await service(env).fetch(req(p, { method: m, headers, body: m === 'GET' ? undefined : '{"action":"list"}' }));
+      assert.equal(r.status, 401, m + ' ' + p + ' ' + JSON.stringify(headers));
+    }
   }
 });
 
-test('AccountService：不看外来的 X-Styrigx-Space-Level——进站会话（Session: 1）+ 任意 Level 也照常走到账号判断（/api/prefs 没账号会话 401 account、/api/account 读状态 200）', async () => {
-  const { env } = makeEnv();
-  const h = idHeaders({ role: 'guest', by: 'link', linkId: 'lktesttesttest01' });
-  let r = await service(env).fetch(req('/api/prefs', { headers: h }));
-  assert.equal(r.status, 401);
-  assert.equal((await r.json()).error, 'account');
-  r = await service(env).fetch(req('/api/account', { headers: h }));
-  assert.equal(r.status, 200);
-  assert.equal((await r.json()).session, null);
-  /* 账号会话有效就放行，不管外来的 Level 头写的是什么 */
-  r = await service(env).fetch(req('/api/prefs', { headers: { ...h, Cookie: await accCookie() } }));
-  assert.equal(r.status, 200);
-});
-
-test('AccountService：/api/prefs 的账号会话在本 Worker 验（账号库），不回调网关；没账号会话 401 account', async () => {
-  const { env, calls } = makeEnv();
-  let r = await service(env).fetch(req('/api/prefs', { headers: idHeaders() }));
-  assert.equal(r.status, 401);
-  assert.equal((await r.json()).error, 'account');
-  r = await service(env).fetch(req('/api/prefs', { headers: { ...idHeaders(), Cookie: await accCookie() } }));
+test('AccountService：v6 会话 → GET /api/prefs 200（X-SGX-Runtime: account、no-store），POST /api/account/devices list 200', async () => {
+  const env = makeEnv();
+  const ck = await v6Cookie(env);
+  let r = await service(env).fetch(req('/api/prefs', { headers: { Cookie: ck } }));
   assert.equal(r.status, 200);
   assert.equal((await r.json()).ok, true);
-  assert.deepEqual(calls, []);
-});
-
-test('AccountService：POST /api/account/session password 走通（签 session cookie），Secrets Store 绑定对象也能读', async () => {
-  const store = (v) => ({ get: async () => v });
-  const { env } = makeEnv({ SGX_ACCOUNT_PRIVATE: store(K.ACCOUNT.priv), SGX_ACCOUNT_PUBLIC: store(K.ACCOUNT.pub), SGX_ACCOUNT_PASSWORD_PEPPER: store(PEPPER), SGX_ACCOUNT_RECOVERY_KEY: store(RECOVERY_KEY) });
-  await seedPassword({ D1_ACCOUNT: env.D1_ACCOUNT }, 'right-password-1');
-  const r = await service(env).fetch(postReq(ORIGIN + '/api/account/session', { action: 'password', password: 'right-password-1' }, idHeaders()));
-  assert.equal(r.status, 200);
-  assert.ok(pickCookie(r, 'sgx-account-session'));
   assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
+  assert.match(r.headers.get('Cache-Control'), /no-store/);
+  r = await service(env).fetch(req('/api/account/devices', { method: 'POST', headers: { Cookie: ck, 'Content-Type': 'application/json' }, body: '{"action":"list"}' }));
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).devices.length, 1);
 });
 
 test('AccountService：处理中抛错 → 500 internal（仍打 X-SGX-Runtime）', async () => {
-  const { env } = makeEnv({ D1_ACCOUNT: { prepare() { throw new Error('boom'); } } });
-  const bad = new Request(ORIGIN + '/api/account', { headers: idHeaders() });
+  const env = makeEnv({ D1_ACCOUNT: { prepare() { throw new Error('boom'); } } });
+  const bad = new Request(ORIGIN + '/api/prefs');
   Object.defineProperty(bad, 'url', { get() { throw new TypeError('x'); } });
   const r = await service(env).fetch(bad);
   assert.equal(r.status, 500);
@@ -176,11 +126,11 @@ test('AccountService：处理中抛错 → 500 internal（仍打 X-SGX-Runtime�
 
 /* ---------------- 默认 fetch：一律 404（第二道保险） ---------------- */
 
-test('默认 fetch：任何路径一律 404，伪造的 x-styrigx-* 进站会话头 + 有效锁屏 cookie 也碰不到接口', async () => {
-  const { env } = makeEnv();
-  const ck = 'sgx-space-session=' + (await testLockSession(LOCK_PRIV, 0, 'password'));
-  for (const [m, p] of [['GET', '/api/account'], ['POST', '/api/account'], ['GET', '/api/wellbeing'], ['GET', '/api/prefs'], ['GET', '/avatar/32.webp']]) {
-    const r = await index.default.fetch(req(p, { method: m, headers: { ...idHeaders(), Cookie: ck }, body: m === 'POST' ? '{"action":"login-password"}' : undefined }), env, CTX);
+test('默认 fetch：任何路径一律 404，伪造的 x-styrigx-* 头 + cookie 也碰不到接口', async () => {
+  const env = makeEnv();
+  const ck = await v6Cookie(env);
+  for (const [m, p] of [['GET', '/api/account'], ['POST', '/api/identity'], ['GET', '/api/wellbeing'], ['GET', '/api/prefs'], ['GET', '/avatar/32.webp']]) {
+    const r = await index.default.fetch(req(p, { method: m, headers: { ...OLD_HEADERS, Cookie: ck }, body: m === 'POST' ? '{"action":"whoami"}' : undefined }), env, CTX);
     assert.equal(r.status, 404, m + ' ' + p);
     assert.equal((await r.json()).error, 'not-found');
     assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
@@ -190,87 +140,20 @@ test('默认 fetch：任何路径一律 404，伪造的 x-styrigx-* 进站会话
 test('默认 fetch：不读 env（不碰账号库 / 钥匙）', async () => {
   let touched = 0;
   const env = new Proxy({}, { get() { touched++; return undefined; } });
-  const r = await index.default.fetch(req('/api/account', { headers: idHeaders() }), env, CTX);
+  const r = await index.default.fetch(req('/api/prefs', { headers: OLD_HEADERS }), env, CTX);
   assert.equal(r.status, 404);
   assert.equal(touched, 0);
 });
 
-test('源码：账号 Worker 没有任何回调网关的代码（不读 env.AUTH、不 import 网关目录、没有 auth.js；gate.js 只读网关写的身份头）', async () => {
-  const { readdirSync, readFileSync, existsSync } = await import('node:fs');
+test('源码：账号 Worker 没有任何回调网关的代码（不读 env.AUTH、不 import 网关目录、没有 auth.js）；v6 P4 起不读旧进站身份头', async () => {
+  const { readdirSync, readFileSync: rf, existsSync } = await import('node:fs');
   const root = new URL(SRC, import.meta.url).pathname;
   assert.equal(existsSync(root + 'auth.js'), false);
   const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(d + e.name + '/') : [d + e.name]));
   for (const f of walk(root).filter((x) => x.endsWith('.js'))) {
-    const code = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-    assert.doesNotMatch(code, /env\.AUTH\b|env\[['"]AUTH['"]\]|SpaceVerifier|auth-gateway|D1_SPACE|SGX_LOCK_|SGX_SPACE_RECOVERY_KEY|lock_reset_switch/, f);
+    const code = rf(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    assert.doesNotMatch(code, /env\.AUTH\b|env\[['"]AUTH['"]\]|SpaceVerifier|auth-gateway|D1_SPACE|SGX_LOCK_|SGX_SPACE_RECOVERY_KEY|SGX_SPACE_PASSWORD_PEPPER|SGX_ACCOUNT_RECOVERY_KEY|lock_reset_switch|X-Styrigx-Space-Session|sgx-account-session/i, f);
   }
-});
-
-/* ---------------- AccountVerifier ---------------- */
-
-/* ---------------- AccountVerifier.authorize（P2-1） ---------------- */
-
-const ALL_SCOPES = ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'profile.write', 'wellbeing.write'];
-const DENY = (reason) => ({ ok: false, reason, deviceId: '', scopes: [], reauth: false });
-
-test('AccountVerifier.authorize：有效账号会话 → ok、deviceId、已授权的作用域（空库经 0005 = 全部）、reauth=false；不签发、纪元不变', async () => {
-  const { env, calls } = makeEnv();
-  const v = new ep.AccountVerifier(CTX, env);
-  const r = await v.authorize(await accCookie(), { ua: 'UA', country: 'JP', city: 'Tokyo' });
-  assert.deepEqual(r, { ok: true, reason: 'ok', deviceId: TEST_DEVICE_ID, scopes: ALL_SCOPES, reauth: false });
-  const ep0 = one(env, "SELECT value FROM account_epoch WHERE name = 'session'");
-  assert.ok(!ep0 || Number(ep0.value) === 0);
-  assert.deepEqual(calls, []);
-});
-
-test('AccountVerifier.authorize：opts.reauth === true 才验 sgx-account-reauth；别的写法一律当没要', async () => {
-  const { env } = makeEnv();
-  const v = new ep.AccountVerifier(CTX, env);
-  const ck = (await accCookie()) + '; sgx-account-reauth=' + (await reauthTicket());
-  assert.equal((await v.authorize(ck, {}, { reauth: true })).reauth, true);
-  for (const o of [undefined, null, {}, { reauth: 'true' }, { reauth: 1 }, 'reauth', [true]]) {
-    const r = await v.authorize(ck, {}, /** @type {any} */ (o));
-    assert.equal(r.ok, true, JSON.stringify(o));
-    assert.equal(r.reauth, false, JSON.stringify(o));
-  }
-  assert.equal((await v.authorize(await accCookie(), {}, { reauth: true })).reauth, false, '没复验票');
-});
-
-test('AccountVerifier.authorize：反例——没 cookie / 非字符串 / 只有进站会话 / 格式错 / 别的钥匙签 / 纪元变了 / 过期 / 设备已退出', async () => {
-  const { env } = makeEnv();
-  const v = new ep.AccountVerifier(CTX, env);
-  const lock = 'sgx-space-session=' + (await testLockSession(LOCK_PRIV, 0, 'password'));
-  assert.deepEqual(await v.authorize('', {}), DENY('no-cookie'));
-  assert.deepEqual(await v.authorize(undefined), DENY('no-cookie'));
-  assert.deepEqual(await v.authorize({ Cookie: 'x' }), DENY('no-cookie'));
-  assert.deepEqual(await v.authorize(lock), DENY('no-cookie'));
-  assert.deepEqual(await v.authorize('sgx-account-session=garbage'), DENY('bad-format'));
-  assert.deepEqual(await v.authorize(await accCookie({ priv: K.OTHER.priv })), DENY('bad-sig'));
-  const old = 'sgx-account-session=' + (await accSession('password', 0, Date.now() - 500 * 86400000, { now: Date.now() - 500 * 86400000 }));
-  assert.deepEqual(await v.authorize(old), DENY('expired'));
-  const { revokeDevice } = await import(SRC + 'core/devices.js');
-  await revokeDevice(env, TEST_DEVICE_ID);
-  assert.deepEqual(await v.authorize(await accCookie()), DENY('revoked'));
-  setEpoch(env, 3);
-  assert.deepEqual(await v.authorize(await accCookie()), DENY('epoch-changed'));
-});
-
-test('AccountVerifier.authorize：缺钥匙 → no-pubkey；账号库出错 → d1-error，都不抛；Secrets Store 绑定对象也能读', async () => {
-  let { env } = makeEnv({ SGX_ACCOUNT_PUBLIC: undefined });
-  assert.deepEqual(await new ep.AccountVerifier(CTX, env).authorize(await accCookie()), DENY('no-pubkey'));
-  _resetSecretCache();
-  ({ env } = makeEnv({ D1_ACCOUNT: { prepare() { throw new Error('down'); }, batch() { throw new Error('down'); } } }));
-  assert.deepEqual(await new ep.AccountVerifier(CTX, env).authorize(await accCookie()), DENY('d1-error'));
-  _resetSecretCache();
-  const store = (x) => ({ get: async () => x });
-  ({ env } = makeEnv({ SGX_ACCOUNT_PRIVATE: store(K.ACCOUNT.priv), SGX_ACCOUNT_PUBLIC: store(K.ACCOUNT.pub) }));
-  assert.equal((await new ep.AccountVerifier(CTX, env).authorize(await accCookie())).ok, true);
-});
-
-test('checkAuthorize：env 缺省也不抛（fail closed）', async () => {
-  const r = await ep.checkAuthorize(undefined, 'sgx-account-session=garbage', {}, {});
-  assert.equal(r.ok, false);
-  assert.deepEqual(Object.keys(r).sort(), ['deviceId', 'ok', 'reason', 'reauth', 'scopes']);
 });
 
 test('verifierRequest：只带 Cookie / User-Agent / 地点头，不带锁屏身份头；超长 cookie 截断', () => {
@@ -283,97 +166,17 @@ test('verifierRequest：只带 Cookie / User-Agent / 地点头，不带锁屏身
   assert.deepEqual([...r.headers.keys()].sort(), ['cookie', 'user-agent', 'x-styrigx-client-city', 'x-styrigx-client-country']);
 });
 
-test('lockIdentityDenial：只按身份头的结论拒；/api/* 没有进站会话 401（PUBLIC_API 精确的方法 + 路径除外）；进了门（不管怎么进的）一律放行，后面由各接口按账号会话 / 作用域判断；/avatar/* 不在这里拒', async () => {
-  const deny = (p, id, method = 'GET') => ep.lockIdentityDenial(new Request(ORIGIN + p, { method }), id);
-  const byPassword = { session: true, by: 'password', linkId: '' };
-  const byLink = { session: true, by: 'link', linkId: 'lktesttesttest01' };
-  assert.equal(deny('/avatar/96.webp', null), null, '头像文件公开');
-  assert.deepEqual([...ep.PUBLIC_API], ['POST /api/identity', 'GET /api/wellbeing', 'GET /api/profile'], 'v6 身份命令公开入口（每个 action 的档在接口里判）；名片 GET 公开（P2c）');
-  assert.equal(deny('/api/profile', null), null, '名片 GET 公开（v6 P2c，定稿 v5 §五）');
-  assert.equal(deny('/api/profile', null, 'PUT').status, 401, '名片 PUT 照旧要进门');
-  assert.equal(deny('/api/identity', null, 'POST'), null);
-  assert.equal(deny('/api/wellbeing', null), null, '屏幕时间合计公开（v5 S3）');
-  assert.equal(deny('/api/wellbeing/', null), null);
-  for (const [p, m] of [['/api/wellbeing', 'POST'], ['/api/wellbeing/x', 'GET'], ['/api/prefs', 'GET'], ['/api/account', 'GET'], ['/api/avatar', 'GET'], ['/api/profile', 'PUT']]) {
-    const r401 = deny(p, null, m);
-    assert.equal(r401.status, 401, m + ' ' + p);
-    assert.deepEqual(await r401.json(), { ok: false });
-    assert.equal(deny(p, byPassword, m), null, p);
-    assert.equal(deny(p, byLink, m), null, p + '（分享链接进站也算有进站会话）');
-  }
-  assert.equal(deny('/api/prefs', { by: 'password', linkId: '' }).status, 401, '没有 session: true 不算');
-});
-
-test('headerAuth：gateway() 只看进站会话；authorize 用 core/authorize.js（同一请求、同样的 reauth 只算一次）；scopeDenial 401 session / 401 account / 403 scope', async () => {
-  const { env } = makeEnv();
-  const e = await (await import(SRC + 'secrets.js')).resolveSecrets(env);
-  const mk = (headers) => ep.headerAuth(new Request(ORIGIN + '/api/prefs', { headers }), e);
-  const none = mk({});
-  assert.deepEqual(await none.gateway(), { ok: false, by: '', reason: 'no-identity' });
-  let r = await ep.scopeDenial(none, 'prefs.sync');
-  assert.equal(r.status, 401);
-  assert.equal((await r.json()).error, 'session');
-  const lockOnly = mk(idHeaders({ by: 'passkey' }));
-  assert.deepEqual(await lockOnly.gateway(), { ok: true, by: 'passkey', reason: 'ok' });
-  r = await ep.scopeDenial(lockOnly, 'prefs.sync', { 'Cache-Control': 'private, no-store' });
-  assert.equal(r.status, 401);
-  assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
-  const j = await r.json();
-  assert.equal(j.error, 'account');
-  assert.equal(j.reason, 'no-cookie');
-  const owner = mk({ ...idHeaders(), Cookie: await accCookie() });
-  const a1 = owner.authorize();
-  assert.equal(owner.authorize(), a1, '同一请求只算一次');
-  assert.notEqual(owner.authorize({ reauth: true }), a1, '要复验的另算一次');
-  const a = await a1;
-  assert.equal(a.ok, true);
-  assert.deepEqual(a.scopes, ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'profile.write', 'wellbeing.write']);
-  assert.equal(await ep.scopeDenial(owner, 'prefs.sync'), null);
-  r = await ep.scopeDenial(owner, 'nope.scope');
-  assert.equal(r.status, 403);
-  assert.deepEqual(await r.json(), { ok: false, error: 'scope', scope: 'nope.scope' });
-});
-
-/** POST /api/account/grants 经 AccountService @param {any} env @param {any} body @param {string} [cookie] */
-const grantPost = (env, body, cookie) => service(env).fetch(postReq(ORIGIN + '/api/account/grants', body, { ...idHeaders(), ...(cookie ? { Cookie: cookie } : {}) }));
-
-test('个人资料（2026-11-07，经 AccountService）：GET /api/profile 公开（v6 P2c；有没有进站会话都 200）；PUT 要 profile.write，取消后 403 scope、GET 照旧', async () => {
+test('个人资料（经 AccountService）：GET /api/profile 公开；PUT 要 v6 会话（没有 → 401），有 → 200', async () => {
   const kvm = new Map();
   const kv = { get: async (k) => (kvm.has(k) ? kvm.get(k) : null), getWithMetadata: async () => ({ value: null, metadata: null }), put: async (k, v) => { kvm.set(k, v); }, delete: async (k) => { kvm.delete(k); } };
-  const { env } = makeEnv({ KV_PROFILE: kv });
-  let r = await service(env).fetch(req('/api/profile', { headers: idHeaders() }));
+  const env = makeEnv({ KV_PROFILE: kv });
+  let r = await service(env).fetch(req('/api/profile'));
   assert.equal(r.status, 200);
-  assert.deepEqual((await r.json()).profile, { name: null, nickname: null, motto: null, email: null });
-  const ck = await accCookie();
-  const h = { ...idHeaders(), Cookie: ck, 'Content-Type': 'application/json' };
-  r = await service(env).fetch(req('/api/profile', { method: 'PUT', headers: h, body: JSON.stringify({ nickname: 'Gray' }) }));
-  assert.equal(r.status, 200, '空库经 0005 已授权 → 有 profile.write');
-  assert.equal((await r.json()).profile.nickname, 'Gray');
-  await grantPost(env, { action: 'revoke', app: 'profile' }, ck);
-  r = await service(env).fetch(req('/api/profile', { method: 'PUT', headers: h, body: JSON.stringify({ nickname: 'X' }) }));
-  assert.equal(r.status, 403);
-  assert.deepEqual(await r.json(), { ok: false, error: 'scope', scope: 'profile.write' });
-  r = await service(env).fetch(req('/api/profile', { headers: idHeaders() }));
-  assert.equal((await r.json()).profile.nickname, 'Gray', '没写进去，GET 照旧');
-  r = await service(env).fetch(req('/api/profile', {}));
-  assert.equal(r.status, 200, '没有进站会话也能读（公开，v6 P2c）');
   assert.deepEqual(Object.keys(await r.json()).sort(), ['avatar', 'ok', 'profile', 'updatedAt'], '只回公开字段');
-});
-
-test('取消授权后的写接口（经 AccountService，同一份 core/authorize.js）：prefs.sync → GET /api/prefs 403 scope；avatar.write → PUT /api/avatar 403 scope；wellbeing.write → POST /api/wellbeing 204 丢弃；账号会话本身不受影响', async () => {
-  const { env } = makeEnv();
-  const ck = await accCookie();
-  for (const app of ['prefs', 'avatar', 'wellbeing']) await grantPost(env, { action: 'revoke', app }, ck);
-  const h = { ...idHeaders(), Cookie: ck };
-  let r = await service(env).fetch(req('/api/prefs', { headers: h }));
-  assert.equal(r.status, 403);
-  assert.deepEqual(await r.json(), { ok: false, error: 'scope', scope: 'prefs.sync' });
-  r = await service(env).fetch(req('/api/avatar', { method: 'PUT', headers: h, body: new FormData() }));
-  assert.equal(r.status, 403);
-  assert.equal((await r.json()).scope, 'avatar.write');
-  r = await service(env).fetch(req('/api/wellbeing', { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ d: '2026-11-06', a: 'home', s: 60 }) }));
-  assert.equal(r.status, 204);
-  assert.equal(env.D1_ACCOUNT.rows('wb_daily').length, 0, '没记');
-  r = await service(env).fetch(req('/api/account', { headers: h }));
-  assert.ok((await r.json()).session, '账号会话照旧');
+  r = await service(env).fetch(req('/api/profile', { method: 'PUT', headers: { ...OLD_HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ nickname: 'X' }) }));
+  assert.equal(r.status, 401, '旧身份头不算');
+  const ck = await v6Cookie(env);
+  r = await service(env).fetch(req('/api/profile', { method: 'PUT', headers: { Cookie: ck, 'Content-Type': 'application/json' }, body: JSON.stringify({ nickname: 'Gray' }) }));
+  assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
+  assert.equal((await r.json()).profile.nickname, 'Gray');
 });

@@ -4,9 +4,9 @@
  * 覆盖：
  * - 锁屏（进站 v3 L1：守卫 shell/space/guard.js + 界面 shell/space/entry.js）不再读写 sessionStorage 的 'sgx-lock-shown'（grep 断言）
  * - 守卫读网关注入的 data-sgx-lock-session，不自己 fetch 做初始判断
- * - 立即锁屏（shell/space/lock-now.js，盾牌 / lock 命令共用）调 POST /api/lock-now，不确认、不清 sessionStorage
+ * - 旧的立即锁屏（shell/space/lock-now.js → POST /api/lock-now）v6 P4 删了，lock 走 v6 身份层
  * - sgx-account-card.html 随账号页删除（2026-11-08）
- * - /api/lock-now：POST 下发两条 Set-Cookie 清除头（带 Domain + 不带 Domain）
+ * - /api/lock-now 接口 v6 P4 随进站会话删除（网关源码里没有这个文件）
  *
  * 运行：node --test tests/ui/frontend-session.test.mjs
  */
@@ -15,8 +15,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-
-import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../../../workers/space-core/src/api/lock-now.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /* 2026-10-26（frontend-js #6）：锁屏拆成守卫（core 里）+ 界面（按需加载）；v5 S5 起是守卫 shell/space/guard.js + 终端里的钥匙层 shell/space/layer.js / unlock.js，合起来查 */
@@ -79,27 +77,10 @@ test('进站 v3 L1：安全页（security.html / security.js）删了，旧地�
   assert.ok(!tb.includes('sgx-tb-me'), '顶栏没有头像');
 });
 
-test('/api/lock-now：POST 下发 Set-Cookie 清除头（锁屏会话 + LockReauthTicket + LockResetTicket）', async () => {
-  const res = await lockPost({ request: new Request('https://styrigx.com/api/lock-now', { method: 'POST' }), env: {} });
-  assert.equal(res.status, 200);
-  const j = await res.json();
-  assert.equal(j.ok, true);
-  const cookies = typeof res.headers.getSetCookie === 'function'
-    ? res.headers.getSetCookie()
-    : [res.headers.get('set-cookie')];
-  assert.equal(cookies.length, 3, '应下发三条 Set-Cookie（锁屏会话 + LockReauthTicket + LockResetTicket）');
-  const sess = cookies.filter((c) => c.startsWith('sgx-space-session=;'));
-  assert.equal(sess.length, 1, '应有一条 sgx-space-session 清除');
-  assert.ok(sess[0].includes('Domain=.styrigx.com') && sess[0].includes('Max-Age=0'), '锁屏会话清除带 Domain=.styrigx.com');
-  assert.ok(cookies.some((c) => c.startsWith('sgx-space-reauth=;') && c.includes('Max-Age=0')), '应清除 LockReauthTicket');
-  assert.ok(cookies.some((c) => c.startsWith('sgx-space-reset=;') && c.includes('Max-Age=0')), '应清除 LockResetTicket');
-  assert.ok(!cookies.some((c) => c.startsWith('sgx-door=') || c.startsWith('sgx-tk=') || c.startsWith('sgx-verified=')), '不再有旧 cookie');
-  assert.ok(!cookies.some((c) => c.startsWith('sgx-stepup=') || c.startsWith('sgx-app=')), '不再有 stepup / app cookie');
-});
-
-test('/api/lock-now：GET 返回 405', async () => {
-  const res = await lockGet({ request: new Request('https://styrigx.com/api/lock-now'), env: {} });
-  assert.equal(res.status, 405);
+test('v6 P4：网关的 /api/lock-now 接口随进站会话删除', () => {
+  let gone = false;
+  try { readFileSync(join(root, 'workers/space-core/src/api/lock-now.js'), 'utf8'); } catch (e) { gone = true; }
+  assert.ok(gone, 'workers/space-core/src/api/lock-now.js 已删');
 });
 
 test('lock.js：v5 S5 起没有锁屏界面；已解锁页面在 visibilitychange/focus/pageshow 时重查会话（自动回锁，节流）', () => {

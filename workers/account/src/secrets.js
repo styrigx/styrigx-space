@@ -11,15 +11,13 @@
  */
 
 /** 放在 Secrets Store 里的密钥（wrangler.toml 的 secrets_store_secrets，binding = secret_name）：
- *  票的签名钥匙一对、恢复密钥、账号密码 pepper（这四个只绑在账号 Worker）；
- *  进站密码 pepper SGX_SPACE_PASSWORD_PEPPER（v6 P2 pepper 方案 a：网关也绑着；账号只用来验 pepper_id = space 的旧哈希，P4 删）；
- *  救援钥匙 SGX_ACCOUNT_RESCUE_KEY（v6 P3，定稿 v5.2 §九：只读，Gray 在 dashboard 设值 / 换值，缓存内最多 60 秒生效）。 */
+ *  签名钥匙一对（定稿 §五：APP 子应用令牌用，保留）、账号密码 pepper（v6 唯一的密码 pepper）；
+ *  救援钥匙 SGX_ACCOUNT_RESCUE_KEY（v6 P3，定稿 v5.2 §九：只读，Gray 在 dashboard 设值 / 换值，缓存内最多 60 秒生效）。
+ *  v6 P4（定稿 v5.2 §十三）：账号侧旧恢复密钥与进站密码 pepper SGX_SPACE_PASSWORD_PEPPER 删除。 */
 export const SECRET_NAMES = Object.freeze([
   'SGX_ACCOUNT_PRIVATE',
   'SGX_ACCOUNT_PUBLIC',
-  'SGX_ACCOUNT_RECOVERY_KEY',
   'SGX_ACCOUNT_PASSWORD_PEPPER',
-  'SGX_SPACE_PASSWORD_PEPPER',
   'SGX_ACCOUNT_RESCUE_KEY',
 ]);
 

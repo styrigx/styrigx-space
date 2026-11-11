@@ -1,15 +1,15 @@
 const { defineConfig } = require('@playwright/test');
 
 const SUITE = process.env.SGX_TEST_SUITE || '';
-/* passkey：打预览站（真实网关，SGX_TEST_BASE）；credential：自带测试服务器。这两组不需要本地静态站 */
-const NEEDS_STATIC = SUITE !== 'passkey' && SUITE !== 'credential';
+/* passkey：打预览站（真实网关，SGX_TEST_BASE），不需要本地静态站（credential 组随 v6 P4 后端删旧删除） */
+const NEEDS_STATIC = SUITE !== 'passkey';
 
 module.exports = defineConfig({
   /* 配置在 tests/config/，下面的相对路径都以本文件所在目录为基准 */
   testDir: '../space/e2e',
   outputDir: '../../test-results',
   /* 默认组（visual 等）用测试构建（锁屏禁用），lock / edge 用生产构建（锁屏启用）；CI 里分两次构建分别跑 */
-  testMatch: process.env.SGX_TEST_SUITE === 'lock' ? ['lock.spec.js', 'lock-mobile.spec.js', 'lock-flags.spec.js'] : process.env.SGX_TEST_SUITE === 'passkey' ? ['passkey.spec.js', 'account-passkey.spec.js'] : process.env.SGX_TEST_SUITE === 'credential' ? ['api-credential.spec.js'] : process.env.SGX_TEST_SUITE === 'edge' ? ['edge-flow.spec.js'] : ['visual.spec.js', 'pc-layout.spec.js', 'space-sub.spec.js', 'layout-292.spec.js', 'keys.spec.js', 'devices.spec.js', 'grants.spec.js', 'proxy.spec.js', 'term.spec.js', 'topbar-spec.spec.js', 'lang-follow.spec.js', 'b1-12-guard.spec.js', 'b1-10-footer.spec.js', 'avatar-edit.spec.js', 'desktop-toggle-root.spec.js', 'quick-panel.spec.js', 'ui-cookie-reader.spec.js', 'space-status.spec.js', 'layout-auto.spec.js', 'topbar-length.spec.js', 'profile.spec.js', 'popover-no-zoom.spec.js', 'manual-desktop.spec.js', 'terminal.spec.js', 'shield.spec.js', 'ai-window.spec.js', 'ai-open.spec.js', 'touch-scroll-fab.spec.js'],
+  testMatch: process.env.SGX_TEST_SUITE === 'lock' ? ['lock.spec.js', 'lock-mobile.spec.js', 'lock-flags.spec.js'] : process.env.SGX_TEST_SUITE === 'passkey' ? ['passkey.spec.js', 'account-passkey.spec.js'] : process.env.SGX_TEST_SUITE === 'edge' ? ['edge-flow.spec.js'] : ['visual.spec.js', 'pc-layout.spec.js', 'space-sub.spec.js', 'layout-292.spec.js', 'keys.spec.js', 'devices.spec.js', 'grants.spec.js', 'proxy.spec.js', 'term.spec.js', 'topbar-spec.spec.js', 'lang-follow.spec.js', 'b1-12-guard.spec.js', 'b1-10-footer.spec.js', 'avatar-edit.spec.js', 'desktop-toggle-root.spec.js', 'quick-panel.spec.js', 'ui-cookie-reader.spec.js', 'space-status.spec.js', 'layout-auto.spec.js', 'topbar-length.spec.js', 'profile.spec.js', 'popover-no-zoom.spec.js', 'manual-desktop.spec.js', 'terminal.spec.js', 'shield.spec.js', 'ai-window.spec.js', 'ai-open.spec.js', 'touch-scroll-fab.spec.js'],
   /* passkey 组共用预览站同一份 KV / D1，用例之间有状态：只用 1 个 worker 顺序跑 */
   workers: SUITE === 'passkey' ? 1 : undefined,
   /* 视觉回归：只跑 Chromium，保证基准一致 */

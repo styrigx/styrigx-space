@@ -1,40 +1,24 @@
 /**
- * 网关的 D1 认证状态（2026-10-27 从 KV 全部搬来；网关不再绑定 KV）。一个文件两层：
- * - 通用原语（authDb / onAuthDb / withSchema / sweepExpired / parseRecord / SCHEMA）：按域描述对象（至少有 id、d1Binding）工作，
- *   只按形状校验（realmShape；字符串只认锁屏域的 id 'lock'），不认识别的具体的域。限流（attempt-limit.js）、challenge（passkey-verify.js）、审计（space-audit.js）、
- *   这些按域参数化的模块经这里访问自己的表。
- * - 记录读写（纪元、通行密钥、密码、user handle）：只认网关自己的锁屏域 REALM_LOCK（realmOf；也认它的 id 'lock'），
- *   账号拆分 PR3 起传 'account' / 'root' 或别的域一律抛 'd1-state: bad realm'。网关库里也已经没有 realm='account' / 'root' 的行
- *   （账号拆分 PR4 由 space/scripts/migrate-account-auth.mjs --cleanup 删除）。
- * （2026-11-02 Worker 骨架统一：原 _kernel/d1-state.js 的锁屏域入口和 _kernel/lib/d1-state.js 的实现合成这一份。）
+ * 网关的 D1 状态原语（2026-10-27 从 KV 全部搬来；网关不再绑定 KV）。
+ * 通用原语（authDb / onAuthDb / withSchema / sweepExpired / parseRecord / SCHEMA）：按域描述对象（至少有 id、d1Binding）工作，
+ * 只按形状校验（realmShape；字符串只认锁屏域的 id 'lock'）。AI 全站总闸（ai-limit.js）、审计（space-audit.js）经这里访问自己的表。
  *
- * 为什么搬：Workers KV 最终一致，边缘读最长约 60 秒才看到新值。认证状态几乎都是「写完马上要读到」的：
- * 纪元（吊销）、通行密钥、密码、单独退出设备、单次使用的 challenge、输错计数。
- * D1 读强一致（同一个库只有一个主库）。
+ * v6 P4（定稿 v5.2 §十三）起进站签发删除：纪元、锁屏通行密钥、解锁密码、user handle、challenge、设备的读写都删了，
+ * 运行时只剩 attempt_limit（AI 全站总闸）与 audit 有读写；SCHEMA 与库里的旧表原样保留（不删表，见下）。
  *
- * 读主库（安全读的硬性要求）：网关不开 D1 read replication，也不用 D1 session API。纪元、吊销（设备）、challenge、
- * 输错计数这些安全读只走绑定本身（= 主库）；内存和 KV 都不缓存，任何吊销判断都以这一次请求读到的 D1 为准。
+ * 读主库（安全读的硬性要求）：网关不开 D1 read replication，也不用 D1 session API。
  * （tests/workers/space-core/d1-state.test.mjs 扫网关源码核对：任何地方出现 session API 调用就失败。）
  *
- * 表（migrations/0001_baseline.sql，库 styrigx-space-core；SCHEMA 是同一份语句的代码兜底）：
- * 都是小写 snake_case 名词、都有 realm 列（网关只读写 'lock'）。本文件管 epoch / passkey / password / user_handle；
- * challenge（passkey-verify.js）、attempt_limit（attempt-limit.js）、
- * audit（space-audit.js）的 SQL 在各自模块里，经这里的 authDb / withSchema 访问。kv_migration 只有导入脚本写。
- * 临时钥匙（tempkey 表）v5 收尾删除（migrations/0002_drop_tempkey.sql 删表；分享链接的会话查 share_link，见 share-links.js）。
- * 绑定按域：realm.d1Binding（网关只有 lock → D1_SPACE）。
- * 恢复开关表 lock_reset_switch 也经 D1_SPACE（lock-reset-switch.js，迁移 migrations/0008_lock_reset_switch.sql）。
- *
- * 上线前的 KV 旧值：space/scripts/migrate-kv-to-d1.mjs 在部署前跑一次写进 D1（运行时不读 KV，没有回落）。
- *
- * 出错一律抛（D1 未绑定、查询失败）；调用方按 fail closed 处理（签发 503、验票无效）。
+ * 出错一律抛（D1 未绑定、查询失败）；调用方按 fail closed 处理。
  * 表不存在（正式网关的部署 job 不跑迁移）：建表后整次操作重试一次。
  */
 import { REALM_LOCK } from './realms.js';
 
 
 /**
- * 与 migrations/ 跑完后的进站段相同的建表语句（0001_baseline.sql 按文件顺序，去掉 0002_drop_tempkey.sql 删的 tempkey；d1-state.test.mjs 核对）。L2b 起 user_handle 带上 legacy_handle 列（旧 0007 加的，网关不读写），
- * 和正式库一致。
+ * 与 migrations/ 跑完后的进站段相同的建表语句（0001_baseline.sql 按文件顺序，去掉 0002_drop_tempkey.sql 删的 tempkey；d1-state.test.mjs 核对）。
+ * v6 P4 起运行时只读写 attempt_limit（AI 全站总闸）与 audit；epoch / passkey / password / user_handle / challenge / device / kv_migration
+ * 的语句保留不动（迁移基线与一次性导入脚本 space/scripts/migrate-kv-to-d1.mjs 用同一份；库里旧表与数据不动，是否删表由 Gray 定）。
  * 全部 IF NOT EXISTS：代码兜底建表和迁移重复跑都不出错。
  */
 export const SCHEMA = Object.freeze([
@@ -51,8 +35,7 @@ export const SCHEMA = Object.freeze([
 ]);
 
 /**
- * 域描述对象（至少有非空的 id、d1Binding）。只按形状校验，不认识具体的域：具体有哪些域由调用方决定
- * （记录读写另经 realmOf 只放行网关自己的锁屏域）。不像域描述的一律抛错。
+ * 域描述对象（至少有非空的 id、d1Binding）。只按形状校验，不认识具体的域：具体有哪些域由调用方决定。不像域描述的一律抛错。
  * @param {any} realm
  * @returns {{id:string, d1Binding:string}}
  */
@@ -63,8 +46,7 @@ function realmShape(realm) {
 }
 
 /**
- * 网关认识的域：只有锁屏域 REALM_LOCK（也认它的 id 'lock'）。记录读写（纪元、通行密钥、密码、user handle）都先过这里；
- * 'account' / 'root' / 别的域描述一律抛错（账号拆分 PR3）。
+ * 网关认识的域：只有锁屏域 REALM_LOCK（也认它的 id 'lock'）；别的域描述一律抛错（账号拆分 PR3）。
  * @param {any} realm
  */
 export function realmOf(realm) {
@@ -123,165 +105,4 @@ export async function sweepExpired(db, table, realmId, now) {
 export function parseRecord(row) {
   if (!row || typeof row.record !== 'string') return null;
   try { return JSON.parse(row.record); } catch (e) { return null; }
-}
-
-/* ---------------- 纪元 ---------------- */
-
-/**
- * 读某域的纪元（每次都读 D1 主库，不缓存）。还没有这一行（新库，导入脚本没写过）→ 写入 0。出错抛错。
- * @param {any} env @param {any} realm
- * @returns {Promise<number>}
- */
-export async function readEpoch(env, realm) {
-  return onAuthDb(env, realmOf(realm), async (db, r) => {
-    const sel = () => db.prepare('SELECT value FROM epoch WHERE realm = ?').bind(r.id).first();
-    let row = await sel();
-    if (!row) {
-      await db.prepare('INSERT OR IGNORE INTO epoch (realm, value) VALUES (?, 0)').bind(r.id).run();
-      row = await sel();
-    }
-    if (!row) throw new Error('epoch-missing ' + r.id);
-    return Number(row.value);
-  });
-}
-
-/**
- * 某域纪元 +1（原子：UPDATE ... SET value = value + 1 RETURNING value，两次推进拿到的一定是两个不同的值）。
- * 出错抛错（调用方 503，绝不继续）。
- * @param {any} env @param {any} realm
- * @returns {Promise<number>} 新纪元
- */
-export async function bumpEpoch(env, realm) {
-  return onAuthDb(env, realmOf(realm), async (db, r) => {
-    const up = () => db.prepare('UPDATE epoch SET value = value + 1 WHERE realm = ? RETURNING value').bind(r.id).first();
-    let row = await up();
-    if (!row) {
-      await db.prepare('INSERT OR IGNORE INTO epoch (realm, value) VALUES (?, 0)').bind(r.id).run();
-      row = await up();
-    }
-    if (!row) throw new Error('epoch-missing ' + r.id);
-    return Number(row.value);
-  });
-}
-
-/* ---------------- 通行密钥 ---------------- */
-
-/**
- * 某域全部通行密钥记录（按注册顺序）。出错抛错。
- * @param {any} env @param {any} realm
- * @returns {Promise<any[]>}
- */
-export async function listPasskeyRecords(env, realm) {
-  return onAuthDb(env, realmOf(realm), async (db, r) => {
-    const res = await db.prepare('SELECT record FROM passkey WHERE realm = ? ORDER BY rowid').bind(r.id).all();
-    return ((res && res.results) || []).map(parseRecord).filter((v) => v && v.credId);
-  });
-}
-
-/**
- * 某域是否至少有一把通行密钥。出错抛错。
- * @param {any} env @param {any} realm
- * @returns {Promise<boolean>}
- */
-export async function hasPasskeyRecord(env, realm) {
-  return onAuthDb(env, realmOf(realm), async (db, r) => !!(await db.prepare('SELECT 1 AS found FROM passkey WHERE realm = ? LIMIT 1').bind(r.id).first()));
-}
-
-/**
- * 按 credId 读一把（不存在 → null）。出错抛错。
- * @param {any} env @param {any} realm @param {string} credId
- */
-export async function getPasskeyRecord(env, realm, credId) {
-  return onAuthDb(env, realmOf(realm), async (db, r) => {
-    const row = await db.prepare('SELECT record FROM passkey WHERE realm = ? AND credential_id = ?').bind(r.id, String(credId)).first();
-    const v = parseRecord(row);
-    return v && v.credId === credId ? v : null;
-  });
-}
-
-/**
- * 写一把（注册：没有就插入，同 credId 已有就整条覆盖）。出错抛错。
- * @param {any} env @param {any} realm @param {any} rec 必须带 credId
- */
-export async function putPasskeyRecord(env, realm, rec) {
-  return onAuthDb(env, realmOf(realm), async (db, r) => {
-    await db.prepare(
-      'INSERT INTO passkey (realm, credential_id, record) VALUES (?, ?, ?) ON CONFLICT (realm, credential_id) DO UPDATE SET record = excluded.record'
-    ).bind(r.id, String(rec.credId), JSON.stringify(rec)).run();
-  });
-}
-
-/**
- * 更新已有的一把（signCount / lastUsedAt / 改名）：只改还在的那条，已被删掉的不会被写回来。出错抛错。
- * @param {any} env @param {any} realm @param {any} rec
- * @returns {Promise<boolean>} 是否真的改到了
- */
-export async function updatePasskeyRecord(env, realm, rec) {
-  return onAuthDb(env, realmOf(realm), async (db, r) => {
-    const res = await db.prepare('UPDATE passkey SET record = ? WHERE realm = ? AND credential_id = ?')
-      .bind(JSON.stringify(rec), r.id, String(rec.credId)).run();
-    return !!(res && res.meta && res.meta.changes > 0);
-  });
-}
-
-/**
- * 删一把，返回被删的记录（本来就没有 → null）。出错抛错。
- * @param {any} env @param {any} realm @param {string} credId
- */
-export async function deletePasskeyRecord(env, realm, credId) {
-  return onAuthDb(env, realmOf(realm), async (db, r) => {
-    const row = await db.prepare('DELETE FROM passkey WHERE realm = ? AND credential_id = ? RETURNING record').bind(r.id, String(credId)).first();
-    return parseRecord(row);
-  });
-}
-
-/* ---------------- 密码 ---------------- */
-
-/**
- * 某域的密码记录（没设置 → null）。出错抛错。
- * @param {any} env @param {any} realm
- */
-export async function getPasswordRecord(env, realm) {
-  return onAuthDb(env, realmOf(realm), async (db, r) => parseRecord(await db.prepare('SELECT record FROM password WHERE realm = ?').bind(r.id).first()));
-}
-
-/**
- * 写某域的密码记录（设置 / 修改 / 重哈希）。出错抛错。
- * @param {any} env @param {any} realm @param {any} rec makePasswordRecord 的结果
- */
-export async function putPasswordRecord(env, realm, rec) {
-  return onAuthDb(env, realmOf(realm), async (db, r) => {
-    await db.prepare('INSERT INTO password (realm, record) VALUES (?, ?) ON CONFLICT (realm) DO UPDATE SET record = excluded.record')
-      .bind(r.id, JSON.stringify(rec)).run();
-  });
-}
-
-/**
- * 删某域的密码记录。出错抛错。
- * @param {any} env @param {any} realm
- */
-export async function deletePasswordRecord(env, realm) {
-  return onAuthDb(env, realmOf(realm), async (db, r) => {
-    await db.prepare('DELETE FROM password WHERE realm = ?').bind(r.id).run();
-  });
-}
-
-/* ---------------- WebAuthn user handle ---------------- */
-
-/**
- * 某域的 user handle（通行密钥注册时给认证器的 user.id）。create=true 且还没有时生成 32 字节随机值写入
- * （INSERT OR IGNORE 再读：并发第一次注册拿到同一个）。没有且不新建 → ''。出错抛错。
- * @param {any} env @param {any} realm @param {boolean} create @param {() => string} gen 生成新 handle
- * @returns {Promise<string>}
- */
-export async function userHandleRecord(env, realm, create, gen) {
-  return onAuthDb(env, realmOf(realm), async (db, r) => {
-    const sel = () => db.prepare('SELECT handle FROM user_handle WHERE realm = ?').bind(r.id).first();
-    let row = await sel();
-    if (!row && create) {
-      await db.prepare('INSERT OR IGNORE INTO user_handle (realm, handle) VALUES (?, ?)').bind(r.id, gen()).run();
-      row = await sel();
-    }
-    return row && row.handle ? String(row.handle) : '';
-  });
 }

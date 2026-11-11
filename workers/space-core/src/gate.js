@@ -7,13 +7,10 @@
  * 调用点（src/app.js）：
  * - 子站 styrigx.com/blog/ /curio/ /daymark/：handleSubsite(request, env, origin)（合并 PR3 起按路径前缀）
  * - 主站 styrigx.com 其余路径：onRequest(context)（域名、会话、访问表、no-store），放行后 context.next() 交给 router.js
- * - 分享链接（router.js routeShare）也查同一张表（accessOf）
+ * v6 P4 起分享链接（/s/<码>、/api/share）删除（定稿 §二第 19 行），进站会话删除（§十二第 105 行），只认 v6 会话。
  * 只 import core/、lib/，不 import router / app / api。
  */
-import { verifyLockSession } from './core/lock-session.js';
 import { withNoStore, json, apiError } from './lib/http.js';
-import { resolveReturn } from './core/return.js';
-import { anonLimit } from './core/anon-limit.js';
 import { newSessionConclusion, newSessionSignedIn } from './core/identity-admit.js';
 
 /* ================= HTML 会话标记（原 _kernel/html.js） ================= */
@@ -73,24 +70,15 @@ export const ACCESS = Object.freeze({ PUBLIC: 'public', ENTRY: 'entry' });
  * 1. 页面和静态文件（不在 /api/ 下、也不在 /<子站>/api/ 下的路径）一律 public：整站 HTML、RSS、files-index.json、子站 index.json / sitemap 都公开。
  * 2. /api/* 和 /<子站>/api/*：只有下表逐条写出的「方法 + 路径」是 public；其余（表里没有的路径、表里路径换了方法、
  *    路径后面多一段 /x）一律 entry（fail closed）。精确匹配，从不按前缀；只把结尾一个 / 当同一条（/api/geo/ = /api/geo）。
- * 3. 表里的路径参数只有一种：/s/:code，code = 分享码（core/share-links.js SHARE_PATH_RE 的那一段，不含 /）。
+ * 3. 表里没有路径参数（v6 P4 起分享短链 /s/:code 整套删除，定稿 §二第 19 行；/s/<码> 现在是普通页面路径，Pages 回 404）。
  * 子站接口（/curio/api/*、/daymark/api/*）归各自的接口 Worker，有它们自己的访问表；漏到网关时按第 2 条一律 entry。
  * /api/csp-report 在 app.js 里先于网关回答（只记日志、204），不过这张表。
  * 改这张表 = 改谁能不进站调接口：tests/workers/space-core/route-access.test.mjs 对整张表做快照，改动在评审里一眼可见。
  * @type {ReadonlyArray<Readonly<{method: string, path: string, access: 'public'|'entry', why: string}>>}
  */
 export const ROUTE_ACCESS = Object.freeze([
-  /* 进站本身（还没进站时要用到的） */
-  { method: 'GET', path: '/api/lock-entry', access: 'public', why: '锁屏问设了哪些凭证（只回布尔）' },
-  { method: 'GET', path: '/api/lock-session-check', access: 'public', why: '前端问「进站了吗 / by」；没进站 401' },
-  { method: 'POST', path: '/api/lock-password', access: 'public', why: '密码进站（verify 公开 + 限流；改密码接口内要进站 + 复验）' },
-  { method: 'POST', path: '/api/lock-passkey', access: 'public', why: '通行密钥进站（auth 公开；增删改接口内要进站 + 复验）' },
-  { method: 'GET', path: '/api/lock-credentials', access: 'public', why: '重置票（不是进站会话）也要能列凭证；接口内要进站或重置票' },
-  { method: 'POST', path: '/api/lock-reset', access: 'public', why: '恢复密钥换重置票' },
-  { method: 'POST', path: '/api/space-auth', access: 'public', why: '恢复密钥校验' },
+  /* v6 身份（定稿 v5.2 §六；P4 起进站 / 分享短链的公开条目删了，§十二、§二第 19 行） */
   { method: 'POST', path: '/api/identity', access: 'public', why: 'v6 身份命令（P2：whoami / su 登录要在进站前用；每个 action 的档在账号 Worker 判，permits）' },
-  { method: 'GET', path: '/s/:code', access: 'public', why: '分享链接：码就是凭证，打开即进站（by=link）' },
-  { method: 'HEAD', path: '/s/:code', access: 'public', why: '同上（链接预览探测）' },
   /* 公开的数据 */
   { method: 'GET', path: '/api/geo', access: 'public', why: '只回调用者自己的城市 / 时区' },
   { method: 'GET', path: '/api/wellbeing', access: 'public', why: '屏幕时间合计（明细接口内另要账号会话）' },
@@ -98,10 +86,7 @@ export const ROUTE_ACCESS = Object.freeze([
   { method: 'GET', path: '/api/find', access: 'public', why: '关键词搜索（v5 S4）：只回公开页面元数据，接口内按 IP 限流（FIND_LIMITER）' },
 ].map((r) => Object.freeze(r)));
 
-/** /s/:code 的码：一段，不含 /（同 SHARE_PATH_RE） */
-const SHARE_CODE_SEG = /^\/s\/[^/]*$/;
-
-/** 表的查找键：方法 + 规范路径（/s/<码> → /s/:code） */
+/** 表的查找键：方法 + 路径 */
 const ACCESS_KEYS = new Map(ROUTE_ACCESS.map((r) => [r.method + ' ' + r.path, r.access]));
 
 /** 结尾一个 / 当同一条；不解码、不合并斜杠（编码 / 多斜杠的路径对不上表 → entry） @param {string} p */
@@ -123,20 +108,13 @@ export function isApiPath(pathname) {
  */
 export function accessOf(method, pathname) {
   const m = String(method || 'GET').toUpperCase();
-  const p = trimSlash(String(pathname || ''));
-  const key = SHARE_CODE_SEG.test(p) ? '/s/:code' : p;
+  const key = trimSlash(String(pathname || ''));
   const hit = ACCESS_KEYS.get(m + ' ' + key);
   if (hit) return hit;
-  if (key === '/s/:code') return ACCESS.ENTRY;
   return isApiPath(pathname) ? ACCESS.ENTRY : ACCESS.PUBLIC;
 }
 
 /* ================= 主站关口（原 functions/_middleware.js） ================= */
-
-/** 首页（?return= 回跳只在这里）：/、/zh、/zh/ */
-function isHomepage(pathname) {
-  return pathname === '/' || pathname === '/zh' || pathname === '/zh/';
-}
 
 /* 旧 /en/ 前缀：四站同一条规则（语言规则四站通用：英文是根路径上的源，中文 /zh/ 是翻译层，/en/ 不是任何东西）。
    主站 /en、/en/…；子站 /<站>/en、/<站>/en/…（站名取 SUBSITES，和子站关口同一张表）。
@@ -199,42 +177,37 @@ async function retiredEnNotFound(request, next, prefix, state) {
 }
 
 /**
- * 主站和子站共用的放行：
- * - 接口（isApiPath）：有进站会话或 accessOf = public → 交给 next；否则（v6 P1 新路径，并存）请求带新会话 cookie 时问账号 Worker
- *   这个新会话够不够这条路由的档（core/identity-admit.js，一次 D1 查询在账号侧）→ 够就交给 next；有 v6 身份但档不够 403 forbidden（2b）；
- *   都不成立 401 {ok:false}（不 302，fetch 不跟跳转）
- * - 页面 / 静态文件：一律回源，HTML 注入会话状态（valid / locked；2b 起 v6 新会话有效也算 valid，pageStateOf）
+ * 主站和子站共用的放行（v6 P4 起只认 v6 会话，定稿 v5.2 §十二第 105 行：space-core 不再签发 / 验进站会话）：
+ * - 接口（isApiPath）：accessOf = public → 交给 next；否则问账号 Worker 这个 v6 会话够不够这条路由的档（core/identity-admit.js，
+ *   一次 D1 查询在账号侧）→ 够就交给 next；有 v6 身份但档不够 403 forbidden；没有 v6 身份 401 {ok:false}（不 302，fetch 不跟跳转）
+ * - 页面 / 静态文件：一律回源，HTML 注入会话状态（valid / locked，pageStateOf）
  * @param {Request} request
- * @param {{ok:boolean}} sess
  * @param {(req?: Request) => Promise<Response>} next
  * @param {Record<string, any>} env
  * @param {Record<string, any>} [data] context.data（主站关口）：放 v6 结论给接口用
  */
-async function admit(request, sess, next, env, data) {
+async function admit(request, next, env, data) {
   const pathname = new URL(request.url).pathname;
   if (isApiPath(pathname)) {
-    if (!sess.ok && accessOf(request.method, pathname) !== ACCESS.PUBLIC) {
+    if (accessOf(request.method, pathname) !== ACCESS.PUBLIC) {
       const v6 = await newSessionConclusion(env, request);
       /* 结论交给接口（core/identity-admit.js v6ConclusionOf：/api/status、/api/ai 不再问一次） */
       if (data) data.v6 = v6;
-      /* 2b：有 v6 身份但档不够（如 styrigx 调 root 档的 /api/space-audit）→ 403 forbidden（同子站接口 Worker），不是 401：
-         前端把 401 当「没登录」（清身份、预填 su），已登录的人不该被这样对待 */
+      /* 有 v6 身份但档不够 → 403 forbidden（同子站接口 Worker），不是 401：前端把 401 当「没登录」（清身份、预填 su） */
       if (!v6.allowed) return v6.signedIn ? apiError(403, 'forbidden') : json(401, { ok: false });
     }
     return next();
   }
-  return injectSessionState(await next(), await pageStateOf(sess, env, request));
+  return injectSessionState(await next(), await pageStateOf(env, request));
 }
 
 /**
- * 页面状态（注入 data-sgx-lock-session）：旧进站会话有效，或 v6 新会话有效（core/identity-admit.js newSessionSignedIn）→ valid；否则 locked。
- * 2b（v6 割接后续）：纯 v6 登录（su styrigx / su root）的人页面也是 valid，云同步、名片等只在 valid 页面跑的逻辑照常跑。
- * 旧会话先判（有就不问账号 Worker）；没带 sgx-session 不问。
- * @param {{ok:boolean}} sess @param {Record<string, any>} env @param {Request} request
+ * 页面状态（注入 data-sgx-lock-session）：v6 会话有效（core/identity-admit.js newSessionSignedIn）→ valid；否则 locked。
+ * 没带 sgx-session 不问账号 Worker。
+ * @param {Record<string, any>} env @param {Request} request
  * @returns {Promise<'valid'|'locked'>}
  */
-export async function pageStateOf(sess, env, request) {
-  if (sess && sess.ok) return 'valid';
+export async function pageStateOf(env, request) {
   return (await newSessionSignedIn(env, request)) ? 'valid' : 'locked';
 }
 
@@ -302,33 +275,12 @@ async function handleRequest(context) {
     return new Response('Server misconfigured', { status: 500 });
   }
 
-  /* 会话（缺 SGX_SPACE_PUBLIC 时 verifyLockSession 返回 ok:false → fail closed：只有 public 的接口能用）。
-     L1：middleware 是唯一决定是否已进站的地方；能不能不进站就调，只看访问表（accessOf）。 */
-  const sess = await verifyLockSession(request, env);
-  /* 验过的结论交给转发（router.js forward）：写身份头不再重验 */
-  if (context.data) context.data.lockSession = sess;
-
   /* 旧 /en/…（P4-3 PR-4c 起英文是根路径上的源、中文 /zh/ 是翻译层，/en/ 不是任何东西）：网关自己判 404，不回源取 /en/ 地址、不 301。
-     线上曾出现解锁会话访问 /en/ 拿到 PR-4b（77ce4d6）时代的旧英文首页（回源链路上的旧副本），所以不能只靠产物里没有 en/：
      这里一律换成回源取一个必然不存在的地址（Pages 回最近的 404.html），状态码强制 404、no-store。 */
   const enPrefix = retiredEnSitePrefix(pathname);
-  if (enPrefix !== null) return retiredEnNotFound(request, next, enPrefix, await pageStateOf(sess, env, request));
+  if (enPrefix !== null) return retiredEnNotFound(request, next, enPrefix, await pageStateOf(env, request));
 
-  /* 无会话写接口的按 IP 总限流（防刷 D1 写入额度；超了 429 cooldown，不进端点）：见 core/anon-limit.js */
-  const limited = await anonLimit(request, env, sess.ok);
-  if (limited) return limited;
-
-  /* 首页 ?return= 回跳（解锁后回原页）：会话有效时 302 到目标（站内路径或 *.styrigx.com 白名单；resolveReturn 只做地址白名单）。
-     手动构造 302（Node/undici 的 Response.redirect 不接受相对路径）。no-store：绝不缓存这个跳转。 */
-  const returnPath = isHomepage(pathname) ? url.searchParams.get('return') : null;
-  if (returnPath && sess.ok) {
-    return new Response(null, {
-      status: 302,
-      headers: { 'Location': resolveReturn(returnPath), 'Cache-Control': 'private, no-store' },
-    });
-  }
-
-  return admit(request, sess, next, env, context.data);
+  return admit(request, next, env, context.data);
 }
 
 /* ================= 子站关口（原 src/subsites.js；合并 PR3 起按主域名路径前缀） ================= */
@@ -436,7 +388,6 @@ export async function handleSubsite(request, env, origin) {
   /* 旧 /<站>/en/…（静态后缀也算：/blog/en/x.js 不直通回源）：和主站 /en/… 同一条规则，404 页取该站自己的 */
   const enPrefix = retiredEnSitePrefix(url.pathname);
   if (enPrefix === null && isStaticAsset(url.pathname)) return origin(request);
-  const sess = await verifyLockSession(request, env);
-  if (enPrefix !== null) return retiredEnNotFound(request, origin, enPrefix, await pageStateOf(sess, env, request));
-  return admit(request, sess, () => origin(request), env);
+  if (enPrefix !== null) return retiredEnNotFound(request, origin, enPrefix, await pageStateOf(env, request));
+  return admit(request, () => origin(request), env);
 }

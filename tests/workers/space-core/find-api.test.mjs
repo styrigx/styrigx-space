@@ -2,7 +2,7 @@
  * GET /api/find（网关，src/api/find.js + core/find-limit.js；v5 S4 关键词搜索）：
  * - 公开：访客（没有进站会话）经整条网关也能调；只有 GET（POST / 多一段 /x 都不是 public → 401）
  * - 转给 styrigx-ai 的 GET /find：只带 q / lang，不转 cookie、不写账号结论头（伪造的结论头在 app.js 第一步被剥）
- * - 每 IP 第 11 次 429 cooldown + Retry-After + 终端能显示的 message；FIND_LIMITER 单独计数（不碰 ANON_LIMITER / AI_LIMITER）
+ * - 每 IP 第 11 次 429 cooldown + Retry-After + 终端能显示的 message；FIND_LIMITER 单独计数（不碰 AI_LIMITER）
  * - 绑定缺失 / 出错：放行
  * - styrigx-ai 没绑 / 抛错 / 非 2xx → 200 degraded（不 5xx）；q 为空 / 太长 400 bad_request（不进限流、不调 styrigx-ai）
  * - wrangler.toml：FIND_LIMITER 自己的 namespace，每 60 秒 10 次
@@ -14,14 +14,11 @@ import { readFileSync } from 'node:fs';
 import * as findApi from '../../../workers/space-core/src/api/find.js';
 import * as L from '../../../workers/space-core/src/core/find-limit.js';
 import { API_ROUTES } from '../../../workers/space-core/src/router.js';
-import { testLockSession } from './_tickets.mjs';
-import { genKeyPair, withAuthD1 } from '../_harness.mjs';
+import { withAuthD1 } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/space-core/src/app.js')).default;
 const CTX = { waitUntil() {} };
-const { priv: PRIV, pub: PUB } = await genKeyPair();
-const PW_SESS = await testLockSession(PRIV, 0, 'password');
 
 const RESULTS = [{ title: 'Muse tips', url: 'https://styrigx.com/blog/post/muse/', site: 'blog', snippet: 'Blog' }];
 
@@ -44,8 +41,8 @@ function limiter(limit) {
 function env(over = {}) {
   const log = [];
   const e = withAuthD1({
-    SGX_ENV: 'production', SGX_SITE: 'space', SGX_SPACE_PUBLIC: PUB,
-    ANON_LIMITER: limiter(1000), AI_LIMITER: limiter(1000), FIND_LIMITER: limiter(10),
+    SGX_ENV: 'production', SGX_SITE: 'space',
+    AI_LIMITER: limiter(1000), FIND_LIMITER: limiter(10),
     AI_SERVICE: aiSvc(log), ...over,
   });
   e.log = log;
@@ -76,15 +73,15 @@ test('访客经整条网关：GET /api/find 200 结果（公开）；POST / 多�
     assert.equal(r2.status, 401, m + ' ' + p);
     assert.equal(e2.log.length, 0, m + ' ' + p + ' 没转 styrigx-ai');
   }
-  /* 进站也能用（解锁后终端不列 find，但接口照常） */
+  /* 已登录也能用（接口公开，不看身份） */
   const e3 = env();
-  assert.equal((await viaGateway(get('?q=muse', { cookie: 'sgx-space-session=' + PW_SESS }), e3)).status, 200);
+  assert.equal((await viaGateway(get('?q=muse', { cookie: 'sgx-session=styrigx' }), e3)).status, 200);
 });
 
 test('转发：GET https://styrigx-ai/find?q=&lang=；不转 cookie、不写账号结论头（伪造的也被剥）', async () => {
   const e = env();
   await viaGateway(get('?q=%20%20Galaxy%20Buds%20&lang=zh', {
-    cookie: 'sgx-space-session=' + PW_SESS + '; sgx-account-session=ok',
+    cookie: 'sgx-session=styrigx; sgx-account-session=ok',
     extra: { 'X-Styrigx-Account-Session': '1', 'X-Styrigx-Account-Scopes': 'curio.write' },
   }), e);
   assert.equal(e.log.length, 1);
@@ -111,7 +108,6 @@ test('限流：每 IP 第 11 次 429 cooldown + Retry-After 60 + message；别�
   assert.equal(e.log.length, 10, '超了不调 styrigx-ai');
   assert.equal((await viaGateway(get('?q=muse', { ip: '198.51.100.1' }), e)).status, 200);
   assert.equal(e.AI_LIMITER.calls.size, 0, '不占 AI 配额');
-  assert.equal(e.ANON_LIMITER.calls.size, 0, '不占锁屏接口配额');
 });
 
 test('FIND_LIMITER 没绑 / 调用出错：放行', async () => {

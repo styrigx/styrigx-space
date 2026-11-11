@@ -23,13 +23,21 @@ import { onDb } from '../lib/db.js';
 import { ipBucket } from '../lib/http.js';
 import { readAttempt, recordAttempt, clearAttempt } from '../lib/attempt-limit.js';
 import { RESCUE_KEY_SECRET } from './config.js';
-import { normalizeRecoveryKey } from './recovery-key.js';
 import { IP_LIMIT, NAME_BACKOFF_MS } from './identity-auth.js';
 import { ROOT_UID } from './groups.js';
 import { getUser } from './users.js';
 import { issueRescueSession, endSession } from './identity-stack.js';
 
 export { RESCUE_KEY_SECRET };
+
+/**
+ * 钥匙规范化：去掉所有空白字符（Samsung Pass 粘贴多行；两边同样处理后再比对）。
+ * 原 core/recovery-key.js（旧恢复密钥）的同名函数，v6 P4 随旧恢复密钥删除搬到这里，行为不变。
+ * @param {any} s
+ */
+export function normalizeRecoveryKey(s) {
+  return String(s || '').replace(/\s+/g, '');
+}
 
 /** 救援入口的计数（单独的 kind，不和 su / 旧恢复密钥共用）：IP 维度 */
 export const RESCUE_IP_LIMIT = Object.freeze({ kind: 'v6-rescue-ip', max: IP_LIMIT.max, windowMs: IP_LIMIT.windowMs });

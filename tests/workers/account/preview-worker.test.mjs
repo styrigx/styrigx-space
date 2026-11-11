@@ -10,27 +10,29 @@ const pw = await import('../../space/e2e/helpers/preview-worker.js');
 
 const FULL = {
   SGX_ENV: 'preview', SGX_SITE: 'space', SGX_RP_ID: 'x.pages.dev', SGX_ORIGIN: 'https://x.pages.dev',
-  SGX_SPACE_PRIVATE: 'lp', SGX_SPACE_PUBLIC: 'lu', SGX_SPACE_RECOVERY_KEY: 'space', SGX_SPACE_PASSWORD_PEPPER: 'pep',
-  SGX_ACCOUNT_PRIVATE: 'ap', SGX_ACCOUNT_PUBLIC: 'au', SGX_ACCOUNT_RECOVERY_KEY: 'acct-recovery', SGX_ACCOUNT_PASSWORD_PEPPER: 'acct-pep',
-  D1_SPACE: { d1: 'lock' }, D1_ACCOUNT: { d1: 'account' }, ASSETS: { fetch() {} },
+  SGX_ACCOUNT_PRIVATE: 'ap', SGX_ACCOUNT_PUBLIC: 'au', SGX_ACCOUNT_PASSWORD_PEPPER: 'acct-pep',
+  D1_SPACE: { d1: 'space' }, D1_ACCOUNT: { d1: 'account' }, ASSETS: { fetch() {} },
 };
 
 test('preview-worker：网关那一半没有任何账号钥匙 / 账号库，有 ACCOUNT / ACCOUNT_VERIFIER', () => {
   const g = pw.gatewayEnvOf(FULL, { waitUntil() {} });
-  for (const k of ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_RECOVERY_KEY', 'SGX_ACCOUNT_PASSWORD_PEPPER', 'D1_ACCOUNT']) assert.equal(g[k], undefined, k);
-  for (const k of ['SGX_SPACE_PRIVATE', 'SGX_SPACE_PUBLIC', 'SGX_SPACE_RECOVERY_KEY', 'SGX_SPACE_PASSWORD_PEPPER', 'D1_SPACE', 'ASSETS', 'SGX_ENV']) assert.equal(g[k], FULL[k], k);
+  for (const k of ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_PASSWORD_PEPPER', 'D1_ACCOUNT']) assert.equal(g[k], undefined, k);
+  for (const k of ['D1_SPACE', 'ASSETS', 'SGX_ENV']) assert.equal(g[k], FULL[k], k);
   assert.equal(typeof g.ACCOUNT.fetch, 'function');
   assert.equal(g.ACCOUNT_VERIFIER.session, undefined, '命名 v2：session() 删了');
-  assert.equal(typeof g.ACCOUNT_VERIFIER.authorize, 'function', 'P2-2：网关 api/search.js、api/chat.js 要问 authorize');
+  assert.equal(g.ACCOUNT_VERIFIER.authorize, undefined, 'v6 P4：authorize() 删了');
+  assert.equal(typeof g.ACCOUNT_VERIFIER.admit, 'function', '同正式 AccountVerifier：admit / auditRoot');
+  assert.equal(typeof g.ACCOUNT_VERIFIER.auditRoot, 'function');
 });
 
-test('preview-worker：账号那一半只拿账号的绑定，没有锁屏钥匙 / 进站凭证 / 锁屏库 / 网关的 pepper', () => {
-  const a = pw.accountEnvOf(FULL);
-  for (const k of ['SGX_SPACE_PRIVATE', 'SGX_SPACE_PUBLIC', 'SGX_SPACE_RECOVERY_KEY', 'SGX_SPACE_PASSWORD_PEPPER', 'D1_SPACE']) assert.equal(a[k], undefined, k + '（网关的 pepper 账号不再用）');
-  for (const k of ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_RECOVERY_KEY', 'SGX_ACCOUNT_PASSWORD_PEPPER', 'D1_ACCOUNT', 'ASSETS']) assert.equal(a[k], FULL[k], k);
+test('preview-worker：账号那一半只拿账号的绑定，没有网关的库；v6 P4 起 SGX_SPACE_* 与两把旧恢复钥匙都不在 env 键表里', () => {
+  const a = pw.accountEnvOf({ ...FULL, SGX_SPACE_PRIVATE: 'x', SGX_ACCOUNT_RECOVERY_KEY: 'y' });
+  for (const k of ['SGX_SPACE_PRIVATE', 'SGX_ACCOUNT_RECOVERY_KEY', 'D1_SPACE']) assert.equal(a[k], undefined, k);
+  for (const k of ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_PASSWORD_PEPPER', 'D1_ACCOUNT', 'ASSETS']) assert.equal(a[k], FULL[k], k);
+  assert.deepEqual(pw.ACCOUNT_ENV_KEYS.filter((k) => /SGX_SPACE_|RECOVERY_KEY/.test(k)), []);
 });
 
-test('preview-worker：ACCOUNT.fetch 只认网关写的身份头；没有身份头的 /api/* → 401，响应带 X-SGX-Runtime: account', async () => {
+test('preview-worker：ACCOUNT.fetch 只认 v6 会话；没有的 /api/* → 401，响应带 X-SGX-Runtime: account', async () => {
   const g = pw.gatewayEnvOf(FULL, { waitUntil() {} });
   const r = await g.ACCOUNT.fetch(new Request('https://x.pages.dev/api/prefs'));
   assert.equal(r.status, 401);
@@ -41,7 +43,7 @@ test('preview-worker：默认导出是 { fetch }，只交给网关（伪造的 x
   assert.equal(typeof pw.default.fetch, 'function');
   const env = Object.assign({}, FULL, { SGX_ENV: 'preview' });
   const r = await pw.default.fetch(new Request('https://x.pages.dev/api/prefs', { headers: { 'X-Styrigx-Space-Level': 'password' } }), env, { waitUntil() {} });
-  /* 预览 SGX_ENV=preview 时网关不拦 /api/*：剥头后转发，账号 Worker 看不到身份头 → 401（没剥掉就会当成有进站会话进 prefs） */
+  /* 网关剥掉外来 x-styrigx-* 头后转发；账号 Worker 只认 v6 会话 → 401 */
   assert.equal(r.status, 401);
   assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
 });

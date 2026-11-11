@@ -1,70 +1,53 @@
 /**
- * 测试用：模拟「浏览器 → 网关 → 账号 Worker」这一跳（账号拆分 PR3）。
+ * 测试用：账号 Worker 接口的 v6 会话测试台（v6 P4，定稿 v5.2 §十三起只认 v6 会话 sgx-session）。
+ * 旧的「网关验进站 cookie → 写身份头」这一跳和账号三张票（session / reauth / reset）随进站签发、旧账号会话删除。
  *
- * 线上账号 Worker 只信网关写的身份头：网关验进站会话（verifyLockSession）后剥外部 x-styrigx-* 头、写 X-Styrigx-Space-* /
- * X-Styrigx-Client-*（writeLockIdentity）。这里用网关真实的这两段代码把测试请求里的锁屏 cookie 换成身份头，
- * 再交给账号 Worker 真实的 headerAuth / serviceFetch——测到的就是线上同一套结论。账号会话只在账号 Worker 自己验。
- * - gatewayHop(request, env)：返回带身份头的新请求（锁屏 cookie 验不过 → 不带身份头）
- * - wrap(handler)：给账号处理函数配上 context.auth（headerAuth），请求先过 gatewayHop
- * - serviceCall(request, env)：gatewayHop + 账号 Worker 的 AccountService（serviceFetch）
- * - testAccountSession / testAccountSessionCookie / testReauthCookie / testResetCookie：用账号 Worker 的签名函数签账号三张票
+ * - V6_TOKEN / V6_COOKIE：一个固定的 v6 会话令牌（seedV6 在库里登记它的哈希）
+ * - seedV6(db, o?)：给账号库（makeAccountD1）写一个用户（默认 styrigx uid 1000，默认七组）+ V6_TOKEN 的会话行；返回 db
+ *   o.uid / o.name / o.groups / o.token 可改；同一个库可以 seed 多个用户（各用各的 token）
+ * - wrap(handler)：给账号处理函数配上 context.auth（gate.js headerAuth）
+ * - serviceCall(request, env)：账号 Worker 的 AccountService（serviceFetch）
  */
 import './_cf-workers.mjs';
-import { verifyLockSession } from '../../../workers/space-core/src/core/lock-session.js';
-import { writeLockIdentity } from '../../../workers/space-core/src/core/lock-identity.js';
-import { clientContextOf } from '../../../workers/space-core/src/core/forward.js';
-import { signSessionTicket } from '../../../workers/account/src/core/session.js';
-import { signReauthTicket } from '../../../workers/account/src/core/reauth.js';
-import { signResetTicket } from '../../../workers/account/src/core/reset.js';
-import { TICKET } from '../../../workers/account/src/core/config.js';
-import { TEST_DEVICE_ID } from '../space-core/_tickets.mjs';
+import { STYRIGX_DEFAULT_GROUPS } from '../../../workers/account/src/core/groups.js';
+import { sessionIdOf } from '../../../workers/account/src/core/identity-session.js';
 
 /* rpc/*.js 静态 import 了 cloudflare:workers：替身（_cf-workers.mjs）注册好之后再动态 import */
 const { headerAuth } = await import('../../../workers/account/src/gate.js');
 const { serviceFetch } = await import('../../../workers/account/src/rpc/account-service.js');
 
+export const V6_TOKEN = 'v6testtokenv6testtokenv6testtokenv6testtoke';
+export const V6_COOKIE = 'sgx-session=' + V6_TOKEN;
+/** 第二个令牌（普通用户 alice，uid 1001，只有 listen） */
+export const V6_TOKEN_ALICE = 'v6alicetokenv6alicetokenv6alicetokenv6alice';
+export const V6_COOKIE_ALICE = 'sgx-session=' + V6_TOKEN_ALICE;
+
+const IDS = new Map([[V6_TOKEN, await sessionIdOf(V6_TOKEN)], [V6_TOKEN_ALICE, await sessionIdOf(V6_TOKEN_ALICE)]]);
+
 /**
- * 网关这一跳：验锁屏 cookie → 写身份头（其余原样）。
- * @param {Request} request @param {any} env 测试 env（锁屏公钥 + 锁屏库放在同一个对象里）
+ * @param {any} db makeAccountD1() 的库 @param {{uid?:number, name?:string, groups?:string[], token?:string}} [o]
  */
-export async function gatewayHop(request, env) {
-  const sess = await verifyLockSession(request, env);
-  const headers = writeLockIdentity(new Headers(request.headers), sess, clientContextOf(request));
-  const out = new Request(request, { headers });
-  const cf = /** @type {any} */ (request).cf;
-  if (cf) Object.defineProperty(out, 'cf', { value: cf });
-  return out;
+export function seedV6(db, o = {}) {
+  const uid = o.uid ?? 1000;
+  const name = o.name || (uid === 1000 ? 'styrigx' : 'user' + uid);
+  const groups = o.groups || (uid === 1000 ? [...STYRIGX_DEFAULT_GROUPS] : []);
+  const token = o.token || V6_TOKEN;
+  const raw = db.raw;
+  raw.prepare("INSERT OR IGNORE INTO account_users (uid, name, avatar, expires_at, epoch, disabled, created_at) VALUES (?, ?, '', 0, 0, 0, 1)").run(uid, name);
+  for (const g of groups) raw.prepare('INSERT OR IGNORE INTO account_user_groups (uid, grp, added_at) VALUES (?, ?, 1)').run(uid, g);
+  const id = IDS.get(token);
+  if (!id) throw new Error('seedV6: unknown token');
+  const now = Date.now();
+  raw.prepare('INSERT OR IGNORE INTO account_sessions (id, uid, epoch, rescue, created_at, expires_at, renewed_at) VALUES (?, ?, 0, 0, ?, ?, ?)').run(id, uid, now, now + 30 * 86400e3, now);
+  return db;
 }
 
 /** @param {Function} handler onRequestGet / onRequestPost … */
 export function wrap(handler) {
-  return async (ctx) => {
-    const request = await gatewayHop(ctx.request, ctx.env);
-    return handler({ ...ctx, request, auth: headerAuth(request, ctx.env) });
-  };
+  return async (ctx) => handler({ ...ctx, auth: headerAuth(ctx.request, ctx.env) });
 }
 
 /** @param {Request} request @param {any} env @param {any} [ctx] */
 export async function serviceCall(request, env, ctx) {
-  return serviceFetch(await gatewayHop(request, env), env, ctx || { waitUntil() {} });
-}
-
-/**
- * @param {string} priv SGX_ACCOUNT_PRIVATE @param {string} by password | passkey @param {number} epoch session 纪元 @param {number} authAt
- * @param {number} [now] @param {string} [deviceId]
- */
-export function testAccountSession(priv, by, epoch, authAt, now, deviceId) {
-  return signSessionTicket(priv, { by, epoch, authAt, now, deviceId: deviceId || TEST_DEVICE_ID });
-}
-/** @param {string} priv @param {string} by @param {number} epoch @param {number} authAt @param {number} [now] @param {string} [deviceId] */
-export async function testAccountSessionCookie(priv, by, epoch, authAt, now, deviceId) {
-  return TICKET.session.cookie + '=' + (await testAccountSession(priv, by, epoch, authAt, now, deviceId));
-}
-/** reauth 票（挂在 deviceId 那个会话上） @param {string} priv @param {string} by @param {number} epoch session 纪元 @param {string} [deviceId] @param {number} [iat] */
-export async function testReauthCookie(priv, by, epoch, deviceId, iat) {
-  return TICKET.reauth.cookie + '=' + (await signReauthTicket(priv, { by, epoch, deviceId: deviceId || TEST_DEVICE_ID, iat }));
-}
-/** reset 票 @param {string} priv @param {number} epoch reset 纪元 @param {number} [iat] */
-export async function testResetCookie(priv, epoch, iat) {
-  return TICKET.reset.cookie + '=' + (await signResetTicket(priv, { epoch, iat }));
+  return serviceFetch(request, env, ctx || { waitUntil() {} });
 }

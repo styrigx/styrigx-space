@@ -212,7 +212,7 @@ test('白名单只在 precedence() 一处：救援会话 whoami / groups / passk
   }
   const req = new Request(ORIGIN + '/', { headers: { Cookie: 'sgx-session=' + tok } });
   for (const [m, p] of [['GET', '/curio/api/export'], ['POST', '/api/account/grants'], ['POST', '/api/account/proxy'], ['POST', '/curio/api/import'],
-    ['DELETE', '/daymark/api/collections'], ['GET', '/api/space-audit'], ['POST', '/api/share'], ['PUT', '/api/profile'], ['GET', '/api/prefs'], ['POST', '/api/ai']]) {
+    ['DELETE', '/daymark/api/collections'], ['GET', '/api/space-audit'], ['PUT', '/api/profile'], ['GET', '/api/prefs'], ['POST', '/api/ai']]) {
     const c = await AD.admitRoute(env, req, m, p);
     assert.equal(c.allowed, false, m + ' ' + p);
     assert.equal(c.rescue, true);

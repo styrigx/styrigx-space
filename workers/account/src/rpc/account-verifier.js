@@ -1,10 +1,9 @@
 /**
  * @fileoverview 账号 Worker 的命名入口 AccountVerifier（WorkerEntrypoint，RPC；只有网关绑定，服务绑定 ACCOUNT_VERIFIER）：
  * - （命名 v2 删掉 session()：唯一的调用方网关首帧提示随旧账号整页一起删了；临时钥匙管理、短链只认进站会话 + 锁侧复验）
- * - authorize(cookieHeader, clientContext, opts)：授权结论 { ok, reason, deviceId, scopes, reauth }（逻辑在 core/authorize.js）。
- *   P2-1 只新增：网关 core/account-rpc.js askAuthorize 会问它，但网关里还没有调用方（P2-2 起子站接口经 SpaceVerifier.conclusion() 间接用）。
+ * - （v6 P4，定稿 v5.2 §十三：authorize() 随旧账号会话与作用域授权删除）
  * - admit(cookieHeader, method, pathname, opts?)：v6 新会话的放行结论（P1 新增，逻辑在 core/admit.js；只读，一次 D1 查询）。
- *   网关只在请求带新会话 cookie（sgx-session）、旧进站会话又不成立时问；旧会话判定不经这里。
+ *   网关只在请求带 v6 会话 cookie（sgx-session）时问。
  *   割接（v6 cutover）：opts.action 给了就按那个 action 的档判（levelOf / rescueOf 同一张表），回答里回同一个 action（调用方核对，
  *   旧版本不认 action 时回的是路由档，不能当 action 的结论）；子站接口 Worker 经网关 SpaceVerifier.admit 转来问。
  * - auditRoot(cookieHeader, command, address)：root 在别的 Worker 做了特权内容操作（批量 / 结构删除、导入导出、分享管理），
@@ -16,7 +15,6 @@ import { WorkerEntrypoint } from 'cloudflare:workers';
 import { MAX_COOKIE_HEADER } from '../lib/cookies.js';
 import { CLIENT_CONTEXT_HEADERS } from '../lib/gateway.js';
 import { resolveSecrets } from '../secrets.js';
-import { authorize } from '../core/authorize.js';
 import { admitRoute } from '../core/admit.js';
 import { admitRequest } from '../core/identity-session.js';
 import { ruleOf } from '../core/route-access.js';
@@ -26,7 +24,7 @@ import { writeUserAudit } from '../core/user-audit.js';
 const MAX_UA = 512;
 
 /**
- * 把 RPC 参数还原成一个只带 Cookie / User-Agent / 地点头的内部请求（账号会话验证和设备 lastSeen 刷新读这些）。
+ * 把 RPC 参数还原成一个只带 Cookie / User-Agent / 地点头的内部请求（v6 会话判定读 Cookie）。
  * @param {string} cookieHeader
  * @param {{ua?:string, country?:string, city?:string}} [clientContext]
  */
@@ -40,24 +38,6 @@ export function verifierRequest(cookieHeader, clientContext) {
   if (typeof m.country === 'string' && m.country) headers[CLIENT_CONTEXT_HEADERS.country] = m.country;
   if (typeof m.city === 'string' && m.city) headers[CLIENT_CONTEXT_HEADERS.city] = m.city;
   return new Request('https://internal.invalid/', { headers });
-}
-
-/**
- * AccountVerifier.authorize 的实现：{ ok, reason, deviceId, scopes, reauth }（core/authorize.js authorize）。
- * opts 只认 reauth === true（RPC 传来的别的东西一律当没要复验）。永不抛错，出错 fail closed。
- * @param {Record<string, any>} env
- * @param {string} cookieHeader
- * @param {{ua?:string, country?:string, city?:string}} [clientContext]
- * @param {{reauth?:boolean}} [opts]
- */
-export async function checkAuthorize(env, cookieHeader, clientContext, opts) {
-  try {
-    const want = { reauth: !!(opts && typeof opts === 'object' && opts.reauth === true) };
-    return await authorize(await resolveSecrets(env || {}), verifierRequest(cookieHeader, clientContext), want);
-  } catch (e) {
-    console.error('[sgx-account] verifier authorize unhandled: ' + (e && /** @type {any} */ (e).name ? /** @type {any} */ (e).name : 'error'));
-    return { ok: false, reason: 'error', deviceId: '', scopes: [], reauth: false };
-  }
 }
 
 /** RPC 里 action 的写法（路由表里的 action 名：小写字母、数字、点、连字符） */
@@ -110,19 +90,8 @@ export async function checkAuditRoot(env, cookieHeader, command, address) {
   }
 }
 
-/** 授权结论（服务绑定 ACCOUNT_VERIFIER：只有网关） */
+/** 放行结论与 root 留痕（服务绑定 ACCOUNT_VERIFIER：只有网关） */
 export class AccountVerifier extends WorkerEntrypoint {
-  /**
-   * 授权结论：账号会话有效 → ok、deviceId 取自票、scopes = account_grant 里的当前授权；
-   * opts.reauth 为 true 时再验挂在这个会话上的 sgx-account-reauth。
-   * @param {string} cookieHeader 浏览器发来的 Cookie 头
-   * @param {{ua?:string, country?:string, city?:string}} [clientContext]
-   * @param {{reauth?:boolean}} [opts]
-   */
-  async authorize(cookieHeader, clientContext, opts) {
-    return checkAuthorize(this.env, cookieHeader, clientContext, opts);
-  }
-
   /**
    * v6 新会话的放行结论（core/admit.js）：{ allowed, reason, level, uid, name, groups, root, rescue, via, renew, action }。
    * @param {string} cookieHeader @param {string} method @param {string} pathname @param {{action?: string}} [opts]

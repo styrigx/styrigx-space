@@ -4,25 +4,22 @@
  * - 规则：页面 / 静态文件一律 public；/api/* 和 /<站>/api/* 只有表里逐条的「方法 + 路径」public，其余 entry（fail closed）
  * - 精确匹配：多一段 /x、换方法、编码 / 大小写绕法都不算 public
  * - 访客：/wild/、/blog/、/curio/、/daymark/ 页面 200；/api/ai、/api/status、/api/space-audit、/api/account 401；屏幕时间合计公开
- * - 进站（password / passkey / link）放行；分享链接作废、回锁（lock-now 清 cookie）、纪元推进之后 /api/ai 401
+ * - v6 会话（站长 / root）放行；没身份 401、档不够 403（v6 P4 起进站会话、分享链接会话、lock-now、纪元全部删除，对应用例一并删除）
  * 听歌三层（歌单公开 / 听要进站 / 管理要账号）在 curio-core 自己的访问表里，见 tests/workers/curio-core/movies-music.test.mjs。
  * 运行：node --test tests/workers/space-core/route-access.test.mjs
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { testLockSession, TEST_LINK_ID } from './_tickets.mjs';
-import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
+import { v6Space } from '../_v6admit.mjs';
+import { makeAuthD1 } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/space-core/src/app.js')).default;
 const { ROUTE_ACCESS, ACCESS, accessOf, isApiPath } = await import(REPO + 'workers/space-core/src/gate.js');
 const { API_ROUTES, FORWARDING } = await import(REPO + 'workers/space-core/src/router.js');
-const { conclusionFor } = await import(REPO + 'workers/space-core/src/core/conclusion.js');
-const { bumpLockEpoch } = await import(REPO + 'workers/space-core/src/core/lock-session.js');
 const { PUBLIC_API: ACCOUNT_PUBLIC_API } = await import(REPO + 'workers/account/src/gate.js');
 
-const { priv: PRIV, pub: PUB } = await genKeyPair();
 const CTX = { waitUntil() {} };
 
 function env(db = makeAuthD1()) {
@@ -30,9 +27,9 @@ function env(db = makeAuthD1()) {
   return {
     seen,
     db,
-    SGX_ENV: 'production', SGX_SITE: 'space', SGX_SPACE_PUBLIC: PUB,
+    SGX_ENV: 'production', SGX_SITE: 'space',
     D1_SPACE: db,
-    ANON_LIMITER: { async limit() { return { success: true }; } },
+    ACCOUNT_VERIFIER: v6Space({}),
     ACCOUNT: { async fetch(req) { seen.push('ACCOUNT ' + new URL(req.url).pathname); return new Response('{"ok":true}', { headers: { 'Content-Type': 'application/json', 'X-SGX-Runtime': 'account' } }); } },
     ASSETS: {
       async fetch(req) {
@@ -43,7 +40,7 @@ function env(db = makeAuthD1()) {
     },
   };
 }
-const cookieOf = async (by) => 'sgx-space-session=' + (await testLockSession(PRIV, 0, by));
+const cookieOf = async (who) => 'sgx-session=' + who;
 function get(e, p, { cookie = '', method = 'GET' } = {}) {
   const headers = { Origin: 'https://styrigx.com' };
   if (cookie) headers.Cookie = cookie;
@@ -52,16 +49,7 @@ function get(e, p, { cookie = '', method = 'GET' } = {}) {
 
 test('访问表快照：改了这张表，这里必须跟着改', () => {
   assert.deepEqual(ROUTE_ACCESS.map((r) => r.method + ' ' + r.path + ' → ' + r.access), [
-    'GET /api/lock-entry → public',
-    'GET /api/lock-session-check → public',
-    'POST /api/lock-password → public',
-    'POST /api/lock-passkey → public',
-    'GET /api/lock-credentials → public',
-    'POST /api/lock-reset → public',
-    'POST /api/space-auth → public',
     'POST /api/identity → public',
-    'GET /s/:code → public',
-    'HEAD /s/:code → public',
     'GET /api/geo → public',
     'GET /api/wellbeing → public',
     'GET /api/profile → public',
@@ -71,16 +59,17 @@ test('访问表快照：改了这张表，这里必须跟着改', () => {
   for (const r of ROUTE_ACCESS) assert.ok(typeof r.why === 'string' && r.why.length > 0, r.path + ' 要写为什么公开');
   /* 表里只有 public：entry 是默认值，不用写；三处上锁的接口一条都不在表里 */
   assert.ok(ROUTE_ACCESS.every((r) => r.access === ACCESS.PUBLIC));
-  for (const p of ['/api/ai', '/api/status', '/api/space-audit', '/api/account', '/api/prefs', '/api/avatar', '/api/share', '/api/lock-now', '/api/lock-reauth', '/api/lock-all-devices']) {
+  for (const p of ['/api/ai', '/api/status', '/api/space-audit', '/api/account', '/api/prefs', '/api/avatar', '/api/share', '/api/lock-now', '/api/lock-reauth', '/api/lock-all-devices', '/api/lock-entry', '/api/lock-session-check', '/api/lock-password', '/api/lock-passkey', '/api/lock-credentials', '/api/lock-reset', '/api/space-auth']) {
     assert.ok(!ROUTE_ACCESS.some((r) => r.path === p), p + ' 不许出现在访问表里');
     for (const m of ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS']) assert.equal(accessOf(m, p), ACCESS.ENTRY, m + ' ' + p);
   }
   /* 名片：只有 GET 公开（v6 P2c，定稿 v5 §五），PUT 等照旧要进门 */
   assert.equal(accessOf('GET', '/api/profile'), ACCESS.PUBLIC);
   for (const m of ['POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS']) assert.equal(accessOf(m, '/api/profile'), ACCESS.ENTRY, m + ' /api/profile');
-  /* 表里的接口都真有处理的地方（网关路由表、账号转发表或分享链接） */
+  /* 表里的接口都真有处理的地方（网关路由表或账号转发表；v6 P4 起分享短链 /s/:code 删除） */
+  assert.ok(!ROUTE_ACCESS.some((r) => r.path.startsWith('/s/')), '/s/:code 不在表里');
   for (const r of ROUTE_ACCESS) {
-    const known = API_ROUTES.has(r.path) || FORWARDING.some((f) => f.path === r.path) || r.path === '/s/:code';
+    const known = API_ROUTES.has(r.path) || FORWARDING.some((f) => f.path === r.path);
     assert.ok(known, r.path);
   }
 });
@@ -92,11 +81,13 @@ test('精确匹配：多一段、换方法、编码 / 大小写都不是 public�
   assert.equal(accessOf('GET', '/api/find/'), 'public');
   for (const [m, p] of [['GET', '/api/geo/x'], ['GET', '/api/geo//'], ['POST', '/api/geo'], ['GET', '/api/geox'], ['GET', '/API/geo'], ['GET', '/api/%67eo'],
     ['GET', '/api/wellbeing/x'], ['POST', '/api/wellbeing'], ['POST', '/api/find'], ['HEAD', '/api/find'], ['GET', '/api/find/x'], ['GET', '/api/search'], ['GET', '/api/lock-entry/x'], ['POST', '/api/lock-entry'], ['GET', '/api/lock-password'],
-    ['GET', '/api/lock-session-check/../ai'], ['POST', '/s/abc'], ['GET', '/api/unknown'], ['GET', '/curio/api/music'], ['GET', '/daymark/api/today']]) {
+    ['GET', '/api/lock-session-check/../ai'], ['GET', '/api/unknown'], ['GET', '/curio/api/music'], ['GET', '/daymark/api/today']]) {
     assert.equal(accessOf(m, p), 'entry', m + ' ' + p);
   }
+  /* v6 P4：/s/<码> 是普通页面路径（public，Pages 回 404），不再是分享短链 */
   assert.equal(accessOf('GET', '/s/abc'), 'public');
-  assert.equal(accessOf('HEAD', '/s/abc/'), 'public');
+  assert.equal(accessOf('POST', '/s/abc'), 'public');
+  assert.equal(isApiPath('/s/abc'), false);
   /* 页面路径一律 public */
   for (const p of ['/', '/zh/', '/wild/', '/blog/post/x/', '/curio/music/', '/daymark/', '/files-index.json', '/index.xml', '/blog/rss.xml', '/avatar/96.webp']) {
     assert.equal(accessOf('GET', p), 'public', p);
@@ -140,47 +131,26 @@ test('账号 Worker 的纵深防御表和网关访问表一致：转给 ACCOUNT 
   assert.deepEqual(fwd.map((r) => r.method + ' ' + r.path), [...ACCOUNT_PUBLIC_API]);
 });
 
-test('进站（password / passkey / link）：三处上锁的接口放行（不再 401）', async () => {
-  for (const by of ['password', 'passkey', 'link']) {
-    const c = await cookieOf(by);
+test('v6 会话（站长 / root）：上锁的接口放行（不再 401）；有身份但档不够 → 403 forbidden（不是 401）', async () => {
+  for (const who of ['styrigx', 'root']) {
+    const c = await cookieOf(who);
     for (const p of ['/api/status', '/api/ai']) {
       const r = await get(env(), p, { cookie: c });
-      assert.notEqual(r.status, 401, by + ' ' + p);
+      assert.notEqual(r.status, 401, who + ' ' + p);
     }
   }
+  const r = await get(env(), '/api/space-audit', { cookie: await cookieOf('alice') });
+  assert.equal(r.status, 403);
+  assert.equal((await r.json()).error, 'forbidden');
 });
 
-test('分享链接作废之后：同一张票下一个请求 /api/ai 就 401（服务绑定结论也 space.ok=false）；页面照常 200', async () => {
-  const db = makeAuthD1();
-  const c = await cookieOf('link');
-  assert.notEqual((await get(env(db), '/api/ai', { cookie: c })).status, 401);
-  assert.equal((await conclusionFor({ SGX_SPACE_PUBLIC: PUB, D1_SPACE: db }, c, {}, {})).space.ok, true);
-  db.raw.prepare('UPDATE share_link SET revoked_at = ? WHERE id = ?').run(Date.now(), TEST_LINK_ID);
-  assert.equal((await get(env(db), '/api/ai', { cookie: c })).status, 401);
-  assert.equal((await get(env(db), '/api/status', { cookie: c })).status, 401);
-  assert.equal((await conclusionFor({ SGX_SPACE_PUBLIC: PUB, D1_SPACE: db }, c, {}, {})).space.ok, false, '奇趣听歌问的结论同样没进门');
-  const page = await get(env(db), '/wild/', { cookie: c });
+test('坏 / 过期的 v6 令牌：和没会话一样 401，页面照常 200（标 locked）', async () => {
+  const c = await cookieOf('nobody');
+  assert.equal((await get(env(), '/api/ai', { cookie: c })).status, 401);
+  assert.equal((await get(env(), '/api/status', { cookie: c })).status, 401);
+  const page = await get(env(), '/wild/', { cookie: c });
   assert.equal(page.status, 200);
   assert.match(await page.text(), /data-sgx-lock-session="locked"/);
-});
-
-test('回锁（POST /api/lock-now 清掉 cookie）之后 /api/ai 401', async () => {
-  const c = await cookieOf('password');
-  assert.notEqual((await get(env(), '/api/ai', { cookie: c })).status, 401);
-  const lock = await get(env(), '/api/lock-now', { cookie: c, method: 'POST' });
-  assert.equal(lock.status, 200);
-  const cleared = lock.headers.getSetCookie().find((x) => x.startsWith('sgx-space-session='));
-  assert.match(cleared, /^sgx-space-session=; .*Max-Age=0/);
-  /* 浏览器按 Set-Cookie 删掉以后，请求里就没有进站会话了 */
-  assert.equal((await get(env(), '/api/ai')).status, 401);
-});
-
-test('纪元推进（退出所有设备 / 改密码 / 删通行密钥）之后旧票 /api/ai 401', async () => {
-  const db = makeAuthD1({ epochs: { 'lock-epoch': 0 } });
-  const c = await cookieOf('password');
-  assert.notEqual((await get(env(db), '/api/ai', { cookie: c })).status, 401);
-  await bumpLockEpoch(env(db));
-  assert.equal((await get(env(db), '/api/ai', { cookie: c })).status, 401);
 });
 
 test('源码里没有旧的门：没有 302 到锁屏、没有瘦身、没有路径白名单', () => {

@@ -5,9 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseReport, summarize, dayOk, sectionOf, onRequestPost as rawPost, onRequestGet as rawGet } from '../../../workers/account/src/api/wellbeing.js';
-import { wrap, testAccountSessionCookie } from './_auth.mjs';
-import { testLockSessionCookie } from '../space-core/_tickets.mjs';
-import { genKeyPair, authD1For, makeKV } from '../_harness.mjs';
+import { wrap, seedV6, V6_COOKIE, V6_COOKIE_ALICE, V6_TOKEN_ALICE } from './_auth.mjs';
 import { makeAccountD1, splitD1 } from './_d1.mjs';
 
 const onRequestPost = wrap(rawPost);
@@ -156,9 +154,7 @@ test('fmtShort：终端短时长（对齐 PR-B 起取代 fmtDur；各语言同�
   assert.equal(fmtShort(/** @type {any} */ ('abc')), '<1m');
 });
 
-/* ---- P2-2：POST 只记账号会话 + wellbeing.write；GET 明细只给账号会话，响应带 detail ---- */
-const LK = await genKeyPair();
-const AK = await genKeyPair();
+/* ---- v6 P4（定稿 v5.3 §十三）：POST 只记 v6 会话（档 user）；GET 合计公开，明细只给站长 / root 的 v6 会话（旧进站 / 账号会话分支删除） ---- */
 /** wb_daily 的替身（经 splitD1 只接 wb_daily 的语句）：记下写入；SELECT 返回固定两行 */
 function wbDb() {
   const db = {
@@ -175,52 +171,37 @@ function wbDb() {
   return db;
 }
 function wbEnv(db) {
-  const kv = makeKV();
-  return { SGX_SPACE_PUBLIC: LK.pub, SGX_ACCOUNT_PUBLIC: AK.pub, D1_SPACE: authD1For(kv), D1_ACCOUNT: db ? splitD1(makeAccountD1(), db, /wb_daily/) : makeAccountD1() };
+  const acc = seedV6(makeAccountD1({ migrations: 'pre-uid' }));
+  seedV6(acc, { uid: 1001, name: 'alice', groups: ['listen'], token: V6_TOKEN_ALICE });
+  return { D1_ACCOUNT: db ? splitD1(acc, db, /wb_daily/) : acc };
 }
-async function wbCookie(role, acc) {
-  const c = [await testLockSessionCookie(LK.priv, 0, role)];
-  if (acc) c.push(await testAccountSessionCookie(AK.priv, 'password', 0, Date.now()));
-  return c.join('; ');
-}
+const OLD_COOKIES = 'sgx-space-session=a.b.c; sgx-account-session=d.e.f';
 const body = () => JSON.stringify({ d: new Date().toISOString().slice(0, 10), s: [{ k: 'home', sec: 30 }] });
 
-test('POST：有进站会话、没账号会话 → 204 丢弃不写（锁屏密码 / 分享链接进站一样）；进站会话 + 账号会话 → 写入', async () => {
-  for (const role of ['password', 'link']) {
+test('POST：没有 v6 会话（只带旧进站 / 旧账号会话 cookie 一样）→ 401 不写；v6 会话 → 写入', async () => {
+  for (const ck of ['', OLD_COOKIES]) {
     const db = wbDb();
-    const r = await onRequestPost({ request: new Request('https://styrigx.com/api/wellbeing', { method: 'POST', body: body(), headers: { Cookie: await wbCookie(role, false) } }), env: wbEnv(db) });
-    assert.equal(r.status, 204);
-    assert.equal(db.writes, 0, role);
+    const r = await onRequestPost({ request: new Request('https://styrigx.com/api/wellbeing', { method: 'POST', body: body(), headers: ck ? { Cookie: ck } : {} }), env: wbEnv(db) });
+    assert.equal(r.status, 401, ck || '(无)');
+    assert.equal(db.writes, 0);
   }
   const db = wbDb();
-  const r = await onRequestPost({ request: new Request('https://styrigx.com/api/wellbeing', { method: 'POST', body: body(), headers: { Cookie: await wbCookie('password', true) } }), env: wbEnv(db) });
+  const r = await onRequestPost({ request: new Request('https://styrigx.com/api/wellbeing', { method: 'POST', body: body(), headers: { Cookie: V6_COOKIE } }), env: wbEnv(db) });
   assert.equal(r.status, 204);
   assert.ok(db.writes >= 1);
 });
 
-test('GET：访客（v5 S3，没进站）只拿合计 detail:false；带着账号 cookie 但没进站也不给明细', async () => {
-  for (const acc of [false, true]) {
-    const cookie = acc ? (await wbCookie('password', true)).split('; ').slice(1).join('; ') : '';
-    const r = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: cookie ? { Cookie: cookie } : {} }), env: wbEnv(wbDb()) });
+test('GET：访客、只带旧 cookie、不是站长的 v6 用户（alice）只拿合计 detail:false；站长 v6 会话 detail:true 带书名', async () => {
+  for (const ck of ['', OLD_COOKIES, V6_COOKIE_ALICE]) {
+    const r = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: ck ? { Cookie: ck } : {} }), env: wbEnv(wbDb()) });
     assert.equal(r.status, 200);
     const j = await r.json();
-    assert.equal(j.detail, false, String(acc));
+    assert.equal(j.detail, false, ck || '(无)');
     assert.equal(j.total, 90);
     assert.deepEqual(j.items, []);
   }
-});
-
-test('GET：没账号会话 detail:false 只有合计；有账号会话 detail:true 带书名', async () => {
-  const a = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('password', false) } }), env: wbEnv(wbDb()) });
-  assert.equal(a.status, 200);
-  const ja = await a.json();
-  assert.equal(ja.detail, false);
-  assert.equal(ja.total, 90);
-  assert.deepEqual(ja.items, []);
-  const b = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('link', true) } }), env: wbEnv(wbDb()) });
+  const b = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: V6_COOKIE } }), env: wbEnv(wbDb()) });
   const jb = await b.json();
   assert.equal(jb.detail, true);
   assert.equal(jb.items[0].t, '三体');
-  const c = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('password', false) } }), env: wbEnv(null) });
-  assert.equal((await c.json()).detail, false);
 });

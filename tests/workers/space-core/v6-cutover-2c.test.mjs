@@ -1,7 +1,7 @@
 /**
  * 2c（v6 割接后续）：AI 回答的私密范围按 v6 身份——网关这一侧（workers/space-core/src/api/ai.js aiConclusionHeaders）。
  * - 先问账号 Worker POST /api/ai 的 action private（ROUTE_ACCESS = owner，经 permits()）：styrigx（站长）/ root → 只写 X-Styrigx-Account-Session: 1
- * - v6 不够（bob：ai 组但不是站长）/ 没有 v6 会话 → 回退旧账号会话（askAuthorizeFor + writeAccountConclusion）；都没有 → 不写 = 只给公开内容
+ * - v6 不够（bob：ai 组但不是站长）/ 没有 v6 会话 → 不写 = 只给公开内容（v6 P4 起旧账号会话回退删除，定稿 v5.2 §十三）
  * - GET /api/ai（模型列表的 canChoose）问同一条，与 POST 一致
  * - 浏览器伪造的结论头不会带过去
  * 放行判断用 ../_v6admit.mjs（真的 ROUTE_ACCESS + permits）。
@@ -19,14 +19,11 @@ const IA = await import(REPO + 'workers/space-core/src/core/identity-admit.js');
 const RA = await import(REPO + 'workers/account/src/core/route-access.js');
 
 const SESSION = 'X-Styrigx-Account-Session';
-const ACCOUNT_OK = { ok: true, deviceId: 'dev_abcdefgh', scopes: ['ai.model'], reauth: false, reason: 'ok' };
-
-/** @param {{ legacy?: boolean, throws?: boolean }} [o] */
+/** @param {{ throws?: boolean }} [o] */
 function setup(o = {}) {
-  const rec = { admits: [], authorize: 0, sent: [] };
+  const rec = { admits: [], sent: [] };
   const env = withAuthD1({
     ACCOUNT_VERIFIER: {
-      async authorize() { rec.authorize++; return o.legacy ? ACCOUNT_OK : { ok: false, reason: 'no-cookie', deviceId: '', scopes: [], reauth: false }; },
       async admit(c, m, p, opts) { rec.admits.push([m, p, opts && opts.action]); if (o.throws) throw new Error('down'); return admitFor(c, m, p, opts); },
     },
     AI_SERVICE: {
@@ -49,7 +46,7 @@ test('AI_PRIVATE：就是账号路由表里 POST /api/ai 的 action private（= 
   assert.equal(RA.rescueOf('POST', '/api/ai', { action: 'private' }), false);
 });
 
-test('aiConclusionHeaders：v6 styrigx / root → 只写 Session: 1（不问旧账号）；bob（ai 组非站长）、alice、临时用户 → 回退旧账号，没有就不写', async () => {
+test('aiConclusionHeaders：v6 styrigx / root → 只写 Session: 1；bob（ai 组非站长）、alice、临时用户、救援、过期 → 不写', async () => {
   for (const who of ['styrigx', 'root']) {
     const { env, rec } = setup();
     const req = new Request('https://styrigx.com/api/ai', { method: 'POST', headers: { Cookie: 'sgx-session=' + who } });
@@ -57,32 +54,28 @@ test('aiConclusionHeaders：v6 styrigx / root → 只写 Session: 1（不问旧�
     assert.equal(h.get(SESSION), '1', who);
     assert.equal(h.get('X-Styrigx-Account-Device'), null, who + '：v6 不写旧设备头');
     assert.deepEqual(rec.admits, [['POST', '/api/ai', 'private']], who);
-    assert.equal(rec.authorize, 0, who + '：v6 够了不问旧账号');
   }
   for (const who of ['bob', 'alice', 'temp', 'rescue', 'expired']) {
     const { env, rec } = setup();
     const req = new Request('https://styrigx.com/api/ai', { method: 'POST', headers: { Cookie: 'sgx-session=' + who } });
     const h = await AI.aiConclusionHeaders(req, env, new Headers());
     assert.equal(h.get(SESSION), null, who);
-    assert.equal(rec.authorize, 1, who + '：回退问旧账号');
+    assert.deepEqual(rec.admits, [['POST', '/api/ai', 'private']], who);
   }
 });
 
-test('aiConclusionHeaders：旧账号会话回退——v6 不够 / 没有 v6 cookie 时旧账号会话照旧给私密（P4 删）；没 cookie 不问 v6', async () => {
-  let { env, rec } = setup({ legacy: true });
-  let h = await AI.aiConclusionHeaders(new Request('https://styrigx.com/api/ai', { method: 'POST', headers: { Cookie: 'sgx-session=bob' } }), env, new Headers());
-  assert.equal(h.get(SESSION), '1');
-  assert.equal(h.get('X-Styrigx-Account-Device'), 'dev_abcdefgh', '旧账号结论头原样');
-  ({ env, rec } = setup({ legacy: true }));
-  h = await AI.aiConclusionHeaders(new Request('https://styrigx.com/api/ai', { method: 'POST', headers: { Cookie: 'sgx-account-session=ok' } }), env, new Headers());
-  assert.equal(h.get(SESSION), '1');
+test('aiConclusionHeaders（v6 P4）：旧账号会话 cookie 不再给私密；没 sgx-session 不问 v6；访客只给公开', async () => {
+  let { env, rec } = setup();
+  let h = await AI.aiConclusionHeaders(new Request('https://styrigx.com/api/ai', { method: 'POST', headers: { Cookie: 'sgx-account-session=ok' } }), env, new Headers());
+  assert.equal(h.get(SESSION), null, '旧账号会话删除');
+  assert.equal(h.get('X-Styrigx-Account-Device'), null);
   assert.equal(rec.admits.length, 0, '没 sgx-session 不问 v6');
   ({ env, rec } = setup());
   h = await AI.aiConclusionHeaders(new Request('https://styrigx.com/api/ai', { method: 'POST' }), env, new Headers());
   assert.equal(h.get(SESSION), null, '访客只给公开');
 });
 
-test('aiConclusionHeaders：v6 RPC 出错 → 不算（fail closed），回退旧账号；伪造的结论头被剥掉', async () => {
+test('aiConclusionHeaders：v6 RPC 出错 → 不算（fail closed）；伪造的结论头被剥掉', async () => {
   const { env } = setup({ throws: true });
   const h = await AI.aiConclusionHeaders(new Request('https://styrigx.com/api/ai', { method: 'POST', headers: { Cookie: 'sgx-session=styrigx' } }), env, new Headers({ [SESSION]: '1', 'X-Styrigx-Account-Scopes': 'x.y' }));
   assert.equal(h.get(SESSION), null);

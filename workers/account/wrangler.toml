@@ -55,14 +55,11 @@ migrations_dir = "migrations"
 
 # ---- 密钥：Secrets Store（2026-10-29 PR2；读法见 src/secrets.js，Secrets Store 对象换成字符串、60 秒缓存）----
 # 和网关同一个 store；binding = secret_name。store_id 是存储的编号，不是密值。
-# - SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC：session / reauth / reset 三张票的签名钥匙（和锁屏的 SGX_SPACE_PRIVATE / PUBLIC 平行）
-# - SGX_ACCOUNT_RECOVERY_KEY：恢复密钥（sudo root reset；值与进站凭证不同）
+# - SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC：v6 会话票的签名钥匙
 # - SGX_ACCOUNT_PASSWORD_PEPPER：账号密码哈希的 pepper，账号独占（命名 v2 起不再和网关共用）
-# - SGX_SPACE_PASSWORD_PEPPER（v6 P2，pepper 方案 a，ADR-0006 §2.12 (b)）：进站密码的 pepper，网关原来就绑着；账号 Worker 只读，
-#   用来验从进站密码迁来的 styrigx 密码（account_user_password.pepper_id = 'space'），验对后用账号 pepper 重算。只加绑定，不碰值；P4 删。
 # - SGX_ACCOUNT_RESCUE_KEY（v6 P3，定稿 v5.2 §九）：救援钥匙。救援入口（POST /api/identity action rescue）只读 get() 做恒定时间比对；
-#   Gray 在 dashboard 设值 / 换值（每次救援后换），运行时生效不用重部署。2026-11-11 05:23 Gray 已在这个 store 建好（Workers 范围）；只加绑定，不碰值。
-# 后两个部署前要先在 Cloudflare 后台建好（2026-11-08 Gray 已建）；SGX_SPACE_PASSWORD_PEPPER 早已在同一个 store 里。
+#   Gray 在 dashboard 设值 / 换值（每次救援后换），运行时生效不用重部署。只绑定，不碰值。
+# - v6 P4（定稿 v5.2 §十三）删除绑定：SGX_ACCOUNT_RECOVERY_KEY（旧恢复钥匙）、SGX_SPACE_PASSWORD_PEPPER（旧 pepper；部署前须用 docs/ops/v6-p4-predeploy-check.sql 核生产库无 pepper_id = 'space' 行）。
 # 部署 token 要有 Secrets Store 编辑权限（带 Secrets Store 绑定部署必须 Edit，否则报 10021）。
 [[secrets_store_secrets]]
 binding = "SGX_ACCOUNT_PRIVATE"
@@ -75,19 +72,9 @@ store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_ACCOUNT_PUBLIC"
 
 [[secrets_store_secrets]]
-binding = "SGX_ACCOUNT_RECOVERY_KEY"
-store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "SGX_ACCOUNT_RECOVERY_KEY"
-
-[[secrets_store_secrets]]
 binding = "SGX_ACCOUNT_PASSWORD_PEPPER"
 store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_ACCOUNT_PASSWORD_PEPPER"
-
-[[secrets_store_secrets]]
-binding = "SGX_SPACE_PASSWORD_PEPPER"
-store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "SGX_SPACE_PASSWORD_PEPPER"
 
 [[secrets_store_secrets]]
 binding = "SGX_ACCOUNT_RESCUE_KEY"

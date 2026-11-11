@@ -341,7 +341,7 @@ test('规则 16：注释、ACCOUNT_VERIFIER.authorize()、首帧提示属性名�
   ]) {
     assert.deepEqual(layers.checkFile(REPO, f, code), [], code);
   }
-  assert.deepEqual(layers.checkFile(REPO, join(REPO, AC + 'src/rpc/account-verifier.js'), "import { verifySession } from '../core/session.js';\nconst k = env.SGX_ACCOUNT_RECOVERY_KEY;"), []);
+  assert.deepEqual(layers.checkFile(REPO, join(REPO, AC + 'src/rpc/account-verifier.js'), "import { verifySession } from '../core/identity-session.js';\nconst k = env.SGX_ACCOUNT_RECOVERY_KEY;"), []);
 });
 
 test('规则 22：账号 Worker / 账号前端里出现退役旧名（含注释）报错；别处不管；名单只在 retired-names.json', () => {
@@ -408,7 +408,7 @@ test('规则 17：账号 Worker 的 wrangler.toml 不许有路由（[[routes]]�
 
 test('规则 16、17：本仓库的网关源码和两个 wrangler.toml 都通过（账号 Worker 0 条路由，网关里没有账号鉴权标识）', () => {
   const gw = layers.walk(join(REPO, GW));
-  assert.ok(gw.length >= 50, String(gw.length));
+  assert.ok(gw.length >= 20, String(gw.length)); /* v6 P4 删进站签发 / 分享短链 / lock 接口后网关剩 24 个文件 */
   const errs = [];
   for (const f of gw) errs.push(...layers.checkGatewayAccountAuth(f, readFileSync(f, 'utf8')));
   errs.push(...layers.checkGatewayAccountAuth(GW + 'wrangler.toml', readFileSync(join(REPO, GW + 'wrangler.toml'), 'utf8'), 'toml'));

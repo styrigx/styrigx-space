@@ -1,5 +1,5 @@
 /**
- * @fileoverview styrigx-space-core（站点核心 Worker，原 styrigx-auth-gateway；进站 v3 L2 起并入分享链接 styrigx-share）的默认 handler（src/index.js 的 default）：请求的总流程。
+ * @fileoverview styrigx-space-core（站点核心 Worker，原 styrigx-auth-gateway；v6 P4 起分享链接与进站签发删除）的默认 handler（src/index.js 的 default）：请求的总流程。
  *
  * 承接 styrigx.com 整站（路由见 wrangler.toml）：/api/*、全部页面。旧图志域名的 301 已于 P4-3 PR-1 删除（路由不再登记）。
  * fetch 第一步剥掉入站请求里所有 x-styrigx-* 和 x-sgx-*（主站、子站回源、静态直通都剥；方案第 3 节第一道保险）。
@@ -10,11 +10,10 @@
  *   2. 子站前缀（styrigx.com/blog/ /curio/ /daymark/，gate.js subsiteOf）的静态后缀 → 原样回源（只补 HSTS、nosniff）；旧 /<站>/en/… 除外（交给子站关口判 404）
  * 主站的后端代码只在本 Worker，Pages 只放静态文件：
  *   2b. POST /api/csp-report（core/csp-report.js）：Report-Only CSP 的违规报告，只记日志、204，不经关口、不存东西
- *   3. Secrets Store 的私密值换成字符串（secrets.js）
- *   3b. 分享链接 /s/<码>、/api/share（router.js routeShare；原 styrigx-share Worker 的门和接口，进站 v3 L2 并入）
+ *   （v6 P4 起没有 Secrets Store 私密值要换（secrets.js 删除），分享链接 /s/<码>、/api/share 整套删除）
  *   4. 子站前缀的页面：gate.js handleSubsite（子站关口），Pages 不持钥匙
  *   5. 主站其余路径：先跑 gate.js onRequest（主站关口：域名、会话、访问表 ROUTE_ACCESS、no-store），放行后交给 router.js route：
- *      转发表（账号路径经服务绑定 ACCOUNT 转给 styrigx-account，写全套身份头；账号的响应保留 X-SGX-Runtime: account）
+ *      转发表（账号路径经服务绑定 ACCOUNT 转给 styrigx-account，写客户端上下文头；账号的响应保留 X-SGX-Runtime: account）
  *      → /api/* 路由表（api/<名字>.js；不在表里 404、方法不支持 405）→ 其他（页面）回源取静态文件
  *
  * 回源：生产上发子请求到同一地址（Worker 发往自己路由的子请求不会再进 Worker，直接到 Pages）；
@@ -28,8 +27,7 @@
  *   - 原样回源的静态资源不改（不打 X-SGX-Runtime 也不加头），由 Pages 的 _headers 加同一套
  */
 import { onRequest as middleware, subsiteOf, handleSubsite, isStaticAsset as isSubsiteStaticAsset, isRetiredEnPath, normPath } from './gate.js';
-import { route, fromOrigin, makeContext, isSharePath, routeShare } from './router.js';
-import { resolveSecrets } from './secrets.js';
+import { route, fromOrigin, makeContext } from './router.js';
 import { applyMainSiteHeaders, applySubsiteHeaders, applySubsiteStaticHeaders } from './lib/security-headers.js';
 import { apiError } from './lib/http.js';
 import { stripRequest, clientContextOf } from './core/forward.js';
@@ -87,9 +85,9 @@ export default {
     }
     /* Report-Only CSP 的违规报告（core/csp-report.js）：只记日志、回 204、不存东西；不经主站关口（锁屏页也会报），不用密钥 */
     if (!sub && isCspReportPath(url0)) return applyMainSiteHeaders(tagRuntime(await handleCspReport(request)));
-    const env = await resolveSecrets(rawEnv);
-    /* 分享链接 /s/<码>、/api/share（原 styrigx-share Worker，进站 v3 L2 并入）：不走主站关口，安全头同主站 */
-    if (!sub && isSharePath(url0.pathname)) return applyMainSiteHeaders(tagRuntime(await routeShare(request, env, ctx)));
+    /* v6 P4（定稿 v5.2 §十三）：本 Worker 不再绑任何 Secrets Store 私密值（进站签发、SGX_SPACE_* 删除），env 原样用；
+       分享链接 /s/<码>、/api/share 整套删除（§二第 19 行），/s/<码> 走主站关口当普通页面路径（Pages 回 404） */
+    const env = rawEnv;
     const isSub = !!sub;
     const secure = isSub ? applySubsiteHeaders : applyMainSiteHeaders;
     try {

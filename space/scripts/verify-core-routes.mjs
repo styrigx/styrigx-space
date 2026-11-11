@@ -2,7 +2,7 @@
 /**
  * @fileoverview 部署后核对 styrigx.com 的 Worker 路由（deploy.yml 的 deploy-space-core「Verify routes」用）：
  *   styrigx.com/* 正好一条、挂在 styrigx-space-core；不再有单独的短链路由 styrigx.com/s/*、styrigx.com/api/share*
- *   （进站 v3 L2 起 /s/*、/api/share 由整站路由接，src/router.js routeShare 按路径分）。
+ *   （进站 v3 L2 起 /s/*、/api/share 由整站路由接；v6 P4 分享短链整套删除，这两条旧路由仍不许回来）。
  * 只读，不改任何路由。进站 v3 L2 的一次性路由接管（plan / takeover / restore，原 route-takeover.mjs）在 L3 删旧 Worker 后去掉，见 git 历史（PR #337）。
  *
  * 用法：node space/scripts/verify-core-routes.mjs
@@ -16,7 +16,7 @@ import path from 'node:path';
 
 export const TARGET = 'styrigx-space-core';
 export const MAIN_PATTERN = 'styrigx.com/*';
-/** 原来分享短链 Worker 的两条路由：不该再有（/s/*、/api/share 由 styrigx-space-core 的 styrigx.com/* 接） */
+/** 原来分享短链 Worker 的两条路由：不该再有（v6 P4 分享短链删除；styrigx.com/* 整站路由照旧接所有路径） */
 export const SHARE_PATTERNS = Object.freeze(['styrigx.com/s/*', 'styrigx.com/api/share*']);
 
 const DEFAULT_API = 'https://api.cloudflare.com/client/v4';

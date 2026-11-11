@@ -1,73 +1,26 @@
 /**
  * 账号 Worker 的命名和配置（命名 v2：一个概念一个词，见仓库 docs / PR「账号命名 v2」）。
  *
- * - 三张票：TICKET.session（sudo root 登录，30 天滑动续期：剩不到 15 天时由 rpc/account-service.js 重签，见 core/session.js renewSession）、TICKET.reauth（sudo root reauth，3 分钟，挂在某个会话上：带 deviceId）、
- *   TICKET.reset（sudo root reset，3 分钟，只用恢复密钥换，不签会话）。签名格式见 lib/ticket.js。
- * - 两个纪元：EPOCH.session 管 session 和 reauth 票（改钥匙、全部退出、reset finish 登出时 +1）；
- *   EPOCH.reset 只管 reset 票（finish 时 +1，所以一张 reset 票只能完成一次）。
- * - by：password / passkey（session、reauth）；recovery-key（reset，只会是这个值）。
- * - 签名钥匙一对：SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC（和锁屏的 SGX_SPACE_PRIVATE / PUBLIC 平行；三张票共用，签名串带 cookie 名，互相冒充不了）。
- * - 恢复密钥 SGX_ACCOUNT_RECOVERY_KEY、账号密码 pepper SGX_ACCOUNT_PASSWORD_PEPPER：都只绑在账号 Worker（Secrets Store）。
+ * v6 P4（定稿 v5.2 §十三）起旧账号会话删除：三张票（sgx-account-session / -reauth / -reset）、两个纪元、登录标记 sgx-account-signed-in、
+ * 账号侧旧恢复密钥都删了；身份只由 v6 会话（core/identity-session.js / identity-stack.js）承担。
+ * - 签名钥匙一对 SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC：保留绑定（定稿 §五：APP 子应用令牌用），现在没有签发方。
+ * - 账号密码 pepper SGX_ACCOUNT_PASSWORD_PEPPER（v6 唯一的密码 pepper）、救援钥匙 SGX_ACCOUNT_RESCUE_KEY：只绑在账号 Worker（Secrets Store）。
  * - 通行密钥 challenge 的用途按入口分开（CHALLENGE_PURPOSE）。
  *
  * 叶子模块：只 import lib/http.js。
  */
 import { apiError } from '../lib/http.js';
 
-/* ---------- by（票里记的是用哪把钥匙验的） ---------- */
-export const BY_PASSWORD = 'password';
-export const BY_PASSKEY = 'passkey';
-export const BY_RECOVERY_KEY = 'recovery-key';
-
-/* ---------- 纪元（account_epoch 表的两行） ---------- */
-export const EPOCH = Object.freeze({ session: 'session', reset: 'reset' });
-
-/* ---------- 票的时长（秒） ---------- */
+/* ---------- 旧账号会话的时长（秒）：只剩旧设备行（account_device，core/devices.js）的保留期还用 ---------- */
 export const TICKET_MAX_AGE = Object.freeze({
-  /* 30 天，滑动续期（2026-11-09；以前 400 天）：用着就不掉（剩不到 SESSION_RENEW_BELOW 时重签），30 天不用的设备自然过期；
-     用账号仍要先有进站会话 */
   session: 2592000,
-  reauth: 180,
-  reset: 180,
 });
-
-/** session 剩余不到 15 天才重签（秒）：一台常用设备大约每 15 天写一次 Set-Cookie，不是每个请求都写 */
-export const SESSION_RENEW_BELOW = 15 * 86400;
-/** 2026-11-09 之前签的 400 天票（旧时长，秒）：只用来认出旧票、让单独退出的行保留得比旧票长（core/devices.js revokeDevice） */
+/** 2026-11-09 之前签的 400 天票（旧时长，秒）：旧设备行单独退出后的保留期（core/devices.js revokeDevice） */
 export const LEGACY_SESSION_MAX_AGE = 34560000;
-
-/**
- * 三张票（键就是票名）：cookie、时长、允许的 by、带不带 deviceId（device）、exp − at 是否限在时长内（span）、归哪个纪元。
- * - session  by.epoch.authAt.exp.deviceId
- * - reauth   by.epoch.iat.exp.deviceId（deviceId = 它挂着的那个会话的设备；验的时候要求同一台设备的会话有效）
- * - reset    by.epoch.iat.exp（by 只会是 recovery-key）
- */
-export const TICKET = Object.freeze({
-  session: Object.freeze({
-    name: 'session', cookie: 'sgx-account-session', maxAge: TICKET_MAX_AGE.session,
-    bys: Object.freeze([BY_PASSWORD, BY_PASSKEY]), device: true, span: false, epoch: EPOCH.session,
-  }),
-  reauth: Object.freeze({
-    name: 'reauth', cookie: 'sgx-account-reauth', maxAge: TICKET_MAX_AGE.reauth,
-    bys: Object.freeze([BY_PASSWORD, BY_PASSKEY]), device: true, span: true, epoch: EPOCH.session,
-  }),
-  reset: Object.freeze({
-    name: 'reset', cookie: 'sgx-account-reset', maxAge: TICKET_MAX_AGE.reset,
-    bys: Object.freeze([BY_RECOVERY_KEY]), device: false, span: true, epoch: EPOCH.reset,
-  }),
-});
-
-/**
- * 登录标记 cookie（#327 偏离修复，2026-11-08）：值固定 '1'，不含任何秘密、不签名，**不是** HttpOnly，前端首帧读它决定先画
- * root@account:~# 还是 guest 提示符（GET /api/account 回来后校正）。只用于显示：鉴权一律只认 HttpOnly 的 sgx-account-session，
- * 服务端从不读这个 cookie。随 session 签发 / 清除（core/session.js issueSession / endSession），时长同 session。
- */
-export const SIGNED_IN_MARKER = Object.freeze({ cookie: 'sgx-account-signed-in', value: '1', maxAge: TICKET_MAX_AGE.session });
 
 /* ---------- Secrets Store 里的名字（wrangler.toml secrets_store_secrets，binding = secret_name；secrets.js 换成字符串） ---------- */
 export const SIGNING_PRIVATE = 'SGX_ACCOUNT_PRIVATE';
 export const SIGNING_PUBLIC = 'SGX_ACCOUNT_PUBLIC';
-export const RECOVERY_KEY_SECRET = 'SGX_ACCOUNT_RECOVERY_KEY';
 export const PASSWORD_PEPPER_SECRET = 'SGX_ACCOUNT_PASSWORD_PEPPER';
 /** v6 P3 救援钥匙（定稿 v5.2 §九；Gray 05:21 定名、已在现有 Store 建好）：只读 get()，代码不出现 Store 写 / 删 */
 export const RESCUE_KEY_SECRET = 'SGX_ACCOUNT_RESCUE_KEY';

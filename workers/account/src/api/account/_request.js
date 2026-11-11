@@ -1,20 +1,14 @@
 /**
- * /api/account/* 共用的请求处理：进站会话、同源、读 body、客户端地址、兜底 500。
+ * /api/account/* 共用的请求处理：v6 结论、同源、读 body、客户端地址、兜底 500。
  *
- * 身份只看网关写的规范身份头（lib/gateway.js，白名单校验），不验进站会话：
- * - 进站会话 = X-Styrigx-Space-Session: 1（没有 → 401 session；各接口的 end 不要求进站会话）
- * - X-Styrigx-Client-Address：输错限速分桶、审计 IP 前缀（没有 → 'unknown'）
+ * v6 P4（定稿 v5.2 §十三）起旧进站会话的身份头（X-Styrigx-Space-*）删除，身份只看 v6 会话（context.auth.v6()）；网关只写客户端上下文头：
+ * - X-Styrigx-Client-Address：审计 IP 前缀（没有 → 'unknown'）
  * 这些头只能由网关写：本 Worker 只经命名入口 AccountService 收请求（rpc/account-service.js），默认 fetch 一律 404。
  */
 import { isSameOrigin, originDenied, apiError } from '../../lib/http.js';
 import { dbReady } from '../../lib/db.js';
-import { passedGateway as passedGatewayHeaders, readClientContext } from '../../lib/gateway.js';
+import { readClientContext } from '../../lib/gateway.js';
 import { ROOT_UID } from '../../core/groups.js';
-
-/** 有没有进站会话（网关写的结论头） @param {any} request */
-export function passedGateway(request) {
-  return passedGatewayHeaders(request && request.headers);
-}
 
 /** 客户端 IP（网关写的 X-Styrigx-Client-Address）；没有 → 'unknown' @param {any} request */
 export function clientAddress(request) {
@@ -36,16 +30,6 @@ export async function readPost(request) {
 }
 
 /**
- * 进站会话 + 账号库：通过 → null；否则 401 session / 500 config。
- * @param {Request} request @param {any} env
- */
-export function lockDenial(request, env) {
-  if (!passedGateway(request)) return apiError(401, 'session');
-  if (!dbReady(env)) return apiError(500, 'config');
-  return null;
-}
-
-/**
  * 包一层：处理函数抛错 → 500 server。
  * @param {(context:any) => Promise<Response>} fn
  */
@@ -60,7 +44,7 @@ export function guarded(fn) {
 }
 
 /**
- * 这个请求走不走 v6：有 v6 新会话且路由档够（auth.v6() 判过）→ 结论；否则 null（走旧会话）。
+ * 这个请求的 v6 结论：有 v6 会话且路由档够（auth.v6() 判过）→ 结论；否则 null（调用方 401）。
  * @param {any} context @returns {Promise<any|null>}
  */
 export async function v6Admitted(context) {
