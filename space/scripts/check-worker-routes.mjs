@@ -2,17 +2,15 @@
 /**
  * 核对网关 Worker 路由登记（workers/space-core/wrangler.toml 的 [[routes]]）、网关转发表（workers/space-core/src/router.js），
  * 账号 Worker styrigx-account（workers/account/wrangler.toml：账号拆分 PR3 起一条路由都没有）。
- * 分享短链（原 styrigx-share 的 styrigx.com/s/*、/api/share*）进站 v3 L2 并入 styrigx-space-core，没有单独的路由了。
+ * 分享短链（原 styrigx-share 的 styrigx.com/s/*、/api/share*）进站 v3 L2 并入 styrigx-space-core，v6 P4（定稿 v5.3 §十三）整套删除。
  * 路由匹配按线上实测的规则（space/scripts/lib/cf-routes.mjs）：不带 * 的规则遇到查询串不命中。
  * 以前这里写的是「不看查询串」，于是 styrigx.com/ 这类精确规则看着覆盖了首页，
  * 实际 /?lock=1&return=…（锁屏入口，v5 S3 起 /?entry=…）和子站首页 /?utm=… 都绕过了网关（2026-10-21）。
  * 1. 主站每个 HTML 页面都被路由覆盖，带查询串（?x=1）也覆盖
  * 2. 接口和头像（/api/、/avatar/）被路由覆盖
- * 2b. 账号路径（/api/account、/api/avatar、/api/prefs、/api/wellbeing、/avatar/*，带查询串也算）归网关（方案第 4 节）：
+ * 2b. 账号路径（/api/account/*、/api/avatar、/api/prefs、/api/wellbeing、/avatar/*，带查询串也算）归网关（方案第 4 节）：
  *     都被网关路由覆盖，且都在网关转发表 src/router.js FORWARDING 里、转给 ACCOUNT；转发表的路径不在网关路由表 API_ROUTES 里（不两处处理）；
  *     账号 Worker 没有任何路由（wrangler.toml 无 [[routes]]）
- * 2c. 分享短链（/s/<码>、/api/share，带查询串也算）归 styrigx-space-core 的整站路由（进站 v3 L2 起，src/router.js routeShare 按路径分）；
- *     子站接口 Worker 不得抢走
  * 3. 路由不重复，只登记 styrigx.com（旧图志域名的 301 和接口 Worker 的旧路由已于 P4-3 PR-1 删除，别的域名一律报错）
  * 4. 子站（合并 PR3：styrigx.com/blog/ /curio/ /daymark/）必须登记的路径（含各站首页 + 查询串、RSS、站点地图）和三站产物里的每个页面
  *    都归网关（v5 S3 起页面公开，网关按路径前缀注入会话标记）
@@ -40,16 +38,14 @@ const PUBLIC_DIR = path.join(REPO, 'space/web/public');
 /* 不需要过网关的 HTML：Pages 对不存在的路径直接回 404.html，本来就没人拦 */
 const EXEMPT = new Set(['/404.html']);
 /* 必须过网关的非页面路径（含锁屏入口本身，带查询串；v5 S3 起访客 sudo styrigx 落到 /?entry=sudo&return=原页） */
-const MUST_ROUTE = ['/api/geo', '/api/lock-session-check',
+const MUST_ROUTE = ['/api/geo',
   '/?entry=1', '/?entry=sudo&return=%2Fcurio%2Fmusic%2F', '/?lock=1', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
   '/zh/?entry=1', '/files-index.json'];
 /* 账号路径：必须归网关、在转发表里转给 ACCOUNT（账号 Worker styrigx-account 没有路由） */
-const ACCOUNT_MUST = ['/api/account', '/api/account?x=1', '/api/avatar', '/api/prefs', '/api/prefs/', '/api/wellbeing', '/api/wellbeing?d=2026-10-24', '/api/profile', '/api/profile/',
+const ACCOUNT_MUST = ['/api/account/devices', '/api/account/devices?x=1', '/api/avatar', '/api/prefs', '/api/prefs/', '/api/wellbeing', '/api/wellbeing?d=2026-10-24', '/api/profile', '/api/profile/',
   '/avatar/32.webp', '/avatar/96.webp', '/avatar/192.webp?v=abc', '/avatar/512.webp'];
 /* 转发表允许的绑定 */
 const FORWARD_BINDINGS = new Set(['ACCOUNT']);
-/* 分享短链：进站 v3 L2 起归 styrigx-space-core（并在 MUST_ROUTE 里一起核对） */
-const SHARE_MUST = ['/s/AAAAAAAAAAAAAAAAAAAAAA', '/s/AAAAAAAAAAAAAAAAAAAAAA/', '/s/AAAAAAAAAAAAAAAAAAAAAA?x=1', '/s/', '/api/share', '/api/share/', '/api/share?x=1'];
 /* 子站（合并 PR3）：主域名下的前缀，三站产物都按 /<站>/ 登记 */
 export const SUBSITES = ['blog', 'curio', 'daymark'];
 /* 子站在主域名上必须归网关的路径（页面、RSS、站点地图；v5 S3 起都公开，但要经网关注入会话标记） */
@@ -98,7 +94,7 @@ export function check(routes, pagePaths) {
     if (!pickRoute(routes, HOST, p)) errors.push('页面没有路由（不过网关）：' + p);
     if (!pickRoute(routes, HOST, p + '?x=1')) errors.push('页面带查询串时没有路由（不过网关）：' + p + '?x=1');
   }
-  for (const p of MUST_ROUTE.concat(SHARE_MUST)) {
+  for (const p of MUST_ROUTE) {
     if (!pickRoute(routes, HOST, p)) errors.push('没有路由（不过网关）：' + p);
   }
   return errors;
@@ -146,7 +142,7 @@ export function checkSplit(gateway, workers, gatewayApis, pagePaths) {
     if (EXEMPT.has(p)) continue;
     if (owner(p) !== 'gateway') errors.push('页面不归网关：' + p + '（现在 → ' + owner(p) + '）');
   }
-  for (const p of MUST_ROUTE.concat(SHARE_MUST)) {
+  for (const p of MUST_ROUTE) {
     if (owner(p) !== 'gateway') errors.push('应归网关却不是：' + p + '（现在 → ' + owner(p) + '）');
   }
   return errors;
@@ -154,7 +150,7 @@ export function checkSplit(gateway, workers, gatewayApis, pagePaths) {
 
 /**
  * 两个子站接口 Worker（合并 PR3）：styrigx.com/<站>/api/* 必须登记且归它；
- * 只许登记本站接口前缀（不许写宽）；网关、短链、另一个接口 Worker 都不得抢它的路径；它也不得抢网关的接口、主站页面、子站页面、
+ * 只许登记本站接口前缀（不许写宽）；网关、另一个接口 Worker 都不得抢它的路径；它也不得抢网关的接口、主站页面、子站页面、
  * 子站必须过网关的路径。
  * @param {string[]} gateway 网关的路由
  * @param {{name:string, label:string, site:string, routes:string[], samples:string[]}[]} cores
@@ -229,7 +225,7 @@ export function checkAccount(gateway, account, gatewayApis, pagePaths, forwardin
 }
 
 /**
- * 网关（styrigx-space-core，含分享短链）+ 转发表 + 账号 Worker（+ 子站接口 Worker，合并 PR3）一起核对。
+ * 网关（styrigx-space-core）+ 转发表 + 账号 Worker（+ 子站接口 Worker，合并 PR3）一起核对。
  * @param {string[]} gateway @param {string[]} account @param {string[]} gatewayApis @param {string[]} pagePaths
  * @param {{name:string, label:string, site:string, routes:string[], samples:string[]}[]} [cores] 不给就不核对子站接口 Worker
  */
@@ -238,7 +234,7 @@ export function checkWorkers(gateway, account, gatewayApis, pagePaths, cores) {
   const errors = checkAccount(gateway, account, gatewayApis, pagePaths).concat(
     checkSplit(gateway, [], gatewayApis.concat(fwdPaths), pagePaths),
   );
-  return cores ? errors.concat(checkCores(gateway, cores, gatewayApis.concat(fwdPaths, SHARE_MUST), pagePaths)) : errors;
+  return cores ? errors.concat(checkCores(gateway, cores, gatewayApis.concat(fwdPaths), pagePaths)) : errors;
 }
 
 export { matchForwarding };
@@ -303,5 +299,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     process.exit(1);
   }
   const coreCount = cores.map((c) => c.name + ' ' + c.routes.length + ' 条').join(' + ');
-  console.log(`check-worker-routes.mjs: 通过（styrigx-space-core ${routes.length} 条（含分享短链）+ 账号 ${accountRoutes.length} 条 + ${coreCount}路由，${NO_ROUTE_WORKERS.map((w) => w.name).join('、')} 0 条，${gatewayApis.length} 个网关接口，转发表 ${FORWARDING.length} 条，主站 ${pages.length} 个页面 + 子站 ${subPages.length} 个页面）`);
+  console.log(`check-worker-routes.mjs: 通过（styrigx-space-core ${routes.length} 条 + 账号 ${accountRoutes.length} 条 + ${coreCount}路由，${NO_ROUTE_WORKERS.map((w) => w.name).join('、')} 0 条，${gatewayApis.length} 个网关接口，转发表 ${FORWARDING.length} 条，主站 ${pages.length} 个页面 + 子站 ${subPages.length} 个页面）`);
 }

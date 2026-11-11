@@ -166,15 +166,15 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
   assert.ok(pos('Build site') < pos(EMU_START) && pos(EMU_START) < pos(EMU_RUN), '先建站、再起模拟器、再跑用例');
   assert.ok(pos('Generate preview test credentials') < pos(EMU_START));
   assert.match(start.run, /node -e "require\('node:sqlite'\)"/);
-  assert.match(start.run, /node tests\/space\/e2e\/helpers\/preview-emulator\.cjs --port 8788 --space-key "\$PREVIEW_TEST_SPACE_KEY" --recovery-key "\$PREVIEW_TEST_RECOVERY_KEY" --pepper "\$PREVIEW_TEST_PW_PEPPER" --account-pepper "\$PREVIEW_TEST_ACCOUNT_PEPPER" > "\$log" 2>&1 &/);
+  /* v6 P4（定稿 v5.3 §十三）：网关的进站钥匙 / 恢复钥匙 / 锁屏 pepper 删除，模拟器只收账号 pepper */
+  assert.match(start.run, /node tests\/space\/e2e\/helpers\/preview-emulator\.cjs --port 8788 --account-pepper "\$PREVIEW_TEST_ACCOUNT_PEPPER" > "\$log" 2>&1 &/);
+  assert.doesNotMatch(start.run, /--space-key|--recovery-key|--pepper "/);
   assert.match(start.run, /curl -fsS -o \/dev\/null http:\/\/127\.0\.0\.1:8788\/__kv\/stats/, '等它就绪');
   assert.match(start.run, /exit 1\s*$/, '超时就红');
   /* 用例变量按 preview-emulator.cjs 文件头；端口和起模拟器的一致 */
   assert.deepEqual(emu.env, {
     SGX_TEST_SUITE: 'passkey',
     SGX_TEST_BASE: 'http://localhost:8788',
-    SGX_TEST_SPACE_KEY: '${{ env.PREVIEW_TEST_SPACE_KEY }}',
-    SGX_TEST_RECOVERY_KEY: '${{ env.PREVIEW_TEST_RECOVERY_KEY }}',
     SGX_TEST_CF_API: 'http://127.0.0.1:8788/client/v4',
     SGX_TEST_CF_TOKEN: 'x',
     SGX_TEST_CF_ACCOUNT: 'x',
@@ -224,11 +224,3 @@ test('deploy.yml：passkey-e2e 的路径过滤是 denylist，做在步骤层，�
   }
 });
 
-test('测试 helper：不再删重置开关键；会话 / 进门票先用只读接口复用', () => {
-  const helpers = readFileSync(path.join(REPO, 'tests/space/e2e/helpers/preview-helpers.cjs'), 'utf8');
-  const spec = readFileSync(path.join(REPO, 'tests/space/e2e/passkey/passkey.spec.js'), 'utf8');
-  assert.doesNotMatch(helpers, /kvDel\('lock-reset-switch'\)/);
-  assert.doesNotMatch(spec, /kvDel\('lock-reset-switch'\)/);
-  assert.match(helpers, /\/api\/lock-session-check/);
-  assert.match(helpers, /action: 'status'/);
-});

@@ -2,7 +2,7 @@
  * 账号 Worker 的命名和配置（命名 v2：一个概念一个词，见仓库 docs / PR「账号命名 v2」）。
  *
  * v6 P4（定稿 v5.2 §十三）起旧账号会话删除：三张票（sgx-account-session / -reauth / -reset）、两个纪元、登录标记 sgx-account-signed-in、
- * 旧恢复密钥 SGX_ACCOUNT_RECOVERY_KEY 都删了；身份只由 v6 会话（core/identity-session.js / identity-stack.js）承担。
+ * 账号侧旧恢复密钥都删了；身份只由 v6 会话（core/identity-session.js / identity-stack.js）承担。
  * - 签名钥匙一对 SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC：保留绑定（定稿 §五：APP 子应用令牌用），现在没有签发方。
  * - 账号密码 pepper SGX_ACCOUNT_PASSWORD_PEPPER（v6 唯一的密码 pepper）、救援钥匙 SGX_ACCOUNT_RESCUE_KEY：只绑在账号 Worker（Secrets Store）。
  * - 通行密钥 challenge 的用途按入口分开（CHALLENGE_PURPOSE）。

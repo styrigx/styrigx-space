@@ -1,6 +1,6 @@
 /**
  * 账号 Worker 的命名与配置（core/config.js、lib/db.js ACCOUNT_SCHEMA、secrets.js、wrangler.toml 的 Secrets Store / D1 绑定）：
- * - 三张票、两个纪元、by、challenge 用途、Secrets 名钉死字面量（命名 v2）
+ * - challenge 用途、Secrets 名钉死字面量（命名 v2；v6 P4 删三张票 / 两个纪元 / by）
  * - ACCOUNT_SCHEMA + IDENTITY_SCHEMA 与 migrations（0005 账号表、0006 v6 身份表）建出的表逐列一致
  * - secrets：四个名字；wrangler.toml 正式段恰好这四个 Secrets Store 绑定（binding = secret_name，store 同网关），预览不绑
  * - resolveSecrets：绑定 → 字符串、60 秒缓存、取值失败留空且不缓存
@@ -20,25 +20,20 @@ const config = await import(SRC + 'core/config.js');
 const db = await import(SRC + 'lib/db.js');
 const { SECRET_NAMES, resolveSecrets, _resetSecretCache } = await import(SRC + 'secrets.js');
 
-test('三张票：cookie 名 / 时长 / by / 带不带 deviceId / 归哪个纪元钉死', () => {
-  assert.deepEqual(Object.keys(config.TICKET), ['session', 'reauth', 'reset']);
-  const pick = (t) => ({ name: t.name, cookie: t.cookie, maxAge: t.maxAge, bys: [...t.bys], device: t.device, span: t.span, epoch: t.epoch });
-  assert.deepEqual(pick(config.TICKET.session), { name: 'session', cookie: 'sgx-account-session', maxAge: 2592000, bys: ['password', 'passkey'], device: true, span: false, epoch: 'session' });
-  assert.deepEqual(pick(config.TICKET.reauth), { name: 'reauth', cookie: 'sgx-account-reauth', maxAge: 180, bys: ['password', 'passkey'], device: true, span: true, epoch: 'session' });
-  assert.deepEqual(pick(config.TICKET.reset), { name: 'reset', cookie: 'sgx-account-reset', maxAge: 180, bys: ['recovery-key'], device: false, span: true, epoch: 'reset' });
-  assert.ok(Object.isFrozen(config.TICKET) && Object.isFrozen(config.TICKET.session.bys));
+test('旧账号会话的时长只剩设备行保留期在用；三张票 / 两个纪元 / 旧恢复密钥常量已删（v6 P4，定稿 v5.3 §十三）', () => {
+  assert.deepEqual({ ...config.TICKET_MAX_AGE }, { session: 2592000 });
+  assert.equal(config.LEGACY_SESSION_MAX_AGE, 34560000);
+  for (const gone of ['TICKET', 'EPOCH', 'BY_PASSWORD', 'BY_PASSKEY', 'BY_RECOVERY_KEY', 'RECOVERY_KEY_SECRET']) assert.equal(gone in config, false, gone);
 });
 
-test('纪元 / by / challenge 用途 / Secrets 名 / 显示名钉死（API 值一律小写连字符）', () => {
-  assert.deepEqual({ ...config.EPOCH }, { session: 'session', reset: 'reset' });
-  assert.deepEqual([config.BY_PASSWORD, config.BY_PASSKEY, config.BY_RECOVERY_KEY], ['password', 'passkey', 'recovery-key']);
+test('challenge 用途 / Secrets 名 / 显示名钉死（API 值一律小写连字符）', () => {
   assert.deepEqual({ ...config.CHALLENGE_PURPOSE }, { session: 'session', reauth: 'reauth', keysAdd: 'keys-add', resetAdd: 'reset-add' });
   for (const v of Object.values(config.CHALLENGE_PURPOSE)) assert.match(v, /^[a-z]+(-[a-z]+)*$/);
   assert.equal(config.CHALLENGE_TTL, 300);
   assert.equal(config.SIGNING_PRIVATE, 'SGX_ACCOUNT_PRIVATE');
   assert.equal(config.SIGNING_PUBLIC, 'SGX_ACCOUNT_PUBLIC');
-  assert.equal(config.RECOVERY_KEY_SECRET, 'SGX_ACCOUNT_RECOVERY_KEY');
   assert.equal(config.PASSWORD_PEPPER_SECRET, 'SGX_ACCOUNT_PASSWORD_PEPPER');
+  assert.equal(config.RESCUE_KEY_SECRET, 'SGX_ACCOUNT_RESCUE_KEY');
   assert.equal(config.KEY_ACCOUNT_PASSKEY, 'AccountPasskey');
   assert.equal(config.PASSKEY_DISPLAY_NAME, 'Sloan Gray');
   assert.equal(db.DB_BINDING, 'D1_ACCOUNT');
@@ -67,11 +62,11 @@ test('ACCOUNT_SCHEMA + IDENTITY_SCHEMA（兜底建表）与迁移建出的 accou
   assert.deepEqual(names(b), [...all].sort());
 });
 
-test('secrets：六个名字 = 签名钥匙一对 + 恢复密钥 + 账号密码 pepper + 进站密码 pepper（v6 P2 pepper 方案 a，只读、P4 删）+ 救援钥匙（v6 P3，定稿 §九）', () => {
-  assert.deepEqual([...SECRET_NAMES], ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_RECOVERY_KEY', 'SGX_ACCOUNT_PASSWORD_PEPPER', 'SGX_SPACE_PASSWORD_PEPPER', 'SGX_ACCOUNT_RESCUE_KEY']);
+test('secrets：四个名字 = 签名钥匙一对 + 账号密码 pepper + 救援钥匙（v6 P4 删旧恢复密钥与进站密码 pepper，定稿 v5.3 §九 / §十三）', () => {
+  assert.deepEqual([...SECRET_NAMES], ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_PASSWORD_PEPPER', 'SGX_ACCOUNT_RESCUE_KEY']);
 });
 
-test('wrangler.toml：正式段恰好这六个 Secrets Store 绑定（v6 P2 加 SGX_SPACE_PASSWORD_PEPPER，P3 加 SGX_ACCOUNT_RESCUE_KEY），binding = secret_name，store 同网关；预览不绑；不再绑 SGX_ACCOUNT_ROOT_KEY', () => {
+test('wrangler.toml：正式段恰好这四个 Secrets Store 绑定，binding = secret_name，store 同网关；预览不绑；不再绑 SGX_ACCOUNT_ROOT_KEY / SGX_ACCOUNT_RECOVERY_KEY / SGX_SPACE_PASSWORD_PEPPER', () => {
   const toml = readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8');
   const code = toml.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
   const [prod, preview] = code.split(/^\[env\.preview\]$/m);
@@ -82,7 +77,7 @@ test('wrangler.toml：正式段恰好这六个 Secrets Store 绑定（v6 P2 加 
     assert.equal(b.store, 'a5a984f365424401bad5ad6ddcd44479');
   }
   assert.doesNotMatch(code, /SGX_ACCOUNT_ROOT_KEY/);
-  assert.equal((code.match(/SGX_SPACE_PASSWORD_PEPPER/g) || []).length, 2, '只有一条绑定（binding + secret_name 各一次）');
+  assert.doesNotMatch(code, /SGX_ACCOUNT_RECOVERY_KEY|SGX_SPACE_PASSWORD_PEPPER|SGX_SPACE_/);
   assert.doesNotMatch(preview, /secrets_store_secrets|SGX_ACCOUNT_/);
 });
 
@@ -95,17 +90,17 @@ test('resolveSecrets：绑定 → 字符串；字符串原样；其他绑定不�
   assert.equal(out.SGX_ACCOUNT_PASSWORD_PEPPER, 'P');
   assert.equal(out.D1_ACCOUNT, d);
   assert.equal(typeof out.SGX_SPACE_PRIVATE, 'object', '不是自己的名字不换');
-  assert.equal('SGX_ACCOUNT_RECOVERY_KEY' in out, false, '没绑的不出现');
+  assert.equal('SGX_ACCOUNT_RESCUE_KEY' in out, false, '没绑的不出现');
   _resetSecretCache();
   let n = 0;
   const counting = { get: async () => 'v' + (++n) };
-  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RECOVERY_KEY: counting }, 0)).SGX_ACCOUNT_RECOVERY_KEY, 'v1');
-  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RECOVERY_KEY: counting }, 60_000)).SGX_ACCOUNT_RECOVERY_KEY, 'v1');
-  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RECOVERY_KEY: counting }, 60_001)).SGX_ACCOUNT_RECOVERY_KEY, 'v2');
+  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RESCUE_KEY: counting }, 0)).SGX_ACCOUNT_RESCUE_KEY, 'v1');
+  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RESCUE_KEY: counting }, 60_000)).SGX_ACCOUNT_RESCUE_KEY, 'v1');
+  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RESCUE_KEY: counting }, 60_001)).SGX_ACCOUNT_RESCUE_KEY, 'v2');
   _resetSecretCache();
   const failing = { get: async () => { throw new Error('x'); } };
-  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RECOVERY_KEY: failing }, 0)).SGX_ACCOUNT_RECOVERY_KEY, '');
-  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RECOVERY_KEY: store('ok') }, 1)).SGX_ACCOUNT_RECOVERY_KEY, 'ok', '失败那轮没缓存');
+  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RESCUE_KEY: failing }, 0)).SGX_ACCOUNT_RESCUE_KEY, '');
+  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RESCUE_KEY: store('ok') }, 1)).SGX_ACCOUNT_RESCUE_KEY, 'ok', '失败那轮没缓存');
   _resetSecretCache();
 });
 

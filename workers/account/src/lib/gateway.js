@@ -1,5 +1,5 @@
 /**
- * 网关写的内部请求头：账号 Worker 读的一侧（本 Worker 自己一份，写的一侧在网关 workers/space-core/src/core/lock-identity.js）。
+ * 网关写的内部请求头：账号 Worker 读的一侧（本 Worker 自己一份，写的一侧在网关）。
  *
  * v6 P4（定稿 v5.2 §十三）起进站会话删除：网关不再写 X-Styrigx-Space-* 身份头，这里也不读（readLockIdentity / passedGateway 删除）；
  * 身份只看 v6 会话（gate.js headerAuth）。

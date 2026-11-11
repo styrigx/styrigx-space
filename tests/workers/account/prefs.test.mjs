@@ -1,150 +1,74 @@
 /**
- * 账号云同步 /api/prefs（2026-10-22）：进站会话 + 账号会话 + 作用域 prefs.sync（P2-2 起不看 role）；逐项新的赢。
+ * 账号云同步 /api/prefs（2026-10-22）：v6 会话 + 路由档 user（v6 P4，定稿 v5.3 §十三 起旧进站会话 + 账号会话 + 作用域 prefs.sync 删除）；逐项新的赢。
  *
- * 2026-10-24 搬到账号 Worker styrigx-account（workers/account）；锁屏身份经网关这一跳写成身份头、账号会话由账号 Worker 自己验（_auth.mjs）。
+ * 2026-10-24 搬到账号 Worker styrigx-account（workers/account）；v6 会话夹具见 _auth.mjs。
  *
  * 2026-10-28 存储从 KV 搬到 D1（styrigx-account 的 settings_sync；命名 v2 起绑定只叫 D1_ACCOUNT）：
  * 逐项新的赢在 SQL 里原子完成（旧 t 写不进、并发写不丢）、运行时不碰任何 KV、表不存在时自愈。
  *
  * 运行：node --test tests/workers/account/prefs.test.mjs
  */
-import { wrap, testAccountSession } from './_auth.mjs';
-import { test, before } from 'node:test';
+import { wrap, seedV6, V6_COOKIE, V6_COOKIE_ALICE, V6_TOKEN_ALICE } from './_auth.mjs';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { testLockSession } from '../space-core/_tickets.mjs';
-import { makeKV, genKeyPair, authD1For, forbiddenKV } from '../_harness.mjs';
+import { makeKV, forbiddenKV } from '../_harness.mjs';
 import { makeAccountD1, splitD1 } from './_d1.mjs';
 
 const PREFS = '../../../workers/account/src/api/prefs.js';
-const KERNEL = '../../../workers/space-core/src/core/';
 
-let LOCK, ACCOUNT, OTHER;
-const PEPPER = 'test-pepper-acc';
-
-/** 同一份 kv（一次测试）对应同一个账号库替身 */
+/** 同一份 kv（一次测试）对应同一个账号库替身（seedV6：styrigx uid 1000 + alice uid 1001 的 v6 会话） */
 const accountD1ByKv = new WeakMap();
 function accountD1For(kv) {
   let d = accountD1ByKv.get(kv);
-  if (!d) { d = makeAccountD1({ migrations: 'pre-uid' }); accountD1ByKv.set(kv, d); } /* 迁移前（0006）的表：本文件测无 uid 列的写法；有 uid 列见 v6-identity-api.test.mjs */
+  if (!d) {
+    d = makeAccountD1({ migrations: 'pre-uid' }); /* 迁移前（0006）的表：本文件测无 uid 列的写法；有 uid 列见 v6-identity-api.test.mjs */
+    seedV6(d);
+    seedV6(d, { uid: 1001, name: 'alice', groups: ['listen'], token: V6_TOKEN_ALICE });
+    accountD1ByKv.set(kv, d);
+  }
   return d;
 }
 
 function envFor(kv, overrides = {}) {
   return {
-    KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, /* 只给网关替身当认证库导入来源；账号 Worker 不读 */
-    D1_ACCOUNT: accountD1For(kv), /* 账号 Worker：session、授权、settings_sync 同一个库 */
-    D1_SPACE: authD1For(kv), /* 网关这一跳验进站会话 */
-    SGX_SPACE_PRIVATE: LOCK.priv,
-    SGX_SPACE_PUBLIC: LOCK.pub,
-    SGX_ACCOUNT_PRIVATE: ACCOUNT.priv,
-    SGX_ACCOUNT_PUBLIC: ACCOUNT.pub,
-    SGX_ACCOUNT_PASSWORD_PEPPER: PEPPER,
+    D1_ACCOUNT: accountD1For(kv), /* 账号 Worker：v6 会话、settings_sync 同一个库 */
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
     ...overrides,
   };
 }
 
-function getReq(url, headers = {}) {
-  return new Request(url, { method: 'GET', headers });
-}
-
-async function adminSess(epoch = 0) {
-  const { signLockSessionTicket } = await import(KERNEL + 'lock-session.js');
-  return await testLockSession(LOCK.priv, epoch, 'password');
-}
-async function visitorSess() {
-  const { signLockSessionTicket } = await import(KERNEL + 'lock-session.js');
-  return await testLockSession(LOCK.priv, 0, 'link');
-}
-async function accTicket(by = 'password', authAt = Date.now(), epoch = 0, priv) {
-  return await testAccountSession(priv || ACCOUNT.priv, by, epoch, authAt);
-}
-function cookies(o) {
-  return Object.entries(o).filter(([, v]) => v).map(([k, v]) => k + '=' + v).join('; ');
-}
-function setCookies(res) {
-  return res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('Set-Cookie') || ''];
-}
-function pickCookie(res, name) {
-  for (const c of setCookies(res)) {
-    if (c.startsWith(name + '=')) return c.split(';')[0].slice(name.length + 1);
-  }
-  return null;
-}
-
-
-
-async function prefsCall(kv, method, body, cookieObj, origin, envOverrides) {
+async function prefsCall(kv, method, body, cookie, origin, envOverrides) {
   const mod = await import(PREFS);
   const m = { onRequestGet: wrap(mod.onRequestGet), onRequestPost: wrap(mod.onRequestPost) };
-  const headers = { Cookie: cookies(cookieObj) };
+  const headers = cookie ? { Cookie: cookie } : {};
   const env = envFor(kv, envOverrides);
   if (method === 'GET') return await m.onRequestGet({ request: new Request('https://styrigx.com/api/prefs', { headers }), env });
   const req = new Request('https://styrigx.com/api/prefs', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', Origin: origin || 'https://styrigx.com' }, body: JSON.stringify(body) });
   return await m.onRequestPost({ request: req, env });
 }
-async function adminCo() {
-  return { 'sgx-space-session': await adminSess(), 'sgx-account-session': await accTicket() };
-}
+const adminCo = async () => V6_COOKIE;
 
-/* 测试钥匙：before 里生成（不算一条用例，单独跑某条用例时也会先执行） */
-before(async () => {
-  LOCK = await genKeyPair(); ACCOUNT = await genKeyPair(); OTHER = await genKeyPair();
-});
-
-test('进站会话 + 账号会话 + prefs.sync：没有进站会话 401 session、没账号 401 account；分享链接进站会话 + 账号会话也放行（P2-2 起账号 Worker 不看 role）', async () => {
+test('v6 会话 + 路由档 user：没有 v6 会话 401 session（只带旧进站 / 旧账号会话 cookie、令牌不对都一样）；styrigx、alice 都放行', async () => {
   const kv = makeKV();
-  const none = await prefsCall(kv, 'GET', null, {});
-  assert.equal(none.status, 401);
-  assert.equal((await none.json()).error, 'session');
-  /* 有账号会话、没有进站会话 → 仍是 401 session */
-  const noLock = await prefsCall(kv, 'GET', null, { 'sgx-account-session': await accTicket() });
-  assert.equal(noLock.status, 401);
-  assert.equal((await noLock.json()).error, 'session');
-  const sess = await adminSess();
-  const r = await prefsCall(kv, 'GET', null, { 'sgx-space-session': sess });
-  assert.equal(r.status, 401);
-  assert.equal((await r.json()).error, 'account');
-  /* 账号票签名不对 → 401 account */
-  const bad = await prefsCall(kv, 'GET', null, { 'sgx-space-session': sess, 'sgx-account-session': await accTicket('password', Date.now(), 0, OTHER.priv) });
-  assert.equal(bad.status, 401);
-  assert.equal((await bad.json()).error, 'account');
-  /* 过渡期：分享链接进站会话（原临时钥匙）（网关 role 门 P2-3 前还会挡 /api/prefs）在账号 Worker 这一层只看进站会话 + 账号会话 */
-  const vis = await visitorSess();
-  assert.equal((await prefsCall(kv, 'GET', null, { 'sgx-space-session': vis, 'sgx-account-session': await accTicket() })).status, 200);
-  const ok = await prefsCall(kv, 'GET', null, { 'sgx-space-session': sess, 'sgx-account-session': await accTicket() });
+  for (const ck of ['', 'sgx-space-session=a.b.c', 'sgx-account-session=a.b.c', 'sgx-space-session=a.b.c; sgx-account-session=d.e.f', 'sgx-session=' + 'x'.repeat(43)]) {
+    const r = await prefsCall(kv, 'GET', null, ck);
+    assert.equal(r.status, 401, ck || '(无)');
+    assert.equal((await r.json()).error, 'session');
+  }
+  const ok = await prefsCall(kv, 'GET', null, V6_COOKIE);
   assert.equal(ok.status, 200);
   assert.deepEqual((await ok.json()).items, {});
+  assert.equal((await prefsCall(kv, 'GET', null, V6_COOKIE_ALICE)).status, 200, 'user 档：任一已登录身份');
   /* POST 同一道门 */
-  const pNo = await prefsCall(kv, 'POST', { changes: { 'sgx-theme': { v: 'dark', t: Date.now() - 1000 } } }, { 'sgx-space-session': sess });
+  const pNo = await prefsCall(kv, 'POST', { changes: { 'sgx-theme': { v: 'dark', t: Date.now() - 1000 } } }, 'sgx-account-session=a.b.c');
   assert.equal(pNo.status, 401);
-  assert.equal((await pNo.json()).error, 'account');
-});
-
-test('没作用域 prefs.sync → 403 scope（gate.scopeDenial，带 scope 字段）', async () => {
-  const { scopeDenial } = await import('../../../workers/account/src/gate.js');
-  const lockOk = { ok: true, by: 'password', reason: 'ok' };
-  const auth = (a) => ({ gateway: async () => lockOk, authorize: async () => a });
-  const d = await scopeDenial(auth({ ok: true, reason: 'ok', deviceId: 'x', scopes: ['curio.write'], reauth: false }), 'prefs.sync');
-  assert.equal(d.status, 403);
-  const j = await d.json();
-  assert.equal(j.error, 'scope');
-  assert.equal(j.scope, 'prefs.sync');
-  assert.equal(await scopeDenial(auth({ ok: true, reason: 'ok', deviceId: 'x', scopes: ['prefs.sync'], reauth: false }), 'prefs.sync'), null);
-  const nl = await scopeDenial({ gateway: async () => ({ ok: false, by: '', reason: 'no-identity' }), authorize: async () => { throw new Error('不该问账号'); } }, 'prefs.sync');
-  assert.equal(nl.status, 401);
-  assert.equal((await nl.json()).error, 'session');
-  const na = await scopeDenial(auth({ ok: false, reason: 'missing', deviceId: '', scopes: [], reauth: false }), 'prefs.sync');
-  assert.equal(na.status, 401);
-  const nj = await na.json();
-  assert.equal(nj.error, 'account');
-  assert.equal(nj.reason, 'missing');
+  assert.equal((await pNo.json()).error, 'session');
 });
 
 test('POST 合并：逐项新的赢；旧的不覆盖；非 sgx- key / 未来时间 / 超长值丢掉', async () => {
   const kv = makeKV();
-  const co = { 'sgx-space-session': await adminSess(), 'sgx-account-session': await accTicket() };
+  const co = V6_COOKIE;
   const now = Date.now();
   let r = await prefsCall(kv, 'POST', { changes: {
     'sgx-theme-mode': { v: 'dark', t: now - 1000 },
@@ -167,16 +91,16 @@ test('POST 合并：逐项新的赢；旧的不覆盖；非 sgx- key / 未来时
 
 test('POST 跨源 → 拒绝', async () => {
   const kv = makeKV();
-  const co = { 'sgx-space-session': await adminSess(), 'sgx-account-session': await accTicket() };
+  const co = V6_COOKIE;
   const r = await prefsCall(kv, 'POST', { changes: {} }, co, 'https://evil.example');
   assert.equal(r.status, 403);
 });
 
-test('被单独退出的设备（revoked）不能同步', async () => {
+test('会话行被删（devices revoke / lock / 改密码作废）的 v6 会话不能同步', async () => {
   const kv = makeKV();
-  const t = await testAccountSession(ACCOUNT.priv, 'password', 0, Date.now(), undefined, 'AAAAAAAAAAAAAAAA');
-  accountD1For(kv).raw.prepare("INSERT INTO account_device (device_id, record, last_seen, revoked_at, expires_at) VALUES ('AAAAAAAAAAAAAAAA', '{}', 0, 1, ?)").run(Date.now() + 86400000);
-  const r = await prefsCall(kv, 'GET', null, { 'sgx-space-session': await adminSess(), 'sgx-account-session': t });
+  assert.equal((await prefsCall(kv, 'GET', null, V6_COOKIE)).status, 200);
+  accountD1For(kv).raw.prepare('DELETE FROM account_sessions WHERE uid = 1000').run();
+  const r = await prefsCall(kv, 'GET', null, V6_COOKIE);
   assert.equal(r.status, 401);
 });
 
@@ -270,7 +194,7 @@ test('不碰 KV：KV_SETTINGS_SYNC / KV_PROFILE 换成一碰就抛错的替身�
   assert.deepEqual(touched, []);
   /* 也没有 KV 回落：prefs.js 没有 D1_ACCOUNT 就 500 config，从不读 KV（缺绑定时 session 先验不过，这里直接测处理函数的取库） */
   const { onRequestGet } = await import(PREFS);
-  const ok = { gateway: async () => ({ ok: true }), authorize: async () => ({ ok: true, reason: 'ok', deviceId: 'd', scopes: ['prefs.sync'], reauth: false }) };
+  const ok = { hasV6: true, v6: async () => ({ allowed: true, uid: 1000 }), dataUid: async () => 1000 };
   r = await onRequestGet({ request: new Request('https://styrigx.com/api/prefs'), env: { KV_SETTINGS_SYNC: forbiddenKV('KV_SETTINGS_SYNC', touched) }, auth: ok });
   assert.equal(r.status, 500);
   assert.equal((await r.json()).error, 'config');

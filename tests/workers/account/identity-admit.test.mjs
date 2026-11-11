@@ -57,7 +57,7 @@ test('临时用户：只有给的组；救援会话只走 rescue 路由', async 
   const ai = await A.admitRoute(env, reqWithToken(t.token), 'POST', '/api/ai', NOW);
   assert.deepEqual([ai.allowed, ai.reason], [false, 'need-ai']);
   const r = await seedSession(env, { uid: 0, rescue: true, expiresAt: NOW + 600000 });
-  assert.equal((await A.admitRoute(env, reqWithToken(r.token), 'POST', '/api/account/keys', NOW)).allowed, true, 'keys 标了 rescue');
+  assert.equal((await A.admitRoute(env, reqWithToken(r.token), 'POST', '/api/identity', NOW, { action: 'whoami' })).allowed, true, '/api/identity whoami 在救援白名单');
   assert.equal((await A.admitRoute(env, reqWithToken(r.token), 'POST', '/curio/api/import', NOW)).allowed, false, '救援不做日常 root 操作');
   assert.equal((await A.admitRoute(env, reqWithToken(r.token), 'GET', '/api/status', NOW)).allowed, false);
 });

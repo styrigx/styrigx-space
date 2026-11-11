@@ -49,7 +49,7 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'GET', path: '/api/find', level: 'public', worker: 'space-core', why: '关键词搜索，只回公开页面元数据（IP 限流）' }),
   R({ method: 'GET', path: '/api/geo', level: 'public', worker: 'space-core', why: '只回调用者自己的城市 / 时区' }),
   R({ method: 'GET', path: '/api/status', level: 'status', worker: 'space-core', why: '旷野状态卡 / 监测页（转 styrigx-status /summary）' }),
-  R({ method: 'GET', path: '/api/space-audit', level: 'root', worker: 'space-core', why: '进站凭证使用审计（含 IP 前缀）', retire: 'P4（审计并入 account_user_audit）' }),
+  R({ method: 'GET', path: '/api/space-audit', level: 'root', worker: 'space-core', why: '进站凭证使用审计（含 IP 前缀）' }),
   /* v6 P4（定稿 v5.2 §十三）：进站接口（lock-* / space-auth）与分享短链（/s/:code、/api/share）删除 */
 
   /* ---------- 账号 styrigx-account（网关 FORWARDING 转来；workers/account/src/router.js API_ROUTES） ---------- */

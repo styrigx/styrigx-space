@@ -1,11 +1,11 @@
 /**
  * v6 路由全量盘点（workers/account/src/core/route-access.js ROUTE_ACCESS）：
- * - 全量：网关 API_ROUTES / 分享 / 转发表、账号 API_ROUTES / 头像、奇趣、日刻、代理订阅的每个「方法 + 路径」都在表里，表里每一行都有处理函数
+ * - 全量：网关 API_ROUTES / 转发表、账号 API_ROUTES / 头像、奇趣、日刻、代理订阅的每个「方法 + 路径」都在表里，表里每一行都有处理函数
  *   （新加接口不进表 → 这里红；删接口不删表 → 这里也红）
  * - 只经服务绑定的入口（ai、status）不进表，列在 SERVICE_ONLY
  * - 多 action 接口：源码里出现的 action / op 都在表的 actions 里
  * - 档都合法；删除两级：del:'item' 只在写组或更低的档上，del:'bulk' 只属 root；原来要 reauth 的操作是 root
- * - 默认拒绝：不在表里 → null；/s/ 一段与两段分开（主站一段 = 分享，代理主机两段 = 订阅）；多一段 / 换方法 / 编码都对不上
+ * - 默认拒绝：不在表里 → null；主站 /s/ 一段（分享短链，v6 P4 删）不在表里，代理主机两段 = 订阅；多一段 / 换方法 / 编码都对不上
  * - 摘要快照：各档条数（改表时这里跟着改，评审一眼看见）
  *
  * 运行：node --test tests/workers/account/identity-route-access.test.mjs
@@ -35,9 +35,7 @@ function handled() {
   const out = [];
   const add = (path, mod, file, host = RA.MAIN_HOST) => out.push({ host, path, methods: methodsOf(mod), generic: typeof mod.onRequest === 'function', file });
   for (const [p, mod] of gw.API_ROUTES) add(p, mod, 'space-core/src/api' + p.slice(4) + '.js');
-  add('/api/share', { onRequestGet() {}, onRequestPost() {} }, 'space-core/src/api/share.js');
-  out.push({ host: RA.MAIN_HOST, path: '/s/:code', methods: ['GET', 'HEAD'], generic: false, file: 'space-core/src/core/share-open.js' });
-  for (const [p, mod] of acc.API_ROUTES) add(p, mod, 'account/src/api/' + (p.startsWith('/api/account/') ? 'account/' + p.slice(13) : p === '/api/account' ? 'account/status' : p.slice(5)) + '.js');
+  for (const [p, mod] of acc.API_ROUTES) add(p, mod, 'account/src/api/' + (p.startsWith('/api/account/') ? 'account/' + p.slice(13) : p.slice(5)) + '.js');
   out.push({ host: RA.MAIN_HOST, path: '/avatar/:file', methods: ['GET'], generic: false, file: 'account/src/api/avatar-file.js' });
   for (const [p, mod] of curio.API_ROUTES) add('/curio' + p, mod, 'curio-core/src/api' + p.slice(4) + '.js');
   for (const [p, mod] of daymark.API_ROUTES) add('/daymark' + p, mod, 'daymark-core/src/api' + p.slice(4) + '.js');
@@ -84,10 +82,9 @@ test('代理主机：订阅两段、规则集、健康检查；ai / status 只�
 });
 function PROXY() { return RA.PROXY_HOST; }
 
-test('/s/ 一段与两段分开：主站一段 = 分享（P4 删）；主站两段不在表里', () => {
-  const share = RA.ruleOf('GET', '/s/AbCdEf0123456789abcdEF');
-  assert.equal(share.path, '/s/:code');
-  assert.match(share.retire, /^P4/);
+test('主站 /s/ 一段（分享短链）v6 P4 删除、不在表里；主站两段不在表里；代理订阅两段保留', () => {
+  assert.equal(RA.ruleOf('GET', '/s/AbCdEf0123456789abcdEF'), null);
+  assert.equal(RA.ruleOf('HEAD', '/s/AbCdEf0123456789abcdEF'), null);
   assert.equal(RA.ruleOf('GET', '/s/a/b'), null);
   assert.equal(RA.ruleOf('GET', '/s/'), null);
   const sub = RA.ROUTE_ACCESS.filter((r) => r.path === '/s/:token/:source');
@@ -111,9 +108,6 @@ test('action：源码里出现的 action / op 都在表里；没写 action 用�
     return new Set([...src.matchAll(/action (?:===|!==) '([a-z0-9-]+)'/g)].map((m) => m[1]));
   };
   const files = {
-    '/api/lock-password': 'space-core/src/api/lock-password.js', '/api/lock-passkey': 'space-core/src/api/lock-passkey.js',
-    '/api/share': 'space-core/src/api/share.js', '/api/account/session': 'account/src/api/account/session.js',
-    '/api/account/reset': 'account/src/api/account/reset.js', '/api/account/keys': 'account/src/api/account/keys.js',
     '/api/account/devices': 'account/src/api/account/devices.js', '/api/account/grants': 'account/src/api/account/grants.js',
     '/api/account/proxy': 'account/src/api/account/proxy.js',
   };
@@ -126,9 +120,9 @@ test('action：源码里出现的 action / op 都在表里；没写 action 用�
   for (const m of music.matchAll(/case '([a-z]+\.[a-z]+)'/g)) assert.ok(RA.levelOf('POST', '/curio/api/music', { action: m[1] }), 'music ' + m[1]);
   assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'album.del' }), 'root');
   assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'track.del' }), 'curio-write');
-  assert.equal(RA.levelOf('POST', '/api/lock-password'), 'public');
-  assert.equal(RA.levelOf('POST', '/api/lock-password', { action: 'remove' }), 'user');
-  assert.equal(RA.levelOf('POST', '/api/lock-password', { action: 'hack' }), null);
+  assert.equal(RA.levelOf('POST', '/api/account/devices'), 'user');
+  assert.equal(RA.levelOf('POST', '/api/account/devices', { action: 'revoke-all' }), 'user');
+  assert.equal(RA.levelOf('POST', '/api/account/devices', { action: 'hack' }), null);
 });
 
 test('档合法；删除两级；sudo 继任；root 不能从访客直接登录', () => {
@@ -140,8 +134,9 @@ test('档合法；删除两级；sudo 继任；root 不能从访客直接登录'
     if (r.del === 'item' && r.method === 'DELETE') assert.ok(rank(r.level) === 1, '单条删除归写组：' + r.path);
     assert.ok(typeof r.why === 'string' && r.why.length > 0);
   }
-  for (const p of ['/api/account/reauth', '/curio/api/import']) assert.equal(RA.levelOf('POST', p), 'root', p);
-  for (const a of ['password', 'passkey', 'passkey-challenge']) assert.equal(RA.levelOf('POST', '/api/account/session', { action: a }), 'wheel', 'sudo root → su root 要 wheel');
+  assert.equal(RA.levelOf('POST', '/curio/api/import'), 'root');
+  for (const p of ['/api/account/session', '/api/account/reauth', '/api/account/reset', '/api/account/keys']) assert.equal(RA.ruleOf('POST', p), null, p + '（v6 P4 删）');
+  assert.equal(RA.levelOf('POST', '/api/identity', { action: 'su' }), 'public', 'su root 的 wheel 要求在接口内（身份命令），不在路由档');
   assert.equal(RA.levelOf('DELETE', '/daymark/api/quotes'), 'daymark-write');
   assert.equal(RA.levelOf('DELETE', '/curio/api/photo'), 'curio-write');
 });
@@ -149,9 +144,9 @@ test('档合法；删除两级；sudo 继任；root 不能从访客直接登录'
 test('摘要快照：各档路由数（改表必须改这里）', () => {
   const count = {};
   for (const r of RA.ROUTE_ACCESS) count[r.level] = (count[r.level] || 0) + 1;
-  assert.deepEqual(count, { public: 38, ai: 2, status: 1, root: 10, owner: 1, user: 9, 'curio-write': 8, listen: 3, 'daymark-write': 6 });
-  assert.equal(RA.ROUTE_ACCESS.length, 78);
-  assert.equal(RA.ROUTE_ACCESS.filter((r) => r.decided).length, 17, 'Gray 2026-11-11 定稿的 17 条');
+  assert.deepEqual(count, { public: 25, ai: 2, status: 1, root: 6, owner: 1, user: 6, 'curio-write': 8, listen: 3, 'daymark-write': 6 });
+  assert.equal(RA.ROUTE_ACCESS.length, 58, 'v6 P4 删旧入口 20 条（78 → 58）');
+  assert.equal(RA.ROUTE_ACCESS.filter((r) => r.decided).length, 16, 'Gray 2026-11-11 定稿的 17 条，P4 删 lock-all-devices 后 16 条');
   assert.equal(RA.ROUTE_ACCESS.filter((r) => 'doubt' in r).length, 0, '不再有存疑');
   assert.equal(RA.levelOf('GET', '/curio/api/export'), 'root', '导出含私密 → root（Gray 2026-11-11）');
   assert.equal(RA.levelOf('PUT', '/api/profile'), 'owner', '站长名片只有一份：站长 + root（P2 定稿 v4）');
@@ -171,7 +166,7 @@ test('/api/identity（P2）：每个 action 一档；救援白名单 = RESCUE_CO
   for (const a of rescue) assert.equal(RA.rescueOf('POST', '/api/identity', { action: a }), true, a);
   for (const a of ['su', 'sudo', 'useradd', 'userdel', 'usermod', 'passwd-user', 'who', 'idle']) assert.equal(RA.rescueOf('POST', '/api/identity', { action: a }), false, a);
   assert.equal(RA.rescueOf('POST', '/api/identity'), false, '没给 action 不放');
-  assert.equal(RA.rescueOf('POST', '/api/account/keys'), true, '没有 rescueActions 的救援路由：整条');
+  assert.equal(RA.rescueOf('POST', '/api/account/keys'), false, '/api/account/keys v6 P4 删除');
   assert.equal(RA.rescueOf('GET', '/api/status'), false);
 });
 

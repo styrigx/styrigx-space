@@ -3,9 +3,9 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-SPEC-004 |
-| 版本 | 0.4 |
+| 版本 | 0.5 |
 | 日期 | 2026-11-11 |
-| 状态 | 已定（v6 P1，Gray 2026-11-11 定稿 17 条存疑；P2 改名片 PUT 档、加 /api/identity；割接加 action private、其余 Worker 接 v6） |
+| 状态 | 已定（v6 P1，Gray 2026-11-11 定稿 17 条存疑；P2 改名片 PUT 档、加 /api/identity；割接加 action private、其余 Worker 接 v6；P4 删旧入口 20 条） |
 
 
 > 状态：P1 定稿（2026-11-11，Gray 已定 17 条存疑），基线 main 05abe443。机器可读的唯一来源是 `workers/account/src/core/route-access.js` 的 `ROUTE_ACCESS`；
@@ -17,7 +17,7 @@
 1. 档（`core/groups.js` `ACCESS_LEVELS`）：**public**（谁都行）/ **user**（任一已登录身份，含无组的临时用户）/ **组名**（wheel、sudoers、listen、ai、status、curio-write、daymark-write）/ **owner**（站长 = styrigx 的 uid，P2）/ **root**。判断全站只有一处：`core/groups.js` `permits()`，顺序固定（P2，定稿 v4 §三）：① 救援会话只放标了「救援可用」的路由 / action，其余一律拒、不往下走；② root 一律放行；③ 按档。
 8. 救援白名单：路由标「救援可用」；一条路由多个 action 的，只放列出的那几个（`rescueActions`，判断用 `rescueOf()`）。
 2. 未列入的接口一律拒绝（fail closed）；页面与静态文件（不在 `/api/`、`/<子站>/api/` 下）一律 public，不进表。
-3. 路径参数只有三种：`/s/:code`（主站，一段 = 分享短链）、`/s/:token/:source`（代理主机，两段 = 代理订阅）、`/avatar/:file`。**/s/ 一段与两段分开列**：P4 删分享只动一段的那两行，两段的代理订阅不受影响。
+3. 路径参数只有两种：`/s/:token/:source`（代理主机，两段 = 代理订阅）、`/avatar/:file`。主站 `/s/:code`（一段 = 分享短链）v6 P4 删除，两段的代理订阅不受影响。
 4. 一个接口多个 action 的，「档」是进接口的最低一档，「action 另定」列出更高的档，由接口读完 body 后按同一张表判断。网关 admit 只看路由这一档。
 5. 删除两级：**单条内容删除归写组**；**批量 / 结构删除只属 root**。
 6. 原来要再验证（sudo -v、sudo root reauth、账号复验）的操作 → v6 **sudo 每次重验 = root 档**。
@@ -28,18 +28,18 @@
 
 | 档 | 路由数 |
 |---|---|
-| public | 38 |
-| user | 9 |
+| public | 25 |
+| user | 6 |
 | ai | 2 |
 | status | 1 |
 | listen | 3 |
 | curio-write | 8 |
 | daymark-write | 6 |
 | owner | 1 |
-| root | 10 |
-| **合计** | **78**（另有 12 个只经服务绑定 / RPC 的入口；P2c 加 AccountJanitor） |
+| root | 6 |
+| **合计** | **58**（另有 11 个只经服务绑定 / RPC 的入口；P2c 加 AccountJanitor，P4 删 ShareJanitor） |
 
-按 Worker：站点核心 21、账号 18、奇趣 20、日刻 13、代理 6。割接后要删的旧入口 20 条（P3 / P4）。有 action 另定档的接口 15 个（lock-password、lock-passkey、account/session、account/reset、curio music、identity；割接加的 `private`：curio items / links / movies / photo / icon / music、daymark quotes / collections 的 GET；2c 加 `POST /api/ai` 的 `private`）。
+按 Worker：站点核心 6、账号 13、奇趣 20、日刻 13、代理 6（P4 删旧入口 20 条后）。有 action 另定档的接口 11 个（curio music、identity；割接加的 `private`：curio items / links / movies / photo / icon / music、daymark quotes / collections 的 GET；2c 加 `POST /api/ai` 的 `private`）。
 
 P2 变更（2026-11-11）：`PUT /api/profile` root → **owner**（站长 styrigx + root，其余拒）；新增 `POST /api/identity`（v6 身份命令，public 入口，每个 action 一档，救援只放 whoami / exit / lock / passwd / passkey-* / groups）。
 
@@ -73,13 +73,14 @@ P3 变更（2026-11-11，定稿 v5.2 §九；路由档不变）：
 2e 变更（2026-11-11，割接后续；路由档不变，服务端不改）：
 - 前端终端 `passkey` / `passkey ls` / `passkey add` / `passkey rm <n>` 接 v6：有 v6 会话（普通用户 / su root / 救援）→ `POST /api/identity` 的 `passkey-list` / `passkey-add-challenge` / `passkey-add` / `passkey-delete`（user 档，按服务端会话 uid 管栈顶那个用户自己的；定稿 v5.2 §八、§九白名单）；不要 root、不跑旧 `sudo root reauth`。`sudo passkey …` 前端直接回 rootCreds（服务端 sudo 本来就回 403 root-creds，定稿 §十）。旧会话路径不变（P4 删）。
 
+P4 变更（2026-11-11，定稿 v5.3 §十三 P4 行）：删旧入口 20 条——进站接口 `lock-now`（GET / POST）、`lock-entry`、`lock-session-check`、`lock-password`、`lock-passkey`、`lock-credentials`、`lock-reauth`、`lock-all-devices`、`lock-reset`、`space-auth`；分享短链 `/s/:code`（GET / HEAD）与 `/api/share`（GET / POST）；旧账号会话 `GET /api/account`、`/api/account/session`、`/api/account/reauth`、`/api/account/reset`、`/api/account/keys`。`/s/` 只剩代理主机两段的订阅。`GET /api/space-audit` 保留（档 root 不变）。只经服务绑定的入口删 `AccountVerifier.authorize`、`SpaceVerifier.session`、`ShareJanitor.purgeShareLinks`。下文 P1–2e 各节与「已定」一节的旧路由是当时的记录。
+
 ### 已定（Gray 2026-11-11）
 
-盘点时拿不准的 17 条，Gray 2026-11-11 定稿；表里「已定」列与 `ROUTE_ACCESS` 的 `decided` 字段一致。改了档的两处：P1 `GET /curio/api/export` 由 curio-write 改为 **root**；P2（定稿 v4）`PUT /api/profile` 由 root 改为 **owner** = 站长（styrigx）+ root（root 由 permits 放行），其余一律拒。其余按原拟定值定稿。
+盘点时拿不准的 17 条，Gray 2026-11-11 定稿；表里「已定」列与 `ROUTE_ACCESS` 的 `decided` 字段一致（P4 删 `lock-all-devices` 后剩 16 条）。改了档的两处：P1 `GET /curio/api/export` 由 curio-write 改为 **root**；P2（定稿 v4）`PUT /api/profile` 由 root 改为 **owner** = 站长（styrigx）+ root（root 由 permits 放行），其余一律拒。其余按原拟定值定稿。
 
 | 路由 | 定稿 | 理由 |
 |---|---|---|
-| `POST /api/lock-all-devices` | user | v6 只作废自己的会话，不保留复验 |
 | `POST /api/account/devices` | user | 管自己的会话；root 看全部由 who 做（P2） |
 | `POST /api/account/proxy` | root | 全放 root，不加新组 |
 | `PUT` / `DELETE /api/avatar` | user | P2 按 uid 分 |
@@ -108,33 +109,13 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | GET | `/api/find` | **public** |  |  | 保留 | 关键词搜索，只回公开页面元数据（IP 限流） |  |
 | GET | `/api/geo` | **public** |  |  | 保留 | 只回调用者自己的城市 / 时区 |  |
 | GET | `/api/status` | **status** |  |  | 保留 | 旷野状态卡 / 监测页（转 styrigx-status /summary） |  |
-| GET | `/api/space-audit` | **root** |  |  | P4（审计并入 account_user_audit） | 进站凭证使用审计（含 IP 前缀） |  |
-| POST | `/api/lock-now` | **public** |  |  | P4（v6 lock 清栈并删服务端会话行） | 只清本机会话（幂等、不验证） |  |
-| GET | `/api/lock-now` | **public** |  |  | P4 | 只回 405（立即锁定只收 POST） |  |
-| GET | `/api/lock-entry` | **public** |  |  | P4 | 锁屏问设了哪些进站凭证（只回布尔） |  |
-| GET | `/api/lock-session-check` | **public** |  |  | P4 | 前端问「进站了吗」；v6 由 whoami / GET /api/account 取代 |  |
-| POST | `/api/lock-password` | **public** | `set` → user；`change` → user；`remove` → user |  | P4（v6：su styrigx / passwd） | 进站密码：verify 公开（登录）；set / change / remove 改的是 styrigx 自己的密码 |  |
-| POST | `/api/lock-passkey` | **public** | `register` → user；`list` → user；`rename` → user；`delete` → user |  | P4（v6：su styrigx / passkey） | 进站通行密钥：challenge / auth 公开（登录）；增删改列的是 styrigx 自己的通行密钥 |  |
-| GET | `/api/lock-credentials` | **user**（救援可用） |  |  | P4 | 列进站凭证是否已设置 |  |
-| POST | `/api/lock-reauth` | **user** |  |  | P4（sudo -v 删除） | sudo -v 的票状态 / 清票 |  |
-| POST | `/api/lock-all-devices` | **user** |  |  | P4（v6：lock / 改密码作废其他会话） | lock --all：自己的全部会话回访客 | Gray 2026-11-11 定 user：v6 只作废自己的会话，不保留复验 |
-| POST | `/api/lock-reset` | **public** |  |  | P3（恢复钥匙合一 + 救援入口） | 恢复钥匙换 reset 票（sudo styrigx reset） |  |
-| POST | `/api/space-auth` | **public** |  |  | P3 | 进站恢复钥匙校验（前端已不用） |  |
-| GET | `/s/:code` | **public** |  |  | P4（整套删；删后一段 404，两段仍走代理订阅） | 分享短链：码就是凭证（一段） |  |
-| HEAD | `/s/:code` | **public** |  |  | P4 | 同上（链接预览探测） |  |
-| GET | `/api/share` | **root** |  |  | P4 | 只回 405（管理只收 POST） |  |
-| POST | `/api/share` | **root** |  |  | P4（删前盘点有效链接逐个处理） | 分享链接新建 / 列表 / 作废；v6 给别人权限改为 root useradd -e |  |
+| GET | `/api/space-audit` | **root** |  |  | 保留 | 进站凭证使用审计（含 IP 前缀） |  |
 
 ### 账号 styrigx-account（经网关 FORWARDING 转发）
 
 | 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
-| GET | `/api/account` | **public** |  |  | 保留 | 账号终端状态（访客也要读提示符状态） |  |
 | POST | `/api/identity` | **public**（救援可用：`whoami`、`exit`、`lock`、`passwd`、`passkey-*`、`groups`） | `passwd` / `passkey-list` / `passkey-add-challenge` / `passkey-add` / `passkey-delete` / `groups` / `who` → user；`sudo-challenge` / `sudo` → sudoers；`useradd` / `userdel` / `usermod` / `passwd-user` → root；`whoami` / `su-challenge` / `su` / `exit` / `idle` / `lock` / `rescue` → public |  | 保留（P2 新增） | v6 身份命令：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>；P3 救援入口 rescue |  |
-| POST | `/api/account/session` | **public** | `passkey-challenge` → wheel；`passkey` → wheel；`password` → wheel |  | P4（v6 su / exit） | 旧 sudo root 登录；v6 = su root（wheel + root 凭据），root 不能从访客直接登录 |  |
-| POST | `/api/account/reauth` | **root** |  |  | P4（sudo root reauth 删除，改 sudo 每次重验） | sudo root reauth（3 分钟票） |  |
-| POST | `/api/account/reset` | **public**（救援可用） | `password-set` → root；`passkey-list` → root；`passkey-add-challenge` → root；`passkey-add` → root；`passkey-delete` → root；`finish` → root |  | P3（救援入口直接签 15 分钟一次性 root 会话） | 恢复密钥换 reset 票；之后的写只在救援会话里 |  |
-| POST | `/api/account/keys` | **root**（救援可用） |  |  | 保留 | 账号钥匙 = root 的密码 / 通行密钥（v6 迁为 root 凭据） |  |
 | POST | `/api/account/devices` | **user** |  |  | 保留 | 已登录设备 = 自己的会话（v6 who 只看自己） | Gray 2026-11-11 定 user：管自己的会话；root 看全部由 who 做（P2） |
 | POST | `/api/account/grants` | **root** |  |  | P2 起子应用权限改由组表达（curio-write / daymark-write …） | 应用授权 app allow \| deny（归 root，定稿 §十） |  |
 | POST | `/api/account/proxy` | **root** |  |  | 保留 | 代理订阅管理 sub（转 styrigx-proxy-rules ProxyAdmin；含令牌、age 公钥） | Gray 2026-11-11 定 root，不加新组 |
@@ -212,9 +193,8 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | ai | `GET /healthz` | styrigx-status 监测 | 健康检查 |
 | status | `GET /summary` | space-core GET /api/status（STATUS） | 监测数据（status 组） |
 | account | `AccountService.fetch` | space-core FORWARDING（ACCOUNT） | 上表 /api/account*、/api/avatar*、/api/profile、/api/prefs、/api/wellbeing、/api/identity、/avatar/* |
-| account | `AccountVerifier.authorize / admit` | space-core（ACCOUNT_VERIFIER） | 旧授权结论 / v6 新会话判定（只读） |
-| space-core | `SpaceVerifier.session / conclusion` | curio-core、daymark-core（SPACE） | 旧进站会话结论（P4 后改问账号） |
-| space-core | `ShareJanitor.purgeShareLinks` | styrigx-status 每日一轮（JOB_SPACE） | 清过期分享链接（P4 随分享删） |
+| account | `AccountVerifier.admit / auditRoot` | space-core（ACCOUNT_VERIFIER） | v6 会话判定（只读）/ root 特权操作留痕（v6 P4 起 authorize 删除） |
+| space-core | `SpaceVerifier.conclusion / admit / auditRoot` | curio-core、daymark-core（SPACE） | conclusion 自 v6 P4 起一律 denied；admit / auditRoot 原样转给账号 Worker（v6 P4 起 session 与 ShareJanitor 删除） |
 | account | `AccountJanitor.purgeExpiredUsers` | styrigx-status 每日一轮（JOB_ACCOUNT） | 到期满 30 天的用户自动删除（v6 P2c，定稿 v5 §八） |
 | proxy-rules | `ProxyAdmin.*` | account POST /api/account/proxy（PROXY） | 代理订阅管理（root 档在调用方） |
 | curio-core / daymark-core / ai | `HourlyJob.run` | styrigx-status 每小时一轮 | 搜索索引 / 照片清理等定时任务 |

@@ -400,8 +400,8 @@ test('deploy.yml：部署顺序 ai → status → 账号 → styrigx-space-core 
   assert.match(smoke, /forged \/api\/account/);
   assert.match(smoke, /\/avatar\/96\.webp/);
   assert.match(smoke, /"\$rt" = "account"/);
-  /* 分享链接并进 space-core：/s/<码> 失败 302 到锁屏、/api/share 没会话 401，都由 space-core（X-SGX-Runtime: worker）回答 */
-  assert.match(smoke, /redir "https:\/\/styrigx\.com\/s\/smoke/);
+  /* v6 P4（定稿 v5.3 §十三）：分享短链删除，不再冒烟 /s/<码>；/api/share 不在访问表里，没会话照默认拒绝 401（space-core 回答） */
+  assert.doesNotMatch(smoke, /\/s\/smoke/);
   assert.match(smoke, /check \/api\/share 401/);
 });
 

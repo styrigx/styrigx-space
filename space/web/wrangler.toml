@@ -18,7 +18,6 @@ pages_build_output_dir = "public"
 [env.preview.vars]
 # 网关缺 SGX_ENV 时按生产处理（只认 styrigx.com）；预览必须显式写 preview 才能在 pages.dev 地址上跑
 SGX_ENV = "preview"
-SGX_SPACE_PUBLIC = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAxZb8houVYG+lY/Jn4A1zNJzKMb1LdDHHEIQSAjfERPU=\n-----END PUBLIC KEY-----\n"
 SGX_ORIGIN = "https://passkey-e2e.styrigx-space.pages.dev"
 SGX_RP_ID = "passkey-e2e.styrigx-space.pages.dev"
 SGX_SITE = "space"

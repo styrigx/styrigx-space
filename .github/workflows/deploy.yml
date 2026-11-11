@@ -117,7 +117,7 @@ jobs:
           npx --yes "wrangler@$WRANGLER_VERSION" deploy tests/space/e2e/helpers/preview-worker.js --dry-run --outdir /tmp/preview-worker-dist \
             --name sgx-preview-worker-bundle --compatibility-date "$(sed -n 's/^compatibility_date = "\(.*\)"$/\1/p' space/web/wrangler.toml)"
           grep -q "X-SGX-Runtime" /tmp/preview-worker-dist/preview-worker.js
-          grep -q "X-Styrigx-Space-Session" /tmp/preview-worker-dist/preview-worker.js
+          grep -q "sgx-session" /tmp/preview-worker-dist/preview-worker.js
 
       - name: AI Worker bundle check (styrigx-ai, dry-run)
         working-directory: workers/ai
@@ -300,7 +300,7 @@ jobs:
         run: npx stylelint --config tests/config/stylelintrc.json "space/web/assets/css/input.css"
 
   e2e-lock:
-    # 锁屏、边缘、锁屏基线截图、凭证接口、lock-gate 关。测 build 上传的主站生产构建。
+    # 锁屏、边缘、锁屏基线截图、lock-gate 关（凭证接口 e2e 随 v6 P4 后端删旧删除）。测 build 上传的主站生产构建。
     # 前一步红了后面照跑（if: !cancelled()），一轮看全；job 照样红，不用 continue-on-error。
     needs: build
     # 固定 ubuntu-24.04：ubuntu-latest 换大版本时字体渲染会变，视觉基线跟着漂
@@ -352,11 +352,6 @@ jobs:
         # if: ${{ !cancelled() && steps.prod.outcome == 'success' }}
         if: ${{ false }}
         run: SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot"
-
-      - name: Credential API e2e（真实 handler + 内存 D1，自带测试服务器）
-        if: ${{ !cancelled() }}
-        # 锁屏密码 / 锁屏通行密钥 / 账号密码 / 账号通行密钥的真请求；不需要 Hugo 构建
-        run: SGX_TEST_SUITE=credential npx playwright test --config=tests/config/playwright.config.js
 
       - name: Lock flags test (lock-gate off)
         if: ${{ !cancelled() && steps.prod.outcome == 'success' }}
@@ -715,29 +710,16 @@ jobs:
 
       - name: Generate preview test credentials (CI only)
         if: steps.gate.outputs.run == 'true'
-        # 预览站的测试进站凭证（网关 SGX_SPACE_RECOVERY_KEY）、测试恢复密钥（账号 Worker SGX_ACCOUNT_RECOVERY_KEY，两把不同）、
-        # 锁屏密码 pepper（网关 SGX_SPACE_PASSWORD_PEPPER）和账号密码 pepper（账号 Worker SGX_ACCOUNT_PASSWORD_PEPPER，命名 v2 起分开）：
-        # 每次运行新生成，只给这次的预览（PR：本地模拟器）用，和下面的 Ed25519 测试钥匙对一样不进仓库、不存 GitHub Secrets。
-        # 根密钥只要求去空白后非空（两边 lib/crypto.js normalizeSpaceKey），这里用 32 字节随机数的 hex（64 个字符，无空白、无特殊字符）。
+        # 预览站的账号密码 pepper（账号 Worker SGX_ACCOUNT_PASSWORD_PEPPER）：每次运行新生成，只给这次的预览（PR：本地模拟器）用，
+        # 和下面的 Ed25519 测试钥匙对一样不进仓库、不存 GitHub Secrets。32 字节随机数的 hex（64 个字符）。
+        # v6 P4（定稿 v5.3 §十三）：网关的 SGX_SPACE_*（进站钥匙对、进站凭证、锁屏密码 pepper）与两把旧恢复钥匙删除，这里不再生成。
         # 先 ::add-mask:: 再写进 $GITHUB_ENV，后面各步骤的日志里都打码。
         run: |
-          space_key="$(openssl rand -hex 32)"
-          recovery_key="$(openssl rand -hex 32)"
-          pepper="$(openssl rand -hex 32)"
           account_pepper="$(openssl rand -hex 32)"
-          test "${#space_key}" -eq 64 && test "${#recovery_key}" -eq 64 && test "${#pepper}" -eq 64 && test "${#account_pepper}" -eq 64
-          test "$space_key" != "$recovery_key" && test "$pepper" != "$account_pepper"
-          echo "::add-mask::$space_key"
-          echo "::add-mask::$recovery_key"
-          echo "::add-mask::$pepper"
+          test "${#account_pepper}" -eq 64
           echo "::add-mask::$account_pepper"
-          {
-            echo "PREVIEW_TEST_SPACE_KEY=$space_key"
-            echo "PREVIEW_TEST_RECOVERY_KEY=$recovery_key"
-            echo "PREVIEW_TEST_PW_PEPPER=$pepper"
-            echo "PREVIEW_TEST_ACCOUNT_PEPPER=$account_pepper"
-          } >> "$GITHUB_ENV"
-          echo "preview test space key / recovery key / peppers generated (preview only)"
+          echo "PREVIEW_TEST_ACCOUNT_PEPPER=$account_pepper" >> "$GITHUB_ENV"
+          echo "preview test account pepper generated (preview only)"
 
       - name: Reset preview D1 (state that would change this run)
         # 每次运行换了两把根密钥、pepper 和 Ed25519 钥匙对。2026-10-27 起网关的认证状态全部在 D1（不再绑定 KV），
@@ -776,13 +758,13 @@ jobs:
         if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
         # tests/space/e2e/helpers/preview-emulator.cjs：仓库里的组合入口（不打包，直接 import tests/space/e2e/helpers/preview-worker.js：网关 + 账号 Worker）+
         # node:sqlite 的 D1 + 本机的 Cloudflare D1 / KV REST；env.ASSETS 读上面构建的 space/web/public。Ed25519 钥匙对由它自己现生成。
-        # 密钥 / pepper 用本次生成的 PREVIEW_TEST_SPACE_KEY / PREVIEW_TEST_RECOVERY_KEY / PREVIEW_TEST_PW_PEPPER / PREVIEW_TEST_ACCOUNT_PEPPER（已打码）。固定端口 8788，和下一步的 SGX_TEST_BASE 一致。
+        # 账号密码 pepper 用本次生成的 PREVIEW_TEST_ACCOUNT_PEPPER（已打码）。固定端口 8788，和下一步的 SGX_TEST_BASE 一致。
         # 后台跑到 job 结束（runner 收尾时回收）；日志写 emulator-log/，失败时随测试结果一起上传。
         run: |
           node -e "require('node:sqlite')" || { echo "::error::node:sqlite unavailable, the emulator's D1 needs it"; exit 1; }
           mkdir -p emulator-log
           log=emulator-log/preview-emulator.log
-          nohup node tests/space/e2e/helpers/preview-emulator.cjs --port 8788 --space-key "$PREVIEW_TEST_SPACE_KEY" --recovery-key "$PREVIEW_TEST_RECOVERY_KEY" --pepper "$PREVIEW_TEST_PW_PEPPER" --account-pepper "$PREVIEW_TEST_ACCOUNT_PEPPER" > "$log" 2>&1 &
+          nohup node tests/space/e2e/helpers/preview-emulator.cjs --port 8788 --account-pepper "$PREVIEW_TEST_ACCOUNT_PEPPER" > "$log" 2>&1 &
           pid=$!
           for _ in $(seq 60); do
             if curl -fsS -o /dev/null http://127.0.0.1:8788/__kv/stats; then echo "preview emulator ready on http://localhost:8788 (pid $pid)"; exit 0; fi
@@ -800,8 +782,6 @@ jobs:
         env:
           SGX_TEST_SUITE: passkey
           SGX_TEST_BASE: http://localhost:8788
-          SGX_TEST_SPACE_KEY: ${{ env.PREVIEW_TEST_SPACE_KEY }}
-          SGX_TEST_RECOVERY_KEY: ${{ env.PREVIEW_TEST_RECOVERY_KEY }}
           SGX_TEST_CF_API: http://127.0.0.1:8788/client/v4
           SGX_TEST_CF_TOKEN: x
           SGX_TEST_CF_ACCOUNT: x
@@ -823,13 +803,13 @@ jobs:
             --name sgx-preview-worker-bundle --compatibility-date "$(sed -n 's/^compatibility_date = "\(.*\)"$/\1/p' space/web/wrangler.toml)"
           cp "$RUNNER_TEMP/preview-dist/preview-worker.js" space/web/public/_worker.js
           grep -q "X-SGX-Runtime" space/web/public/_worker.js
-          grep -q "X-Styrigx-Space-Session" space/web/public/_worker.js
+          grep -q "sgx-session" space/web/public/_worker.js
 
       - name: Generate Ed25519 test key pairs (CI only)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
-        # 锁屏域和账号域各一对，每次运行新生成，只给预览用；绝不用生产密钥，密钥不进仓库
+        # 账号域一对（v6 P4 起网关没有钥匙对），每次运行新生成，只给预览用；绝不用生产密钥，密钥不进仓库
         run: |
-          for d in lock account; do
+          for d in account; do
             openssl genpkey -algorithm ed25519 -out "$RUNNER_TEMP/$d-priv.pem"
             openssl pkey -in "$RUNNER_TEMP/$d-priv.pem" -pubout -out "$RUNNER_TEMP/$d-pub.pem"
             test -s "$RUNNER_TEMP/$d-priv.pem" && test -s "$RUNNER_TEMP/$d-pub.pem"
@@ -839,32 +819,31 @@ jobs:
       - name: Put this run's public keys into space/web/wrangler.toml (runner copy only)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # space/web/wrangler.toml 是 Pages 的配置源：部署时它的 [env.preview.vars] 覆盖后台的明文变量。
-        # 仓库里那份 SGX_SPACE_PUBLIC 是固定值，和本次生成的私钥对不上，所以部署前在 runner 里换成本次的公钥，
-        # 并补上账号域公钥。不提交，只影响这次部署。
+        # 部署前在 runner 里补上本次生成的账号域公钥（紧跟 SGX_ENV 那一行）。不提交，只影响这次部署。
+        # v6 P4（定稿 v5.3 §十三）起网关没有钥匙对，仓库那份不再有 SGX_SPACE_PUBLIC。
         run: |
           python3 - <<'PYEOF'
           import json, os, re, tomllib
           tmp = os.environ["RUNNER_TEMP"]
-          lock_pub = open(f"{tmp}/lock-pub.pem").read()
           acct_pub = open(f"{tmp}/account-pub.pem").read()
           path = "space/web/wrangler.toml"
           s = open(path).read()
-          pat = re.compile(r'^SGX_SPACE_PUBLIC = .*$', re.M)
-          assert len(pat.findall(s)) == 1, "expected exactly one SGX_SPACE_PUBLIC line"
-          assert "SGX_ACCOUNT_PUBLIC" not in s
-          s = pat.sub(lambda m: "SGX_SPACE_PUBLIC = " + json.dumps(lock_pub) + "\nSGX_ACCOUNT_PUBLIC = " + json.dumps(acct_pub), s)
+          assert "SGX_SPACE_PUBLIC" not in s and "SGX_ACCOUNT_PUBLIC" not in s
+          pat = re.compile(r'^(\[env\.preview\.vars\][^\[]*?^SGX_ENV = "preview"$)', re.M | re.S)
+          assert len(pat.findall(s)) == 1, "expected exactly one [env.preview.vars] SGX_ENV line"
+          s = pat.sub(lambda m: m.group(1) + "\nSGX_ACCOUNT_PUBLIC = " + json.dumps(acct_pub), s)
           open(path, "w").write(s)
           v = tomllib.loads(s)["env"]["preview"]["vars"]
-          assert v["SGX_SPACE_PUBLIC"] == lock_pub and v["SGX_ACCOUNT_PUBLIC"] == acct_pub and v["SGX_ENV"] == "preview"
-          print("preview public keys written to the runner copy of space/web/wrangler.toml")
+          assert v["SGX_ACCOUNT_PUBLIC"] == acct_pub and v["SGX_ENV"] == "preview" and "SGX_SPACE_PUBLIC" not in v
+          print("preview account public key written to the runner copy of space/web/wrangler.toml")
           PYEOF
 
       - name: Set preview test secrets (preview only)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 只写 preview 环境（PATCH deployment_configs.preview），绝不碰 production。
         # 必须在部署之前写，否则新值要到下一次部署才生效。secret 都经 env 传进来，不拼进脚本；
-        # SGX_SPACE_RECOVERY_KEY（网关进站凭证）/ SGX_SPACE_PASSWORD_PEPPER（锁屏密码）/ SGX_ACCOUNT_RECOVERY_KEY（恢复密钥）/ SGX_ACCOUNT_PASSWORD_PEPPER（账号密码）
-        # 用上面本次生成的值（已打码）。命名 v2 起预览不再写 SGX_ACCOUNT_ROOT_KEY（账号代码不读它；以前写过的旧测试值不删也不被读）。
+        # SGX_ACCOUNT_PASSWORD_PEPPER（账号密码）用上面本次生成的值（已打码）。v6 P4（定稿 v5.3 §十三）起不再写网关的 SGX_SPACE_*
+        # 和两把旧恢复钥匙（代码不读它们；预览环境里以前写过的旧测试值不删也不被读）。命名 v2 起预览不再写 SGX_ACCOUNT_ROOT_KEY（账号代码不读它；以前写过的旧测试值不删也不被读）。
         # 账号拆分 PR3 起预览不再写 SGX_ROOT_KEY（网关代码不读它）；预览环境里以前写过的旧值是以前某次运行的测试值，不删也不被读。
         env:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -875,25 +854,17 @@ jobs:
           env = os.environ
           tmp = env["RUNNER_TEMP"]
           rd = lambda f: open(f"{tmp}/{f}").read()
-          lock_priv, lock_pub = rd("lock-priv.pem"), rd("lock-pub.pem")
           acct_priv, acct_pub = rd("account-priv.pem"), rd("account-pub.pem")
-          assert "PRIVATE KEY" in lock_priv and "PRIVATE KEY" in acct_priv
-          space_key, recovery_key = env["PREVIEW_TEST_SPACE_KEY"], env["PREVIEW_TEST_RECOVERY_KEY"]
-          pepper, account_pepper = env["PREVIEW_TEST_PW_PEPPER"], env["PREVIEW_TEST_ACCOUNT_PEPPER"]
-          assert len(space_key) == 64 and len(recovery_key) == 64 and len(pepper) == 64 and len(account_pepper) == 64
-          assert space_key != recovery_key and pepper != account_pepper
+          assert "PRIVATE KEY" in acct_priv
+          account_pepper = env["PREVIEW_TEST_ACCOUNT_PEPPER"]
+          assert len(account_pepper) == 64
           pv = tomllib.load(open("space/web/wrangler.toml", "rb"))["env"]["preview"]["vars"]
           secret = lambda v: {"type": "secret_text", "value": v}
           plain = lambda v: {"type": "plain_text", "value": v}
           body = json.dumps({"deployment_configs": {"preview": {"env_vars": {
-              "SGX_SPACE_RECOVERY_KEY": secret(space_key),
-              "SGX_ACCOUNT_RECOVERY_KEY": secret(recovery_key),
-              "SGX_SPACE_PASSWORD_PEPPER": secret(pepper),
               "SGX_ACCOUNT_PASSWORD_PEPPER": secret(account_pepper),
-              "SGX_SPACE_PRIVATE": secret(lock_priv),
               "SGX_ACCOUNT_PRIVATE": secret(acct_priv),
               # 下面这些也在 space/web/wrangler.toml 里（部署时以它为准）；这里写同样的值，两边不会不一致
-              "SGX_SPACE_PUBLIC": plain(lock_pub),
               "SGX_ACCOUNT_PUBLIC": plain(acct_pub),
               "SGX_SITE": plain(pv["SGX_SITE"]),
               "SGX_ENV": plain(pv["SGX_ENV"]),
@@ -972,13 +943,10 @@ jobs:
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 跑 passkey 组的全部 describe（testMatch 已限定文件，不再 --grep）。
         # 预览地址和预览 D1 id 从 space/web/wrangler.toml 读，不在这里重复写。
-        # SGX_TEST_SPACE_KEY / SGX_TEST_RECOVERY_KEY 是本次生成、已写进预览 SGX_SPACE_RECOVERY_KEY / SGX_ACCOUNT_RECOVERY_KEY 的同一对值。
         # 测试进程写预览 D1（打开重置开关、清进站凭证限速计数）用 Pages 部署 token（和上面清 D1 同一个）。
         # 测试 helper 尽量少写：缓存会话 / 进门票并用只读接口确认（tests/space/e2e/helpers/preview-helpers.cjs 文件头）。
         env:
           SGX_TEST_SUITE: passkey
-          SGX_TEST_SPACE_KEY: ${{ env.PREVIEW_TEST_SPACE_KEY }}
-          SGX_TEST_RECOVERY_KEY: ${{ env.PREVIEW_TEST_RECOVERY_KEY }}
           SGX_TEST_CF_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           SGX_TEST_CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
@@ -1748,13 +1716,13 @@ jobs:
   deploy-space-core:
     # 站点核心 Worker styrigx-space-core（workers/space-core；进站 v3 L2 起取代 styrigx-auth-gateway，并入分享链接 styrigx-share）：main 上真部署。
     # 先于 Pages 部署（Pages 只放静态文件，靠它验会话），也先于奇趣 / 日刻两个接口 Worker（它们的服务绑定 SPACE → SpaceVerifier 要它先在）。
-    # 路由见 workers/space-core/wrangler.toml（整站通配 styrigx.com/*；/s/*、/api/share 也在里面，按路径分；workers_dev=false）。
+    # 路由见 workers/space-core/wrangler.toml（整站通配 styrigx.com/*，按路径分；workers_dev=false；分享短链 /s/*、/api/share v6 P4 删除）。
     # 账号路径 /api/account、/api/prefs*、/api/avatar*、/api/wellbeing*、/api/profile、/avatar/* 验门后经服务绑定 ACCOUNT 转给账号 Worker（src/router.js FORWARDING）。
     # 部署顺序：ai → status → 账号 → 本 Worker → 奇趣 / 日刻接口 Worker → Pages。服务绑定指向的 ai / status / styrigx-account 要先在。
     # D1：进站 v3 L2b 起是 styrigx-space-core（一个绑定 D1_SPACE、一份基线、记录表 d1_migrations_core）。本 job 自己跑迁移，
     # 再查记录表和表确认真的在库里（只看到 No migrations to apply 不算数）。
     # 进站 v3 L3（2026-11-09）：旧 Worker styrigx-auth-gateway / styrigx-share、旧库 styrigx-space-gateway 已删，一次性的路由接管和 resync 步骤随之去掉。
-    # 密钥全在 Secrets Store（5 个 SGX_SPACE_*，按名字绑定），CI 不传任何密值。
+    # v6 P4（定稿 v5.3 §九 / §十三）起不绑任何 Secrets Store 密钥（SGX_SPACE_* 全部删除），CI 不传任何密值。
     # token：Cloudflare 上 styrigx-space-core-deploy = GitHub 环境 STYRIGX_SPACE_CORE_DEPLOY 里的同名环境密钥 STYRIGX_SPACE_CORE_DEPLOY
     # （Workers Scripts 编辑 + Workers Routes 编辑（styrigx.com）+ Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit）+ D1 编辑）；该环境只允许 main 分支部署。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
@@ -1791,9 +1759,10 @@ jobs:
           out=$(npx --yes "wrangler@$WRANGLER_VERSION" d1 execute D1_SPACE --remote --json --command "SELECT 'core:' || name AS n FROM d1_migrations_core UNION ALL SELECT 'table:' || name FROM sqlite_master WHERE type = 'table'")
           echo "$out"
           ok=0
-          for need in '"core:0001_baseline.sql"' '"table:share_link"' '"table:share_fail"' '"table:passkey"' '"table:password"' '"table:user_handle"' '"table:lock_reset_switch"' '"core:0002_drop_tempkey.sql"'; do
+          for need in '"core:0001_baseline.sql"' '"table:passkey"' '"table:password"' '"table:user_handle"' '"table:lock_reset_switch"' '"core:0002_drop_tempkey.sql"'; do
             if ! printf '%s' "$out" | grep -q "$need"; then echo "::error::D1 styrigx-space-core 里没有 $need"; ok=1; fi
           done
+          # share_link / share_fail 不再要求（v6 P4 分享短链删除；删表 SQL 在 docs/ops/v6-p4-drop-share.sql，Gray 批准后手动执行）
           # v5 收尾 0002_drop_tempkey.sql：临时钥匙表应已删
           if printf '%s' "$out" | grep -q '"table:tempkey"'; then echo "::error::D1 styrigx-space-core 里还有 tempkey 表"; ok=1; fi
           exit $ok
@@ -1914,25 +1883,12 @@ jobs:
           done
           [ $avatar_ok = 0 ] || { echo "::error::/avatar/96.webp expected X-SGX-Runtime: account"; ok=1; }
           # 子站（v5 S3）：三站页面没进站也 200，由网关回答
-          redir() { # 地址 期望状态码 期望 Location（逐字）
-            for i in 1 2 3 4 5 6; do
-              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "$1" | tr -d '\r' || true)
-              code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
-              rt=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
-              loc=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="location"{print $2}')
-              echo "$1 -> $code runtime=${rt:-none} location=${loc:-none} (try $i)"
-              if [ "$code" = "$2" ] && [ "$rt" = "worker" ] && [ "$loc" = "$3" ]; then return 0; fi
-              sleep 5
-            done
-            echo "::error::$1 expected $2 to $3 from worker"; return 1
-          }
           for s in blog curio daymark; do check "/$s/" 200 || ok=1; done
           # 静态资源不过网关：不能带 worker 标记
           css=$(curl -sS -o /dev/null -D - https://styrigx.com/robots.txt | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
           echo "/robots.txt runtime=${css:-none}"
           if [ -n "$css" ]; then echo "::error::static file went through the Worker"; ok=1; fi
-          # 分享链接（进站 v3 L2 起由本 Worker 接，原 styrigx-share）：打不开的短链统一 302 到锁屏（L2b 起 ?entry=1）；管理接口没会话 401
-          redir "https://styrigx.com/s/smoke$(date +%s)xxxxxxxxxxx" 302 'https://styrigx.com/?entry=1' || ok=1
+          # 分享短链 v6 P4 删除（定稿 v5.3 §十三）：/api/share 不在访问表里，没会话照默认拒绝 401
           check /api/share 401 || ok=1
           # 旧锁屏头名也一样被剥（所有外来 x-styrigx-* 都剥）
           for i in 1 2 3; do
@@ -1958,8 +1914,8 @@ jobs:
     # 应用授权 / 审计（D1_ACCOUNT 的 account_* 表），头像（KV_PROFILE）、设置云同步和数字健康（同在 D1_ACCOUNT）。
     # 没有任何路由（workers/account/wrangler.toml 无 [[routes]]）、workers_dev=false、preview_urls=false：只经网关的服务绑定
     # ACCOUNT（AccountService）/ ACCOUNT_VERIFIER（AccountVerifier）进来（短链 Worker 不再绑它）；默认 fetch 一律 404。
-    # 不调网关、不绑任何锁屏的东西（PR3 删掉了服务绑定 AUTH）。钥匙都在 Secrets Store（SGX_ACCOUNT_PRIVATE / PUBLIC、SGX_ACCOUNT_RECOVERY_KEY、
-    # SGX_ACCOUNT_PASSWORD_PEPPER），CI 不传任何密值。
+    # 不调网关、不绑任何锁屏的东西（PR3 删掉了服务绑定 AUTH）。钥匙都在 Secrets Store（SGX_ACCOUNT_PRIVATE / PUBLIC、
+    # SGX_ACCOUNT_PASSWORD_PEPPER、SGX_ACCOUNT_RESCUE_KEY），CI 不传任何密值。
     # 部署顺序：账号、短链（互不依赖，可并行）→ 网关 → Pages。排在网关之前：网关的服务绑定指向它的命名入口（PR2 起已导出）。
     # 和网关 / 短链一样等 status 的健康闸门（needs 里的 ai / status）。
     # 注意：wrangler deploy 在配置里没有路由时不碰线上已有的路由（只在有路由时 PUT 整个列表），所以 PR3 前的 4 条旧路由

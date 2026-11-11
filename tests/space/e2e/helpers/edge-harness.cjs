@@ -8,18 +8,16 @@
  *   （线上实测的匹配规则：不带 * 的规则遇到查询串不命中；多条命中取最具体的）决定这次请求走站点核心 Worker 还是直达 Pages。
  *   账号 Worker 账号拆分 PR3 起没有路由（读到有就照样挂上，测试会因此红），只经网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来。
  *   这样「路由表漏了某种 URL」在本地也能复现，不再被 http-server + page.route 的 mock 掩盖。
- * - 网关 = 仓库里真实的 workers/space-core/src/app.js（真实验签、epoch、Set-Cookie 属性），env 只给正式网关绑的东西
- *   （锁屏钥匙、SGX_SPACE_RECOVERY_KEY、pepper、D1_SPACE）；服务绑定 ACCOUNT / ACCOUNT_VERIFIER 接账号 Worker 命名入口的实现
- *   （workers/account/src/rpc/account-service.js serviceFetch / rpc/account-verifier.js checkAuthorize，AccountService / AccountVerifier 里跑的同一份代码）。
- *   账号 Worker 自己一对 Ed25519 钥匙、恢复密钥、账号密码 pepper 和自己的库（tests/workers/account/_d1.mjs：account_* 表 + 云同步），
+ * - 网关 = 仓库里真实的 workers/space-core/src/app.js，env 只给正式网关绑的东西（D1_SPACE、站点变量；v6 P4 起没有任何 SGX_SPACE_* 钥匙）；
+ *   服务绑定 ACCOUNT / ACCOUNT_VERIFIER 接账号 Worker 命名入口的实现（workers/account/src/rpc/account-service.js serviceFetch /
+ *   rpc/account-verifier.js checkAdmit / checkAuditRoot，AccountService / AccountVerifier 里跑的同一份代码）。
+ *   账号 Worker 自己一对 Ed25519 钥匙、账号密码 pepper 和自己的库（tests/workers/account/_d1.mjs：account_* 表 + 云同步），
  *   头像 KV_PROFILE 用内存 KV。转发到账号的每一跳在 log 里另记一条 'account'。
  *   Pages = 单树：space/web/public（主站，Cache-Control 照 _headers 的 /*）+ /blog/ /curio/ /daymark/ 下子站的固定页面。
  *   cloudflare:workers（rpc/*.js 引入）用 tests/workers/account/_cf-workers.mjs 的替身。
- * - 分享链接进门的会话（v5 S1 起取代临时钥匙）：mintCookie('link') 用 makeAuthD1 预置的那条有效 share_link（TEST_LINK_ID）。
- * - seedPasskey()：登记一把进站通行密钥（终端 sudo styrigx → passkey 用；v5 S5 起没有锁屏界面），返回 CDP WebAuthn.addCredential 用的参数。
- * - 分享链接（进站 v3 L2 起并入站点核心 Worker）：/s/*、/api/share 走同一个 workers/space-core/src/app.js（router.js routeShare），
- *   分享链接表和进站同一个 D1_SPACE（L2b）；会话、链接钥匙都是 core 内的直接函数调用（没有服务绑定）。
- *   日志里这两类请求记成 'share'，方便断言「真的进了分享链接那一段」。
+ * - mintV6()：往账号库写 styrigx（uid 1000）和一行 v6 会话，返回 sgx-session 的值（测试里直接塞 cookie，省掉每次走一遍 su）。
+ * v6 P4（定稿 v5.3 §十三）：进站会话 / 锁侧复验票 / 分享短链 / 旧账号会话随后端删除，mintCookie / mintReauth / seedShareLink /
+ *   resetShareLimit / mintAccount / 进站通行密钥 seedPasskey 一并拿掉。
  */
 const https = require('node:https');
 const http = require('node:http');
@@ -31,7 +29,7 @@ const nodeCrypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 /* 内存 KV、DER→PEM：和 Worker 单测同一份（tests/workers/_harness.cjs） */
-const { makeKV, makeAuthD1, derToPem, TEST_LINK_ID } = require('../../../workers/_harness.cjs');
+const { makeKV, makeAuthD1, derToPem } = require('../../../workers/_harness.cjs');
 
 const REPO = process.env.SGX_EDGE_REPO || path.join(__dirname, '..', '..', '..', '..');
 const PROXY_PORT = Number(process.env.SGX_EDGE_PROXY_PORT || 8941);
@@ -131,7 +129,7 @@ function pagesFor(req) {
 
 /**
  * 启动测试台。
- * @returns {Promise<{kv:any, env:any, log:string[], close:()=>Promise<void>, seedPasskey:()=>Promise<any>, seedShareLink:(o?:any)=>Promise<{id:string, code:string, path:string}>, mintCookie:(by:string)=>Promise<string>, mintReauth:()=>Promise<string>}>}
+ * @returns {Promise<{kv:any, env:any, accountKv:any, accountEnv:any, log:string[], close:()=>Promise<void>, mintV6:()=>Promise<string>}>}
  */
 async function startEdge() {
   const { readRoutes, pickRoute } = await dynImport(pathToFileURL(path.join(__dirname, '..', '..', '..', '..', 'space/scripts/lib/cf-routes.mjs')).href);
@@ -143,21 +141,17 @@ async function startEdge() {
   await mod('tests/workers/account/_cf-workers.mjs'); /* cloudflare:workers 替身，要在 import rpc/*.js 之前 */
   const accountEntry = { ...(await mod('workers/account/src/rpc/account-service.js')), ...(await mod('workers/account/src/rpc/account-verifier.js')) };
   const account = (await mod('workers/account/src/app.js')).default; /* 默认 fetch：一律 404（只在 toml 里还有路由时用到） */
-  const { isSharePath } = await mod('workers/space-core/src/router.js');
-  const sessMod = await mod('workers/space-core/src/core/lock-session.js');
-  const ticketMod = await mod('workers/space-core/src/core/tickets.js');
+  const { sessionIdOf } = await mod('workers/account/src/core/identity-session.js');
+  const { STYRIGX_DEFAULT_GROUPS } = await mod('workers/account/src/core/groups.js');
 
   const kv = makeKV();
-  const d1 = makeAuthD1(); /* 网关 D1（全部认证状态） */
-  const lkp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  const privPem = derToPem(await crypto.subtle.exportKey('pkcs8', lkp.privateKey), 'PRIVATE KEY');
-  const pubPem = derToPem(await crypto.subtle.exportKey('spki', lkp.publicKey), 'PUBLIC KEY');
+  const d1 = makeAuthD1(); /* 网关 D1（D1_SPACE） */
   const akp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
   const acctPrivPem = derToPem(await crypto.subtle.exportKey('pkcs8', akp.privateKey), 'PRIVATE KEY');
   const acctPubPem = derToPem(await crypto.subtle.exportKey('spki', akp.publicKey), 'PUBLIC KEY');
   const assets = { fetch: (input, init) => pagesFor(input instanceof Request ? input : new Request(input, init)) };
 
-  /* 账号 Worker：自己的钥匙、恢复密钥、密码 pepper 和库（styrigx-account：一个绑定 D1_ACCOUNT），不绑任何网关的东西 */
+  /* 账号 Worker：自己的钥匙、密码 pepper 和库（styrigx-account：一个绑定 D1_ACCOUNT），不绑任何网关的东西 */
   const accountKv = makeKV();
   const { makeAccountD1 } = await mod('tests/workers/account/_d1.mjs');
   const accountD1 = makeAccountD1(); /* 跑 workers/account/migrations/*.sql：account_* 表 + 设置同步 settings_sync */
@@ -165,7 +159,7 @@ async function startEdge() {
     SGX_ENV: 'production', SGX_ORIGIN: 'https://styrigx.com', SGX_RP_ID: 'styrigx.com',
     D1_ACCOUNT: accountD1, KV_PROFILE: accountKv,
     SGX_ACCOUNT_PRIVATE: acctPrivPem, SGX_ACCOUNT_PUBLIC: acctPubPem,
-    SGX_ACCOUNT_RECOVERY_KEY: 'edge-test-recovery-key-not-a-secret', SGX_ACCOUNT_PASSWORD_PEPPER: 'edge-test-account-pepper',
+    SGX_ACCOUNT_PASSWORD_PEPPER: 'edge-test-account-pepper',
     ASSETS: assets,
   };
   /* 账号 Worker 的两个命名入口，形状同服务绑定（只给网关；短链 Worker 不绑账号） */
@@ -176,23 +170,19 @@ async function startEdge() {
       return res;
     },
   };
-  const ACCOUNT_VERIFIER = { authorize: (c, m, o) => accountEntry.checkAuthorize(accountEnv, c, m, o) };
+  /* 同正式 AccountVerifier（v6 P4 起只有 admit / auditRoot） */
+  const ACCOUNT_VERIFIER = {
+    admit: (c, m, p, o) => accountEntry.checkAdmit(accountEnv, c, m, p, o),
+    auditRoot: (c, cmd, a) => accountEntry.checkAuditRoot(accountEnv, c, cmd, a),
+  };
 
-  /* 分享链接表：进站 v3 L2b 起和进站同库同绑定 D1_SPACE（migrations/0001_baseline.sql 里一起建），测试台里就是同一份库 */
-  const shareDb = d1;
-  /* 站点核心 Worker：只绑正式 wrangler.toml 里有的（SGX_SPACE_* 五个、D1_SPACE、ACCOUNT / ACCOUNT_VERIFIER） */
+  /* 站点核心 Worker：只绑正式 wrangler.toml 里有的（D1_SPACE、ACCOUNT / ACCOUNT_VERIFIER；v6 P4 起没有 SGX_SPACE_*） */
   const env = {
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_ORIGIN: 'https://styrigx.com', SGX_RP_ID: 'styrigx.com',
-    D1_SPACE: d1, /* 进站只绑 D1（2026-10-27 起不绑 KV） */
-    SGX_SPACE_PRIVATE: privPem, SGX_SPACE_PUBLIC: pubPem,
-    SGX_SPACE_RECOVERY_KEY: 'edge-test-space-key-not-a-secret', SGX_SPACE_PASSWORD_PEPPER: 'edge-test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'edge-test-pepper',
+    D1_SPACE: d1,
     ACCOUNT, ACCOUNT_VERIFIER,
     ASSETS: assets,
-    /* 正式 wrangler.toml 绑了 [[ratelimits]] ANON_LIMITER；缺了网关 fail-closed 503（core/anon-limit.js），测试台给放行的桩 */
-    ANON_LIMITER: { limit: async () => ({ success: true }) },
   };
-  /* 兼容旧调用方：分享链接已在同一个 Worker 里，env 就是同一份 */
-  const shareEnv = env;
 
   const realFetch = globalThis.fetch;
 
@@ -214,7 +204,7 @@ async function startEdge() {
     }
     if (mine) {
       const res = await gateway.fetch(request, env, { waitUntil() {} });
-      log.push([isSharePath(u.pathname) ? 'share' : 'worker', request.method, request.url, res.status]);
+      log.push(['worker', request.method, request.url, res.status]);
       return res;
     }
     const res = await pagesFor(request);
@@ -270,69 +260,15 @@ async function startEdge() {
   tls.on('connection', (s) => { socks.add(s); s.on('close', () => socks.delete(s)); });
   await new Promise((r) => proxy.listen(PROXY_PORT, '127.0.0.1', r));
 
-  async function seedPasskey() {
-    const pk = await mod('workers/space-core/src/core/passkey-store.js');
-    const kp = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
-    const jwk = kp.publicKey.export({ format: 'jwk' });
-    const credId = nodeCrypto.randomBytes(32);
-    const credIdB64url = credId.toString('base64url');
-    await pk.savePasskey(env, 'lock', {
-      name: 'edge-test', credId: credIdB64url, publicKey: { kty: 'EC', crv: 'P-256', x: jwk.x, y: jwk.y, alg: 'ES256', ext: true },
-      signCount: 0, uv: 1,
-    });
-    const uh = await pk.getUserHandle(env, 'lock'); /* 锁屏层「已配置」由这把钥匙本身推出（layers.js） */
-    return {
-      credentialId: credId.toString('base64'),
-      isResidentCredential: true,
-      rpId: 'styrigx.com',
-      privateKey: kp.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64'),
-      userHandle: Buffer.from(uh, 'base64url').toString('base64'),
-      signCount: 0,
-    };
-  }
-
-  /** 按当前 Lock 纪元签一个 v2 进站会话 cookie 值（by=password | passkey | link；by=link 时 linkId = 测试库预置的有效分享链接 TEST_LINK_ID） */
-  async function mintCookie(by) {
-    const ep = await sessMod.getLockEpoch(env);
-    if (by === 'link') {
-      return sessMod.signLockSessionTicket(privPem, { by: 'link', epoch: ep, exp: Date.now() + 3600 * 1000, linkId: TEST_LINK_ID });
-    }
-    return sessMod.signLockSessionTicket(privPem, { by: by || 'password', epoch: ep, exp: Date.now() + 12 * 3600 * 1000, linkId: '' });
-  }
-
-  /** 锁侧复验短票 sgx-space-reauth 的值（by=password，当前 Lock 纪元，3 分钟）：测试里直接塞 cookie，省掉每次走一遍复验界面 */
-  async function mintReauth() {
-    const ep = await sessMod.getLockEpoch(env);
-    return ticketMod.signLockReauthTicket(privPem, 'password', ep);
-  }
-
-  /**
-   * 直接往测试库写一条分享链接（v5 S1：不经 /api/share，省掉进门 + 复验），返回 { id, code, path }。
-   * @param {{to?:string, sessionSec?:number, ms?:number}} [o]
-   */
-  async function seedShareLink(o) {
-    const links = await mod('workers/space-core/src/core/share-links.js');
-    const q = o || {};
-    const id = links.newId();
-    const code = links.newCode();
+  /** v6 会话（sgx-session 的值）：库里写 styrigx（uid 1000，默认组）和一行 30 天的会话；每次一个新令牌 */
+  async function mintV6() {
+    const raw = accountD1.raw;
+    raw.prepare("INSERT OR IGNORE INTO account_users (uid, name, avatar, expires_at, epoch, disabled, created_at) VALUES (1000, 'styrigx', '', 0, 0, 0, 1)").run();
+    for (const g of STYRIGX_DEFAULT_GROUPS) raw.prepare('INSERT OR IGNORE INTO account_user_groups (uid, grp, added_at) VALUES (1000, ?, 1)').run(g);
+    const token = nodeCrypto.randomBytes(32).toString('base64url');
     const now = Date.now();
-    await links.run(d1, links.SQL.insert, id, code, 'edge', q.to || '/', q.sessionSec || 0, now, now + (q.ms || 3600 * 1000));
-    return { id, code, path: '/s/' + code };
-  }
-
-  /** 账号 session cookie 值（sgx-account-session，by=passkey，账号 Worker 当前的 session 纪元，账号钥匙签） */
-  async function mintAccount() {
-    const acc = await mod('workers/account/src/core/session.js');
-    const ep = await acc.readEpoch(accountEnv, 'session');
-    return acc.signSessionTicket(acctPrivPem, { by: 'passkey', epoch: ep, authAt: Date.now(), deviceId: 'edgedeviceedgede' });
-  }
-
-  /** 清掉 /s/* 的失败计数（D1 share_fail + isolate 内存），限速测试之间不互相影响 */
-  async function resetShareLimit() {
-    const open = await mod('workers/space-core/src/core/share-open.js');
-    open._resetMem();
-    if (shareDb.raw) shareDb.raw.exec('DELETE FROM share_fail');
-    else await shareDb.prepare('DELETE FROM share_fail WHERE window_start < ?1 AND locked_until < ?1').bind(Number.MAX_SAFE_INTEGER).run();
+    raw.prepare('INSERT INTO account_sessions (id, uid, epoch, rescue, created_at, expires_at, renewed_at) VALUES (?, 1000, 0, 0, ?, ?, ?)').run(await sessionIdOf(token), now, now + 30 * 86400e3, now);
+    return token;
   }
 
   async function close() {
@@ -342,7 +278,7 @@ async function startEdge() {
     await new Promise((r) => proxy.close(() => r()));
   }
 
-  return { kv, env, accountKv, accountEnv, shareDb, shareEnv, log, close, resetShareLimit, seedPasskey, seedShareLink, mintCookie, mintReauth, mintAccount };
+  return { kv, env, accountKv, accountEnv, log, close, mintV6 };
 }
 
 module.exports = { startEdge, LAUNCH, PROXY_PORT, REPO };
