@@ -191,6 +191,10 @@ test('man 按身份列（P4-3，定稿 v5.5 §四：root → 站长 → 普通�
   assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('nobody') }).complete('a'), { line: 'a', options: [] });
   assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('u:root') }).complete('a'), { line: 'ask ', options: [] });
   assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('nobody') }).complete('pr'), { line: 'pr', options: [] }, 'profile 访客不列');
+  /* su 的参数按身份：访客往上是进站（styrigx），已登录往上是 root（Gray 11-12 00:32） */
+  assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('nobody') }).complete('su '), { line: 'su styrigx', options: [] }, '访客 su → styrigx');
+  assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('u:styrigx') }).complete('su '), { line: 'su root', options: [] }, '站长 su → root');
+  assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('u:alice') }).complete('su '), { line: 'su root', options: [] }, '普通用户 su → root');
 });
 
 test('man / man <命令>：交给全屏阅读页（S9：pager = 页名，不进滚动区；没有 (END) / q 那一行了）；别名能查；没有的报错（进滚动区）；每条命令都有页', async () => {
