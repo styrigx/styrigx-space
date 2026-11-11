@@ -8,7 +8,7 @@
  * - 三个窗口都是非模态 <dialog>（modalSheet modal:false → show()）：从顶栏下方落下，顶栏留在上面可点；开合 / 系统返回 / Esc / bfcache 走 modalSheet。
  * - 互斥：一个开着时点顶栏（含 AI 浮钮）上别的东西，先关这个（等哨兵出栈）再补点那一下。
  * - 点遮罩（面板以外）关闭；焦点打开时进面板，关上时还给按钮；Tab / Shift+Tab 圈在「按钮 + 面板控件」里。
- * - NAVIGATE：01 主页 … 05 旷野（当前项「开」态）；已在当前项那一页时点它只关面板，其余关完再跳（不留哨兵）。
+ * - NAVIGATE：01 主页 … 04 日刻（当前项「开」态；05 旷野 2026-11-12 删除）；已在当前项那一页时点它只关面板，其余关完再跳（不留哨兵）。
  *   lang 分段 EN | Auto | 中文（选中即保存；明确的语言和本页不同就去另一种语言的同一页，Auto 只在主站首页换）、layout 分段（Mobile | Auto | DeX，模式规则见共享外壳 layout-mode.js）、
  *   STATUS（v6 P4 起「分享本页」磁贴随分享短链删除，Gray 11-11 17:47）、esc 关闭。
  * - 外观：PALETTE 色板列表 + 恢复默认（2026-11-12 调色板 v4：MODE 三段删除，深浅只由调色板决定）。
@@ -21,7 +21,7 @@
  *   shell/account/cmd/layer.js mountAccountLayer）、account（账号卡片 shell/account/window.js mountAccountWindow，只展示）；本文件仍不 import。每页一个终端 #sgx-term（桌面居中大窗、手机整块卡片）。
  *   每次打开终端都是干净的新会话（S9：view.fresh()，history 照旧）。页面上的账号入口（[data-acct-open]、旧地址 #acct=…）都去终端：子页 → 预填命令。
  *   顶栏 >_、Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」打开它；盾牌也打开它（访客预填 su ）。命令的动作（滚动 / 跳转 / 外观 / AI / 账号窗口）都在这里接。
- * - 上锁的地方（v5 S3：AI 窗口、旷野 status 卡、奇趣音乐的播放，以及各处接口回 401）都只发 document 上的 `sgx:sudo` 事件（SUDO_EVENT），
+ * - 上锁的地方（v5 S3：AI 窗口、状态页 status 窗、奇趣音乐的播放，以及各处接口回 401）都只发 document 上的 `sgx:sudo` 事件（SUDO_EVENT），
  *   这里是唯一接它的地方：打开终端、输入行预填 `su `（v6 割接；不替人回车，用户名由人敲）；回车后在终端里验证。
  */
 
@@ -783,7 +783,7 @@ export function mountTopbar(o) {
     };
     term = T.createShell({
       str: T.termStrings(doc),
-      cwd: ['blog', 'curio', 'daymark', 'wild'].indexOf(curId) >= 0 ? curId : '~',
+      cwd: ['blog', 'curio', 'daymark'].indexOf(curId) >= 0 ? curId : '~',
       act: act,
       who: who,
     });
@@ -835,7 +835,7 @@ export function mountTopbar(o) {
     if (who && who.v6Hinted()) who.refresh();
     /* 上锁的地方要进站（SUDO_EVENT，发事件的都是服务端说了没进站：页面标记 locked 或接口 401）：打开终端、预填 su （不替人回车） */
     doc.addEventListener(SUDO_EVENT, function (/** @type {any} */ ev) {
-      /* detail.line（lib/sudo.js askSudo 第二个参数，如 /wild/ 403 的 su root，#404 未决项第 5 项）：已登录、只是权限不够——只预填这一行，不动页面标记和身份 */
+      /* detail.line（lib/sudo.js askSudo 第二个参数，如 /status/ 403 的 su root，#404 未决项第 5 项）：已登录、只是权限不够——只预填这一行，不动页面标记和身份 */
       const want = ev && ev.detail && typeof ev.detail.line === 'string' ? ev.detail.line : '';
       if (want) { showTerm(function () { if (view) view.prefill(want); }); return; }
       /* 页面标记跟着改成 locked（AI 窗口锁、听歌等按它画访客态） */
@@ -1152,7 +1152,7 @@ export function mountStatus(d) {
       if (i) el.insertBefore(i, el.firstChild);
       el.setAttribute('data-up', up === n ? '1' : '0');
     });
-    /* 主页 [04] 旷野 status 小卡和首屏胶囊（apps/index.js）接同一份结果，不另取（2026-11 对齐 PR-B） */
+    /* 主页首屏胶囊（apps/index.js）接同一份结果，不另取（[04] 旷野 status 小卡 2026-11-12 删除） */
     try { doc.dispatchEvent(new CustomEvent('sgx:status-cells', { detail: v })); } catch (e) {}
   };
   /** @param {any} j @param {number|null} rtt */

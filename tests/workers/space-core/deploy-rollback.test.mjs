@@ -393,7 +393,8 @@ test('deploy.yml：部署顺序 ai → status → 账号 → styrigx-space-core 
   const gw = wf.jobs['deploy-space-core'].steps.find((st) => /^Smoke test/.test(st.name)).run;
   assert.doesNotMatch(gw, /atlas\.styrigx\.com/);
   assert.doesNotMatch(gw, /why=no-cookie/);
-  assert.match(gw, /check \/wild\/ 200/);
+  assert.match(gw, /check \/status\/ 200/);
+  assert.match(gw, /check \/wild\/ 301/, '2026-11-12：旷野删除，/wild/ 301 到 /status/');
   /* 网关冒烟：伪造身份头必须 401（或旧路由残留时账号默认 fetch 404），头像带账号运行时标记 */
   const smoke = wf.jobs['deploy-space-core'].steps.find((s) => /^Smoke test/.test(s.name)).run;
   assert.match(smoke, /X-Styrigx-Space-Session: 1/);

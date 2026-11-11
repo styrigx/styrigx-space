@@ -49,14 +49,14 @@ test('各页模板 sgx-entry 指向的入口都在列表里', () => {
   assert.ok(rd('space/web/layouts/index.html').includes('"sgx-entry" "entry-space.js"'));
   assert.ok(!existsSync(join(root, 'space/web/layouts/_default/sub.html')), '对齐 PR-C：风格页 /theme/ 退役，sub.html 删除');
   assert.ok(!existsSync(join(root, ENTRY_DIR, 'entry-space-sub.js')), '对齐 PR-C：entry-space-sub.js 随风格页删除');
-  assert.ok(rd('space/web/layouts/_default/wild.html').includes('"sgx-entry" "entry-space-wild.js"'), '对齐 PR-B：旷野页 /wild/ 一个入口（原 /status/ 的 entry-space-status 并进来）');
-  assert.ok(!existsSync(join(root, 'space/web/layouts/_default/status.html')), '对齐 PR-B：/status/ 页并进 /wild/');
-  assert.ok(!existsSync(join(root, ENTRY_DIR, 'entry-space-status.js')), '对齐 PR-B：entry-space-status.js 并进 entry-space-wild.js');
+  assert.ok(rd('space/web/layouts/_default/status.html').includes('"sgx-entry" "entry-space-status.js"'), '2026-11-12：状态页 /status/ 一个入口');
+  assert.ok(!existsSync(join(root, 'space/web/layouts/_default/wild.html')), '2026-11-12：旷野页删除，状态单独成页');
+  assert.ok(!existsSync(join(root, ENTRY_DIR, 'entry-space-wild.js')), '2026-11-12：entry-space-wild.js 改名 entry-space-status.js');
   assert.ok(!existsSync(join(root, 'space/web/layouts/_default/chat.html')), 'P4-2b：/chat/ 页已删');
   for (const f of ['settings.html', 'settings-sub.html', 'settings-status.html']) assert.ok(!existsSync(join(root, 'space/web/layouts/_default', f)), `PR-4b：${f} 已改名 / 删除`);
 });
 
-test('旷野入口：entry-space.js 静态挂首页小组件和旷野页模块，没有页内切换；聊天不再是页面', () => {
+test('主站入口：entry-space.js 静态挂首页小组件和页面模块，entry-space-status.js 挂状态页，没有页内切换；聊天不再是页面', () => {
   for (const f of ['entry-tab-home.js', 'entry-tab-settings.js', 'entry-tab-chat.js', 'lazy-home.js', 'lazy-settings.js', 'lazy-chat.js', 'entry-chat.js', 'entry-settings.js', 'entry-settings-status.js']) {
     assert.ok(!existsSync(join(root, ENTRY_DIR, f)), `${f} 已删`);
   }
@@ -68,8 +68,8 @@ test('旷野入口：entry-space.js 静态挂首页小组件和旷野页模块�
   assert.ok(src.includes("import { mountSpace } from '../apps/space.js'"), '静态 import 旷野页模块');
   assert.ok(!/registerTab|inpage-tabs|import\(/.test(src), '没有页内切换 / 按需取');
   assert.ok(src.indexOf('mountSpace();') < src.indexOf('initCore();'), '先挂页面模块再 initCore');
-  const sub = rd(`${ENTRY_DIR}/entry-space-wild.js`);
-  assert.ok(sub.includes("import { mountSpace } from '../apps/space.js'") && !sub.includes('mountHome'), '旷野页只挂旷野页模块');
+  const sub = rd(`${ENTRY_DIR}/entry-space-status.js`);
+  assert.ok(sub.includes("import { mountSpace } from '../apps/space.js'") && !sub.includes('mountHome'), '状态页只挂页面模块');
   const core = rd('space/web/assets/js/shell/core.js');
   assert.ok(!/tab-swipe|inpage-tabs|sgx-tab-(leave|enter)/.test(core), 'core 不再接页内切换 / 左右滑');
 });

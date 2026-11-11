@@ -4,7 +4,7 @@ import { SUB_CMD } from '../sub/index.js';
 
 /**
  * open [路径]：打开路径对应的东西（唯一会跳页 / 开下拉的文件系统命令）。
- * 四个站的目录：主页上滚到那一节、其他页去那个站；daymark/today：日刻；account：账号卡片（S9 起只展示，没有层）；proxy：同 sub（代理订阅状态）。
+ * 三个子站的目录：主页上滚到那一节、其他页去那个站；daymark/today：日刻；account：账号卡片（S9 起只展示，没有层）；proxy：同 sub（代理订阅状态）。
  * v5 S5：盾牌没有窗口了（open shield 删掉）。
  */
 export default {

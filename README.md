@@ -8,7 +8,7 @@
 
 **A Personal Digital Space**
 
-Sloan Gray（styrigx）的个人数字空间：一个终端风格的个人网站，带博客、奇趣、日刻、旷野几个子站。
+Sloan Gray（styrigx）的个人数字空间：一个终端风格的个人网站，带博客、奇趣、日刻三个子站和一个服务状态页。
 
 [styrigx.com](https://styrigx.com/zh/) · [博客](https://styrigx.com/blog/zh/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
 
@@ -58,8 +58,8 @@ Sloan Gray（styrigx）的个人数字空间：一个终端风格的个人网站
 
 | 站点 | 地址 | 内容 |
 |---|---|---|
-| 主页 | [`/zh/`](https://styrigx.com/zh/)（英文 `/`） | hero（`$ whoami`、名字、打字轮播的标语、个人签名）+ 内嵌终端；下面四节：博客最新 3 篇、奇趣目录、日刻今日一句、旷野小卡 |
-| 旷野 | `/zh/wild/`（英文 `/wild/`） | 只读终端窗：`#status` 服务状态与用量、`#about` 版本信息（`#screen-time` 屏幕时间 v6 P4 随数字健康删除） |
+| 主页 | [`/zh/`](https://styrigx.com/zh/)（英文 `/`） | hero（`$ whoami`、名字、打字轮播的标语、个人签名）+ 内嵌终端；下面三节：博客最新 3 篇、奇趣目录、日刻今日一句 |
+| 状态 | `/zh/status/`（英文 `/status/`） | 只读终端窗：服务状态、可用率、额度与用量（从导航面板 STATUS 区进；旧地址 `/wild/` 301 到这里） |
 | 博客 | [`/blog/zh/`](https://styrigx.com/blog/zh/)（英文 `/blog/`） | 文章、专题树形目录、标签、RSS |
 | 奇趣 | `/curio/zh/`（英文 `/curio/`） | 发现、设备、游戏、电影、音乐 |
 | 日刻 | `/daymark/zh/`（英文 `/daymark/`） | 句子收藏与「今日一句」 |

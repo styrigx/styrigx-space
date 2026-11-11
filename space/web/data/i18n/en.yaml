@@ -7,7 +7,7 @@ notFound:
   backHome: Back home
   curio: Curio
 home:
-  # 主页首屏终端（2026-11 UI 重设计 PR-2；对齐 PR-B 按设计稿 tb4.html 四节：博客 / 奇趣 / 日刻 / 旷野）。status 是首帧文字，外壳取到 /api/status 后换成 js.space.homeStatusUp / Down
+  # 主页首屏终端（2026-11 UI 重设计 PR-2；对齐 PR-B 按设计稿 tb4.html：博客 / 奇趣 / 日刻；[04] 旷野 2026-11-12 删除）。status 是首帧文字，外壳取到 /api/status 后换成 js.space.homeStatusUp / Down
   status: "STATUS: ONLINE · 6/6 ACTIVE"
   blog: Blog
   minutes: "{n} min"
@@ -20,9 +20,6 @@ home:
     games: { name: Games, latest: Playing }
   daymark: Daymark
   daymarkLabel: "[03] Daymark · line of the day"
-  wildLabel: "[04] Wild"
-  wild:
-    title: Wild
 index:
   noLineForToday: No line for today yet
   tapToKeepOne: Tap to keep one in Daymark
@@ -187,8 +184,8 @@ status:
   recentIncidents: Recent incidents
   spaceCredentialActivity: Space credential activity
   last7DaysTime: 'Last 7 days: time, IP prefix and result'
-wild:
-  # 旷野页（/wild/，对齐 PR-B）：neofetch 各行的本语言说明（鼠标悬停 title；screen-time 窗的文案 v6 P4 随数字健康删除）
+about:
+  # 主页首屏 neofetch about 卡各行的本语言说明（鼠标悬停 title；2026-11-12 旷野删除时由 wild 改名 about）
   version: Version
   kernel: Kernel
   build: Build
@@ -243,9 +240,9 @@ features:
   lock-gate:
     name: Lock gate
 spaceCats:
-  wild:
-    title: Wild
-    sub: Screen time, service status and about this site
+  status:
+    title: Status
+    sub: Services, uptime and usage
 sites:
   space:
     title: Home

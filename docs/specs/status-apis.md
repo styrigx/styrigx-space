@@ -31,7 +31,7 @@
 | `POST /api/lock-reauth { action:'status' }` | 站点核心 | 进站会话，或有效 reset 票 | `{ ok, valid, ticket?, by?, expiresAt?, password, passkey }`：当前有效的是 `lock-reauth` 还是 `lock-reset` 票、到期时刻（ms），以及进站凭证是否设置 | `shell/space/api.js`（盾牌头部 reauth 倒计时、进站凭证层） |
 | `GET /api/lock-credentials` | 站点核心 | 进站会话，或有效 reset 票 | `{ ok, password, passkey }`；读失败 503 | 当前前端无调用方（接口保留） |
 | `GET /api/space-audit` | 站点核心 | 进站会话 + 账号会话（缺前者 401 `session`，缺后者 401 `account`）；不要 reauth | `{ ok, items:[{ ts, ipPrefix, ok }] }`：恢复钥匙最近的使用记录，新的在前，最多 50 条 | `apps/space-status.js`（旷野 `#status` 页底折叠区，展开时才请求） |
-| `GET /api/status` | 站点核心验门 → `styrigx-status` | 进站会话 | `{ ok, now, today, all_up, sites, incidents, usage, usage_reason, quota, quota_reason }`，原样转发，不缓存；监测不可用 503 | 旷野 `#status`、首页 `[04]` 小卡 |
+| `GET /api/status` | 站点核心验门 → `styrigx-status` | 进站会话 | `{ ok, now, today, all_up, sites, incidents, usage, usage_reason, quota, quota_reason }`，原样转发，不缓存；监测不可用 503 | 状态页 `/status/`、导航面板 STATUS、首页状态胶囊 |
 | `GET /api/account` | 站点核心验门 → `styrigx-account` | 进站会话（账号 Worker 只认站点核心写的 `X-Styrigx-Space-Session: 1`）；不要求账号会话 | `{ ok, configured:{ password, passkey }, signing, session, reauth, reset }`：`session` = `{ by, authAt, expiresAt, device }` 或 `null`；`reauth`、`reset` = `{ by, expiresAt }` 或 `null`；D1 失败 503；转发失败 503 `upstream` | `shell/account/api.js` |
 
 ## 4. 口径

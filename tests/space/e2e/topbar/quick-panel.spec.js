@@ -72,7 +72,7 @@ async function expectNavClosed(page) {
 }
 
 test.describe('外观按钮（调色盘）', () => {
-  for (const [path, lang, name] of [['/', 'zh', '外观'], ['/wild/', 'zh', '外观'], ['/', 'en', 'Appearance']]) {
+  for (const [path, lang, name] of [['/', 'zh', '外观'], ['/status/', 'zh', '外观'], ['/', 'en', 'Appearance']]) {
     test(`${path}：顶栏「${name}」按钮控制 #sgx-qp（对话框），默认收起；面板 = PALETTE（v4 删 MODE；没有页签、导航列表、磁贴）`, async ({ page }) => {
       await go(page, path, lang);
       const q = page.locator('.sgx-tb-acts .sgx-tb-quick');
@@ -90,7 +90,7 @@ test.describe('外观按钮（调色盘）', () => {
 });
 
 test.describe('外观面板：开合', () => {
-  for (const path of ['/', '/wild/']) {
+  for (const path of ['/', '/status/']) {
     test(`${path}：点图标打开，面板落在顶栏下方（顶栏不被盖住、不压暗），正文不动；再点图标关闭`, async ({ page }) => {
       await go(page, path);
       await expect(page.locator('.sgx-tb-quick')).toHaveAttribute('aria-expanded', 'false');
@@ -140,14 +140,14 @@ test.describe('外观面板：开合', () => {
       /* 顶栏图标真点得到：再点关闭 */
       await page.locator('.sgx-tb-quick').click();
       await expectClosed(page);
-      await expect(page).toHaveURL(path === '/' ? /localhost:\d+\/zh\/$/ : /\/zh\/wild\/$/);
+      await expect(page).toHaveURL(path === '/' ? /localhost:\d+\/zh\/$/ : /\/zh\/status\/$/);
       const back = await mainTop(page);
       expect(Math.abs(back.first - before.first)).toBeLessThanOrEqual(0.5);
     });
   }
 
   test('出现（2026-11 PR-A 照稿：静态实色卡，不再从顶栏后面滑下来）：收起 = 透明，打开 = 不透明、原位', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await page.evaluate(() => {
       const d = document.getElementById('sgx-qp');
       d.querySelector('.sgx-qp-sheet').style.transition = 'none';
@@ -164,8 +164,8 @@ test.describe('外观面板：开合', () => {
   });
 
   test('顶栏 v3 不显示页名（页名胶囊标记还在，给子站脚本和锁屏顶栏用）；开面板也不改它', async ({ page }) => {
-    await go(page, '/wild/'); /* 进站 v3 L1：/security/ 已删，用旷野页 */
-    await expect(page.locator('#site-nav .sgx-tb-title')).toHaveText('旷野');
+    await go(page, '/status/'); /* 进站 v3 L1：/security/ 已删，用状态页 */
+    await expect(page.locator('#site-nav .sgx-tb-title')).toHaveText('状态');
     await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
     await openQp(page);
     await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
@@ -177,7 +177,7 @@ test.describe('外观面板：开合', () => {
     .filter((el) => el.offsetParent !== null && !el.closest('[inert]') && el.tabIndex >= 0).length);
 
   test('焦点：打开后在面板里；Tab 在图标 + 面板控件里循环；Esc 关上后回到图标', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await openQp(page);
     expect(await page.evaluate(() => document.getElementById('sgx-qp').contains(document.activeElement))).toBe(true);
     const allowed = () => page.evaluate(() => {
@@ -208,7 +208,7 @@ test.describe('外观面板：开合', () => {
   });
 
   test('互斥：面板开着点 AI 浮钮 → 先关面板，再打开 AI 窗口；反过来也一样；NAVIGATE 同样互斥；都不在历史里留哨兵', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     const ai = page.locator('#sgx-ai');
     await openQp(page);
     await page.locator('.sgx-tb-ai').click();
@@ -234,33 +234,33 @@ test.describe('外观面板：开合', () => {
     await expect(qp(page)).toHaveAttribute('data-state', 'open');
     await page.keyboard.press('Escape');
     await expectClosed(page);
-    await expect(page).toHaveURL(/\/wild\/$/);
+    await expect(page).toHaveURL(/\/status\/$/);
     await expect.poll(() => page.evaluate(() => !!(history.state && (history.state.sgxQp || history.state.sgxAi || history.state.sgxNav)))).toBe(false);
   });
 
   test('面板开着点顶栏 logo：先关面板，再跳转（不留哨兵）', async ({ page }) => {
     await go(page, '/');
-    await page.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/status/', { waitUntil: 'domcontentloaded' });
     await openQp(page);
     await page.locator('.sgx-tb-logo').click();
     await expect(page).toHaveURL(/localhost:\d+\/zh\/$/);
     await page.goBack();
-    await expect(page).toHaveURL(/\/wild\/$/);
+    await expect(page).toHaveURL(/\/status\/$/);
     await expect(qp(page)).toBeHidden();
   });
 
   test('点遮罩关闭', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await openQp(page);
     /* 遮罩在面板下面的正文区（真点击命中 dialog 本身） */
     expect(await page.evaluate(() => document.elementFromPoint(200, 900) === document.getElementById('sgx-qp'))).toBe(true);
     await page.mouse.click(200, 900);
     await expectClosed(page);
-    await expect(page).toHaveURL(/\/wild\/$/);
+    await expect(page).toHaveURL(/\/status\/$/);
   });
 
   test('点面板里的空白处不关闭', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await openQp(page);
     /* 面板顶部内边距（MODE 标题上方的空白） */
     const sh = await page.locator('#sgx-qp .sgx-qp-sheet').boundingBox();
@@ -269,27 +269,27 @@ test.describe('外观面板：开合', () => {
   });
 
   test('Esc 关闭', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await openQp(page);
     await page.keyboard.press('Escape');
     await expectClosed(page);
-    await expect(page).toHaveURL(/\/wild\/$/);
+    await expect(page).toHaveURL(/\/status\/$/);
   });
 
   test('系统返回只关面板，停在本页；再返回才离开', async ({ page }) => {
     await go(page, '/');
-    await page.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/status/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar')).toBeVisible();
     await openQp(page);
     await page.goBack();
     await expectClosed(page);
-    await expect(page).toHaveURL(/\/wild\/$/);
+    await expect(page).toHaveURL(/\/status\/$/);
     await page.goBack();
     await expect(page).toHaveURL(/localhost:\d+\/zh\/$/);
   });
 
   test('刚点开（滑下还没开始）就 Esc / 连点两下：照样关上，之后还能正常打开', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     /* 同一任务里点开再发 cancel（= Esc），保证落在 is-open 那两帧 rAF 之前 */
     await page.evaluate(() => {
       document.querySelector('.sgx-tb-quick').click();
@@ -311,12 +311,12 @@ test.describe('外观面板：开合', () => {
     await openQp(page);
     await page.keyboard.press('Escape');
     await expectClosed(page);
-    await expect(page).toHaveURL(/\/wild\/$/);
+    await expect(page).toHaveURL(/\/status\/$/);
   });
 
   test('减弱动效：开合立刻到位', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await page.locator('.sgx-tb-quick').click();
     await expect(qp(page)).toHaveAttribute('data-state', 'open');
     await page.keyboard.press('Escape');
@@ -324,7 +324,7 @@ test.describe('外观面板：开合', () => {
   });
 
   test('AI 窗口照常工作（共用状态机）：开、Esc 关、焦点回到 AI 浮钮', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await page.locator('.sgx-tb-ai').click();
     await expect(page.locator('#sgx-ai')).toHaveAttribute('data-state', 'open');
     await page.keyboard.press('Escape');
@@ -376,7 +376,7 @@ test.describe('外观面板：内容', () => {
   test('排版：PALETTE 标题行右端恢复默认、色板列表竖排（面板内滚动）；412 / 360 / 宽屏都不溢出', async ({ page }) => {
     for (const vp of [{ width: 412, height: 915 }, { width: 360, height: 800 }, { width: 1366, height: 768 }]) {
       await page.setViewportSize(vp);
-      await go(page, '/wild/');
+      await go(page, '/status/');
       await openQp(page);
       const g = await page.evaluate(() => {
         const r = (el) => { const b = el.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height, r: b.right, b: b.bottom }; };
@@ -464,14 +464,14 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await page.locator('#sgx-qp [data-qp-palette="lake"]').click();
     await expect(page.locator('html')).toHaveClass(/\bdark\b/);
     await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#01172b');
-    await page.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/status/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('html')).toHaveClass(/\bdark\b/);
     await expect(page.locator('html')).toHaveAttribute('data-palette', 'lake');
   });
 
   test('系统深浅变化不影响（没有跟随系统了）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-palette', 'sage'); } catch (e) {} });
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.waitForTimeout(100);
@@ -480,11 +480,11 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
   });
 
-  test('减弱动效 / 字体大小已删除：面板和旷野页都没有，旧值不起作用', async ({ page }) => {
+  test('减弱动效 / 字体大小已删除：面板和状态页都没有，旧值不起作用', async ({ page }) => {
     await page.addInitScript(() => {
       try { localStorage.setItem('sgx-reduced-motion', '1'); localStorage.setItem('sgx-font-size', 'large'); } catch (e) {}
     });
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await openQp(page);
     await expect(page.locator('#sgx-qp [data-qp="motion"], #sgx-nav [data-qp="motion"]')).toHaveCount(0);
     await expect(page.locator('[data-qp-seg="font-size"]')).toHaveCount(0);
@@ -498,7 +498,7 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
   });
 
   test('调色板：写 sgx-palette，即时换色；刷新保持', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await openQp(page);
     await page.locator('#sgx-qp [data-qp-palette="forest"]').click();
     expect(await ls(page, 'sgx-palette')).toBe('forest');
@@ -539,7 +539,7 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
   });
 
   test('NAVIGATE layout：Mobile / Auto / DeX 三档都能选（2026-11-09 Auto 在中间）；写 sgx-layout（auto / phone / desktop），即时套用', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await openNav(page);
     const seg = page.locator('#sgx-nav [data-qp-seg="layout"]');
     await expect(seg.locator('button')).toHaveText(['Mobile', 'Auto', 'DeX']);
@@ -564,7 +564,7 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
 
   test('桌面布局：外观面板宽 260（2026-11 PR-A 照稿）、NAVIGATE 宽 360，都靠右落在各自按钮下面；layout 选 Mobile 立即换成手机布局，回 Auto = 桌面', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'desktop');
     /* 顶栏内容区：1366 宽时 = 居中的 1080 */
     const acts = await page.locator('.sgx-tb-acts').boundingBox();
@@ -589,7 +589,7 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
 
   test('NAVIGATE lang：EN / Auto / 中文 分段（语言名用它自己的写法，Auto 在中间）；选 EN 写 sgx-lang=en，关面板后去英文同一页，不在历史里多留一步', async ({ page }) => {
     await go(page, '/');
-    await page.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/status/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar')).toBeVisible();
     await openNav(page);
     const seg = page.locator('#sgx-nav [data-qp-langs]');
@@ -600,12 +600,12 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     /* 行内分段，不是底部弹出窗口 */
     await expect(page.locator('dialog[open]')).toHaveCount(1);
     await seg.locator('[data-qp-lang="en"]').click();
-    await expect(page).toHaveURL(/localhost:\d+\/wild\/$/);
+    await expect(page).toHaveURL(/localhost:\d+\/status\/$/);
     expect(await ls(page, 'sgx-lang')).toBe('en');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await expect(page.locator('#site-nav .sgx-tb-title')).toHaveText('Wild');
+    await expect(page.locator('#site-nav .sgx-tb-title')).toHaveText('Status');
     await page.goBack();
-    /* 回到进子页之前的旷野页（语言偏好已是英文，旷野页 /zh/ replace 到 /） */
+    /* 回到进子页之前的主页（语言偏好已是英文，主页 /zh/ replace 到 /） */
     await expect(page).toHaveURL(/localhost:\d+\/(zh\/)?$/);
   });
 
@@ -613,13 +613,13 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await page.addInitScript(() => { try { if (!sessionStorage.getItem('qp-lang-seeded')) { localStorage.setItem('sgx-lang', 'zh'); sessionStorage.setItem('qp-lang-seeded', '1'); } } catch (e) {} });
     await blockExternalRequests(page);
     await freezeTime(page);
-    await page.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/status/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
     await openNav(page);
     const seg = page.locator('#sgx-nav [data-qp-langs]');
     await seg.locator('[data-qp-lang="zh"]').click();
     await expect(nav(page)).toHaveAttribute('data-state', 'open');
-    await expect(page).toHaveURL(/\/zh\/wild\/$/);
+    await expect(page).toHaveURL(/\/zh\/status\/$/);
     expect(await ls(page, 'sgx-lang')).toBe('zh');
     await seg.locator('[data-qp-lang="zh"]').focus();
     await page.keyboard.press('ArrowRight');
@@ -640,7 +640,7 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await expect(page.locator('#sgx-nav [data-qp-lock-state], #sgx-nav [data-sgx-share], #sgx-nav .sgx-nav-act')).toHaveCount(0);
   });
 
-  test('P4-3 PR-4b：面板里没有齿轮和设置项，顶栏没有「设置」标签；对齐 PR-B 起主页没有分类入口，[04]「cd wild/ →」进旷野页', async ({ page }) => {
+  test('P4-3 PR-4b：面板里没有齿轮和设置项，顶栏没有「设置」标签；对齐 PR-B 起主页没有分类入口；2026-11-12 起从 NAVIGATE STATUS 按钮进状态页', async ({ page }) => {
     await go(page, '/');
     await openQp(page);
     await expect(page.locator('#sgx-qp a')).toHaveCount(0);
@@ -649,8 +649,9 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await expectClosed(page);
     await expect(page.locator('.sgx-tb-tab, .sgx-tb-tabs')).toHaveCount(0);
     await expect(page.locator('.home-wrap [aria-label="分类"]')).toHaveCount(0);
-    await page.locator('#wild a.home-sec-more[href="/zh/wild/"]').click();
-    await expect(page).toHaveURL(/\/zh\/wild\/$/);
+    await openNav(page);
+    await page.locator('#sgx-nav .sgx-nav-st-go[href="/zh/status/"]').click();
+    await expect(page).toHaveURL(/\/zh\/status\/$/);
     await page.goBack();
     await expect(page).toHaveURL(/localhost:\d+\/zh\/$/);
   });
@@ -674,7 +675,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     .concat(deltas.map((t) => 'event: delta\ndata: ' + JSON.stringify({ text: t }) + '\n\n'), ['event: done\ndata: {}\n\n']).join('');
 
   test('手机悬浮卡（2026-11-08 起从浮钮展开，展开过程见 ai-open.spec.js；非模态）：顶栏下 12、左右 12；标题 Gray AI、开场白、新对话 / 历史 / 联系、输入框、范围小字', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await openAi(page);
     expect(await ai(page).evaluate((el) => el.open && !el.matches(':modal'))).toBe(true);
     const g = await page.evaluate(() => {
@@ -707,7 +708,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
   });
 
   test('tty4（终端统一 T6c；v5 S5 AI 窗口不动）：$ 开头 = 命令，走终端的命令表，不发 /api/ai、不进 AI 历史；↑ 翻命令历史（sgx-term-hist-4）；Tab 补全；clear 清掉命令输出', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     let posts = 0;
     await page.route('**/api/ai', async (route) => { if (route.request().method() === 'POST') posts++; await route.fallback(); });
     await openAi(page);
@@ -736,7 +737,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
   });
 
   test('问一句：POST /api/ai（问题 + 语言 + 历史），流式回答（不显示来源卡片，旧服务端发了 hits 也不显示）；范围按响应头；历史只存本地 sgx-ai-history', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     let body = null;
     await page.route('**/api/ai', async (route) => {
       body = route.request().postDataJSON();
@@ -771,7 +772,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
       return v ? JSON.parse(v).chats[0].msgs.length : 0;
     }).toBe(4);
     /* 换页再开：同一份本地历史 */
-    await page.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/status/', { waitUntil: 'domcontentloaded' });
     await openAi(page);
     await expect(ai(page).locator('.sgx-ai-msg')).toHaveCount(4);
     /* 新对话：当前对话留在历史里，窗口回到开场白 */
@@ -785,7 +786,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
   });
 
   test('2026-11 AI 语义召回：回答按有限 Markdown 渲染（粗体 / 列表 / 链接，HTML 当文字）；站内链接同页、站外新标签 rel=noopener、虚下划线 + ↗；联网来源列在回答下', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await page.route('**/api/ai', async (route) => {
       const body = ['**锁屏**在设置里。<img src=x onerror="window.__xss=1">\n\n', '- [锁屏凭证](/security/lock/)\n', '- [外站文档](https://example.org/docs)\n', '- [坏](javascript:void0)']
         .map((t) => 'event: delta\ndata: ' + JSON.stringify({ text: t }) + '\n\n').join('')
@@ -832,7 +833,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
         ] }));
       } catch (e) {}
     });
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await openAi(page);
     await expect(ai(page).locator('.sgx-ai-msg')).toHaveCount(2);
     await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"] > span')).toHaveText('设置 → 安全 → 锁屏凭证。');
@@ -848,7 +849,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
 
   for (const [status, err, want] of [[429, 'cooldown', '问得太快了，请一分钟后再试'], [429, 'busy', '现在问的人太多，请稍后再试'], [401, 'session', '登录后才能问：su'], [502, 'upstream', '没能拿到回答，请稍后再试']]) {
     test(`出错：${status} ${err} → 「${want}」，不进历史`, async ({ page }) => {
-      await go(page, '/wild/');
+      await go(page, '/status/');
       await page.route('**/api/ai', (r) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ ok: false, error: err }) }));
       await openAi(page);
       await ai(page).locator('[data-ai-in]').fill('你好');
@@ -867,7 +868,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
 
   test('P4-2d：账号页选过模型（sgx-ai-model）→ 发问带上 body.model（2026-11 PR-5 起窗口头部有模型胶囊，读不到模型列表时不显示）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-ai-model', '@cf/openai/gpt-oss-20b'); } catch (e) {} });
-    await go(page, '/wild/');
+    await go(page, '/status/');
     const bodies = [];
     await page.route('**/api/ai', async (route) => {
       const b = route.request().postDataJSON();
@@ -887,7 +888,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
 
   test('P4-2d：选的模型被下架 → 400 bad_model：清掉本地选择、不带 model 自动重发一次，回答照常', async ({ page }) => {
     await page.addInitScript(() => { try { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('sgx-ai-model', '@cf/gone/model'); } } catch (e) {} });
-    await go(page, '/wild/');
+    await go(page, '/status/');
     const bodies = [];
     await page.route('**/api/ai', async (route) => {
       const b = route.request().postDataJSON();
@@ -919,7 +920,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
 
   test('P4-2d：只重发一次——重发仍出错就按普通错误显示，不再重试；没带 model 时的 400 bad_model 不重发', async ({ page }) => {
     await page.addInitScript(() => { try { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('sgx-ai-model', '@cf/gone/model'); } } catch (e) {} });
-    await go(page, '/wild/');
+    await go(page, '/status/');
     const bodies = [];
     await page.route('**/api/ai', async (route) => {
       bodies.push(route.request().postDataJSON());
@@ -965,7 +966,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
 
   test('P4-3 PR-3：输入框聚焦后跟键盘——窗口下沿抬到键盘上沿，标题栏和输入框都在可视区；键盘收了自动失焦', async ({ page }) => {
     await fakeKeyboard(page);
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await openAi(page);
     await ai(page).locator('[data-ai-in]').click();
     await page.evaluate(() => window.__kb(320));
@@ -997,7 +998,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
 
   test('P4-3 PR-3：触屏打开不自动聚焦（不弹键盘）；发送后收键盘', async ({ page }) => {
     await fakeCoarse(page);
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await page.route('**/api/ai', (r) => r.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: sse([], ['好的。']) }));
     await openAi(page);
     expect((await geo(page)).focused).toBe(false);
@@ -1009,7 +1010,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
   });
 
   test('P4-3 PR-3：桌面（细指针）照旧——打开即聚焦，发送后焦点留在输入框', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await page.route('**/api/ai', (r) => r.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: sse([], ['好的。']) }));
     await openAi(page);
     expect((await geo(page)).focused).toBe(true);
@@ -1020,7 +1021,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
   });
 
   test('P4-3 后续 §4：桌面鼠标点发送，焦点回输入框；回答中和答完直接打字都进输入框', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     let release;
     const gate = new Promise((r) => { release = r; });
     await page.route('**/api/ai', async (r) => { await gate; await r.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: sse([], ['巴黎。']) }); });
@@ -1043,7 +1044,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     try {
       await fakeKeyboard(page);
       await fakeCoarse(page);
-      await go(page, '/wild/');
+      await go(page, '/status/');
       await page.route('**/api/ai', (r) => r.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: sse([], ['我是 Gray 的 AI 助手。']) }));
       await openAi(page);
       await ai(page).locator('[data-ai-in]').tap();
@@ -1065,7 +1066,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
   });
 
   test('P4-3 后续 §3：新对话存进历史；历史是窗口内的列表（倒序、标题 + 时间），点一条载入，输入框里的字不丢', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await page.route('**/api/ai', async (r) => {
       const q = r.request().postDataJSON().q;
       await r.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: sse([], ['答：' + q]) });
@@ -1099,7 +1100,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await expect(ai(page).locator('.sgx-ai-msg[data-role="user"]')).toHaveText(['第一份对话的问题，比二十个字还要长一点点再多几个字']);
     await expect(inp).toHaveValue('还没发的字');
     /* 换页再开：停在刚载入的那份 */
-    await page.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/status/', { waitUntil: 'domcontentloaded' });
     await openAi(page);
     await expect(ai(page).locator('.sgx-ai-msg[data-role="user"]')).toHaveText(['第一份对话的问题，比二十个字还要长一点点再多几个字']);
   });
@@ -1114,7 +1115,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
         localStorage.setItem('sgx-ai-history', JSON.stringify({ v: 2, cur: '', chats }));
       } catch (e) {}
     });
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await page.route('**/api/ai', (r) => r.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: sse([], ['好']) }));
     await openAi(page);
     await ai(page).locator('[data-ai-in]').fill('新的');
@@ -1131,7 +1132,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
 
   test('P4-3 后续 §3.4：助手回答下有复制 / 重试 / 👍 / 👎；用户提问下没有；重试替换这条回答；👍👎 只存本地、再点取消', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await go(page, '/wild/');
+    await go(page, '/status/');
     let n = 0;
     const bodies = [];
     await page.route('**/api/ai', async (r) => {
@@ -1177,13 +1178,13 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     expect(n).toBe(3);
     /* 换页再开：👍👎 随历史 */
     await ops.nth(0).locator('[data-op="up"]').click();
-    await page.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/status/', { waitUntil: 'domcontentloaded' });
     await openAi(page);
     await expect(ai(page).locator('.sgx-ai-ops').first().locator('[data-op="up"]')).toHaveAttribute('aria-pressed', 'true');
   });
 
   test('P4-3 PR-3：回答进行中发送按钮变停止，点它中断；回车不中断；停下后变回发送', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     let release;
     const hold = new Promise((r) => { release = r; });
     await page.route('**/api/ai', async (r) => {
@@ -1213,7 +1214,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
   });
 
   test('英文文案', async ({ page }) => {
-    await go(page, '/wild/', 'en');
+    await go(page, '/status/', 'en');
     await openAi(page);
     await expect(ai(page)).toHaveAccessibleName('Ask AI');
     await expect(ai(page).locator('.sgx-ai-title')).toHaveText('Gray AI');

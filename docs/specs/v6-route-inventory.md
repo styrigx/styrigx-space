@@ -112,7 +112,7 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | GET | `/api/ai` | **ai** |  |  | 保留 | AI 可选模型列表（转 styrigx-ai /models） |  |
 | GET | `/api/find` | **public** |  |  | 保留 | 关键词搜索，只回公开页面元数据（IP 限流） |  |
 | GET | `/api/geo` | **public** |  |  | 保留 | 只回调用者自己的城市 / 时区 |  |
-| GET | `/api/status` | **status** |  |  | 保留 | 旷野状态卡 / 监测页（转 styrigx-status /summary） |  |
+| GET | `/api/status` | **status** |  |  | 保留 | 状态页 / 监测页（转 styrigx-status /summary） |  |
 | GET | `/api/space-audit` | **root** |  |  | 保留 | 进站凭证使用审计（含 IP 前缀） |  |
 
 ### 账号 styrigx-account（经网关 FORWARDING 转发）

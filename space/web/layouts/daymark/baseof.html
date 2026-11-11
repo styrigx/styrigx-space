@@ -98,7 +98,7 @@ __sgxLayoutWatch(__applyLayout);
   "lang" .Lang
   "tr" (partialCached "sgx-tr.html" (dict "lang" .Lang "ns" "daymark") (printf "daymark-%s" .Lang)).shell
   "langs" $tbLangs
-  "home" (site.GetPage "/daymark").RelPermalink
+  "home" (partial "sgx-lang-path.html" (dict "path" "/" "lang" .Lang))
   "center" $center
   "nav" $shellNav
   "site" "daymark"
@@ -112,7 +112,7 @@ __sgxLayoutWatch(__applyLayout);
   "email" $shellNav.me.email
   "langHref" $langHref
   "security" (printf "%s#sec" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" .Lang)))
-  "status" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/wild/#status" "lang" .Lang))
+  "status" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/status/" "lang" .Lang))
   "pal" $pal
 ) }}
 {{ partial "sgx-profile-default.html" . }}

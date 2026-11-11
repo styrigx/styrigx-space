@@ -1,5 +1,5 @@
 /**
- * 旷野 neofetch Uptime（Gray 2026-11-09：自 2026-10-07 起算，北京时间整天）。lib/uptime.js
+ * 主页首屏 neofetch Uptime（Gray 2026-11-09：自 2026-10-07 起算，北京时间整天）。lib/uptime.js
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,8 +28,8 @@ test('写错 / 未来 → 0；单复数', () => {
   assert.equal(uptimeText(0), '0 days');
 });
 
-test('主页首屏 neofetch（v5 S7，原旷野页 about 卡）有 Uptime 行，起点 2026-10-07；旷野页不再有 about 卡', () => {
-  assert.doesNotMatch(readFileSync(path.join(REPO, 'space/web/layouts/_default/wild.html'), 'utf8'), /id="about"|data-about=/, '旷野页 about 卡删了');
+test('主页首屏 neofetch（v5 S7，原旷野页 about 卡）有 Uptime 行，起点 2026-10-07；状态页没有 about 卡', () => {
+  assert.doesNotMatch(readFileSync(path.join(REPO, 'space/web/layouts/_default/status.html'), 'utf8'), /id="about"|data-about=/, '状态页没有 about 卡');
   const src = readFileSync(path.join(REPO, 'space/web/layouts/index.html'), 'utf8');
   assert.match(src, /\$since := "2026-10-07"/);
   assert.match(src, /<dt title="\{\{ \$W\.uptime \}\}">Uptime<\/dt><dd data-about="uptime" data-since="\{\{ \$since \}\}">/);

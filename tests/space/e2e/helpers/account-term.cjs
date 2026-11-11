@@ -67,10 +67,10 @@ async function zh(page) {
 }
 
 /**
- * 进页面（默认 /zh/wild/）等顶栏就绪。
+ * 进页面（默认 /zh/status/）等顶栏就绪。
  * @param {import('@playwright/test').Page} page @param {string} [path]
  */
-async function goPage(page, path = '/zh/wild/') {
+async function goPage(page, path = '/zh/status/') {
   await page.goto(path, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
   await page.waitForFunction(() => document.documentElement.hasAttribute('data-sgx-layout'));

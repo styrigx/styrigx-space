@@ -76,7 +76,7 @@ test('命令表（v5 S5 + sub v3.1 + S9 profile）：一张表；help / tty / te
   assert.deepEqual(ARGS.sudo, [], 'v6 P4：旧写法 styrigx / root / -v 的补全删了（v6 写法的补全不在本 PR 加）');
   assert.equal(ARGS.lock, undefined, 'v6 P4：lock 没有参数了');
   assert.deepEqual(ARGS.passkey, ['add', 'rm']);
-  assert.deepEqual(ARGS.cd, ['blog', 'curio', 'daymark', 'wild', 'account', 'proxy', '~', '..'], '没有 shield/ 了');
+  assert.deepEqual(ARGS.cd, ['blog', 'curio', 'daymark', 'account', 'proxy', '~', '..'], '没有 shield/、wild/ 了（旷野 2026-11-12 删除）');
 });
 
 test('complete：命令名补全（唯一 → 补全，带参数的命令加空格；多个 → 公共前缀 + 候选）', () => {
@@ -136,12 +136,13 @@ test('normDir / cwdPath：~ / .. / 相对路径 / 尾斜杠；不认识 → null
   assert.equal(normDir('blog', '../curio'), 'curio');
   assert.equal(normDir('~', 'blog/'), 'blog');
   assert.equal(normDir('~', '~/Daymark'), 'daymark');
-  assert.equal(normDir('~', './wild'), 'wild');
+  assert.equal(normDir('~', './curio'), 'curio');
+  assert.equal(normDir('~', 'wild'), null, '旷野 2026-11-12 删除');
   assert.equal(normDir('blog', '.'), 'blog');
   assert.equal(normDir('~', 'nope'), null);
   assert.equal(cwdPath('~'), '~');
   assert.equal(cwdPath('blog'), '~/blog');
-  assert.deepEqual(DIRS, ['blog', 'curio', 'daymark', 'wild']);
+  assert.deepEqual(DIRS, ['blog', 'curio', 'daymark']);
 });
 
 test('fill：占位换成片段，其余原样', () => {
@@ -246,9 +247,9 @@ test('cd（T6b）：只改 cwd / 提示符，不调动作、没有输出（滚�
   assert.equal(sh.cwd(), 'curio');
 });
 
-test('ls：~ 下列 blog/ curio/ daymark/ wild/ account/ proxy/（没有 shield/ 了）；daymark 下 today；坏目录报错', () => {
+test('ls：~ 下列 blog/ curio/ daymark/ account/ proxy/（没有 shield/、wild/ 了）；daymark 下 today；坏目录报错', () => {
   const sh = createShell({ act: fakeAct().act, storage: mem() });
-  assert.equal(text(sh.exec('ls').out[0]).trim(), 'blog/  curio/  daymark/  wild/  account/  proxy/');
+  assert.equal(text(sh.exec('ls').out[0]).trim(), 'blog/  curio/  daymark/  account/  proxy/');
   assert.equal(text(sh.exec('ls daymark').out[0]), 'today');
   assert.equal(text(sh.exec('ls account').out[0]), TERM_EN.lsEmpty, 'S9：账号卡片没有层了');
   assert.equal(text(sh.exec('ls x').out[0]), 'ls: no such directory: x');

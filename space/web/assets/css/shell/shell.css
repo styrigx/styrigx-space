@@ -215,7 +215,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-foot-build { color: inherit; text-decoration: none; }
 @media (hover: hover) and (pointer: fine) { .sgx-foot-build:hover { color: var(--sgx-primary); } }
 /* 触屏点击区 ≥ 44 × 44（2026-11-09 细节 12）：看得见的样子不变，只在元素上叠一块透明的 ::after，比 44 小的方向向两边各撑到 22px（大于 44 的方向不动）。
-   顶栏图标 / 头像、博客文章标签、目录行、目录「分类 / 按年」切换、旷野 $ Retry、主页「cd curio/ →」等、页脚链接与语言。
+   顶栏图标 / 头像、博客文章标签、目录行、目录「分类 / 按年」切换、状态页 $ Retry、主页「cd curio/ →」等、页脚链接与语言。
    目录行 .sgx-tl 横向照旧裁成省略号，纵向改为不裁（不然撑出来的点击区被行框裁掉）；切换组的圆角改到两端按钮自己身上，同理。 */
 @media (pointer: coarse) {
   :is(.sgx-tb-acts .sgx-tb-btn, .sgx-tb-av, .tag-list .tag, .sgx-tl a, .sgx-seg2 button, .st-btn, .home-sec-more, .sgx-foot-links a, .sgx-foot-lang :is(a, button)) { position: relative; }
@@ -411,6 +411,12 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-nav-st { padding: 12px 20px 13px; border-top: 1px solid var(--sgx-term-line); font-size: 12px; }
 .sgx-nav-st-h { display: flex; justify-content: space-between; margin-bottom: 9px; font-size: 11px; letter-spacing: var(--sgx-track-label); color: var(--sgx-text-tertiary); }
 .sgx-nav-st-h b { font-weight: 400; letter-spacing: 0; color: var(--sgx-text-tertiary); }
+/* STATUS 头部右边的跳转按钮（2026-11-12）：去状态页 /status/；和点数摘要之间 10px，摘要靠右 */
+.sgx-nav-st-h { align-items: baseline; gap: 10px; }
+.sgx-nav-st-h b { margin-left: auto; }
+.sgx-nav-st-go { flex: none; letter-spacing: 0; color: var(--sgx-primary); text-decoration: none; border-radius: 4px; }
+.sgx-nav-st-go:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .sgx-nav-st-go:hover { text-decoration: underline; text-underline-offset: 3px; } }
 .sgx-nav-st[data-state="up"] .sgx-nav-st-h b { color: var(--sgx-success); }
 .sgx-nav-st[data-state="partial"] .sgx-nav-st-h b { color: var(--sgx-warning); }
 .sgx-nav-st-gd { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin: 0; padding: 0; list-style: none; }
@@ -823,11 +829,11 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 @media (hover: hover) and (pointer: fine) { .sgx-pg-r a:hover { color: var(--sgx-primary); } }
 :root:not([data-sgx-layout="desktop"]) .sgx-pg { flex-direction: column; }
 :root:not([data-sgx-layout="desktop"]) .sgx-pg-hint { display: none; }
-/* 列表到底（Gray 2026-11-09 细节 5）：博客列表最后一页「-- EOF --」，旷野页末「› more soon_」带闪烁光标、下面再一行「-- EOF --」；装饰，读屏不念；减弱动效光标不闪 */
+/* 列表到底（Gray 2026-11-09 细节 5）：博客列表最后一页「-- EOF --」，状态页末「› more soon_」带闪烁光标、下面再一行「-- EOF --」；装饰，读屏不念；减弱动效光标不闪 */
 .sgx-eof { margin: 28px 0 0; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.6; letter-spacing: .04em; text-align: center; color: var(--sgx-text-tertiary); }
 .sgx-eof[hidden] { display: none; }
-/* 旷野页末两行：› more soon_ 下面紧跟 -- EOF --（2026-11-09） */
-.sgx-eof.wild-eof-end { margin-top: 6px; }
+/* 状态页末两行：› more soon_ 下面紧跟 -- EOF --（2026-11-09） */
+.sgx-eof.status-eof-end { margin-top: 6px; }
 .sgx-eof-cur { display: inline-block; width: .6em; height: 2px; margin-left: 2px; vertical-align: -1px; background: var(--sgx-primary); animation: sgx-eof-blink 1.05s steps(1) infinite; }
 @keyframes sgx-eof-blink { 50% { opacity: 0; } }
 .reduced-motion .sgx-eof-cur { animation: none; }

@@ -40,7 +40,7 @@
 | SGX-DOC-001 | [`glossary.md`](glossary.md) | 参考 | 术语表 |
 | SGX-ARCH-001 | [`architecture/overview.md`](architecture/overview.md) | 规范 | 系统总览：请求路径、Worker 分工、前端分层、依赖规则 |
 | SGX-ARCH-002 | [`architecture/repo-structure.md`](architecture/repo-structure.md) | 参考 | 仓库目录结构（原根目录 `STRUCTURE.md`） |
-| SGX-ARCH-010 | [`architecture/sites/space.md`](architecture/sites/space.md) | 参考 | 主站：首页、旷野、外壳组件 |
+| SGX-ARCH-010 | [`architecture/sites/space.md`](architecture/sites/space.md) | 参考 | 主站：首页、状态页、外壳组件 |
 | SGX-ARCH-011 | [`architecture/sites/blog.md`](architecture/sites/blog.md) | 参考 | 博客子站 |
 | SGX-ARCH-012 | [`architecture/sites/curio-daymark.md`](architecture/sites/curio-daymark.md) | 参考 | 奇趣、日刻两个子站及其接口 Worker |
 | SGX-SPEC-001 | [`specs/auth-state-machine.md`](specs/auth-state-machine.md) | 规范 | 进站 / 锁屏 / 回跳状态机与 cookie 表 |

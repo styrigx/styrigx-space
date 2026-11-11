@@ -12,7 +12,7 @@
  * 顶栏 v8（2026-10-22，三个站同一套）：九宫格圆 | 长条（只有页名）| 右圆（每站自定义；主站 = 快捷面板）；头像挪进导航抽屉头（字标右边）。
  * 主站顶栏三栏（2026-10-22 PR2，只在主站）：主页 / 聊天 / 设置（2026-10-24 PR4 第三栏由「状态」换成「设置」）这三页长条里是三个标签（.sgx-tb-tabs），
  * 不放页名；其他页照旧只有页名。三栏本身的验收见 space-status.spec.js。
- * P4-3 PR-4b（2026-11-07）：主页和设置合成「旷野 / Space」（根路径 /），顶栏标签只剩一个「旷野」；原设置子页去掉 settings 一层挂到根下（/wild/ 等；显示页 /display/ 随后删除）。
+ * P4-3 PR-4b（2026-11-07）：主页和设置合成「旷野 / Space」（根路径 /），顶栏标签只剩一个「旷野」；原设置子页去掉 settings 一层挂到根下（/status/ 等；显示页 /display/ 随后删除）。
  * 顶栏全大椭圆（2026-11-04 P5-1，四个站同一个）：一整条胶囊 .sgx-topbar = [logo][中间：主站标签 / 页名][快捷面板 · AI · 头像]；
  * 九宫格圆、导航抽屉、右圆删除（导航进快捷面板第 1 页，见 quick-panel.spec.js）；主站标签只剩 主页 / 设置。材质（--sgx-mat + 毛玻璃）在整条胶囊上，
  * 中间和按钮本身透明；胶囊高 = 原来圆按钮的高（52，≥ 600 宽按公式到 56），里面的按钮 40px；< 600 宽中间伸缩，≥ 600 宽中间按内容定宽、在屏幕正中。
@@ -22,7 +22,7 @@
  * AI 平时浅一档、打开深一档（primary-fill）。360 / 384 / 412 / 1280 / 1920 都不溢出。
  * 顶栏 v3（2026-11 UI 重设计 PR-1，Gray 定稿设计稿 tb4 / tb-v3 / prog-v1 / nav-v2）：贴顶通栏（高 64、底边 1px 线、毛玻璃），内容收在居中的 1080 里（--sgx-content-w）：
  * [字标 ❯ styrigx :~$_（光标 1.05s 闪）] … [盾牌 · 外观（调色盘）· 四格（NAVIGATE）· 分隔 · >_（终端）· 头像（账号窗口）]（v5 S6 顶栏 E）；底边滑页进度条；右下角 AI 浮钮。
- * 页名胶囊标记还在但顶栏不显示（锁屏顶栏照旧用它当标题）。NAVIGATE：01 主页 02 博客 03 奇趣 04 日刻 05 旷野 + lang / layout + share / lock + STATUS。
+ * 页名胶囊标记还在但顶栏不显示（锁屏顶栏照旧用它当标题）。NAVIGATE：01 主页 02 博客 03 奇趣 04 日刻（05 旷野 2026-11-12 删除）+ lang / layout + share / lock + STATUS。
  */
 
 const { test } = require('@playwright/test');
@@ -84,7 +84,7 @@ for (const dark of [false, true]) {
   test.describe(`390×844 ${dark ? '暗色' : '亮色'}`, () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
-    for (const path of ['/', '/wild/', '/404.html']) { /* 进站 v3 L1：/security/ 已删，短页换 404 */
+    for (const path of ['/', '/status/', '/404.html']) { /* 进站 v3 L1：/security/ 已删，短页换 404 */
       test(`${path}：贴顶通栏（v5 S6 顶栏 E：字标 · 盾牌 · 外观 · 四格 · | · >_ · 头像；不显示页名），按钮 40 × 40；AI 浮钮右下角；按钮颜色按状态`, async ({ page }) => {
         await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
         await go(page, path, { dark });
@@ -186,7 +186,7 @@ for (const w of [360, 384, 412, 1280, 1920]) {
     await page.setViewportSize({ width: w, height: w > 1000 ? 900 : 860 });
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     /* P4-3 PR-4c：中文 /zh/…，英文无前缀 */
-    for (const path of ['/zh/', '/zh/wild/', '/404.html', '/wild/']) { /* 进站 v3 L1：/zh/security/tempkeys/ 已删 */ /* 对齐 PR-B：旷野 /wild/ 取代 /status/ */
+    for (const path of ['/zh/', '/zh/status/', '/404.html', '/status/']) { /* 进站 v3 L1：/zh/security/tempkeys/ 已删 */ /* 2026-11-12：状态页 /status/ 取代旷野 /wild/ */
       if (!path.startsWith('/zh/')) await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
       await go(page, path);
       const m = await page.evaluate(() => {
@@ -210,7 +210,7 @@ test.describe('390×844 行为', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test('旧顶栏元素、标题区旧按钮、大标题区、Styrigx 品牌字都已删除', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     for (const sel of ['#nav-time-center', '#nav-wx', '#nav-music-note', '.nav-inner', '.subpage-back', '#nav-brand', '.sgx-tb-text', '.subpage-mini-title']) {
       await expect(page.locator(sel), sel).toHaveCount(0);
     }
@@ -220,9 +220,9 @@ test.describe('390×844 行为', () => {
   /* 页名胶囊标记（不显示）仍是当前页名：子站脚本和锁屏顶栏读它 */
   const NAMES = [
     /* P4-3 PR-4c：英文无前缀、中文 /zh/ */
-    ['/zh/wild/', '旷野'],
+    ['/zh/status/', '状态'],
     ['/zh/', '主页'],
-    ['/wild/', 'Wild'],
+    ['/status/', 'Status'],
     ['/', 'Home'],
   ];
   for (const [path, name] of NAMES) {
@@ -252,7 +252,7 @@ test.describe('390×844 行为', () => {
 
   test('盾牌 / 头像的链接（盾牌 /zh/#sec——进站 v3 L1 安全页删了；v5 S5 起普通点击打开终端；头像没 JS 时去 /zh/account/ → 301 首页 #acct，2026-11-08）、字标回首页', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/zh/wild/');
+    await go(page, '/zh/status/');
     await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('href', '/zh/#sec');
     await expect(page.locator('.sgx-tb-shield')).toHaveAccessibleName('站点安全');
     await expect(page.locator('.sgx-tb-av')).toHaveAttribute('href', '/zh/account/');
@@ -265,7 +265,7 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('#sgx-sec')).toHaveCount(0);
   });
 
-  for (const path of ['/', '/404.html', '/wild/']) { /* 进站 v3 L1：/security/ 已删 */
+  for (const path of ['/', '/404.html', '/status/']) { /* 进站 v3 L1：/security/ 已删 */
     test(`${path}：正文从顶栏下方 16px 开始（--sgx-content-top，全站同一个值）`, async ({ page }) => {
       await go(page, path);
       const m = await page.evaluate(() => {
@@ -310,7 +310,7 @@ test.describe('390×844 行为', () => {
 
   test('减弱动效：进度条静止（不流动），字标光标常亮', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await go(page, '/wild/');
+    await go(page, '/status/');
     const st = await page.evaluate(() => ({
       prog: getComputedStyle(document.querySelector('#site-nav .sgx-tb-prog > i')).animationName,
       cu: getComputedStyle(document.querySelector('.sgx-tb-cu')).animationName,
@@ -319,7 +319,7 @@ test.describe('390×844 行为', () => {
   });
 
   test('顶栏切页过渡名挂在有尺寸的 .sgx-topbar 上', async ({ page }) => {
-    await go(page, '/wild/');
+    await go(page, '/status/');
     const names = await page.evaluate(() => ({
       bar: getComputedStyle(document.querySelector('.sgx-topbar')).viewTransitionName,
       nav: getComputedStyle(document.getElementById('site-nav')).viewTransitionName,
@@ -364,7 +364,7 @@ test.describe('390×844 行为', () => {
   });
 
 
-  test('四格打开 NAVIGATE（v5 S6）：$ NAVIGATE 01/05 · 五项（编号 · 名字 · 路径提示，当前项「开」态）· lang / layout · STATUS · systemctl status / esc 关闭（v6 P4 拿掉 share）', async ({ page }) => {
+  test('四格打开 NAVIGATE（v5 S6）：$ NAVIGATE 01/04 · 四项（编号 · 名字 · 路径提示，当前项「开」态）· lang / layout · STATUS · systemctl status / esc 关闭（v6 P4 拿掉 share）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/');
     await page.locator('.sgx-tb-grid').click();
@@ -372,17 +372,17 @@ test.describe('390×844 行为', () => {
     await expect(nav).toBeVisible();
     await expect(page.locator('.sgx-tb-grid')).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('.sgx-tb-grid')).toHaveAccessibleName('导航');
-    await expect(nav.locator('.sgx-nav-h')).toHaveText('$ NAVIGATE01/05');
-    await expect(nav.locator('.sgx-nav-tile .sgx-nav-name')).toHaveText(['主页', '博客', '奇趣', '日刻', '旷野']);
-    await expect(nav.locator('.sgx-nav-tile .sgx-nav-no')).toHaveText(['01', '02', '03', '04', '05']);
-    await expect(nav.locator('.sgx-nav-tile .sgx-nav-hint')).toHaveText(['~', 'blog/', 'curio/', 'daymark/', 'wild/']);
+    await expect(nav.locator('.sgx-nav-h')).toHaveText('$ NAVIGATE01/04');
+    await expect(nav.locator('.sgx-nav-tile .sgx-nav-name')).toHaveText(['主页', '博客', '奇趣', '日刻']);
+    await expect(nav.locator('.sgx-nav-tile .sgx-nav-no')).toHaveText(['01', '02', '03', '04']);
+    await expect(nav.locator('.sgx-nav-tile .sgx-nav-hint')).toHaveText(['~', 'blog/', 'curio/', 'daymark/']);
     await expect(nav.locator('.sgx-nav-tile[aria-current="page"]')).toHaveAttribute('data-nav', 'home');
-    await expect(nav.locator('.sgx-nav-tile')).toHaveCount(5);
+    await expect(nav.locator('.sgx-nav-tile')).toHaveCount(4);
     await expect(nav.locator('[data-nav="account"], [data-nav="settings"]')).toHaveCount(0);
     await animationsDone(page);
-    /* 五项竖排、整宽 */
+    /* 四项竖排、整宽 */
     const t = await nav.locator('.sgx-nav-tile').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.width)]; }));
-    for (let i = 1; i < 5; i++) { expect(t[i][0]).toBe(t[0][0]); expect(t[i][1]).toBeGreaterThan(t[i - 1][1]); expect(t[i][2]).toBe(t[0][2]); }
+    for (let i = 1; i < 4; i++) { expect(t[i][0]).toBe(t[0][0]); expect(t[i][1]).toBeGreaterThan(t[i - 1][1]); expect(t[i][2]).toBe(t[0][2]); }
     const cur = await nav.locator('.sgx-nav-tile[aria-current="page"]').evaluate((el) => ({ c: getComputedStyle(el).color, sh: getComputedStyle(el).boxShadow }));
     const other = await nav.locator('.sgx-nav-tile[data-nav="curio"]').evaluate((el) => getComputedStyle(el).color);
     expect(cur.c).not.toBe(other);
@@ -401,7 +401,11 @@ test.describe('390×844 行为', () => {
     await expect(nav.locator('[data-st-ms]').first()).toHaveText('');
     await expect(nav.locator('[data-st="space"]')).not.toHaveAttribute('data-up', /./);
     await expect(nav.locator('.sgx-nav-st-h span')).toHaveText('STATUS');
-    await expect(nav.locator('a.sgx-nav-flink')).toHaveAttribute('href', '/zh/wild/#status'); /* 对齐 PR-B：服务状态在旷野 #status */
+    await expect(nav.locator('a.sgx-nav-flink')).toHaveAttribute('href', '/zh/status/'); /* 2026-11-12：服务状态单独成页 /status/ */
+    /* STATUS 头部右边的跳转按钮（2026-11-12）：去状态页，和页脚链接同一个地址 */
+    await expect(nav.locator('.sgx-nav-st-h a.sgx-nav-st-go')).toHaveAttribute('href', '/zh/status/');
+    await expect(nav.locator('.sgx-nav-st-go')).toHaveText('查看 ›');
+    await expect(nav.locator('.sgx-nav-st-go')).toHaveAccessibleName('打开状态页');
     await expect(nav.locator('a.sgx-nav-flink')).toHaveText('systemctl status ›');
     await expect(nav.locator('[data-nav-close]')).toHaveText('esc 关闭');
     /* 手机：左右对齐顶栏内容区 */
@@ -452,24 +456,24 @@ test.describe('390×844 行为', () => {
     await expect(p2.locator('#sgx-nav [data-st="space"]')).not.toHaveAttribute('data-up', /./);
   });
 
-  test('NAVIGATE：旷野页（/zh/wild/）当前项是 05 旷野，地址 /zh/wild/；不在五站里的页（404）没有当前项（00/05）', async ({ page }) => {
+  test('NAVIGATE：没有 05 旷野（2026-11-12 删除）；状态页（/zh/status/）和 404 都不在四站里，没有当前项（00/04）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/zh/wild/');
-    await expect(page.locator('#sgx-nav .sgx-nav-tile[data-nav="wild"]')).toHaveAttribute('href', '/zh/wild/');
-    await expect(page.locator('#sgx-nav .sgx-nav-tile[aria-current="page"]')).toHaveAttribute('data-nav', 'wild');
-    await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('05/05');
+    await go(page, '/zh/status/');
+    await expect(page.locator('#sgx-nav .sgx-nav-tile[data-nav="wild"]')).toHaveCount(0);
+    await expect(page.locator('#sgx-nav .sgx-nav-tile[aria-current="page"]')).toHaveCount(0);
+    await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('00/04');
     await go(page, '/404.html'); /* 进站 v3 L1：安全页已删 */
     await expect(page.locator('#sgx-nav .sgx-nav-tile[aria-current="page"]')).toHaveCount(0);
-    await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('00/05');
+    await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('00/04');
   });
 
   test('NAVIGATE：点别的站 / 子页点本站关面板后跳过去；已在本站首页点本站只关面板', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/zh/wild/');
+    await go(page, '/zh/status/');
     await page.locator('.sgx-tb-grid').click();
     await page.locator('#sgx-nav .sgx-nav-tile[data-nav="home"]').click();
     await page.waitForURL((u) => new URL(u).pathname === '/zh/', { waitUntil: 'commit' });
-    await go(page, '/zh/wild/');
+    await go(page, '/zh/status/');
     await page.locator('.sgx-tb-grid').click();
     await page.route('**/curio/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>curio</title>' }));
     await page.locator('#sgx-nav .sgx-nav-tile[data-nav="curio"]').click();
@@ -491,7 +495,7 @@ test.describe('1280×800', () => {
   for (const [w, h] of [[600, 900], [840, 600], [1280, 800], [1920, 1080], [2560, 1440]]) {
     test(`${w}×${h}：通栏高 64（手机布局 56），内容区按公式（±1px），居中`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
-      await go(page, '/wild/');
+      await go(page, '/status/');
       const desktop = w >= 720;
       await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', desktop ? 'desktop' : 'phone');
       const bar = await box(page, '.sgx-topbar');
@@ -519,7 +523,7 @@ test.describe('1280×800', () => {
     expect(near(sh.x + sh.width, acts.x + acts.width - 44), `右缘 ${sh.x + sh.width}`).toBe(true);
   });
 
-  for (const path of ['/', '/wild/']) {
+  for (const path of ['/', '/status/']) {
     test(`${path}：宽屏正文同样从顶栏下方 16px 开始，没有大标题区`, async ({ page }) => {
       await go(page, path);
       const m = await page.evaluate(() => {

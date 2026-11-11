@@ -125,7 +125,7 @@ test('访客：profile 提示先 su <用户>，不发请求（v6 P4 旧 sudo roo
   const puts = await mockProfile(page);
   await T.goPage(page);
   await page.locator('#site-nav .sgx-tb-term').click();
-  await expect(ps(page)).toHaveText('nobody@space:~/wild$');
+  await expect(ps(page)).toHaveText('nobody@space:~$');
   await typeLine(page, 'profile set nick x');
   await expect(log(page)).toContainText('su <用户>');
   expect(puts).toHaveLength(0);

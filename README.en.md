@@ -8,7 +8,7 @@
 
 **A Personal Digital Space**
 
-The personal digital space of Sloan Gray (styrigx): a terminal-style personal website with Blog, Curio, Daymark and Wild.
+The personal digital space of Sloan Gray (styrigx): a terminal-style personal website with Blog, Curio, Daymark and a service status page.
 
 [styrigx.com](https://styrigx.com/) · [Blog](https://styrigx.com/blog/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
 
@@ -58,8 +58,8 @@ Dark theme with the default motto. Phone shots use a Samsung phone viewport (412
 
 | Site | Address | What's there |
 |---|---|---|
-| Home | [`/`](https://styrigx.com/) (Chinese `/zh/`) | Hero (`$ whoami`, name, typed tagline, personal motto) with an embedded terminal; then four sections: latest 3 blog posts, Curio directories, Daymark's quote of the day, Wild cards |
-| Wild | `/wild/` (Chinese `/zh/wild/`) | Read-only terminal windows: `#status` service status and usage, `#about` version info (`#screen-time` was removed with digital wellbeing in v6 P4) |
+| Home | [`/`](https://styrigx.com/) (Chinese `/zh/`) | Hero (`$ whoami`, name, typed tagline, personal motto) with an embedded terminal; then three sections: latest 3 blog posts, Curio directories, Daymark's quote of the day |
+| Status | `/status/` (Chinese `/zh/status/`) | Read-only terminal window: service status, uptime, quota and usage (opened from the STATUS block in the navigation panel; the old `/wild/` redirects here with a 301) |
 | Blog | [`/blog/`](https://styrigx.com/blog/) (Chinese `/blog/zh/`) | Posts, a tree of series, tags, RSS |
 | Curio | `/curio/` (Chinese `/curio/zh/`) | Finds, devices, games, movies, music |
 | Daymark | `/daymark/` (Chinese `/daymark/zh/`) | A collection of quotes and the quote of the day |

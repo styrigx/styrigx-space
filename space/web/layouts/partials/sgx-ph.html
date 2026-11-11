@@ -3,7 +3,7 @@
    子分区切换不在这里：用下划线文字 tab（.sgx-ctab）或 chips（.sgx-chips），由调用页自己放在页头下面。
    共享外壳组件：只用参数（不能调用别的 partial、不能读 site.Data），只用 --sgx-* 角色（CSS 在 input.css 的 @inpage 段，gen-shell 抽到 shell.css）。
    参数（dict）：
-     cmd    提示符后的命令（必填，如 "ls -lt blog/"、"cd wild"）
+     cmd    提示符后的命令（必填，如 "ls -lt blog/"、"systemctl status"）
      title  大标题（必填；内容页 = front matter title）
      desc   一行说明（front matter description）。缺了只显示标题，构建时 warnf 警告（带 path）
      path   警告里标出是哪一页（调用方传 .File.Path）

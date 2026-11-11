@@ -51,7 +51,7 @@ test('四个调用点：必需参数都传；site 是本站；PR-4b 起快捷面
   for (const site of Object.keys(CALLERS)) {
     const a = callArgs(site);
     for (const k of REQUIRED) assert.match(a, new RegExp(`\\n\\s*"${k}" `), `${site}: 传 ${k}`);
-    /* 主站：首页 = home、旷野分类子页 = wild、其余没有当前项（$navSite，顶栏 v3） */
+    /* 主站：首页 = home、其余（状态页等）没有当前项（$navSite，顶栏 v3；05 旷野 2026-11-12 删除） */
     if (site === 'atlas') assert.match(a, /"site" \$navSite/, 'atlas: 当前项');
     else assert.match(a, new RegExp(`"site" "${site}"`), `${site}: 当前站`);
     assert.doesNotMatch(a, /"tiles" |\n\s*"layout" /, `${site}: 不按站开关磁贴`);
@@ -94,6 +94,8 @@ function skeleton(html) {
     nav: [...nav.matchAll(/data-nav=([a-z]+)/g)].map((x) => x[1]),
     current: [...nav.matchAll(/data-nav=([a-z]+) aria-current=page/g)].map((x) => x[1]),
     count: (nav.match(/data-nav-count>(\d\d\/\d\d)</) || [])[1],
+    logo: (h.match(/class="?sgx-tb-logo"? href="?([^"\s>]+)/) || [])[1],
+    stGo: (h.match(/<a href="?([^"\s>]+)"? class="?sgx-nav-st-go/) || [])[1],
     langs: [...nav.matchAll(/data-qp-lang=([a-z]+)/g)].map((x) => x[1]),
     layout: [...nav.matchAll(/<button type=button data-v=([a-z]+)/g)].map((x) => x[1]),
     acts: [...nav.matchAll(/data-qp=([a-z]+)/g)].map((x) => x[1]),
@@ -112,7 +114,7 @@ function skeleton(html) {
   };
 }
 
-test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字标 · 盾牌 · 调色盘 · 九宫格 · | · >_ · 头像 · 进度条 · AI 浮钮；NAVIGATE 五项同序且当前项「开」态；外观面板同一套；tmux 页脚当前窗口', (t) => {
+test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字标 · 盾牌 · 调色盘 · 九宫格 · | · >_ · 头像 · 进度条 · AI 浮钮；NAVIGATE 四项同序、logo 回主站首页、STATUS 有跳转按钮且当前项「开」态；外观面板同一套；tmux 页脚当前窗口', (t) => {
   if (!built) { t.skip('还没构建（先 npm run build）'); return; }
   const CUR = { atlas: 'home', blog: 'blog', curio: 'curio', daymark: 'daymark' };
   const NO = { home: '01', blog: '02', curio: '03', daymark: '04' };
@@ -122,16 +124,18 @@ test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字�
       const at = `${site}/${f}`;
       assert.ok(sk.sorted, at + '：顶栏顺序');
       assert.ok(sk.me, at + '：头像在顶栏最右、账号下拉在（AI 窗口头部没有头像）');
-      assert.deepEqual(sk.nav, ['home', 'blog', 'curio', 'daymark', 'wild'], at);
+      assert.deepEqual(sk.nav, ['home', 'blog', 'curio', 'daymark'], at);
       assert.deepEqual(sk.current, [CUR[site]], at + '：当前项高亮');
-      assert.equal(sk.count, NO[CUR[site]] + '/05', at + '：计数');
+      assert.equal(sk.count, NO[CUR[site]] + '/04', at + '：计数');
       assert.deepEqual(sk.langs, ['en', 'system', 'zh'], at + '：lang EN / Auto / 中文（2026-11-09 Auto 在中间）');
       assert.deepEqual(sk.layout, ['phone', 'auto', 'desktop'], at + '：layout Mobile / Auto / DeX（2026-11-09 Auto 在中间）');
       assert.deepEqual(sk.acts, ['term'], at + '：terminal（v5 S6 去掉 lock；v6 P4 拿掉分享磁贴，Gray 11-11 17:47）');
       assert.deepEqual(sk.status, ['space', 'blog', 'curio', 'daymark', 'gray-ai', 'auth'], at + '：STATUS 六个单元');
       assert.deepEqual(sk.modes, [], at + '：没有 MODE（调色板 v4：每套一个模式，2026-11-12）');
       assert.equal(sk.swatches, 22, at + '：22 套色板');
-      assert.deepEqual(sk.win, ['home', 'blog', 'curio', 'daymark', 'wild'], at + '：页脚窗口');
+      assert.deepEqual(sk.win, ['home', 'blog', 'curio', 'daymark'], at + '：页脚窗口');
+      assert.equal(sk.logo, f.startsWith('zh/') ? '/zh/' : '/', at + '：logo 回主站首页（2026-11-12 四站统一）');
+      assert.equal(sk.stGo, f.startsWith('zh/') ? (site === 'atlas' ? '/zh/status/' : 'https://styrigx.com/zh/status/') : (site === 'atlas' ? '/status/' : 'https://styrigx.com/status/'), at + '：STATUS 区跳转按钮去状态页');
       assert.deepEqual(sk.winCur, [CUR[site]], at + '：页脚当前窗口');
       assert.ok(sk.ai, at + '：AI 窗口齐全');
       assert.equal(sk.legacy, false, at + '：没有旧导航抽屉 / 右圆分享 / :~$ / 旧磁贴');

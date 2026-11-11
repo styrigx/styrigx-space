@@ -43,7 +43,7 @@ function post(body, type, extra = {}) {
 test('旧格式 application/csp-report：204、记一行、地址去掉查询串；不经关口、不碰 env', async () => {
   const { env, touched } = trapEnv();
   const { res, logs } = await capture(() => worker.fetch(post({ 'csp-report': {
-    'document-uri': 'https://styrigx.com/wild/?return=%2Fchat%2F',
+    'document-uri': 'https://styrigx.com/status/?return=%2Fchat%2F',
     'blocked-uri': 'https://evil.example/x.js?token=abc',
     'effective-directive': 'script-src-elem',
     'source-file': 'https://styrigx.com/',
@@ -59,7 +59,7 @@ test('旧格式 application/csp-report：204、记一行、地址去掉查询串
   const r = JSON.parse(lines[0].slice('[csp-report] '.length));
   assert.equal(r.effectiveDirective, 'script-src-elem');
   assert.equal(r.blockedURL, 'https://evil.example/x.js');
-  assert.equal(r.documentURL, 'https://styrigx.com/wild/');
+  assert.equal(r.documentURL, 'https://styrigx.com/status/');
   assert.equal(r.lineNumber, 12);
   assert.equal(r.disposition, 'report');
   /* 主站全套安全头（包括 Reporting-Endpoints） */

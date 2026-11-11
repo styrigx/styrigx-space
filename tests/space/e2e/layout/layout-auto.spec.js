@@ -70,7 +70,7 @@ for (const [width, height] of [[1280, 800], [1920, 1080], [1024, 700], [768, 102
   });
 }
 test('顶栏 412×915（手机布局）：通栏，不显示页名，字标和图标组贴页边距 12（对齐 PR-B）', async ({ page }) => {
-  await go(page, { width: 412, height: 915 }, '/wild/'); /* 进站 v3 L1：/security/ 已删 */
+  await go(page, { width: 412, height: 915 }, '/status/'); /* 进站 v3 L1：/security/ 已删 */
   await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
   const b = await page.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); return { bar: r('.sgx-topbar'), logo: r('.sgx-tb-logo'), acts: r('.sgx-tb-acts') }; });
   expect(Math.abs(b.bar.width - 412)).toBeLessThanOrEqual(1);
@@ -80,7 +80,7 @@ test('顶栏 412×915（手机布局）：通栏，不显示页名，字标和�
 
 /* ----- 手机布局：外框最宽 640 居中（顶栏 v3 是通栏，不再和外框同宽） ----- */
 /* 首页（/）2026-11 PR-2 起内容栏对齐顶栏内容（1080），不跟外壳框，单独测（见下「首页内容栏」） */
-/* 对齐 PR-B：原 /status/ 并进旷野 /wild/，旷野页内容栏同主页（对齐顶栏内容 1080，见「首页 / 旷野内容栏」） */
+/* 对齐 PR-B：原 /status/ 并进旷野 /status/，旷野页内容栏同主页（对齐顶栏内容 1080，见「首页 / 旷野内容栏」） */
 const WRAPS = [['/404.html', '.sgx-404']]; /* 进站 v3 L1：/security/、/security/tempkeys/ 已删（盾牌命令行取代） */
 async function frame(page, sel) {
   return page.evaluate((s) => {
@@ -112,7 +112,7 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
       expect(Math.abs(f.wrap.l + f.wrap.w / 2 - f.vw / 2), `${sel} 居中`).toBeLessThanOrEqual(1);
     });
   }
-  test(`桌面 ${w}×${h}：内部列 —— 风格页 720 居中、旷野页 = 外框宽（≤ 1080；P4-3 PR-4b 起设置首页的两栏删除）`, async ({ page }) => {
+  test(`桌面 ${w}×${h}：内部列 —— 风格页 720 居中、状态页 = 外框宽（≤ 1080；P4-3 PR-4b 起设置首页的两栏删除）`, async ({ page }) => {
     const col = async (path, s) => {
       await go(page, { width: w, height: h }, path);
       await expect(page.locator(s).first()).toBeAttached();
@@ -124,7 +124,7 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
     const m = Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
     const shell = Math.min(1080, w - 2 * m);
     /* 风格页（交互模块，设计不动）仍 720；旷野页（原服务状态并进来）内容列 = 外框（最宽 1080） */
-    for (const [path, s, want] of [['/wild/', '.wild-wrap', shell]] /* 对齐 PR-C：风格页 /theme/（720 栏）退役 */) {
+    for (const [path, s, want] of [['/status/', '.status-wrap', shell]] /* 对齐 PR-C：风格页 /theme/（720 栏）退役 */) {
       const [c] = await col(path, s);
       expect(Math.abs(c.w - Math.min(want, shell)), `${path} ${s} 宽 ${c.w}`).toBeLessThanOrEqual(1);
       expect(Math.abs(c.c), `${path} 居中`).toBeLessThanOrEqual(1);
@@ -133,8 +133,8 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
 }
 
 /* ----- 首页 / 旷野内容栏（2026-11 PR-2 首屏终端；对齐 PR-B 旷野页同规则）：任何布局 = 顶栏内容栏 min(1080, 100% − 2 × 页边距) 居中，左缘 = 字标左缘 + 4、右缘 = 图标组右缘 ----- */
-for (const [path, wrapSel, ready] of [['/', '.home-wrap', '#home-hero'], ['/wild/', '.wild-wrap', '#st-root']]) for (const [w, h, pref] of [[834, 1194, 'phone'], [412, 915, ''], [1024, 700, ''], [1366, 650, ''], [1920, 950, '']]) {
-  test(`${path === '/' ? '首页' : '旷野'}内容栏 ${w}×${h}${pref ? ' 手动手机' : ''}：对齐顶栏内容（1080）`, async ({ page }) => {
+for (const [path, wrapSel, ready] of [['/', '.home-wrap', '#home-hero'], ['/status/', '.status-wrap', '#st-root']]) for (const [w, h, pref] of [[834, 1194, 'phone'], [412, 915, ''], [1024, 700, ''], [1366, 650, ''], [1920, 950, '']]) {
+  test(`${path === '/' ? '首页' : '状态页'}内容栏 ${w}×${h}${pref ? ' 手动手机' : ''}：对齐顶栏内容（1080）`, async ({ page }) => {
     await go(page, { width: w, height: h }, path, pref || undefined);
     await expect(page.locator(ready)).toBeVisible({ timeout: 15000 });
     const f = await page.evaluate((ws) => {
@@ -158,24 +158,24 @@ for (const w of [719, 720, 721]) {
       await expect(page.locator('html')).toHaveClass(new RegExp('\\blayout-' + want + '\\b'));
       await expect(page.locator('#home-hero')).toBeVisible();
       /* 2026-11 PR-2：首页各块（hero、终端、分节）都铺满内容栏，不会窄到 320 以下；
-         对齐 PR-B：[02] 目录卡 / [04] 旷野小卡（2026-11-11 删 about；v6 P4-2 删 screen-time，只剩 status 一张）桌面两栏、手机一栏，每张 ≥ 200（720 宽桌面三栏约 218） */
+         对齐 PR-B：[02] 目录卡桌面三栏、手机一栏，每张 ≥ 200（720 宽桌面三栏约 218；[04] 旷野小卡 2026-11-12 随旷野删除） */
       const m = await page.evaluate(() => ({ sw: document.scrollingElement.scrollWidth, iw: innerWidth,
         cards: [...document.querySelectorAll('#home-hero, #about, .home-sec')].filter((e) => e.offsetParent !== null).map((e) => [e.id, e.getBoundingClientRect().width]),
-        minis: [...document.querySelectorAll('.home-dirs > li, .home-wild > li')].map((e) => e.getBoundingClientRect().width) }));
+        minis: [...document.querySelectorAll('.home-dirs > li')].map((e) => e.getBoundingClientRect().width) }));
       expect(m.sw).toBeLessThanOrEqual(m.iw);
       expect(m.cards.length).toBeGreaterThan(0);
       for (const [id, cw] of m.cards) expect(cw, `${id} 宽 ${cw}`).toBeGreaterThanOrEqual(320);
-      expect(m.minis.length).toBe(4); /* 奇趣 3 + 旷野 1（v6 P4-2 删了 screen-time 小卡） */
+      expect(m.minis.length).toBe(3); /* 奇趣 3（旷野小卡 2026-11-12 删除） */
       for (const cw of m.minis) expect(cw, `小卡宽 ${cw}`).toBeGreaterThanOrEqual(200);
     });
   }
 }
 
 /* ----- 首页（2026-11 PR-2 首屏终端；原「首页栅格」「栅格退列」用例随小组件网格删除）：日刻有 / 没数据都不留空白——
-   有数据引言铺满 [03] 日刻分节；没数据（.hidden）分节只剩标题和命令行，下一节紧接着；[04] 旷野两张小卡铺满分节（对齐 PR-B；about 小卡 2026-11-11 删） ----- */
+   有数据引言铺满 [03] 日刻分节；没数据（.hidden）分节只剩标题和命令行，下一节紧接着（[04] 旷野 2026-11-12 删除） ----- */
 for (const [w, h] of [[1920, 950], [1280, 760], [841, 673]]) {
   for (const dm of [true, false]) {
-    test(`首页分节 ${w}×${h}：日刻${dm ? '有' : '无'}数据，卡片铺满分节、没有空白；旷野两卡铺满`, async ({ page }) => {
+    test(`首页分节 ${w}×${h}：日刻${dm ? '有' : '无'}数据，卡片铺满分节、没有空白`, async ({ page }) => {
       await go(page, { width: w, height: h }, '/');
       await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
       await expect(page.locator('#home-hero')).toBeVisible();
@@ -185,10 +185,9 @@ for (const [w, h] of [[1920, 950], [1280, 760], [841, 673]]) {
         const sec = document.getElementById('daymark');
         const head = sec.querySelector('.home-sec-cmd');
         return { sec: box(sec), head: box(head), dm: box(document.getElementById('w-daymark')), dmShown: !document.getElementById('w-daymark').classList.contains('hidden'),
-          st: box(document.querySelector('#wild .home-wild')), first: box(document.querySelector('#wild .home-wild > li:first-child')) };
+          wild: !!document.getElementById('wild') };
       });
-      /* v6 P4：屏幕时间小卡随数字健康删除（定稿 v5.5 §四），status 小卡前移到第一栏 */
-      expect(Math.abs(m.first.l - m.st.l), '旷野第一张小卡在第一栏').toBeLessThanOrEqual(1);
+      expect(m.wild, '主页没有 [04] 旷野一节（2026-11-12）').toBe(false);
       if (dm) {
         expect(m.dmShown).toBe(true);
         expect(Math.abs(m.dm.l - m.sec.l)).toBeLessThanOrEqual(1);

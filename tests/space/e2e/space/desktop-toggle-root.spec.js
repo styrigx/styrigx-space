@@ -4,7 +4,7 @@
  * 根因：直接打开 App 页（外部 / 无 referrer）时，navhistory.js 用
  * history.replaceState 把子页自己的那条历史改成主页地址，再 pushState 回子页，
  * 好让系统返回一次回到主页。replaceState 只改 URL，不改这条历史的
- * 「原始请求地址」——在 Chromium 里它仍是当初请求的子页（如 /wild/）。
+ * 「原始请求地址」——在 Chromium 里它仍是当初请求的子页（如 /status/）。
  * 之后只要这条历史被跨文档加载成主页（离开设置后再连续系统返回、刷新、会话恢复；2026-10-20 起顶栏没有 ‹），
  * 页面显示的是 /，但「请求桌面版/移动版网站」按原始请求地址重载
  * （NavigationControllerImpl::LoadOriginalRequestURL），于是跳回那个子页。
@@ -78,7 +78,7 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
     await blockExternalRequests(page);
     const docs = trackDocs(page);
     /* 无 referrer 直接打开设置：插入一条主页历史 */
-    await page.goto(ZH + '/wild/');
+    await page.goto(ZH + '/status/');
     await expect.poll(() => page.evaluate(() => history.state && history.state.sgxHere)).toBe(1);
 
     /* 从快捷面板导航页点「主站」离开设置（2026-11-04 P5-1 原导航抽屉并进快捷面板；主站是当前站，点它只关面板不跳，
@@ -89,7 +89,7 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
     const lenAfterOpen = await page.evaluate(() => history.length);
     /* 系统返回：回到设置（重新加载文档） */
     await page.goBack();
-    await page.waitForURL((u) => u.pathname === ZH + '/wild/');
+    await page.waitForURL((u) => u.pathname === ZH + '/status/');
     await page.waitForLoadState('load');
 
     docs.length = 0;
@@ -113,7 +113,7 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
   test('直接打开设置 → 系统返回一次回到主页（原有行为），主页是真正的主页请求', async ({ page }) => {
     await blockExternalRequests(page);
     const docs = trackDocs(page);
-    await page.goto(ZH + '/wild/');
+    await page.goto(ZH + '/status/');
     await expect.poll(() => page.evaluate(() => history.state && history.state.sgxHere)).toBe(1);
     docs.length = 0;
 
@@ -132,16 +132,17 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
   test('修好的主页历史以后再退回到，不会再重载', async ({ page }) => {
     await blockExternalRequests(page);
     const docs = trackDocs(page);
-    await page.goto(ZH + '/wild/');
+    await page.goto(ZH + '/status/');
     await expect.poll(() => page.evaluate(() => history.state && history.state.sgxHere)).toBe(1);
     await page.goBack();
     await page.waitForURL((u) => u.pathname === ZH + '/');
     await expect.poll(() => homeState(page).then((s) => settledHome(s, 'navigate'))).toBe(true);
 
-    /* 站内从主页进子页（对齐 PR-B 起主页没有分类卡，走 [04]「cd wild/ →」进旷野页；一次普通的跨文档导航），再系统返回：回到主页；
+    /* 站内从主页进子页（2026-11-12 起走 NAVIGATE STATUS 区的按钮进状态页；一次普通的跨文档导航），再系统返回：回到主页；
        这条历史是真正请求过 / 的，不带 sgxRoot，不会再 location.replace 出第二份文档 */
-    await page.locator('#wild a.home-sec-more[href="/zh/wild/"]').click();
-    await page.waitForURL((u) => u.pathname === ZH + '/wild/');
+    await page.locator('.sgx-tb-grid').click();
+    await page.locator('#sgx-nav .sgx-nav-st-go[href="/zh/status/"]').click();
+    await page.waitForURL((u) => u.pathname === ZH + '/status/');
     await page.waitForLoadState('load');
     docs.length = 0;
     await page.goBack();
@@ -160,19 +161,19 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
    baseof 跳之前把原始来源记进 sessionStorage sgx-lang-hop，navhistory.js 用一次就删 */
 /* 2026-11-09 语言行 EN | Auto | 中文：Auto（跟随浏览器）只在从站外进主站首页时换，深链不跳；明确选了中文的照旧每一页都跳，所以这里先存明确的 zh */
 test.describe('中文浏览器直接打开英文地址（首帧语言跳转）', () => {
-  test('Auto：/wild/ 是深链，不跳，留在英文页', async ({ page }) => {
+  test('Auto：/status/ 是深链，不跳，留在英文页', async ({ page }) => {
     await blockExternalRequests(page);
-    await page.goto('/wild/');
+    await page.goto('/status/');
     await page.waitForLoadState('load');
-    expect(new URL(page.url()).pathname).toBe('/wild/');
+    expect(new URL(page.url()).pathname).toBe('/status/');
   });
 
-  test('明确选了中文：/wild/ → /zh/wild/：照样插一条中文主页历史，系统返回一次回到真正的 /zh/ 请求', async ({ page }) => {
+  test('明确选了中文：/status/ → /zh/status/：照样插一条中文主页历史，系统返回一次回到真正的 /zh/ 请求', async ({ page }) => {
     await blockExternalRequests(page);
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     const docs = trackDocs(page);
-    await page.goto('/wild/');
-    await page.waitForURL((u) => u.pathname === ZH + '/wild/');
+    await page.goto('/status/');
+    await page.waitForURL((u) => u.pathname === ZH + '/status/');
     await expect.poll(() => page.evaluate(() => history.state && history.state.sgxHere)).toBe(1);
     expect(await page.evaluate(() => sessionStorage.getItem('sgx-lang-hop'))).toBe(null);
     docs.length = 0;

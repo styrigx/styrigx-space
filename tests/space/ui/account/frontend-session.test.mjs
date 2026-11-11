@@ -52,14 +52,14 @@ test('v6 P4：旧的立即锁屏（shell/space/lock-now.js → POST /api/lock-no
   assert.ok(lockCmd.includes('I.cmdLock()'), 'lock 走身份层');
 });
 
-test('2026-11-08 账号 UI 改版：账号卡 sgx-account-card.html 和账号页一起删了；旷野页 / 子页也不放账号卡', () => {
+test('2026-11-08 账号 UI 改版：账号卡 sgx-account-card.html 和账号页一起删了；主页 / 状态页也不放账号卡', () => {
   let gone = false;
   try { readFileSync(join(root, 'space/web/layouts/partials/sgx-account-card.html'), 'utf8'); } catch (e) { gone = true; }
   assert.ok(gone, 'sgx-account-card.html 应已删除');
-  const setHtml = readFileSync(join(root, 'space/web/layouts/index.html'), 'utf8') + readFileSync(join(root, 'space/web/layouts/_default/wild.html'), 'utf8');
-  assert.ok(!setHtml.includes('sgx-account-card'), '旷野页 / 子页不放账号卡');
-  const setEntry = readFileSync(join(root, 'space/web/assets/js/entries/entry-space.js'), 'utf8') + readFileSync(join(root, 'space/web/assets/js/entries/entry-space-wild.js'), 'utf8');
-  assert.ok(!setEntry.includes('initAvatarEdit'), '旷野页入口不加载换头像');
+  const setHtml = readFileSync(join(root, 'space/web/layouts/index.html'), 'utf8') + readFileSync(join(root, 'space/web/layouts/_default/status.html'), 'utf8');
+  assert.ok(!setHtml.includes('sgx-account-card'), '主页 / 状态页不放账号卡');
+  const setEntry = readFileSync(join(root, 'space/web/assets/js/entries/entry-space.js'), 'utf8') + readFileSync(join(root, 'space/web/assets/js/entries/entry-space-status.js'), 'utf8');
+  assert.ok(!setEntry.includes('initAvatarEdit'), '主站页面入口不加载换头像');
 });
 
 test('进站 v3 L1：安全页（security.html / security.js）删了，旧地址 301 到盾牌 /#sec；顶栏账号下拉是骨架', () => {

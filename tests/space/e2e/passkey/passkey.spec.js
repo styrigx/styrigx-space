@@ -24,8 +24,8 @@ test.describe('会话边界 e2e（预览站）', () => {
     ]);
     const pr = await h.apiGet(page, '/api/prefs');
     expect(pr.status).toBe(401);
-    await gotoLockTerm(page, BASE + '/wild/?entry=1&test-no-local-bypass=1');
-    await expect(page.locator(SEL.ps)).toHaveText('nobody@space:~/wild$');
+    await gotoLockTerm(page, BASE + '/status/?entry=1&test-no-local-bypass=1');
+    await expect(page.locator(SEL.ps)).toHaveText('nobody@space:~$');
     await lockCmd(page, 'lock');
     await expect(page.locator(SEL.out)).toContainText('not signed in · su <user> first', { timeout: 15000 });
   });

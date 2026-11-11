@@ -66,7 +66,7 @@ const CASES = [
   { name: '默认 terra（深套），系统浅色', page: '/', local: {}, scheme: 'light', want: { pal: null, dark: true } },
   { name: 'forest（存的是旧撞色 xforest，主站首屏迁到 forest）', page: '/', local: { 'sgx-palette': 'xforest' }, want: { pal: 'forest', dark: true } },
   { name: '雾霾蓝 dustyblue（浅套），系统深色 + 旧 mode=dark 残留', page: '/', local: { 'sgx-palette': 'dustyblue', 'sgx-theme-mode': 'dark' }, scheme: 'dark', want: { pal: 'dustyblue', dark: false } },
-  { name: '旧自定义主题色残留：两边都按调色板渲染，不插角色样式', page: '/wild/', local: { 'sgx-accent': '#1f8a70', 'sgx-palette': 'lake' }, want: { pal: 'lake', dark: true } },
+  { name: '旧自定义主题色残留：两边都按调色板渲染，不插角色样式', page: '/status/', local: { 'sgx-accent': '#1f8a70', 'sgx-palette': 'lake' }, want: { pal: 'lake', dark: true } },
 ];
 
 test.describe('子站读端 = 主站外观（真写端 cookie → 共享外壳 ui-cookie-read.js）', () => {

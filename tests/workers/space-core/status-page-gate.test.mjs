@@ -29,7 +29,7 @@ function ctx(url, cookie) {
   };
 }
 
-/* 对齐 PR-B：服务状态并进旷野 /wild/#status；/status/ 留着验证旧地址照样先过网关（之后由 Pages _redirects 301） */
+/* 2026-11-12：状态单独成页 /status/；旷野 /wild/ 留着验证旧地址照样先过网关（之后由 Pages _redirects 301 到 /status/） */
 const PAGES = ['/status/', '/zh/status/', '/wild/', '/zh/wild/', '/chat/', '/zh/chat/'];
 
 test('没会话：/wild/、/status/、/chat/（中英）200 页面标 locked、no-store，不 302；/api/status 401', async () => {
@@ -57,11 +57,12 @@ test('v6 会话（v6 P4 起只认它）：/status/、/chat/（中英）都放行
   }
 });
 
-test('旧的「状态」页 /status/（含 /zh/）并进旷野：_redirects 301 到 /wild/#status（对齐 PR-B），没有 /en/ 规则', async () => {
+test('旷野删除（2026-11-12）：_redirects 把 /wild/（含 /zh/）301 到状态页 /status/；/status/ 不再是跳转来源；没有 /en/ 规则', async () => {
   const { readFileSync } = await import('node:fs');
   const red = readFileSync(new URL('../../../space/web/static/_redirects', import.meta.url), 'utf8');
-  assert.match(red, /^\/status\/\s+\/wild\/#status\s+301$/m);
-  assert.match(red, /^\/zh\/status\/\s+\/zh\/wild\/#status\s+301$/m);
-  assert.doesNotMatch(red, /^\/en\/status/m);
-  assert.equal((red.match(/^\/(?:zh\/)?status/gm) || []).length, 2, '只有这两条');
+  assert.match(red, /^\/wild\/\s+\/status\/\s+301$/m);
+  assert.match(red, /^\/zh\/wild\/\s+\/zh\/status\/\s+301$/m);
+  assert.doesNotMatch(red, /^\/en\/(status|wild)/m);
+  assert.equal((red.match(/^\/(?:zh\/)?(?:status|wild)/gm) || []).length, 2, '只有这两条');
+  assert.doesNotMatch(red, /#status/, '没有指向旧锚点的跳转');
 });

@@ -58,12 +58,12 @@ async function startPoint(page, sel, n) {
 }
 
 test.describe('触屏：从终端窗起划滚页面', () => {
-  test('旷野终端窗（v5 S7 删了 about；v6 P4-2 删了 screen-time，只剩 status）：在窗里上划，页面 scrollY 增加', async ({ page }) => {
+  test('状态页终端窗（2026-11-12 起；原旷野 status 窗）：在窗里上划，页面 scrollY 增加', async ({ page }) => {
     /* 只剩 status 一窗后，状态没数据时页面不够一屏多：/api/status 用 fixture（同 space-status / visual），窗里有 unit 和可用率条，页面能滚 */
-    await go(page, '/wild/', () => page.route('**/api/status', (route) => route.fulfill({ status: 200, contentType: 'application/json',
+    await go(page, '/status/', () => page.route('**/api/status', (route) => route.fulfill({ status: 200, contentType: 'application/json',
       body: JSON.stringify(fxStatus.withUsage(fxStatus.normal(), fxStatus.usage())) })));
     await expect(page.locator('#st-units > li').first()).toBeVisible();
-    const sel = '.wild-term .sgx-term-body';
+    const sel = '.trm-win .sgx-term-body';
     const n = await page.locator(sel).count();
     expect(n).toBeGreaterThanOrEqual(1);
     for (let i = 0; i < n; i++) {
@@ -86,7 +86,7 @@ test.describe('触屏：从终端窗起划滚页面', () => {
 });
 
 test.describe('AI 浮钮给页脚让位', () => {
-  for (const path of ['/wild/', '/']) {
+  for (const path of ['/status/', '/']) {
     test(`滚到底：浮钮不压页脚状态栏和链接行（${path}）`, async ({ page }) => {
       await go(page, path);
       await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));

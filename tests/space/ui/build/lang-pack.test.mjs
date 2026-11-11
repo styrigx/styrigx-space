@@ -54,7 +54,7 @@ test('缺键回退英文：sgx-tr.html 是「英文表 ← 页面语言表」的
   /* 没有语言包的语言（假设 fr）= 全英文 */
   const fr = strings('space', 'fr');
   assert.deepEqual(flatKeys(fr).sort(), flatKeys(strings('space', 'en')).sort());
-  assert.equal(fr.spaceCats.wild.title, 'Wild');
+  assert.equal(fr.spaceCats.status.title, 'Status');
 });
 
 test('模板不再按语言二选一：主站 / 奇趣 / 日刻模板没有 $isEn、cond … "zh"、(dict "zh" … "en" …) 文案对子', () => {
@@ -166,11 +166,11 @@ test('标签页标题（Gray 2026-11-07）：四站「页名 | 站名」，站�
   };
   const sp = { en: strings('space', 'en'), zh: strings('space', 'zh') };
   /* 主站：站名 Styrigx（品牌名不翻） */
-  /* 对齐 PR-B：主页页名 = NAVIGATE 01「主页 / Home」（旷野是独立页 /wild/，页名 = front matter title） */
+  /* 对齐 PR-B：主页页名 = NAVIGATE 01「主页 / Home」（状态页 /status/ 页名 = front matter title） */
   assert.equal(title('space/web/public/index.html'), `${sp.en.shell.nav.home.title} | Styrigx`);
   assert.equal(title('space/web/public/zh/index.html'), `${sp.zh.shell.nav.home.title} | Styrigx`);
-  assert.equal(title('space/web/public/wild/index.html'), `${sp.en.spaceCats.wild.title} | Styrigx`);
-  assert.equal(title('space/web/public/zh/wild/index.html'), `${sp.zh.spaceCats.wild.title} | Styrigx`);
+  assert.equal(title('space/web/public/status/index.html'), `${sp.en.spaceCats.status.title} | Styrigx`);
+  assert.equal(title('space/web/public/zh/status/index.html'), `${sp.zh.spaceCats.status.title} | Styrigx`);
   /* 对齐 PR-C：风格页 /theme/ 退役（_redirects 301 到主页） */
   assert.ok(!existsSync(path.join(REPO, 'space/web/public/theme/index.html')) && !existsSync(path.join(REPO, 'space/web/public/zh/theme/index.html')));
   assert.equal(title('space/web/public/404.html'), `${sp.en.baseof.pageNotFound} | Styrigx`);

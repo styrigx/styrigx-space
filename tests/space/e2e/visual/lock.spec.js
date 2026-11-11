@@ -40,7 +40,7 @@ test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () 
     await zh(page);
   });
 
-  test('?entry=1：不画锁屏，打开终端、预填 su （不替人回车）；提示符 nobody@space:~/wild$，顶栏照常', async ({ page }) => {
+  test('?entry=1：不画锁屏，打开终端、预填 su （不替人回车）；提示符 nobody@space:~$，顶栏照常', async ({ page }) => {
     await freezeTime(page);
     let posted = 0;
     /* 只数 whoami 以外的请求（问身份不算；不替人回车 = 不发 su） */
@@ -49,7 +49,7 @@ test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () 
     await expect(page.locator('#sgx-entry, #sgx-entry-cover')).toHaveCount(0);
     await expect(input(page)).toHaveValue('su ');
     await expect(input(page)).toBeFocused();
-    await expect(ps(page)).toHaveText('nobody@space:~/wild$');
+    await expect(ps(page)).toHaveText('nobody@space:~$');
     await expect(ps(page)).toHaveAttribute('translate', 'no');
     await expect(lockMode(page, 'cmd')).resolves.toBeUndefined();
     await expect(page.locator('#site-nav .sgx-topbar')).toBeVisible();
@@ -68,14 +68,14 @@ test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () 
   });
 
   test('?entry=sudo（旧进站直达，v6 P4 删了 sudo styrigx）：同 ?entry=1，打开终端预填 su ，不跑任何命令', async ({ page }) => {
-    await gotoLockTerm(page, '/wild/?entry=sudo');
+    await gotoLockTerm(page, '/status/?entry=sudo');
     await expect(input(page)).toHaveValue('su ');
     await lockMode(page, 'cmd');
     await expect(out(page)).not.toContainText('sudo styrigx');
   });
 
   test('旧 ?lock=1 也认（旧书签）', async ({ page }) => {
-    await gotoLockTerm(page, '/wild/?lock=1');
+    await gotoLockTerm(page, '/status/?lock=1');
     await expect(input(page)).toHaveValue('su ');
   });
 
@@ -86,8 +86,8 @@ test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () 
   });
 
   test('v5 S3：访客页面不画锁屏（没有遮罩、顶栏可见、内容可读）', async ({ page }) => {
-    await asVisitor(page, '/zh/wild/');
-    await page.goto('/zh/wild/?test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
+    await asVisitor(page, '/zh/status/');
+    await page.goto('/zh/status/?test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
     await expect(page.locator('#site-nav .sgx-topbar')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#status')).toBeVisible();
@@ -96,14 +96,14 @@ test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () 
   });
 
   test('上锁的地方发 sgx:sudo → 终端预填 su （不替人回车、不跳锁屏地址）', async ({ page }) => {
-    await asVisitor(page, '/zh/wild/');
-    await page.goto('/zh/wild/?test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
+    await asVisitor(page, '/zh/status/');
+    await page.goto('/zh/status/?test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#site-nav .sgx-topbar')).toBeVisible({ timeout: 15000 });
     await page.evaluate(() => document.dispatchEvent(new CustomEvent('sgx:sudo')));
     await expect(input(page)).toHaveValue('su ', { timeout: 8000 });
     await lockMode(page, 'cmd');
     const u = new URL(page.url());
-    expect(u.pathname + u.search).toBe('/zh/wild/?test-no-local-bypass=1');
+    expect(u.pathname + u.search).toBe('/zh/status/?test-no-local-bypass=1');
   });
 
 });

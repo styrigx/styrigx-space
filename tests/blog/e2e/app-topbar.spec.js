@@ -10,7 +10,7 @@
 // - P4-3 PR-4b 定稿：字标 · 页名胶囊 · 九宫格 · 快捷设置 · AI；头像搬进 AI 窗口头部；九宫格开导航面板 #sgx-nav（2×2 站点磁贴，博客「开」态）；
 //   快捷面板只有一页（四站同一套，「分享本页」磁贴在里面）。
 // - 2026-11 UI 重设计 PR-1 顶栏 v3：贴顶通栏 = 字标 ❯ styrigx :~$_ · 页名标记（不显示）· 外观 · 盾牌 · | · >_（NAVIGATE）· 头像，
-//   底边滑页进度条 .sgx-tb-prog；AI 浮钮右下角；NAVIGATE = 01 主页 … 05 旷野（博客「开」态）→ lang / layout → share / lock → STATUS；
+//   底边滑页进度条 .sgx-tb-prog；AI 浮钮右下角；NAVIGATE = 01 主页 … 04 日刻（博客「开」态）→ lang / layout → share / lock → STATUS；
 //   外观面板只有 MODE + PALETTE；每页底部 tmux 页脚（当前窗口 1:blog）。
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
@@ -72,7 +72,7 @@ test.describe('顶栏', () => {
       expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.split(' ').filter((c) => c !== 'sgx-tb-btn')[0]))).toEqual(['sgx-tb-shield', 'sgx-tb-quick', 'sgx-tb-grid', 'sgx-tb-sep', 'sgx-tb-term', 'sgx-tb-av'] /* v5 S6 顶栏 E */);
       await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
       await expect(page.locator('#site-nav > .sgx-tb-ai')).toHaveCount(1);
-      await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', path.startsWith('/blog/zh/') ? '/blog/zh/' : '/blog/');
+      await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', path.startsWith('/blog/zh/') ? '/zh/' : '/'); /* 2026-11-12：logo 四站统一回主站首页 */
       const acct = path.startsWith('/blog/zh/') ? 'https://styrigx.com/zh/account/' : 'https://styrigx.com/account/';
       await expect(page.locator('#site-nav .sgx-tb-me')).toHaveCount(0);
       await expect(page.locator('.sgx-topbar .sgx-tb-av')).toHaveAttribute('href', acct);
@@ -240,19 +240,20 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
     await expect(nav(page)).toHaveAttribute('data-state', 'open');
   }
 
-  test('NAVIGATE：01 主页 · 02 博客 · 03 奇趣 · 04 日刻 · 05 旷野（同主站）；博客是「开」态当前项（02/05）；实色面板；没有搜索框；外观面板只有 MODE + PALETTE', async ({ page }) => {
+  test('NAVIGATE：01 主页 · 02 博客 · 03 奇趣 · 04 日刻（同主站；05 旷野 2026-11-12 删除）；博客是「开」态当前项（02/04）；STATUS 跳转按钮去主站状态页；实色面板；没有搜索框；外观面板只有 MODE + PALETTE', async ({ page }) => {
     await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar .sgx-tb-grid')).toHaveAttribute('aria-expanded', 'false');
     await openNav(page);
     await expect(page.locator('.sgx-topbar .sgx-tb-grid')).toHaveAttribute('aria-expanded', 'true');
     const tiles = nav(page).locator('a.sgx-nav-tile');
-    await expect(tiles.locator('.sgx-nav-name')).toHaveText(['主页', '博客', '奇趣', '日刻', '旷野']);
-    await expect(tiles.locator('.sgx-nav-no')).toHaveText(['01', '02', '03', '04', '05']);
-    await expect(nav(page).locator('[data-nav-count]')).toHaveText('02/05');
+    await expect(tiles.locator('.sgx-nav-name')).toHaveText(['主页', '博客', '奇趣', '日刻']);
+    await expect(tiles.locator('.sgx-nav-no')).toHaveText(['01', '02', '03', '04']);
+    await expect(nav(page).locator('[data-nav-count]')).toHaveText('02/04');
     await expect(nav(page).locator('[data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/zh/');
     await expect(nav(page).locator('[data-nav="daymark"]')).toHaveAttribute('href', '/daymark/zh/');
-    /* 05 旷野：对齐 PR-B 起链到独立页 /wild/ */
-    await expect(nav(page).locator('[data-nav="wild"]')).toHaveAttribute('href', 'https://styrigx.com/zh/wild/');
+    await expect(nav(page).locator('[data-nav="wild"]')).toHaveCount(0);
+    await expect(nav(page).locator('.sgx-nav-st-go')).toHaveAttribute('href', 'https://styrigx.com/zh/status/');
+    await expect(nav(page).locator('a.sgx-nav-flink').first()).toHaveAttribute('href', 'https://styrigx.com/zh/status/');
     await expect(nav(page).locator('[data-nav="book"]')).toHaveCount(0);
     await expect(page.locator('#sgx-nav input, #sgx-nav [type="search"], #sgx-nav [role="search"], #sgx-nav a[href*="/search/"]')).toHaveCount(0);
     await expect(nav(page).locator('[aria-current="page"]')).toHaveCount(1);
@@ -319,11 +320,11 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
     await openNav(page);
   });
 
-  test('英文：Home / Blog / Curio / Daymark / Wild；顶栏头像去主站英文账号旧地址', async ({ page }) => {
+  test('英文：Home / Blog / Curio / Daymark；顶栏头像去主站英文账号旧地址', async ({ page }) => {
     await preferLang(page, 'en');
     await page.goto('/blog/', { waitUntil: 'domcontentloaded' });
     await openNav(page);
-    await expect(nav(page).locator('.sgx-nav-name')).toHaveText(['Home', 'Blog', 'Curio', 'Daymark', 'Wild']);
+    await expect(nav(page).locator('.sgx-nav-name')).toHaveText(['Home', 'Blog', 'Curio', 'Daymark']);
     await expect(nav(page).locator('[data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/');
     await expect(nav(page).locator('[data-nav="blog"]')).toHaveAttribute('href', '/blog/');
     await expect(page.locator('.sgx-topbar .sgx-tb-av')).toHaveAttribute('href', 'https://styrigx.com/account/');

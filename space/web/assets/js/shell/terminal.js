@@ -106,7 +106,7 @@ export function termStrings(doc) {
 }
 
 /** 打错命令时拿来比的真命令（命令名 + 几个常用的整句） */
-const SUGGEST = COMMANDS.concat(['open blog', 'open curio', 'open daymark', 'open wild', 'cat daymark/today']);
+const SUGGEST = COMMANDS.concat(['open blog', 'open curio', 'open daymark', 'cat daymark/today']);
 
 /**
  * tab 补全：只补最后一个词（第一个词补命令名，第二个词按命令补参数）。

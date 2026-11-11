@@ -21,7 +21,7 @@ const OLD = 'settings';
 const OLD_PATH = '/' + OLD + '/';
 
 const cats = /** @type {any} */ (yaml.load(rd('space/web/data/space-cats.yaml'))).cats.map((/** @type {any} */ c) => String(c.id));
-/** 旷野页之下的新地址（英文；中文前加 /zh，P4-3 PR-4c） */
+/** 主站门内子页的地址（英文；中文前加 /zh，P4-3 PR-4c） */
 const NEW_PATHS = cats.map((c) => '/' + c + '/'); /* 进站 v3 L1：/security/、/security/lock/、/security/tempkeys/ 删了（盾牌下拉） */
 
 /**
@@ -60,7 +60,7 @@ export function reservedSegments() {
 }
 
 test('space-cats.yaml ↔ content url 一致；没有 settings 一层（数字健康区域 SPACE_SUB_RE v6 P4 删除）', async () => {
-  assert.deepEqual([...cats].sort(), ['wild'], '对齐 PR-B：数字健康 / 服务状态 / 关于本站并进 /wild/；对齐 PR-C：风格页 /theme/ 退役；进站 v3 L1：安全页删了（盾牌下拉）');
+  assert.deepEqual([...cats].sort(), ['status'], '2026-11-12：旷野删除，状态单独成页 /status/；对齐 PR-B：数字健康 / 关于本站删除；对齐 PR-C：风格页 /theme/ 退役；进站 v3 L1：安全页删了（盾牌下拉）');
   /* content：中英两份，url 都是新地址 */
   const urls = [];
   for (const dir of ['space/web/content', 'space/web/content/zh']) {
@@ -90,13 +90,12 @@ test('space-cats.yaml ↔ content url 一致；没有 settings 一层（数字�
   /* P4-3 PR-4c：/en/… 旧地址删除不 301，_redirects 里没有 /en/ 开头的规则 */
   assert.doesNotMatch(red, /^\/en\//m);
   assert.ok(!red.includes(OLD_PATH), '_redirects 里没有旧设置层');
-  /* 对齐 PR-B：旧的三页 301 到旷野对应的锚点（中英）；v5 S7：about 卡挪到主页首屏，/about/ → /#about */
+  /* v5 S7：about 卡挪到主页首屏，/about/ → /#about；2026-11-12：旷野删除，/wild/ → /status/（中英），原 /status/ → /wild/#status 两条删除 */
   assert.match(red, /^\/about\/\s+\/#about\s+301$/m, '/about/ → /#about');
   assert.match(red, /^\/zh\/about\/\s+\/zh\/#about\s+301$/m, '/zh/about/ → /zh/#about');
-  for (const [old, anchor] of [['status', 'status']]) {
-    assert.match(red, new RegExp(`^/${old}/\\s+/wild/#${anchor}\\s+301$`, 'm'), `/${old}/ → /wild/#${anchor}`);
-    assert.match(red, new RegExp(`^/zh/${old}/\\s+/zh/wild/#${anchor}\\s+301$`, 'm'), `/zh/${old}/ → /zh/wild/#${anchor}`);
-  }
+  assert.match(red, /^\/wild\/\s+\/status\/\s+301$/m, '/wild/ → /status/');
+  assert.match(red, /^\/zh\/wild\/\s+\/zh\/status\/\s+301$/m, '/zh/wild/ → /zh/status/');
+  assert.doesNotMatch(red, /^\/(zh\/)?status\/\s/m, '/status/ 不再是跳转来源');
   /* v6 P4：/wellbeing/ 跳转随数字健康整套删除（定稿 v5.5 §四） */
   assert.doesNotMatch(red, /^\/(zh\/)?wellbeing\//m, '_redirects 里没有 /wellbeing/');
 });
@@ -142,19 +141,21 @@ test('构建产物：没有 settings/ 目录，任何 HTML 都没有 href 指向
   }
   assert.ok(n > 20, '应扫到一批 HTML');
   assert.deepEqual(bad, [], '这些页面还有指向旧设置层的链接');
-  /* 主页：页名、顶栏没有标签；对齐 PR-B 起主页叫「主页 / Home」，旷野（[04] 一节）有入口（安全在顶栏盾牌下拉，进站 v3 L1 起没有页面）；旧三页不再生成 */
+  /* 主页：页名、顶栏没有标签；对齐 PR-B 起主页叫「主页 / Home」，2026-11-12 起没有 [04] 旷野一节（状态页从 NAVIGATE STATUS 进；安全在顶栏盾牌下拉，进站 v3 L1 起没有页面）；旧三页不再生成 */
   /* P4-3 PR-4c：英文在根，中文在 /zh/ */
   const home = readFileSync(path.join(REPO, 'space/web/public/zh/index.html'), 'utf8');
   assert.match(home, /<title>主页 \| Styrigx<\/title>/);
   assert.match(home, /<span class="?sgx-tb-title"?>主页<\/span>/);
   assert.doesNotMatch(home, /sgx-tb-tab/);
-  assert.ok(home.includes('href="/zh/wild/"'), '主页有 /zh/wild/ 入口');
+  assert.ok(!home.includes('/zh/wild/'), '主页没有 /zh/wild/ 入口');
+  assert.ok(home.includes('href="/zh/status/"'), '主页（NAVIGATE STATUS）有 /zh/status/ 入口');
   assert.ok(!home.includes('href="/zh/security/'), '主页没有 /zh/security/ 链接');
   const en = readFileSync(path.join(REPO, 'space/web/public/index.html'), 'utf8');
   assert.match(en, /<title>Home \| Styrigx<\/title>/);
-  assert.ok(en.includes('href="/wild/"'), '主页有 /wild/ 入口');
+  assert.ok(!en.includes('href="/wild/"'), '主页没有 /wild/ 入口');
+  assert.ok(en.includes('href="/status/"'), '主页（NAVIGATE STATUS）有 /status/ 入口');
   for (const pre of ['', 'zh/']) assert.ok(!existsSync(path.join(REPO, 'space/web/public', pre + 'security')), pre + 'security/ 不再生成（301 到盾牌）');
-  for (const old of ['status', 'about', 'wellbeing']) for (const pre of ['', 'zh/']) {
+  for (const old of ['wild', 'about', 'wellbeing']) for (const pre of ['', 'zh/']) {
     assert.ok(!existsSync(path.join(REPO, 'space/web/public', pre + old, 'index.html')), `${pre}${old}/ 不再生成`);
   }
 });

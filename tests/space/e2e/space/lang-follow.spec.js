@@ -50,24 +50,24 @@ test('system 模式：浏览器英文时 /zh/ 跳到 / 且不循环', async ({ p
   expect(isZh(pg.url())).toBe(false);
 });
 
-test('明确偏好 sgx-lang=zh 时 /wild/ 跳到 /zh/wild/（进站 v3 L1：/security/ 已删）', async ({ page: pg }) => {
+test('明确偏好 sgx-lang=zh 时 /status/ 跳到 /zh/status/（进站 v3 L1：/security/ 已删）', async ({ page: pg }) => {
   await blockExternalRequests(pg);
   await pg.addInitScript(() => {
     try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
   });
-  await pg.goto('/wild/', { waitUntil: 'domcontentloaded' });
-  await pg.waitForURL((url) => url.pathname === '/zh/wild/', { timeout: 10000 });
-  expect(new URL(pg.url()).pathname).toBe('/zh/wild/');
+  await pg.goto('/status/', { waitUntil: 'domcontentloaded' });
+  await pg.waitForURL((url) => url.pathname === '/zh/status/', { timeout: 10000 });
+  expect(new URL(pg.url()).pathname).toBe('/zh/status/');
 });
 
-test('明确偏好 sgx-lang=en 时 /zh/wild/ 跳到 /wild/', async ({ page: pg }) => {
+test('明确偏好 sgx-lang=en 时 /zh/status/ 跳到 /status/', async ({ page: pg }) => {
   await blockExternalRequests(pg);
   await pg.addInitScript(() => {
     try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {}
   });
-  await pg.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
-  await pg.waitForURL((url) => url.pathname === '/wild/', { timeout: 10000 });
-  expect(new URL(pg.url()).pathname).toBe('/wild/');
+  await pg.goto('/zh/status/', { waitUntil: 'domcontentloaded' });
+  await pg.waitForURL((url) => url.pathname === '/status/', { timeout: 10000 });
+  expect(new URL(pg.url()).pathname).toBe('/status/');
 });
 
 test('旧的 /en/… 删除不 301：静态站里不存在（线上 404，部署后另行手动验收）', async ({ page: pg }) => {
@@ -77,8 +77,8 @@ test('旧的 /en/… 删除不 301：静态站里不存在（线上 404，部署
   }
 });
 
-test('Auto（system）：深链不跳——浏览器英文打开 /zh/wild/、浏览器中文打开 /wild/ 都停在原地', async ({ browser }) => {
-  for (const [locale, path] of [['en-US', '/zh/wild/'], ['zh-CN', '/wild/']]) {
+test('Auto（system）：深链不跳——浏览器英文打开 /zh/status/、浏览器中文打开 /status/ 都停在原地', async ({ browser }) => {
+  for (const [locale, path] of [['en-US', '/zh/status/'], ['zh-CN', '/status/']]) {
     const ctx = await browser.newContext({ locale, viewport: { width: 412, height: 915 } });
     const pg = await ctx.newPage();
     await blockExternalRequests(pg);
@@ -107,7 +107,7 @@ test('NAVIGATE 语言行：EN | Auto | 中文；深链上选 Auto 写 sgx-lang=s
   await pg.addInitScript(() => {
     try { if (!sessionStorage.getItem('lf-seeded')) { localStorage.setItem('sgx-lang', 'zh'); sessionStorage.setItem('lf-seeded', '1'); } } catch (e) {}
   });
-  await pg.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
+  await pg.goto('/zh/status/', { waitUntil: 'domcontentloaded' });
   await expect(pg.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
   await pg.locator('.sgx-tb-grid').click();
   await expect(pg.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
@@ -118,16 +118,16 @@ test('NAVIGATE 语言行：EN | Auto | 中文；深链上选 Auto 写 sgx-lang=s
   await expect(seg.locator('[aria-checked="true"]')).toHaveAttribute('data-qp-lang', 'system');
   expect(await pg.evaluate(() => localStorage.getItem('sgx-lang'))).toBe('system');
   await pg.waitForTimeout(800);
-  expect(new URL(pg.url()).pathname).toBe('/zh/wild/');
+  expect(new URL(pg.url()).pathname).toBe('/zh/status/');
   await pg.reload({ waitUntil: 'domcontentloaded' });
   await pg.waitForTimeout(1000);
-  expect(new URL(pg.url()).pathname).toBe('/zh/wild/');
+  expect(new URL(pg.url()).pathname).toBe('/zh/status/');
 });
 
 test('NAVIGATE 语言行：没存过选择的访客打开面板 = Auto 亮', async ({ page: pg }) => {
   await blockExternalRequests(pg);
   await clearLang(pg);
-  await pg.goto('/wild/', { waitUntil: 'domcontentloaded' });
+  await pg.goto('/status/', { waitUntil: 'domcontentloaded' });
   await expect(pg.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
   await pg.locator('.sgx-tb-grid').click();
   await expect(pg.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
@@ -146,30 +146,30 @@ async function seedLangOnce(pg, v) {
 test.describe('页脚语言链接（桌面）', () => {
   test.use({ viewport: { width: 1366, height: 900 } });
 
-  test('页脚语言链接：存了 en，在 /wild/ 点页脚 zh → 到 /zh/wild/ 停住，sgx-lang 改存 zh，重新载入也不弹回', async ({ page: pg }) => {
+  test('页脚语言链接：存了 en，在 /status/ 点页脚 zh → 到 /zh/status/ 停住，sgx-lang 改存 zh，重新载入也不弹回', async ({ page: pg }) => {
     await blockExternalRequests(pg);
     await seedLangOnce(pg, 'en');
-    await pg.goto('/wild/', { waitUntil: 'domcontentloaded' });
+    await pg.goto('/status/', { waitUntil: 'domcontentloaded' });
     const zh = pg.locator('.sgx-foot-lang a[hreflang="zh"]');
     await expect(zh).toHaveAttribute('data-sgx-lang-set', '');
     await zh.click();
-    await pg.waitForURL((u) => u.pathname === '/zh/wild/', { timeout: 10000 });
+    await pg.waitForURL((u) => u.pathname === '/zh/status/', { timeout: 10000 });
     await pg.waitForTimeout(1000);
-    expect(new URL(pg.url()).pathname).toBe('/zh/wild/');
+    expect(new URL(pg.url()).pathname).toBe('/zh/status/');
     expect(await pg.evaluate(() => localStorage.getItem('sgx-lang'))).toBe('zh');
     await pg.reload({ waitUntil: 'domcontentloaded' });
     await pg.waitForTimeout(800);
-    expect(new URL(pg.url()).pathname).toBe('/zh/wild/');
+    expect(new URL(pg.url()).pathname).toBe('/zh/status/');
   });
 
-  test('页脚语言链接：存了 zh，在 /zh/wild/ 点页脚 en → 到 /wild/ 停住，sgx-lang 改存 en', async ({ page: pg }) => {
+  test('页脚语言链接：存了 zh，在 /zh/status/ 点页脚 en → 到 /status/ 停住，sgx-lang 改存 en', async ({ page: pg }) => {
     await blockExternalRequests(pg);
     await seedLangOnce(pg, 'zh');
-    await pg.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
+    await pg.goto('/zh/status/', { waitUntil: 'domcontentloaded' });
     await pg.locator('.sgx-foot-lang a[hreflang="en"]').click();
-    await pg.waitForURL((u) => u.pathname === '/wild/', { timeout: 10000 });
+    await pg.waitForURL((u) => u.pathname === '/status/', { timeout: 10000 });
     await pg.waitForTimeout(1000);
-    expect(new URL(pg.url()).pathname).toBe('/wild/');
+    expect(new URL(pg.url()).pathname).toBe('/status/');
     expect(await pg.evaluate(() => localStorage.getItem('sgx-lang'))).toBe('en');
   });
 });

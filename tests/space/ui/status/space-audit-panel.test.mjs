@@ -82,9 +82,9 @@ test('renderAudit：IP 前缀转义；没有前缀显示「未知 IP」；没有
 });
 
 test('模板：默认收起的 <details id="st-audit">，标题 / 摘要中英都有，没有内联脚本，没有角色判断', () => {
-  /* 对齐 PR-B：服务状态并进旷野页 #status（_default/wild.html），原 status.html 删除 */
-  assert.ok(!existsSync(new URL('../../../../space/web/layouts/_default/status.html', import.meta.url)), '旧 status.html 已删');
-  const tpl = read('space/web/layouts/_default/wild.html');
+  /* 2026-11-12：旷野删除，服务状态单独成页（_default/status.html），wild.html 删除 */
+  assert.ok(!existsSync(new URL('../../../../space/web/layouts/_default/wild.html', import.meta.url)), 'wild.html 已删');
+  const tpl = read('space/web/layouts/_default/status.html');
   const m = tpl.match(/<details id="st-audit"[^>]*>/);
   assert.ok(m, '有 <details id="st-audit">');
   assert.ok(!/\bopen\b/.test(m[0]), '默认收起');

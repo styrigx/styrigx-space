@@ -58,7 +58,7 @@ test.describe('AI 窗口从浮钮展开（2026-11-08）', () => {
   test('手机 390 深色：从浮钮向左上展开（原点 = 浮钮中心、scale + opacity、ease-out 240ms），悬浮卡左右留 12px、浮钮淡出；× 关、焦点回浮钮', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ colorScheme: 'dark' });
-    await go(page, '/zh/wild/');
+    await go(page, '/zh/status/');
     await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'phone');
     const p = await clickAndProbe(page);
     expect(Math.abs(p.dx)).toBeLessThanOrEqual(2);
@@ -105,7 +105,7 @@ test.describe('AI 窗口从浮钮展开（2026-11-08）', () => {
 
   test('手机：关闭反向收回浮钮（closing 时还在 scale 过渡里、原点不变）；Esc / 点外部也关，焦点都回浮钮；页面不可交互（点到的是遮罩）', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await go(page, '/zh/wild/');
+    await go(page, '/zh/status/');
     await fab(page).click();
     await expect(ai(page)).toHaveAttribute('data-state', 'open');
     await idle(page);
@@ -130,7 +130,7 @@ test.describe('AI 窗口从浮钮展开（2026-11-08）', () => {
 
   test('电脑 1280：浮钮上方 390 × 560，从浮钮展开（原点 = 浮钮中心）；不压暗；浮钮变关闭态，再点浮钮收回、焦点回浮钮', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await go(page, '/zh/wild/');
+    await go(page, '/zh/status/');
     await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'desktop');
     const p = await clickAndProbe(page);
     expect(Math.abs(p.dx)).toBeLessThanOrEqual(2);
@@ -160,7 +160,7 @@ test.describe('AI 窗口从浮钮展开（2026-11-08）', () => {
   test('减弱动效：不缩放（transform 一直是 none），只短淡入淡出；开合照常、焦点回浮钮', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await go(page, '/zh/wild/');
+    await go(page, '/zh/status/');
     const p = await clickAndProbe(page);
     expect(p.transform).toBe('none');
     expect(p.props).not.toContain('transform');

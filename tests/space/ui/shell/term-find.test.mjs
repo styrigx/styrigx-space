@@ -123,7 +123,7 @@ test('pathOf：绝对地址 → 站内路径（保留 #）；相对地址原样'
   assert.equal(pathOf('https://styrigx.com/blog/post/x/'), '/blog/post/x/');
   assert.equal(pathOf('https://styrigx.com'), '/');
   assert.equal(pathOf('https://styrigx.com/curio/finds/?a=1#c/x'), '/curio/finds/#c/x');
-  assert.equal(pathOf('/wild/'), '/wild/');
+  assert.equal(pathOf('/status/'), '/status/');
 });
 
 test('访客判断只看服务端（core/who.js，v6 P4 起只问 whoami）：没回答 = nobody；whoami 回了用户 = 那个用户', async () => {
