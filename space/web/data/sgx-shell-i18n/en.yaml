@@ -221,6 +221,7 @@ term:
   usageUseradd: "usage: useradd <name> [-e YYYY-MM-DD] [-G group,group]"
   usageUserdel: "usage: userdel <name>"
   usageUsermod: "usage: usermod -aG | -rG <group[,group]> <name>"
+  usageRescue: "usage: rescue"
   needRoot: "not signed in to the account · run {x} first"
   needRoot6: "permission denied · run {x} first"
   needSu: "not signed in · {x} first"
@@ -260,6 +261,7 @@ man:
   useradd: "create a user (one-time password, shown once)"
   userdel: "delete a user with its sessions, keys and groups"
   usermod: "add a user to groups or remove it from them"
+  rescue: "enter the recovery key → a 15-min root rescue session"
 # 站内终端 man 页的正文（S9：DESCRIPTION / AUTH / NOTES；= assets/js/shell/term/man/pages.js 的英文底，行数一一对应，tests/space/ui/shell/man-i18n.test.mjs 查两边一致）。
 manBody:
   sudo:
@@ -347,6 +349,12 @@ manBody:
     auth: "root, or sudo usermod (sudoers)"
     notes:
       - "Removing the last member of wheel or sudoers asks first."
+  rescue:
+    desc:
+      - "Only: passwd, passkey, whoami, groups, exit, lock"
+      - "A used key can’t be used again; after a rescue, set a new value in Cloudflare"
+    notes:
+      - "Changing the key isn’t done in the terminal; Gray changes it in the Cloudflare dashboard"
 # 终端窗口底部的按键提示行（Gray 2026-11-09 细节 1；shell/keyhint.js KH_EN 是英文底）：键名 = 终端状态；触屏只显示 back（「‹ 返回」按钮）
 kh:
   cmd: "enter run · esc close"
@@ -847,3 +855,6 @@ identity:
   passwdDone: "✓ password changed · other sessions signed out"
   usageSudo: "usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who"
   usageSu: "usage: su <user> | su root"
+  rescueKey: "Recovery key:"
+  rescueLimit: "only resets root’s credentials · 15 min"
+  rescueRotate: "A used key can’t be used again · after a rescue, set a new value in Cloudflare"

@@ -22,7 +22,7 @@ function layers(session) {
   const calls = [];
   const rec = (n, ret) => (...a) => { calls.push([n, ...a]); return ret; };
   const ident = { hasSession: () => session, cmdWhoami: rec('whoami'), cmdSu: rec('su'), cmdGroups: rec('groups'), cmdWho: rec('who'), cmdAdmin: rec('admin'),
-    cmdSudo: rec('sudo'), cmdExit: rec('exit', session), cmdLock: rec('lock'), cmdPasswd: rec('passwd') };
+    cmdSudo: rec('sudo'), cmdExit: rec('exit', session), cmdLock: rec('lock'), cmdPasswd: rec('passwd'), cmdRescue: rec('rescue') };
   const space = { inReset: false, unlock: rec('space.unlock'), lockNow: rec('space.lockNow'), cmdReauth: rec('space.cmdReauth') };
   const acct = { inReset: false, cmdSession: rec('acct.cmdSession'), cmdExit: rec('acct.cmdExit'), cmdPasswd: rec('acct.cmdPasswd') };
   return { v: { space, acct, ident }, calls };
@@ -133,6 +133,28 @@ test('命令分流：exit / lock / passwd 有 v6 会话转身份层，没有照�
   assert.deepEqual(L2.calls.at(-1), ['acct.cmdPasswd', true]);
   await run(old, 'lock', L2.v);
   assert.deepEqual(L2.calls.at(-1), ['space.lockNow']);
+});
+
+test('P3 rescue（定稿 v5.2 §九）：访客敲 rescue → 身份层（输恢复钥匙由身份层问、判断在服务端）；带参数 → 用法；man rescue 有页、索引不列', async () => {
+  const sh = createShell({ act, storage: mem(), who: fixedWho('nobody') });
+  const L = layers(false);
+  const r = await run(sh, 'rescue', L.v);
+  assert.ok(r.flow, '交给身份层');
+  assert.deepEqual(L.calls.at(-1), ['rescue']);
+  const bad = await run(sh, 'rescue x', L.v);
+  assert.ok(bad.out.length && !bad.flow);
+  assert.equal(L.calls.length, 1, '参数不对不进身份层');
+  const pg = await run(sh, 'man rescue');
+  assert.equal(pg.pager, 'RESCUE(1)');
+  for (const w of ['nobody', 'link', 'styrigx', 'root', 'u:alice', 'u:root']) {
+    const n = (await run(createShell({ act, storage: mem(), who: fixedWho(w) }), 'man')).out.slice(1).map((o) => o.seg[0][1]);
+    assert.ok(!n.includes('rescue'), w + ' 索引不列 rescue');
+  }
+  /* 身份层：已登录先 exit；成功后提示 15 分钟、去 Cloudflare 换新值（文案只取 v6 命令手册「救援」节） */
+  const src = rd('space/web/assets/js/shell/identity/layer.js');
+  assert.match(src, /C\.cmdRescue = function \(\) \{\n\s+if \(me\(\)\) \{ C\.err\(t\('exitFirst'/);
+  assert.match(src, /api\.post\('rescue', \{ key: key \}\)/);
+  assert.match(src, /C\.ok\(t\('rootOn'\), t\('rescueLimit'\)\); C\.note\(t\('rescueRotate'\)\)/);
 });
 
 test('参数解析（ident-args，与服务端同写法）', () => {

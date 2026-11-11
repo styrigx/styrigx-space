@@ -61,11 +61,17 @@
 
 ### 2.8 恢复（救援，P3 实现）
 
-- 恢复钥匙**一把，只管 root**；存账号 D1（`account_recovery_key`：加盐 + pepper 哈希，`created_at` / `used_at`，同一时刻最多一把有效），**不再用 Worker Secret**。终端生成新值、存哈希、只显示一次（Gray 在终端生成）。
-- 访客走救援入口，输恢复钥匙后直接签 **15 分钟一次性 root 会话**（单用户模式），不续期；会话带 rescue 标志，命令分发器白名单只放 `passwd`、`passkey`、恢复钥匙命令、`whoami`、`groups`、`exit`、`lock`；救援栈只有 root 一层，**exit 直接回访客**。
-- 用后钥匙作废，终端强制生成新钥匙；重置后相关用户 epoch +1；救援入口单独限流（渐进延迟）+ 审计。
+以定稿 v5.2 §九为准（P3 改写本节；原「D1 哈希 + 终端生成新钥匙」与「未决：存放方案」两处作废）：
+
+- 恢复钥匙**一把，只管 root**，放 **Cloudflare Secrets Store**（每账号只能一个 Store，与其他 Secret 同库）：`SGX_ACCOUNT_RESCUE_KEY`（Gray 2026-11-11 05:21 定名，05:23 已在现有 Store 建好，Workers 范围，32 位以上随机值）。Gray 在 dashboard 设值、换值，改完运行时即时生效，不用重部署；平时不动，不定期轮换，每次救援后换值。账号 Worker 只加绑定。
+- 访客走救援入口（命令 `rescue`，Gray 2026-11-11 13:17 定），输恢复钥匙，Worker 读 Store 做 constant-time 比对，通过则签 **15 分钟一次性 root 会话**（单用户模式），不续期；会话带 rescue 标志。
+- 指纹：签发成功时在 D1 `account_recovery_key`（复用 P1 的表）记该值哈希（不存明文），永久保留；同值再用直接拒绝；指纹写失败则拒绝救援（fail-closed）。
+- 白名单：`passwd`、`passkey`、`whoami`、`groups`、`exit`、`lock`，**不含换钥匙**；按 §2.3 先于 root 放行检查（`precedence()` 一处）。救援栈只有 root 一层，**exit 直接回访客**。
+- 救援成功后提示 Gray 去 dashboard 换新值；重置后相关用户 epoch +1；救援入口单独限流（渐进延迟）+ 审计（`account_user_audit`）。
+- 代码纪律：Worker 运行时绑定只有 `get()`；代码不出现 Store 写 / 删调用，合并前 grep 静态检查（单测 `tests/workers/account/v6-rescue.test.mjs`）。Edit 权限风险在部署用的 CF token（范围待确认，必要时收窄）。
+- 全丢：能登 Cloudflare 就设新值，不做破窗。
+- 两把旧钥匙（`SGX_SPACE_RECOVERY_KEY`、`SGX_ACCOUNT_RECOVERY_KEY`）P4 删。
 - 普通用户忘密码由 root 重置。
-- 未决（Gray 与 Muse 讨论中）：恢复钥匙存放方案（D1 哈希 vs Secrets Store）。P1 只建空表 `account_recovery_key`，P3 前定，可能改回 Secrets Store（届时空表随 P3 / P4 处理）。
 
 ### 2.9 安全细节
 
@@ -133,7 +139,7 @@
 |---|---|
 | P1 | 新表；迁移对照表与脚本（不写生产）；组模型与集中权限判断；路由盘点表；admit 新路径与旧路径并存（网关在请求带新会话 cookie、旧进站会话不成立时问 `AccountVerifier.admit`）；epoch bump；审计；STEPUP / APP 映射；本 ADR。旧入口、旧会话、旧命令不动 |
 | P2 | su、sudo、exit、lock、useradd / userdel / usermod / passwd <名>、groups、who；身份栈；前台空闲计时；头像 = whoami；接口改认新结论 |
-| P3 | 恢复钥匙合一 + 救援入口；端到端跑通（含真机）；Gray 建新钥匙值 |
+| P3 | 绑定 `SGX_ACCOUNT_RESCUE_KEY`（Gray 已在 Store 建好）+ 救援入口 `rescue`；端到端跑通（含真机） |
 | P4 | P1–P3 线上跑稳后：处理有效分享链接后删分享短链；删站点核心进站签发、sudo root reauth、sudo -v、lock passwd / passkey、旧密钥（先核代码与绑定） |
 
 回滚：每段单独 PR；P4 前在 dashboard 演练一次重部署上一版 Worker，作为最后手段。外观改动先截图给 Gray 批；不 force-push。
@@ -146,6 +152,7 @@
 | 2026-11-11 | P2a：permits 三步顺序（救援 → root → 档）、owner 档（名片 PUT）、`/api/identity`（su / sudo / exit / idle / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>）、身份栈写操作、两维限流、防枚举、pepper 绑定、数据按 uid（迁移待批）；§2.13 | P2a |
 | 2026-11-11 | P2b：身份命令进全站终端、提示符与头像跟 v6 身份 | #398 |
 | 2026-11-11 | P2c：名片 GET 公开、sudo 借 root 执行账号 Worker 内任一接口、到期满 30 天自动删除（墓碑、uid 不复用）、root 特权内容操作审计、admit 先拒未知档；§2.14 | P2c |
+| 2026-11-11 | P3：账号 Worker 绑定 `SGX_ACCOUNT_RESCUE_KEY`；`POST /api/identity` action `rescue`（读 Store 恒定时间比对 → 15 分钟一次性 root 救援会话；`account_recovery_key` 记指纹、同值复用拒、指纹写失败拒；单独限流 + 审计）；终端 `rescue`；§2.8 改为与定稿 v5.2 §九一致（Secrets Store，删「未决」） | P3 |
 | 2026-11-11 | 割接：访客入口改 su（头像 / 盾牌 / 上锁处预填 `su `）、su 的提示 `Password:`；网关 / 账号 / 奇趣 / 日刻其余路由接 v6 会话（admit 带 action、`private` action）、root 特权内容操作经 `auditRoot` 留痕；§2.15 | 割接 |
 
 ## 5. 后果

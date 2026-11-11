@@ -72,6 +72,7 @@ export const TERM_EN = {
   usageUseradd: 'usage: useradd <name> [-e YYYY-MM-DD] [-G group,group]',
   usageUserdel: 'usage: userdel <name>',
   usageUsermod: 'usage: usermod -aG | -rG <group[,group]> <name>',
+  usageRescue: 'usage: rescue',
   themeSet: 'theme → {x}',
   themeOpen: 'appearance panel opened',
   asking: 'asking Gray AI …',

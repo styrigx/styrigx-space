@@ -90,4 +90,10 @@ export const PAGES = Object.freeze({
     auth: 'root, or sudo usermod (sudoers)',
     notes: ['Removing the last member of wheel or sudoers asks first.'],
   },
+  /* v6 P3 救援入口（定稿 v5.2 §九；文字同 v6 命令手册「救援」节） */
+  rescue: {
+    d: 'enter the recovery key → a 15-min root rescue session', syn: ['rescue'],
+    desc: ['Only: passwd, passkey, whoami, groups, exit, lock', 'A used key can’t be used again; after a rescue, set a new value in Cloudflare'],
+    notes: ['Changing the key isn’t done in the terminal; Gray changes it in the Cloudflare dashboard'],
+  },
 });

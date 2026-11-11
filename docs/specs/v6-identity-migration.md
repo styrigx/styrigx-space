@@ -23,7 +23,7 @@
 | `account_sessions` | 会话 | `id` = 令牌的 SHA-256；`uid` = 栈底；`epoch` 快照；`rescue`；`created_at` / `expires_at` / `renewed_at` |
 | `account_session_stack` | 身份栈 | 挂在会话下，只有深度 1（su 压上来的 root）；`epoch` 快照；`expires_at`（≤ 1 小时） |
 | `account_user_audit` | 身份审计 | uid、命令、结果、时间、IP 前缀；保留 90 天 |
-| `account_recovery_key` | 恢复钥匙（一把，只管 root） | 加盐 + pepper 哈希；`created_at` / `used_at`；部分唯一索引保证同一时刻最多一把有效。**P1 只建表，不生成钥匙值**（P3 由 Gray 在终端生成） |
+| `account_recovery_key` | 救援钥匙指纹（定稿 v5.2 §九：钥匙本身在 Secrets Store `SGX_ACCOUNT_RESCUE_KEY`） | `id` = 用过的钥匙值的 SHA-256（不存明文），`created_at` / `used_at` = 救援签发时刻，永久保留；同值再用直接拒。P1 建表，P3 起写入 |
 
 表名都带 `account_` 前缀：预览库 `styrigx-test-preview` 是网关 / 账号共用的，裸名 `audit`、`passkey` 会和网关旧表撞名（偏离定稿的表名写法，内容不变）。
 
@@ -39,7 +39,7 @@
 | `password` realm='lock'（进站密码） | styrigx-space-core | `account_user_password` uid **1000（styrigx）** | `SGX_SPACE_PASSWORD_PEPPER` → `pepper_id = 'space'` | 跨库：只读导出 → 生成 SQL，record 原样 |
 | `passkey` realm='lock'（进站通行密钥） | styrigx-space-core | `account_user_passkey` uid **1000（styrigx）** | — | 跨库：只读导出；credential_id / record 逐字节照抄 |
 | `user_handle` realm='lock' | styrigx-space-core | 上一行每把钥匙的 `user_handle` / `legacy_handle` | — | 逐字节照抄 |
-| `SGX_ACCOUNT_RECOVERY_KEY`、`SGX_SPACE_RECOVERY_KEY`（两把恢复钥匙，Secrets Store） | — | `account_recovery_key`（一把，只管 root） | 新钥匙用账号 pepper | **不搬值**：P3 由 Gray 在终端生成新钥匙；旧的两把 P4 删 |
+| `SGX_ACCOUNT_RECOVERY_KEY`、`SGX_SPACE_RECOVERY_KEY`（两把恢复钥匙，Secrets Store） | — | Secrets Store `SGX_ACCOUNT_RESCUE_KEY`（一把，只管 root）；`account_recovery_key` 改作救援指纹表 | — | **不搬值**：新钥匙 Gray 已在 Store 建好，P3 只加绑定；旧的两把 P4 删（定稿 v5.2 §九） |
 
 ### 2.2 画像与数据（归 styrigx）
 
@@ -82,7 +82,7 @@
 |---|---|
 | `SGX_SPACE_PRIVATE` / `SGX_SPACE_PUBLIC`（进站会话、锁屏短票） | v6 会话是 D1 里的不透明 id，不需要签名 → **P4 删** |
 | `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC`（账号三张票） | 若 curio / daymark 的子应用令牌仍要签名就**只留这一对**，否则也删 |
-| `SGX_SPACE_RECOVERY_KEY`、`SGX_ACCOUNT_RECOVERY_KEY` | 合成 D1 里的一把（`account_recovery_key`）→ 两把 Secret **P4 删** |
+| `SGX_SPACE_RECOVERY_KEY`、`SGX_ACCOUNT_RECOVERY_KEY` | 换成 Secrets Store 里的一把 `SGX_ACCOUNT_RESCUE_KEY`（P3 绑定）→ 两把旧 Secret **P4 删** |
 | `SGX_SPACE_PASSWORD_PEPPER`、`SGX_ACCOUNT_PASSWORD_PEPPER` | 见 §4 |
 
 删任何 Secret 前先核 main 的代码与 wrangler 绑定。

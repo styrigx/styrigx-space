@@ -455,13 +455,14 @@ test('救援会话：白名单 whoami / passwd / passkey / groups / exit / lock 
   assert.equal(rows(env, 'SELECT * FROM account_sessions WHERE rescue = 1').length, 0);
 });
 
-test('救援会话：15 分钟、不续期；签发只经 issueRescueSession（P2 没有任何调用方）', async () => {
+test('救援会话：15 分钟、不续期；签发只经 issueRescueSession，唯一调用方是 P3 救援入口 core/rescue.js', async () => {
   const env = await setup();
   const s = await stack.issueRescueSession(env, { epoch: 0 }, 1000);
   assert.equal(s.expiresAt - 1000, 15 * 60 * 1000);
   assert.equal(await stack.renewSession(env, s.id, s.token, 2000), null);
   const src = readFileSync(SRC + 'api/identity.js', 'utf8') + readFileSync(SRC + 'rpc/account-service.js', 'utf8');
-  assert.doesNotMatch(src, /issueRescueSession/, 'P2 不开救援入口（P3）');
+  assert.doesNotMatch(src, /issueRescueSession/, '接口层不直接签救援会话（只经 core/rescue.js，先验恢复钥匙）');
+  assert.match(readFileSync(SRC + 'core/rescue.js', 'utf8'), /issueRescueSession/);
 });
 
 /* ---------------- 名片 PUT ---------------- */

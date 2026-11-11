@@ -2,7 +2,7 @@ import { layer, notHere, FLOW } from '../keys/gate.js';
 import { parseUseradd, parseUsermod } from '../../core/ident-args.js';
 
 /**
- * v6 身份命令（P2b，定稿 v4 §六 / §八）：whoami · su · groups · who · useradd · userdel · usermod。
+ * v6 身份命令（P2b，定稿 v4 §六 / §八）：whoami · su · groups · who · useradd · userdel · usermod；P3 救援入口 rescue（§九）。
  * 流程在身份层（shell/identity/layer.js，终端里的 x.v.ident）；这里只查参数。真正的权限判断在服务端（permits）。
  * man 索引只给 v6 身份列（user = v6 普通用户，root6 = v6 root；core/who.js kindOf），没有 v6 会话时四种旧身份的 man 不变（分步割接）。
  * sudo / exit / lock / passwd 沿用原命令名：有 v6 会话或 v6 写法时转到这里（keys/sudo.js、base/exit.js、keys/lock.js、acct/index.js）。
@@ -118,4 +118,20 @@ const usermod = {
   },
 };
 
-export const IDENT_CMDS = [whoami, su, groups, who, useradd, userdel, usermod];
+/* v6 P3 救援入口（定稿 v5.2 §九；命令名 rescue，Gray 11-11 13:17 定）：访客输恢复钥匙 → 15 分钟一次性 root 会话。
+   man 索引 / Tab 补全不列（audience 空：同 su 现在也不在访客索引里；要不要在访客索引里列待 Gray 定），man rescue 照常有页。
+   能不能救援、救援里能做什么都由服务端判（白名单在 permits / precedence 一处） */
+const rescue = {
+  name: 'rescue',
+  audience: /** @type {any} */ ([]),
+  /** @param {any} p @param {any} x */
+  run: function (p, x) {
+    if (p.args.length) return usage(x, 'usageRescue');
+    const r = ident(x, 'rescue');
+    if (!r.I) return r.no;
+    r.I.cmdRescue();
+    return FLOW;
+  },
+};
+
+export const IDENT_CMDS = [whoami, su, groups, who, useradd, userdel, usermod, rescue];

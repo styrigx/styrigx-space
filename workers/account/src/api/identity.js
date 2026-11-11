@@ -21,6 +21,8 @@
  * | （sudo，P2c）            | sudoers | command = { method, path, body? }：借 root 执行账号 Worker 里任何一条接口（api/sudo-route.js）；
  * |                          |         | 同样每次验自己的凭据、不发票据、不压栈；root 的凭据接口（/api/account/keys、reset）与身份接口本身拒绝 |
  * | useradd / userdel / usermod / passwd-user | root | 用户管理（core/user-admin.js） |
+ * | rescue（P3）             | public  | 救援入口（定稿 v5.2 §九，core/rescue.js）：访客输恢复钥匙 → 15 分钟一次性 root 会话（rescue 标志、不续期）；
+ * |                          |         | 已登录 → exit-first；救援会话里再调 → permits 第 1 步拒（rescue 不在白名单） |
  *
  * uid 只取服务端会话（ADR-0006 §2.12 (a)）：请求体里的 uid / user 只当命令参数（目标用户名），从不当「我是谁」。
  * 审计（core/user-audit.js）：su / sudo / exit / idle / lock / passwd / passkey / useradd / userdel / usermod、登录失败（login-fail）。
@@ -39,6 +41,7 @@ import { useradd, userdel, usermod, passwdReset, groupsOf, whoList, userByName }
 import { V6_PURPOSE, v6AssertionChallenge, v6CheckAssertion, v6RegistrationChallenge, v6AddPasskey, v6PasskeyViews, v6DeletePasskey } from '../core/identity-passkey.js';
 import { rpConfig, rpConfigMissing } from '../core/config.js';
 import { sudoTarget, runSudoRoute } from './sudo-route.js';
+import { rescue as rescueIssue } from '../core/rescue.js';
 
 const PATH = '/api/identity';
 const BODY_MAX = 16 * 1024;
@@ -263,6 +266,22 @@ async function dispatch(c) {
       h.append('Set-Cookie', markerCookie(SESSION_TTL_MS.user / 1000));
       const groups = await getGroups(env, u.uid);
       return ok({ user: view({ ok: true, identity: { uid: u.uid, name: u.name, groups, rescue: false }, via: null, layerExpiresAt: s.expiresAt }) }, h);
+    }
+
+    case 'rescue': {
+      /* 定稿 v5.2 §九：访客走救援入口（已登录先 exit，同 su 的 exit-first） */
+      if (identity) return apiError(409, 'exit-first');
+      if (token) { try { await endSessionByToken(env, token); } catch (e) {} } /* 失效的旧令牌：行一起清 */
+      const r = await rescueIssue(env, { ip, key: body.key, now });
+      if (!r.ok) {
+        if (r.audit) await audit(r.audit, false, null);
+        return credError(r.error);
+      }
+      await audit('rescue', true, ROOT_UID);
+      const h = new Headers();
+      h.append('Set-Cookie', r.cookie);
+      h.append('Set-Cookie', markerCookie(SESSION_TTL_MS.rescue / 1000));
+      return ok({ user: view({ ok: true, identity: { uid: ROOT_UID, name: 'root', groups: [], rescue: true }, via: null, layerExpiresAt: r.expiresAt }) }, h);
     }
 
     case 'exit': {
