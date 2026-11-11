@@ -53,7 +53,7 @@ export function mountProfile(C) {
     saveProfile(ch).then(function (r) {
       C.toCmd();
       if (r.ok) { C.ok('✓ ' + tf('profile.set', { k: t('profile.' + id) }), v); return; }
-      C.err(r.error === 'scope' ? t('profile.errScope') : r.error === 'network' ? t('common.errNetwork') : r.error === 'account' ? t('reauth.expired') : t('common.errServer'));
+      C.err(r.error === 'network' ? t('common.errNetwork') : t('common.errServer'));
     }, function () { C.toCmd(); C.netErr(); });
   };
 

@@ -35,7 +35,6 @@ const ERR_KEYS = {
   short: 'errShort',
   'not-found': 'errNotFound',
   session: 'sessExp',
-  reauth: 'reauthExpired',
   current: 'devCurrent',
 };
 

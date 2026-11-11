@@ -334,8 +334,6 @@ kh:
   backAria: "返回"
 account:
   keys:
-    title: "账号安全"
-    hint: "已保护 · reauth"
     passkey:
       noSuch: "没有这把通行密钥"
       lsFirst: "先列出来：{x}"
@@ -405,7 +403,6 @@ account:
     errEmpty: "不能为空"
     errLong: "太长了（最多 {n} 个字）"
     errFormat: "格式不对"
-    errScope: "个人资料未获账号授权"
     choosePhoto: "选择照片…"
     removePhoto: "移除照片"
     avatar:
@@ -419,7 +416,6 @@ account:
       removed: "已移除头像"
       failed: "头像没保存上，请重试"
       badFile: "这个文件打不开"
-      noScope: "头像未获账号授权"
   devices:
     noSuch: "没有这台设备"
     lsFirst: "先列出来：{x}"
@@ -436,8 +432,6 @@ account:
     hourAgo: "{n} 小时前活动"
     dayAgo: "{n} 天前活动"
     currentHint: "不能在这里退出此设备，请用「退出账号」"
-  reauth:
-    expired: "验证已过期，请重新验证"
   # 代理订阅（P2，设计稿 v1.10 §8）：sub-* 命令在账号终端（tty5）里做完；站内终端 / 盾牌 / AI 里的 sub-* 转到这里。命令、域名、来源名不翻译
   proxy:
     key: "公钥"
