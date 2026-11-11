@@ -6,8 +6,8 @@
  *
  * makeAccountD1({ migrations })：migrations 默认 true = 按文件名顺序跑 workers/account/migrations/*.sql（0003 / 0004 的旧表，
  *   再经 0005_account_tables.sql 换成 account_*；空库上 0005 会把全部应用写成已授权，同线上首次切换）；
- *   false = 空库（测 "no such table" 自愈）；'data' = 只跑数据表（0001 / 0002）；
- *   'pre-uid' = 跑到 0006 为止（不跑 0007_v6_uid_columns.sql：数据表还没 uid 列，测迁移前的写法和兜底建表 SCHEMA）。
+ *   false = 空库（测没有 "no such table" 自愈：直接报错）；'data' = 只跑数据表（0001 / 0002）；
+ *   'pre-uid' = 跑到 0006 为止（不跑 0007_v6_uid_columns.sql：数据表还没 uid 列，测迁移前的表结构）。
  * withAccountD1(env, db?)：给 env 挂上 D1_ACCOUNT。
  * 观测：raw（DatabaseSync）、rows(table)、statements（执行过的 SQL 列表）。
  */
@@ -23,7 +23,7 @@ export const ACCOUNT_MIGRATION = '0005_account_tables.sql';
 export const ACCOUNT_SQL = readFileSync(MIG + ACCOUNT_MIGRATION, 'utf8');
 export const ACCOUNT_TABLES = Object.freeze(['account_epoch', 'account_password', 'account_passkey', 'account_user_handle', 'account_challenge',
   'account_attempt_limit', 'account_device', 'account_audit', 'account_grant']);
-/** v6 身份表（P1，0006_identity.sql；src/lib/db.js IDENTITY_SCHEMA） */
+/** v6 身份表（P1，0006_identity.sql） */
 export const IDENTITY_MIGRATION = '0006_identity.sql';
 export const IDENTITY_SQL = readFileSync(MIG + IDENTITY_MIGRATION, 'utf8');
 export const IDENTITY_TABLES = Object.freeze(['account_users', 'account_user_groups', 'account_user_password', 'account_user_passkey',

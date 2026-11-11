@@ -1,10 +1,10 @@
 /**
- * v6 身份表（P1，workers/account/migrations/0006_identity.sql + src/lib/db.js IDENTITY_SCHEMA）：
- * - 迁移里的 CREATE 语句与 IDENTITY_SCHEMA 逐条一致（兜底建表与迁移同一份）
+ * v6 身份表（P1，workers/account/migrations/0006_identity.sql）：
+ * - 迁移里的 CREATE 语句都 IF NOT EXISTS、带 account_ 前缀
  * - 只建表不放数据、不动旧表：跑 0006 前后旧表的行一模一样；新表全空
  * - 约束：身份栈只有深度 1（访客 → 普通用户 → root 最多三层）；恢复钥匙同一时刻最多一把有效；用户名唯一
  * - 表名都带 account_ 前缀，不和预览共用库里网关的旧表（audit、passkey……）撞名
- * - 「no such table」自愈：空库上走 withSchema 也会建出身份表
+ * - 没有「no such table」自愈：表只由迁移建，空库直接报错
  *
  * 运行：node --test tests/workers/account/identity-schema.test.mjs
  */
@@ -15,10 +15,10 @@ import { MIGRATION_FILES, migrationSql, IDENTITY_SQL, IDENTITY_TABLES, makeAccou
 
 const db = await import('../../../workers/account/src/lib/db.js');
 
-test('0006 的 CREATE 语句与 IDENTITY_SCHEMA 逐条一致（顺序、文字）', () => {
+test('0006 的 CREATE 语句全部 IF NOT EXISTS、表名带 account_ 前缀（重复跑不出错）', () => {
   const fromSql = IDENTITY_SQL.split('\n').filter((l) => l.startsWith('CREATE')).map((l) => l.trim().replace(/;$/, ''));
-  assert.deepEqual(fromSql, [...db.IDENTITY_SCHEMA]);
-  for (const s of db.IDENTITY_SCHEMA) assert.match(s, /^CREATE (UNIQUE )?(TABLE|INDEX) IF NOT EXISTS account_/);
+  assert.ok(fromSql.length >= IDENTITY_TABLES.length);
+  for (const s of fromSql) assert.match(s, /^CREATE (UNIQUE )?(TABLE|INDEX) IF NOT EXISTS account_/);
 });
 
 test('0006 只建表：前后旧表的行不变，新表全空；重复跑不出错', () => {
@@ -53,13 +53,12 @@ test('表名不和网关旧表撞名（预览库共用）：全部 account_ 前�
   for (const t of gateway) assert.ok(!IDENTITY_TABLES.includes(t));
 });
 
-test('「no such table」自愈：空库上 onDb 读身份表会先按 ACCOUNT_SCHEMA + IDENTITY_SCHEMA 建表', async () => {
+test('没有「no such table」自愈（v6 P4 收尾：表只由迁移建）：空库上 onDb 读身份表直接报错，不建表', async () => {
   const d1 = makeAccountD1({ migrations: false });
   const env = { D1_ACCOUNT: d1 };
-  const row = await db.onDb(env, (x) => x.prepare('SELECT COUNT(*) AS n FROM account_users').first());
-  assert.equal(row.n, 0);
+  await assert.rejects(() => db.onDb(env, (x) => x.prepare('SELECT COUNT(*) AS n FROM account_users').first()), /no such table/);
   const names = d1.raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((r) => r.name);
-  for (const t of IDENTITY_TABLES) assert.ok(names.includes(t), t);
+  assert.deepEqual(names, []);
 });
 
 test('清扫：account_sessions、account_user_audit 可按 expires_at 清；别的身份表不行', async () => {
