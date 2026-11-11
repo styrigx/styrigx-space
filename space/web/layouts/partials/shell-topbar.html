@@ -25,7 +25,7 @@
      email       对外联系邮箱（AI 窗口底部「联系我」的 mailto；主站传 data/profile.yaml 的 email，子站传 nav.json 的 me.email；
                  运行时 ai.js 再用本机缓存 sgx-profile 里改过的邮箱覆盖）
      langHref    另一种语言的同一页（选了另一种语言时去这里；主站不传时由 shell/topbar-panel.js 按路径算）
-     pal         调色板色块：[{id style}]（style = --pl-* / --pd-* 变量串；名字在 tr.palette.<id>） */ -}}
+     pal         调色板色块：[{id style}]（style = --pt-* 变量串；名字在 tr.palette.<id>） */ -}}
 {{- $lang := .lang | default "en" -}}
 {{- $t := .tr -}}
 {{- $i := .icons -}}
@@ -93,10 +93,7 @@
 </dialog>
 <dialog id="sgx-qp" class="sgx-qp sgx-theme" aria-label="{{ $t.topbar.theme }}">
   <div class="sgx-qp-sheet" tabindex="-1" autofocus>
-    <p class="sgx-th-h" id="sgx-th-mode">{{ $t.topbar.schemeKey }}</p>
-    <div class="sgx-th-seg" role="group" aria-labelledby="sgx-th-mode" data-qp-seg="mode">
-      {{- range slice (dict "v" "system" "t" $t.topbar.followSystem) (dict "v" "dark" "t" $t.topbar.schemeDark) (dict "v" "light" "t" $t.topbar.schemeLight) }}<button type="button" data-qp-mode="{{ .v }}" aria-pressed="false">{{ .t }}</button>{{ end }}
-    </div>
+    {{- /* 2026-11-12 调色板 v4：MODE（跟随系统 / 深 / 浅）删除，深浅只由调色板决定 */}}
     {{- /* PALETTE 标题行右侧：恢复默认（2026-11 PR-A 照稿改成一行小字命令样式，功能不变：已是默认时 aria-disabled 置灰） */}}
     <div class="sgx-th-hrow">
       <p class="sgx-th-h" id="sgx-th-pal">{{ $t.topbar.paletteKey }}</p>

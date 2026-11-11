@@ -35,8 +35,9 @@ const LANGS = [
   { prefix: '/zh', name: 'zh' },
   { prefix: '', name: 'en' },
 ];
+/* 2026-11-12 调色板 v4：没有深浅模式，深浅由调色板决定——light = 浅套雾霾蓝 dustyblue，dark = 默认陶土 terra（深套）；截图名照旧 */
 const THEMES = [
-  { name: 'light', setup: null },
+  { name: 'light', setup: 'light' },
   { name: 'dark', setup: 'dark' },
 ];
 
@@ -63,8 +64,8 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           /* 预置主题 + 冻结时间，避免动态内容导致截图不稳定
              （锁屏由构建期 SGX_TEST_NO_LOCK=1 禁用，见 deploy.yml） */
           await pg.addInitScript((t) => {
-            if (t === 'dark') {
-              try { localStorage.setItem('sgx-theme-mode', 'dark'); } catch (e) {}
+            if (t === 'light') {
+              try { localStorage.setItem('sgx-palette', 'dustyblue'); } catch (e) {}
             }
           }, theme.setup);
           /* 2.8.0：语言跟随系统（2.7.0 起）会按浏览器 locale 跳到另一种语言（P4-3 PR-4c 起英文 /、中文 /zh/），
@@ -153,7 +154,7 @@ test('baseline-shield-open', async ({ page: pg }) => {
 test('baseline-quick-panel-open', async ({ page: pg }) => {
   await shellShotPage(pg);
   await openQuickPanel(pg);
-  await expect(pg.locator('#sgx-qp [data-qp-seg="mode"]')).toHaveCount(1);
+  await expect(pg.locator('#sgx-qp [data-qp-seg="mode"]')).toHaveCount(0); /* 调色板 v4：没有 MODE */
   await expect(pg.locator('#sgx-qp [data-qp-palette]').first()).toBeVisible();
   await expect(pg.locator('#sgx-nav [data-qp="share"]')).toHaveCount(0); /* v6 P4：分享磁贴拿掉（Gray 11-11 17:47） */
   if (SHOTS) await expect(pg).toHaveScreenshot('baseline-quick-panel-open.png', { animations: 'disabled' });
@@ -205,7 +206,7 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
           });
           await pg.addInitScript(([t, ln]) => {
             try {
-              if (t === 'dark') localStorage.setItem('sgx-theme-mode', 'dark');
+              if (t === 'light') localStorage.setItem('sgx-palette', 'dustyblue');
               localStorage.setItem('sgx-lang', ln);
             } catch (e) {}
           }, [theme.setup, lang.name]);
@@ -307,7 +308,7 @@ for (const lang of LANGS) {
           body: JSON.stringify(fxStatus.withUsage(fxStatus.normal(), fxStatus.usage())) }));
         await pg.addInitScript(([t, ln]) => {
           try {
-            if (t === 'dark') localStorage.setItem('sgx-theme-mode', 'dark');
+            if (t === 'light') localStorage.setItem('sgx-palette', 'dustyblue');
             localStorage.setItem('sgx-lang', ln);
           } catch (e) {}
         }, [theme.setup, lang.name]);
@@ -346,7 +347,7 @@ for (const lang of LANGS) {
         body: JSON.stringify({ ok: true, items: AUDIT_ITEMS }) }));
       await pg.addInitScript(([t, ln]) => {
         try {
-          if (t === 'dark') localStorage.setItem('sgx-theme-mode', 'dark');
+          if (t === 'light') localStorage.setItem('sgx-palette', 'dustyblue');
           localStorage.setItem('sgx-lang', ln);
         } catch (e) {}
       }, [theme.setup, lang.name]);

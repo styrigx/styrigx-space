@@ -24,13 +24,9 @@ function boot() {
     modalSheet,
     prefs: {
       isDark: prefs.isDark,
-      themeMode: prefs.themeMode,
-      setTheme: prefs.setThemeMode,
-      toggleFollowSystem: prefs.toggleFollowSystem,
       palette: prefs.palette,
       setPalette: prefs.setPalette,
       DEFAULT_PALETTE: prefs.DEFAULT_PALETTE,
-      hasAccent: prefs.hasAccent,
       setLang: function (v) {
         prefs.setLangPref(v);
         return '';

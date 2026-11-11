@@ -163,15 +163,15 @@ test('历史：↑ / ↓ 翻命令，到底回到正在打的字；clear 清屏'
   await go(page, '/zh/', { term: true });
   await run(page, 'ls');
   await expect(lastLine(home(page))).toHaveText('blog/  curio/  daymark/  account/  proxy/');
-  await run(page, 'theme dark');
+  await run(page, 'theme lake');
   const i = input(page);
   await i.fill('ma');
   await i.press('ArrowUp');
-  await expect(i).toHaveValue('theme dark');
+  await expect(i).toHaveValue('theme lake');
   await i.press('ArrowUp');
   await expect(i).toHaveValue('ls');
   await i.press('ArrowDown');
-  await expect(i).toHaveValue('theme dark');
+  await expect(i).toHaveValue('theme lake');
   await i.press('ArrowDown');
   await expect(i).toHaveValue('ma');
   await i.fill('clear');
@@ -197,13 +197,21 @@ test('tab 补全：hist → history（打字时淡色影子 ory；v6 P4 起 sudo
   await expect(i).not.toBeFocused();
 });
 
-test('theme dark / light：直接切深浅色；theme 不带参数打开外观面板', async ({ page }) => {
+test('theme <调色板 id>（调色板 v4）：直接切调色板，深浅跟着变；Tab 补全调色板 id；dark / light 不再认；theme 不带参数打开外观面板', async ({ page }) => {
   await go(page, '/zh/', { term: true });
-  await run(page, 'theme dark');
-  await expect(page.locator('html')).toHaveClass(/\bdark\b/);
-  await expect(lastLine(home(page))).toHaveText('→ theme → dark');
-  await run(page, 'theme light');
+  await run(page, 'theme sage');
+  await expect(page.locator('html')).toHaveAttribute('data-palette', 'sage');
   await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
+  await expect(lastLine(home(page))).toHaveText('→ theme → sage');
+  await run(page, 'theme lake');
+  await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+  await run(page, 'theme dark');
+  await expect(page.locator('html')).toHaveAttribute('data-palette', 'lake');
+  const i = input(page);
+  await i.fill('theme gra');
+  await i.press('Tab');
+  await expect(i).toHaveValue('theme graphite');
+  await i.fill('');
   await run(page, 'theme');
   await expect(page.locator('#sgx-qp')).toHaveAttribute('open', '');
 });

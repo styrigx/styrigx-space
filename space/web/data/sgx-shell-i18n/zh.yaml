@@ -9,7 +9,6 @@ topbar:
   sites: 导航
   askAi: AI 助手
   dark: 深色模式
-  followSystem: 跟随系统
   language: 语言
   palette: 调色板
   reset: 恢复默认
@@ -34,9 +33,6 @@ topbar:
   langKey: lang
   langAuto: 跟随系统语言
   layoutKey: layout
-  schemeKey: MODE
-  schemeDark: 深
-  schemeLight: 浅
   paletteKey: PALETTE
 ai:
   sug3: "在用什么设备"
@@ -173,7 +169,7 @@ term:
   todayNone: "今天还没有句子 · {x}"
   todayFail: "今日一句没取到 · {x}"
   usageSudo: "用法：sudo useradd | userdel | usermod | passwd <名字> | groups [名字] | who"
-  usageTheme: "用法：theme [dark | light | auto]"
+  usageTheme: "用法：theme [调色板 id] · 按 Tab 看全部"
   usageCat: "用法：cat daymark/today"
   themeSet: "theme → {x}"
   themeOpen: "已打开外观面板"

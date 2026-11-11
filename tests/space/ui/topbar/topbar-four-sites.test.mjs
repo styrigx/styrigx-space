@@ -1,7 +1,7 @@
 /**
  * 四站顶栏一致（2026-11-04 P5-1，方案 6.2–6.5）：主站 / 博客 / 奇趣 / 日刻同一个顶栏。
  * - 标记单一来源：主站 partials/shell-topbar.html → 共享外壳 topbar.html → 三个子站 layouts/partials/shell-topbar.html，一字不差；
- * - 四个调用点都传齐必需参数；磁贴按定案：主站 dark / system / lang / lock + 调色板 + 布局、没有分享；子站 dark / system / lang / 调色板 + 分享，没有立即锁定和布局；
+ * - 四个调用点都传齐必需参数；磁贴按定案（调色板 v4 起没有深浅 MODE）：主站 lang + 调色板 + 布局、没有分享；子站 lang + 调色板；
  * - 子站的主站项 / 账号 / 头像用 https://styrigx.com 绝对地址（子站单独起服务时也能到主站），子站之间同源相对；
  * - 真实构建（有 public/ 时）：四站首页（中英）的顶栏骨架一样 —— P4-3 PR-4b 定稿胶囊 [字标][页名胶囊][九宫格 · 快捷设置 · AI]，头像在 AI 窗口头部；
  *   九宫格导航面板四项同序、当前站「开」态；快捷面板单页、四站同一套磁贴；抽屉 / 右圆分享都不在。
@@ -131,7 +131,7 @@ test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字�
       assert.deepEqual(sk.layout, ['phone', 'auto', 'desktop'], at + '：layout Mobile / Auto / DeX（2026-11-09 Auto 在中间）');
       assert.deepEqual(sk.acts, ['term'], at + '：terminal（v5 S6 去掉 lock；v6 P4 拿掉分享磁贴，Gray 11-11 17:47）');
       assert.deepEqual(sk.status, ['space', 'blog', 'curio', 'daymark', 'gray-ai', 'auth'], at + '：STATUS 六个单元');
-      assert.deepEqual(sk.modes, ['system', 'dark', 'light'], at + '：MODE');
+      assert.deepEqual(sk.modes, [], at + '：没有 MODE（调色板 v4：每套一个模式，2026-11-12）');
       assert.equal(sk.swatches, 22, at + '：22 套色板');
       assert.deepEqual(sk.win, ['home', 'blog', 'curio', 'daymark'], at + '：页脚窗口');
       assert.equal(sk.logo, f.startsWith('zh/') ? '/zh/' : '/', at + '：logo 回主站首页（2026-11-12 四站统一）');

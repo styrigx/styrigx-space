@@ -55,11 +55,11 @@ test('旧 --m-* 色板块已收口：input.css 不再按色板手写 --m-*，色
   }
 });
 
-test('每个色板都有 --sgx-* 角色（gen-palettes 生成的浅色 + 深色两段），色块 c = 角色 JSON 的背景色', () => {
+test('每个色板都有 --sgx-* 角色（gen-palettes 生成的一段，v4 起每套只有一个模式、没有 .dark 段），色块 c = 角色 JSON 的背景色', () => {
   const roles = JSON.parse(readFileSync(new URL('../../../../space/web/data/palette-roles.json', import.meta.url), 'utf8')).presets;
   for (const id of custom) {
     assert.ok(css.includes(`:root[data-palette="${id}"] {`), id);
-    assert.ok(css.includes(`:root.dark[data-palette="${id}"] {`), id + ' dark');
+    assert.ok(!css.includes(`:root.dark[data-palette="${id}"] {`), id + ' 没有深色段');
   }
   for (const id of ids) {
     const c = yaml.split(`- id: ${id}\n`)[1].match(/c: "(#[0-9a-f]{6})"/)[1];

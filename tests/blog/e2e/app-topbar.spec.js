@@ -282,7 +282,7 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
     await page.locator('.sgx-topbar .sgx-tb-quick').click();
     await expect(page.locator('#sgx-qp')).toHaveAttribute('data-state', 'open');
     await expect(page.locator('#sgx-qp [role="tab"], #sgx-qp [role="tabpanel"], #sgx-qp [data-nav], #sgx-qp [data-qp]')).toHaveCount(0);
-    await expect(page.locator('#sgx-qp [data-qp-seg="mode"]')).toBeVisible();
+    await expect(page.locator('#sgx-qp [data-qp-palette="terra"]')).toBeVisible(); /* 调色板 v4：只有 PALETTE，没有 MODE */
   });
 
   test('Esc / 点遮罩关闭；文章页点本站 = 关面板后回博客首页', async ({ page }) => {
@@ -427,7 +427,7 @@ test.describe('文章页：页名 + 进度细线 + 抽屉目录', () => {
 });
 
 test.describe('跟随主站设置（sgx-ui cookie）', () => {
-  test('pal 换预设、accent 是自定义种子 → AI 按钮（primary-container）跟着变；accent = 预设种子时不算自定义', async ({
+  test('pal 换预设 → AI 按钮（primary-container）跟着变；旧 cookie 的 accent 忽略（自定义主题色 2026-11-12 删除）', async ({
     page,
     context,
     baseURL,
@@ -442,9 +442,11 @@ test.describe('跟随主站设置（sgx-ui cookie）', () => {
     const cherry = await bg();
     expect(cherry).not.toBe(base);
     await expect(page.locator('#sgx-accent-roles')).toHaveCount(0);
+    /* 调色板 v4：旧 cookie 的自定义色忽略，只按调色板 lake 渲染 */
     await setUi(context, baseURL, { v: 2, mode: 'light', pal: 'lake', accent: '#ff8800' });
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-accent-roles')).toHaveCount(1);
+    await expect(page.locator('html')).toHaveAttribute('data-palette', 'lake');
+    await expect(page.locator('#sgx-accent-roles')).toHaveCount(0);
     await expect.poll(bg).not.toBe(base);
     expect(await bg()).not.toBe(cherry);
   });

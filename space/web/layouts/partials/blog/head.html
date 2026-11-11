@@ -9,6 +9,11 @@
 {{- $rss := printf "%srss.xml" (site.GetPage "/blog").Permalink -}}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+{{- /* 调色板 v4（2026-11-12）：深浅和浏览器底色只由调色板决定。这里写默认 terra，下面的共享读端 SgxUI.apply 按 cookie 里的调色板改（所以要在它前面） */}}
+{{- range site.Data.shell.palettes.presets }}{{ if eq .id "terra" }}
+<meta name="color-scheme" content="{{ .mode }}">
+<meta name="theme-color" content="{{ .tokens.background }}">
+{{- end }}{{ end }}
 {{ partial "blog/sgx-inherit.html" (dict "alt" .alt) }}
 {{- /* 布局模式：共享外壳 layout-mode.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，四站同一条规则 __sgxLayout()（手机 / 桌面，P4-3 PR-4b）；
    结果写 <html data-sgx-layout>（外壳按它定顶栏宽）和 layout-mobile / layout-dex 类（博客没有自己的布局开关，快捷面板布局行改了偏好就调 __applyLayout） */}}
@@ -32,7 +37,6 @@ __sgxLayoutWatch(__applyLayout);
 <link rel="icon" href="https://styrigx.com/avatar/32.webp">
 <link rel="apple-touch-icon" href="https://styrigx.com/avatar/192.webp">
 <link rel="manifest" href="{{ "blog/manifest.json" | relURL }}">
-<meta name="theme-color" content="#fdfdf9">
 <link rel="sitemap" href="{{ "blog/sitemap-index.xml" | relURL }}">
 <link rel="alternate" type="application/rss+xml" title="{{ site.Title }}" href="{{ $rss }}">
 {{ hugo.Generator }}
@@ -67,5 +71,3 @@ __sgxLayoutWatch(__applyLayout);
 {{- $css := resources.Get "blog/css/main.css" -}}
 {{- if not $css }}{{ errorf "space/web/assets/blog/css/main.css 不存在：先跑 node space/scripts/build-css.cjs（顺带构建博客样式，Tailwind 4 CLI）" }}{{ end }}
 <link rel="stylesheet" href="{{ ($css | minify | fingerprint).RelPermalink }}">
-{{- $scheme := resources.Get "js/lib/palette-scheme.js" | js.Build (dict "minify" hugo.IsProduction "target" "es2020" "format" "esm" "targetPath" "blog/js/palette-scheme.js") | fingerprint -}}
-{{ partial "blog/script.html" (dict "name" "inherit.ts" "params" (dict "schemeUrl" $scheme.RelPermalink)) }}

@@ -154,14 +154,13 @@ test('子站 / 博客终端挂 v6 身份层（全站一个终端：su / su root 
   }
 });
 
-test('子站首帧不再清 sgx-theme-mode（#310 起四站同源，它就是主站的深浅色偏好；SGX-SPEC-003 §2.2）', () => {
+test('子站首帧清掉旧键：sgx-theme-at，以及调色板 v4（2026-11-12）删掉的 sgx-theme-mode / sgx-accent / sgx-accent-css（四站同源，和主站 baseof 同一批）', () => {
   for (const s of ['curio', 'daymark']) {
     const src = rd(`space/web/assets/${s}/js/sgx/ui-inherit-run.js`);
-    assert.doesNotMatch(src, /removeItem\('sgx-theme-mode'\)/, s);
-    assert.match(src, /removeItem\('sgx-theme-at'\)/, s);
+    assert.match(src, /\['sgx-theme-at', 'sgx-theme-mode', 'sgx-accent', 'sgx-accent-css'\]\.forEach\(\(k\) => localStorage\.removeItem\(k\)\)/, s);
+    assert.doesNotMatch(src, /onMiss|data-sgx-accent-js|loadEngine/, s + ' 没有自定义色引擎');
   }
 });
-
 test('冒烟 smoke2（已登录、无组、非 root）：sub show / sub 不再回旧的「not signed in to the account · run sudo root first」', () => {
   const L = layers();
   for (const l of ['sub show', 'sub']) {

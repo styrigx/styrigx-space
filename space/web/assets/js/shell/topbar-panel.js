@@ -11,7 +11,7 @@
  * - NAVIGATE：01 主页 … 04 日刻（当前项「开」态；05 旷野 2026-11-12 删除）；已在当前项那一页时点它只关面板，其余关完再跳（不留哨兵）。
  *   lang 分段 EN | Auto | 中文（选中即保存；明确的语言和本页不同就去另一种语言的同一页，Auto 只在主站首页换）、layout 分段（Mobile | Auto | DeX，模式规则见共享外壳 layout-mode.js）、
  *   STATUS（v6 P4 起「分享本页」磁贴随分享短链删除，Gray 11-11 17:47）、esc 关闭。
- * - 外观：MODE 三段（跟随系统 / 深 / 浅）、PALETTE 色板列表 + 恢复默认。
+ * - 外观：PALETTE 色板列表 + 恢复默认（2026-11-12 调色板 v4：MODE 三段删除，深浅只由调色板决定）。
  * - 盾牌（v5 S6；v6 P4-3 起 = 身份徽章四档，定稿 v5.5 §七）：不开窗口，打开终端按身份预填——访客 `su `（GUEST_LINE）、普通用户 `exit`、站长 `su root`、root `exit`（只预填、回车才生效）。
  *   旧地址 #sec / [data-sec-open] 同样只打开终端（访客预填）。v6 P4 起旧的「退出进站会话 [y/N]」（钥匙层 lock）随旧会话删除。
  * - 头像 = whoami（定稿 v5.5 §七）：访客点 = 打开终端预填 `su `；站长与 root 点 = 打开账号页；普通用户（uid 1001 起）的头像只作装饰、不可点；头像一份，归站长。
@@ -88,13 +88,9 @@ export function resolveLang(v, nav, langs) {
 /**
  * @typedef {Object} TopbarPrefs
  * @property {() => boolean} isDark
- * @property {() => string} themeMode
- * @property {(m: 'light'|'dark'|'system') => void} setTheme
- * @property {() => void} toggleFollowSystem
  * @property {() => string} palette
  * @property {(p: string) => void} setPalette
  * @property {string} DEFAULT_PALETTE
- * @property {() => boolean} hasAccent
  * @property {(v: 'system'|'zh'|'en') => string} setLang 写语言偏好，返回要去的地址；返回 '' 时按实际语言决定：和本页不同就去语言行的 data-href
  * @property {() => string} [langPref] 当前语言偏好 system / zh / en（不传按本页语言）
  * @property {() => string} [layoutPref]
@@ -390,34 +386,23 @@ export function mountTopbar(o) {
     }
   }
 
-  /* ---------------- 外观（MODE / PALETTE） ---------------- */
+  /* ---------------- 外观（PALETTE；2026-11-12 调色板 v4：深浅模式删除，深浅只由调色板决定） ---------------- */
   let qp = null;
   let paint = function () {};
   if (qpBtn && qpDlg) {
     paint = function () {
-      const m = P.themeMode();
-      const mode = m === 'dark' || m === 'light' ? m : 'system';
-      qpDlg.querySelectorAll('[data-qp-mode]').forEach(function (b) {
-        b.setAttribute('aria-pressed', b.getAttribute('data-qp-mode') === mode ? 'true' : 'false');
-      });
       const p = P.palette();
       qpDlg.querySelectorAll('[data-qp-palette]').forEach(function (b) {
         b.setAttribute('aria-pressed', b.getAttribute('data-qp-palette') === p ? 'true' : 'false');
       });
       const rs = qpDlg.querySelector('[data-qp-reset]');
-      if (rs) rs.setAttribute('aria-disabled', p === P.DEFAULT_PALETTE && !P.hasAccent() ? 'true' : 'false');
+      if (rs) rs.setAttribute('aria-disabled', p === P.DEFAULT_PALETTE ? 'true' : 'false');
     };
     qp = wire(qpBtn, qpDlg, 'sgxQp', function () { paint(); });
     if (qp) {
       qpDlg.addEventListener('click', function (e) {
         const tg = /** @type {Element|null} */ (e.target);
         if (!tg) return;
-        const mb = tg.closest('[data-qp-mode]');
-        if (mb) {
-          P.setTheme(/** @type {any} */ (mb.getAttribute('data-qp-mode') || 'system'));
-          paint();
-          return;
-        }
         const rs = tg.closest('[data-qp-reset]');
         if (rs) {
           if (rs.getAttribute('aria-disabled') !== 'true') P.setPalette(P.DEFAULT_PALETTE);
@@ -439,10 +424,6 @@ export function mountTopbar(o) {
   if (o.subscribe) o.subscribe(repaint);
   window.addEventListener('sgx-theme-changed', repaint);
   window.addEventListener('sgx-layout-change', repaint);
-  try {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    (mq.addEventListener || mq.addListener).call(mq, 'change', function () { window.setTimeout(repaint, 0); });
-  } catch (e) {}
 
   /* ---------------- AI 窗口 ---------------- */
   /** tty4 的命令外壳（终端那一段建好后才有；AI 窗口打开时才取） @type {() => any} */
@@ -742,10 +723,15 @@ export function mountTopbar(o) {
           .then(function (/** @type {Response} */ r) { return r.ok ? r.json() : null; })
           .then(function (/** @type {any} */ j) { return j && j.ok ? j.sources || [] : null; }, function () { return null; });
       },
-      theme: function (/** @type {string} */ mode) {
-        if (!mode) { closeAll(function () { if (qp) qp.ms.open(); }); return; }
-        P.setTheme(/** @type {any} */ (mode === 'auto' ? 'system' : mode));
+      /** theme [调色板 id]：没参数开外观面板；有参数切调色板（id 由终端命令校验） */
+      theme: function (/** @type {string} */ id) {
+        if (!id) { closeAll(function () { if (qp) qp.ms.open(); }); return; }
+        P.setPalette(id);
         paint();
+      },
+      /** 调色板 id 列表（theme 命令补全 / 校验，顺序 = 面板顺序） @returns {string[]} */
+      palettes: function () {
+        return qpDlg ? Array.from(qpDlg.querySelectorAll('[data-qp-palette]')).map(function (b) { return b.getAttribute('data-qp-palette') || ''; }).filter(Boolean) : [];
       },
       ask: function (/** @type {string} */ q) {
         closeAll(function () {

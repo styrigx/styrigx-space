@@ -31,9 +31,10 @@ const { blockExternalRequests, freezeTime, nextFrames, animationsDone, scrolledT
 async function go(page, path, opts = {}) {
   await blockExternalRequests(page);
   await freezeTime(page);
-  if (opts.dark) {
+  /* 调色板 v4：没有深浅模式——暗色 = 默认 terra（深套），亮色 = 雾霾蓝 dustyblue（浅套） */
+  if (!opts.dark) {
     await page.addInitScript(() => {
-      try { localStorage.setItem('sgx-theme-mode', 'dark'); } catch (e) {}
+      try { localStorage.setItem('sgx-palette', 'dustyblue'); } catch (e) {}
     });
   }
   await page.goto(path, { waitUntil: 'domcontentloaded' });

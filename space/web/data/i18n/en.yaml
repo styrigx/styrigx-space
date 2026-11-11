@@ -195,12 +195,6 @@ sgxAccountCard:
   signedIn: Signed in
   changePhoto: Change photo
 features:
-  theme-mode:
-    name: Theme mode
-    opt:
-      system: Follow system
-      light: Light
-      dark: Dark
   palette:
     name: Color palette
     opt:
@@ -261,5 +255,4 @@ syncItems:
     look: Appearance
     more: More
   extra:
-    sgx-accent: Custom theme color
     sgx-ai-model: AI model

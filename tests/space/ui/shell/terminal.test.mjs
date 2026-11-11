@@ -11,6 +11,10 @@ import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { parse, complete, ghost, normDir, cwdPath, fill, createShell, createWho, COMMANDS, ARGS, DIRS, TERM_EN } from '../../../../space/web/assets/js/shell/terminal.js';
 
+/* theme 的参数 = 调色板 id（2026-11-12 调色板 v4）：页面上来自共享读端 window.SgxUI.PRESETS，这里按 palettes.json 挂一个（取值时现读，import 之后挂也行） */
+const PAL = JSON.parse(readFileSync(new URL('../../../../space/web/data/shell/palettes.json', import.meta.url), 'utf8')).presets.map((p) => p.id);
+/** @type {any} */ (globalThis).SgxUI = { PRESETS: Object.fromEntries(PAL.map((id) => [id, '#000000'])) };
+
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 
 /** 内存 Storage */
@@ -94,7 +98,11 @@ test('complete：参数补全（passkey；第三个词不补；v6 P4 起 sudo st
   assert.deepEqual(complete('passkey a'), { line: 'passkey add', options: [] });
   assert.deepEqual(complete('device '), { line: 'device rm', options: [] });
   assert.deepEqual(complete('cd b'), { line: 'cd blog', options: [] });
-  assert.deepEqual(complete('theme d'), { line: 'theme dark', options: [] });
+  assert.deepEqual(complete('theme du'), { line: 'theme dusty', options: ['dustyblue', 'dustyrose'] });
+  assert.deepEqual(complete('theme te'), { line: 'theme te', options: ['teal', 'terra'] });
+  assert.deepEqual(complete('theme gr'), { line: 'theme graphite', options: [] });
+  assert.deepEqual(ARGS.theme, PAL, 'theme 补全 = 22 个调色板 id');
+  assert.equal(PAL.length, 22);
   assert.deepEqual(complete('cat d'), { line: 'cat daymark/today', options: [] });
   assert.deepEqual(complete('cd blog x'), { line: 'cd blog x', options: [] });
 });
@@ -267,11 +275,13 @@ test('theme / ask / open：先打印再动（after）；访客 ask 不开 AI；o
   const { act, calls } = fakeAct({ scroll: ['blog'] });
   act.account = () => { calls.push(['account']); return { href: '~/account', go: () => calls.push(['go-acct']) }; };
   const sh = createShell({ act, storage: mem(), who: fixedWho('styrigx') });
-  sh.exec('theme dark');
-  assert.deepEqual(calls.at(-1), ['theme', 'dark']);
+  sh.exec('theme lake');
+  assert.deepEqual(calls.at(-1), ['theme', 'lake']);
+  assert.equal(text(sh.exec('theme dark').out[0]), TERM_EN.usageTheme, 'v4：dark / light / auto 不再是参数');
+  assert.deepEqual(calls.at(-1), ['theme', 'lake']);
   const a = sh.exec('ask what is this?');
   assert.equal(text(a.out[0]), '→ asking Gray AI …');
-  assert.deepEqual(calls.at(-1), ['theme', 'dark'], 'ask 先打印');
+  assert.deepEqual(calls.at(-1), ['theme', 'lake'], 'ask 先打印');
   a.after();
   assert.deepEqual(calls.at(-1), ['ask', 'what is this?']);
   assert.equal(text(sh.exec('open blog').out[0]), '→ scrolled to [01] blog');

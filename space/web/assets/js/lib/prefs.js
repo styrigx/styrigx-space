@@ -1,45 +1,23 @@
 /**
  * @fileoverview 外观 / 语言偏好的统一读写（设置页和顶栏快捷面板共用同一套 setter，两边永远同步）。
  * 2026-11-04 P5-1：cookie 写法、默认色板和存值归一搬进共享外壳的外观写端 lib/prefs-write.js（子站快捷设置也用它）；这里的 setter 仍经 features.js（订阅 / 云同步要用），写的 key 和写端一样。
- * - 存储一律经 features.js（key 不变：sgx-theme-mode / sgx-palette / sgx-layout / sgx-lang），
+ * - 存储一律经 features.js（key 不变：sgx-palette / sgx-layout / sgx-lang；2026-11-12 调色板 v4 删除 sgx-theme-mode 和自定义主题色），
  *   features.set 内派发 sgx-settings-changed + 订阅回调，
  *   别的页面部件（设置页的开关、快捷面板的磁贴）各自订阅 features.on 重绘。
- * - 能即时生效的（主题、调色板、布局）这里直接改 <html>，不刷新；
+ * - 能即时生效的（调色板 = 深浅、布局）这里直接改 <html>，不刷新；
  *   （2026-10-23 PR-E：字体大小、减弱动效两个设置删除；减弱动效只跟系统 prefers-reduced-motion，见 baseof）
  *   语言需要换到另一种语言的页面，setLang 只写偏好并返回要去的地址，由调用方决定怎么跳。
  */
 import { get as featGet, set as featSet } from './features.js';
 import { set as sset } from './storage.js';
-import { setThemeMode } from './theme.js';
-import { clearAccent } from './accent.js';
-import { DEFAULT_PALETTE, normPalette } from './prefs-write.js';
+import { DEFAULT_PALETTE, normPalette, paintPalette } from './prefs-write.js';
 import { langPath, systemLang, isLang } from './lang-path.js';
 
 export { DEFAULT_PALETTE, normPalette };
 
-/** @returns {'light'|'dark'|'system'} 主题模式偏好 */
-export function themeMode() {
-  const m = featGet('theme-mode');
-  return m === 'light' || m === 'dark' ? m : 'system';
-}
-
-/** @returns {boolean} 当前实际是否深色（含跟随系统算出来的） */
+/** @returns {boolean} 当前是不是深套（深浅只由调色板决定） */
 export function isDark() {
   return document.documentElement.classList.contains('dark');
-}
-
-/** 设置主题模式（浅色 / 深色 / 跟随系统）。 @param {'light'|'dark'|'system'} mode */
-export function setTheme(mode) {
-  setThemeMode(mode);
-}
-
-/**
- * 切换「跟随系统」（设置页 显示 › 跟随系统 开关的语义）：
- * 开着 → 关掉并固定为当前看到的深 / 浅色；关着 → 改回跟随系统。
- */
-export function toggleFollowSystem() {
-  if (themeMode() === 'system') setThemeMode(isDark() ? 'dark' : 'light');
-  else setThemeMode('system');
 }
 
 /* 默认调色板 DEFAULT_PALETTE、存值归一 normPalette：2026-11-04 P5-1 起定义在外观写端 lib/prefs-write.js（四站共用，见上面的 import / export） */
@@ -49,14 +27,11 @@ export function palette() {
   return normPalette(featGet('palette'));
 }
 
-/** 设置调色板并立即生效（自定义主题色 sgx-accent 优先于预设，所以选预设时先清掉它）。 @param {string} p */
+/** 设置调色板并立即生效（深浅、浏览器底色跟着本套走）。 @param {string} p */
 export function setPalette(p) {
   const v = normPalette(p);
-  clearAccent();
   featSet('palette', v);
-  const d = document.documentElement;
-  if (v === DEFAULT_PALETTE) d.removeAttribute('data-palette');
-  else d.setAttribute('data-palette', v);
+  paintPalette(v);
 }
 
 /**

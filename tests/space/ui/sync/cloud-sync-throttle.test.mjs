@@ -52,7 +52,7 @@ globalThis.window = {
 /** <html data-sgx-lock-session>（P2-2 起 cloud-sync 只看它，不看旧等级标记；下面的桩故意对旧标记回一个旧值） */
 let lockState = 'valid';
 globalThis.document = {
-  /* P4-2c 起 EXTRA 只剩 sgx-accent：给 features 定义一个普通同步项，测「两项合并推送」和「拉下来就地应用」 */
+  /* 2026-11-12 起 EXTRA 只剩 sgx-ai-model（sgx-accent 随调色板 v4 删除）：给 features 定义一个普通同步项，测「两项合并推送」和「拉下来就地应用」 */
   getElementById: (id) => (id === 'sgx-features' ? { textContent: JSON.stringify([{ id: 'files-view', key: 'sgx-files-view', type: 'select', default: 'grid' }]) } : null),
   documentElement: { getAttribute: (n) => (n === 'data-sgx-lock-session' ? lockState : n === 'data-sgx-role' ? 'visitor' : null) }, // old-name guard
   cookie: '',
@@ -205,7 +205,7 @@ test('本机修改：1.5 秒防抖合并推送（不受节流）；推送成功�
   await initCloudSync();
   const t0 = lastPullAt();
   clock += 60_000;
-  LS.set('sgx-accent', '#111111');
+  LS.set('sgx-ai-model', 'model-a');
   window.dispatchEvent({ type: 'sgx-settings-changed' });
   await tick(1000);
   LS.set('sgx-files-view', 'list');
@@ -214,7 +214,7 @@ test('本机修改：1.5 秒防抖合并推送（不受节流）；推送成功�
   assert.equal(posts().length, 0, '1.5 秒内不推');
   await tick(100);
   assert.equal(posts().length, 1, '第一次改动后 1.5 秒推一次，两项合并');
-  assert.deepEqual(Object.keys(posts()[0].body.changes).sort(), ['sgx-accent', 'sgx-files-view']);
+  assert.deepEqual(Object.keys(posts()[0].body.changes).sort(), ['sgx-ai-model', 'sgx-files-view']);
   assert.equal(lastPullAt(), clock);
   assert.ok(lastPullAt() > t0);
   assert.equal(LS.get(LAST_KEY), String(clock));
@@ -227,7 +227,7 @@ test('本机修改：1.5 秒防抖合并推送（不受节流）；推送成功�
 
 test('离开页面（pagehide）立刻推掉未推的改动', async () => {
   await initCloudSync();
-  LS.set('sgx-accent', '#222222');
+  LS.set('sgx-ai-model', 'model-b');
   (winListeners.pagehide || []).forEach((fn) => fn({ type: 'pagehide' }));
   await settle();
   assert.equal(posts().length, 1);
@@ -246,35 +246,13 @@ test('拉下来的值不同 → 就地应用，不刷新页面；派发 sgx-sett
   assert.equal(posts().length, 0, '没有回声推送');
 });
 
-test('拉下来自定义主题色：设值 → 按需加载角色引擎；清空 → clearAccent 去掉角色样式；都不刷新', async () => {
-  getReply = { s: 200, j: { ok: true, items: { 'sgx-accent': { v: '#abcdef', t: clock - 10 } } } };
-  assert.equal(await initCloudSync(), 'ok');
-  assert.equal(LS.get('sgx-accent'), '#abcdef');
-  assert.equal(reloads, 0);
-  await settle();
-  LS.set('sgx-accent-css', 'cached');
-  /* 页面上有自定义色的角色样式（baseof 首屏插进来的） */
-  let removed = 0;
-  let seedProp = '#abcdef';
-  const realGet = document.getElementById;
-  document.getElementById = (id) => (id === 'sgx-accent-roles' ? { remove() { removed++; } } : null);
-  document.documentElement.style = { removeProperty(n) { if (n === '--sgx-seed') seedProp = ''; }, setProperty() {} };
-  clock += PULL_INTERVAL + 1;
-  newPage();
-  getReply = { s: 200, j: { ok: true, items: { 'sgx-accent': { v: null, t: clock - 5 } } } };
-  /* 本机修改时间比云端旧，云端的 null 赢 */
-  assert.equal(await initCloudSync(), 'ok');
+test('云端旧的 sgx-accent / sgx-theme-mode（调色板 v4 之前推上去的）不在同步范围：拉下来不写本机', async () => {
+  getReply = { s: 200, j: { ok: true, items: { 'sgx-accent': { v: '#abcdef', t: clock + 10 }, 'sgx-theme-mode': { v: 'light', t: clock + 10 } } } };
+  await initCloudSync();
   assert.equal(LS.has('sgx-accent'), false);
-  assert.equal(LS.has('sgx-accent-css'), false, 'clearAccent 清掉缓存');
-  assert.equal(removed, 1, '角色样式去掉');
-  assert.equal(seedProp, '', '--sgx-seed 去掉');
-  document.getElementById = realGet;
-  delete document.documentElement.style;
+  assert.equal(LS.has('sgx-theme-mode'), false);
   assert.equal(reloads, 0);
-  await tick(PUSH_DEBOUNCE + 10);
-  assert.equal(posts().length, 0);
 });
-
 test('P2-2：不看旧等级标记（桩里永远给旧值也照常拉）；按 /api/prefs 结果：403 / 401 → skip，不清时刻', async () => {
   assert.equal(await initCloudSync({ force: true }), 'ok');
   const t0 = lastPullAt();

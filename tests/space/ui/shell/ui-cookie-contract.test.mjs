@@ -77,12 +77,10 @@ function sandbox({ cookie = '', dark = false, store = {} } = {}) {
 function rootState(html) {
   return {
     dark: html.classList.contains('dark'),
-    'data-theme-mode': html.getAttribute('data-theme-mode'),
     'data-dark': html.getAttribute('data-dark'),
     'data-font-size': html.getAttribute('data-font-size'),
     fontSize: html.style.fontSize,
     'data-palette': html.getAttribute('data-palette'),
-    '--sgx-seed': html.style.getPropertyValue('--sgx-seed'),
     'reduced-motion': html.classList.contains('reduced-motion'),
     'data-reduced-motion': html.getAttribute('data-reduced-motion'),
   };
@@ -93,12 +91,11 @@ test('夹具没过期：写端真实产出 = tests/fixtures/ui-cookie-contract.j
   assert.equal(await renderContract(), readFileSync(FIXTURE, 'utf8'));
 });
 
-test('夹具覆盖：默认 terra 亮 / 暗、跟随系统、lake、旧撞色 xforest 迁移、自定义色、旧 v1 / v2、旧种子、未知版本、乱码', () => {
+test('夹具覆盖：空 localStorage、旧 mode / accent 残留、深套 lake / 浅套 dustyblue、旧撞色 xforest 迁移、旧 v1 / v2、旧 cookie 的 mode 被忽略、未知版本、乱码', () => {
   const names = fx.cases.map((c) => c.name).join('|');
-  for (const k of ['默认 terra 亮色', '默认 terra 深色', '跟随系统', '湖蓝 lake', '旧撞色 xforest', '自定义主题色', '旧 v1', '旧 v2', '旧 cookie：撞色 xforest \\+ 旧种子', '未知版本', '乱码']) assert.match(names, new RegExp(k), k);
+  for (const k of ['空 localStorage', '旧 sgx-theme-mode 残留', '旧自定义主题色残留', '湖蓝 lake', '雾霾蓝 dustyblue', '旧撞色 xforest', '旧 v1', '旧 v2', '浅套 dustyblue \\+ mode dark', '深套 lake \\+ mode light', '未知版本', '乱码']) assert.match(names, new RegExp(k), k);
   assert.ok(fx.cases.filter((c) => c.source === 'writer').length >= 8);
 });
-
 test('语言 lang：写端只写明确选的语言代码，跟随系统明确写 system（语言清理 2026-11-07）；读端只认小写语言代码，其余（旧空值 / 没有 / 不合法）读成 system，版本不认识整份不认', () => {
   const s = sandbox();
   const byLocal = (v) => fx.cases.find((c) => c.source === 'writer' && c.local['sgx-lang'] === v);
@@ -118,12 +115,14 @@ for (const c of fx.cases) {
       const s = sandbox({ cookie: 'sgx-space-session=x; sgx-ui=' + c.cookie + '; other=1', dark: sys === 'dark' });
       assert.deepEqual(plain(s.U.read()), c.read, 'read');
       assert.deepEqual(plain(s.U.read('sgx-ui=' + c.cookie)), c.read, 'read(串)');
-      assert.deepEqual(plain(s.U.resolve(s.U.read(), sys === 'dark')), c[sys].resolve, sys + ' resolve');
-      const a = s.U.apply(s.html, { onMiss() {} });
+      assert.deepEqual(plain(s.U.resolve(s.U.read())), c[sys].resolve, sys + ' resolve');
+      const a = s.U.apply(s.html);
       assert.deepEqual(plain(a), c[sys].resolve, sys + ' apply 返回');
       assert.deepEqual(rootState(s.html), c[sys].root, sys + ' <html>');
       assert.equal(s.cookieWrites, 0, '读端不许写 cookie');
     }
+    /* v4：深浅只由调色板决定，系统浅 / 深两份期望完全一样 */
+    assert.deepEqual(c.light, c.dark, '系统深浅不影响结果');
   });
 }
 
@@ -144,7 +143,7 @@ test('写端和读端共用一份常量 / 编解码（主站先 import ui-cookie
   assert.match(PREFS_WRITE, /return \/\*\* @type \{any\} \*\/ \(window\)\.SgxUI \|\| null;/);
   assert.match(PREFS_WRITE, /v: u\.V,/);
   assert.match(PREFS_WRITE, /u\.encode\(payload\)/);
-  assert.match(PREFS_WRITE, /u\.decode\(readCookie\(\)\)/);
+  assert.match(PREFS_WRITE, /if \(readCookie\(\) === b64\) return;/);
   assert.doesNotMatch(WRITER + PREFS_WRITE, /atob|btoa|v: 2/);
   const s = sandbox();
   assert.equal(s.U.V, 2);
@@ -152,13 +151,17 @@ test('写端和读端共用一份常量 / 编解码（主站先 import ui-cookie
   assert.equal(s.U.NAME, 'sgx-ui');
 });
 
-test('读端预设表 / 引擎版本 = 共享外壳 palettes.json（gen-shell 生成段）', () => {
+test('读端预设表 / 深套表 / 底色表 = 共享外壳 palettes.json（gen-shell 生成段）；没有引擎版本 / 自定义色接口', () => {
   const s = sandbox();
   assert.deepEqual(plain(s.U.PRESETS), Object.fromEntries(palettes.presets.map((p) => [p.id, p.seed])));
-  assert.equal(s.U.SCHEME_VER, palettes.schemeVersion);
+  assert.deepEqual(plain(s.U.DARK), palettes.presets.filter((p) => p.mode === 'dark').map((p) => p.id));
+  for (const p of palettes.presets) assert.equal(s.U.isDark(p.id), p.mode === 'dark', p.id);
+  assert.equal(s.U.isDark('neon'), true, '不认识的 id 按默认 terra（深套）');
   assert.equal(s.U.DEFAULT_PAL, palettes.default);
+  assert.equal(palettes.schemeVersion, undefined);
+  assert.equal(palettes.rulesVersion, 'palette-rules-2');
+  for (const k of ['SCHEME_VER', 'setRoles', 'CACHE_KEY', 'STYLE_ID', 'MODES']) assert.equal(s.U[k], undefined, k);
 });
-
 test('读端是 ES5 经典脚本：没有箭头函数 / let / const / 模板串 / 展开 / 可选链 / import / export，不写 cookie', () => {
   const code = READER.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '').replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"/g, '""');
   for (const [re, what] of [[/=>/, '箭头函数'], [/\blet\s/, 'let'], [/\bconst\s/, 'const'], [/`/, '模板串'], [/\.\.\./, '展开'], [/\?\./, '可选链'], [/\?\?/, '??'], [/^\s*(import|export)\b/m, 'ESM'], [/\bclass\s/, 'class'], [/\bObject\.(assign|entries|hasOwn)\b|\.includes\(|\.startsWith\(/, 'ES2015+ API']]) {
@@ -179,65 +182,49 @@ test('共享外壳带上读端 / 图标（2026-11 合站后子站直接用主站
 
 const cookieOf = (name) => 'sgx-ui=' + fx.cases.find((c) => c.name === name).cookie;
 
-test('自定义色：有缓存首帧插 <style id="sgx-accent-roles">；没缓存回调 onMiss；给了引擎就同步算并写缓存', () => {
-  const name = '自定义主题色（默认色板上）';
-  const s1 = sandbox({ cookie: cookieOf(name) });
-  let missed = '';
-  s1.U.apply(s1.html, { onMiss: (seed) => { missed = seed; } });
-  assert.equal(missed, '#1f8a70');
-  assert.equal(s1.ctx.document.getElementById('sgx-accent-roles'), null, '没缓存：先按预设渲染');
-  assert.equal(s1.html.style.getPropertyValue('--sgx-seed'), '#1f8a70');
-  assert.equal(s1.U.setRoles('#1f8a70', ':root{--sgx-primary:#1f8a70}'), true);
-  assert.equal(s1.ls.get('sgx-shell-accent-css'), palettes.schemeVersion + '|#1f8a70\n:root{--sgx-primary:#1f8a70}');
-
-  const s2 = sandbox({ cookie: cookieOf(name), store: { 'sgx-shell-accent-css': palettes.schemeVersion + '|#1f8a70\nCSS' } });
-  s2.U.apply(s2.html, { onMiss: () => assert.fail('有缓存不该回调') });
-  assert.equal(s2.ctx.document.getElementById('sgx-accent-roles').textContent, 'CSS');
-
-  const s3 = sandbox({ cookie: cookieOf(name), store: { 'sgx-shell-accent-css': 'oldver|#1f8a70\nOLD' } });
-  s3.U.apply(s3.html, { rolesCss: (seed) => 'NEW ' + seed });
-  assert.equal(s3.ctx.document.getElementById('sgx-accent-roles').textContent, 'NEW #1f8a70', '引擎版本变了缓存作废');
-  assert.equal(s3.ls.get('sgx-shell-accent-css'), palettes.schemeVersion + '|#1f8a70\nNEW #1f8a70');
-
-  /* 主站换回预设：再 apply 一次，--sgx-seed 和 <style> 都撤掉 */
-  s2.setCookie(cookieOf('旧撞色 xforest → forest（深色）'));
-  s2.U.apply(s2.html);
-  assert.equal(s2.ctx.document.getElementById('sgx-accent-roles'), null);
-  assert.equal(s2.html.style.getPropertyValue('--sgx-seed'), '');
-  assert.equal(s2.html.getAttribute('data-palette'), 'forest');
-  /* PR-G 前的旧 cookie（pal = x<id>，accent = 旧种子）：迁到 <id>，按预设渲染，不当自定义色 */
-  s2.setCookie(cookieOf('旧 cookie：撞色 xforest + 旧种子 → forest 预设（不当自定义色）'));
-  s2.U.apply(s2.html);
-  assert.equal(s2.html.getAttribute('data-palette'), 'forest');
-  assert.equal(s2.html.style.getPropertyValue('--sgx-seed'), '');
+test('旧版自定义色留下的东西首帧清掉：<style id="sgx-accent-roles">、本站缓存 sgx-shell-accent-css、内联 --sgx-seed', () => {
+  const s = sandbox({ cookie: cookieOf('湖蓝 lake（深套）'), store: { 'sgx-shell-accent-css': 'oldver|#1f8a70\nOLD' } });
+  const st = s.head.appendChild(s.ctx.document.createElement('style'));
+  st.id = 'sgx-accent-roles';
+  s.html.style.setProperty('--sgx-seed', '#1f8a70');
+  s.U.apply(s.html);
+  assert.equal(s.ctx.document.getElementById('sgx-accent-roles'), null);
+  assert.equal(s.ls.has('sgx-shell-accent-css'), false);
+  assert.equal(s.html.style.getPropertyValue('--sgx-seed'), '');
+  assert.equal(s.html.getAttribute('data-palette'), 'lake');
+  assert.equal(s.html.classList.contains('dark'), true);
 });
-
-test('跟随系统：系统深浅色一变就重落；cookie 指定了 light / dark 时不动；只挂一次监听', () => {
-  const s = sandbox({ cookie: cookieOf('跟随系统（空 localStorage）'), dark: false });
+test('深浅只由调色板决定：不读 prefers-color-scheme、不挂系统监听；paint 换调色板就换深浅和 <meta>', () => {
+  const s = sandbox({ cookie: cookieOf('雾霾蓝 dustyblue（浅套）'), dark: true });
   s.U.apply(s.html);
-  s.U.apply(s.html);
-  assert.equal(s.listeners.length, 1);
+  assert.equal(s.listeners.length, 0, '不挂系统深浅色监听');
+  assert.equal(s.html.classList.contains('dark'), false, '系统是深色，浅套照样是浅');
+  s.flip(false);
   assert.equal(s.html.classList.contains('dark'), false);
-  s.flip(true);
+  assert.doesNotMatch(READER.replace(/\/\*[\s\S]*?\*\//g, ''), /prefers-color-scheme|matchMedia/);
+  /* paint：带 <meta> 的页面 */
+  const metas = { 'color-scheme': makeEl('meta'), 'theme-color': makeEl('meta') };
+  s.ctx.document.querySelector = (sel) => metas[/name="([^"]+)"/.exec(sel)[1]] || null;
+  assert.equal(s.U.paint('terra', s.html), true);
+  assert.equal(s.html.getAttribute('data-palette'), null);
   assert.equal(s.html.classList.contains('dark'), true);
   assert.equal(s.html.getAttribute('data-dark'), '1');
-  assert.equal(s.html.getAttribute('data-theme-mode'), 'system');
-  s.setCookie(cookieOf('默认 terra 亮色'));
-  s.flip(true);
+  assert.equal(metas['color-scheme'].getAttribute('content'), 'dark');
+  assert.equal(metas['theme-color'].getAttribute('content'), '#161412');
+  assert.equal(s.U.paint('glacier', s.html), false);
+  assert.equal(s.html.getAttribute('data-palette'), 'glacier');
   assert.equal(s.html.classList.contains('dark'), false);
-  const n = sandbox();
-  n.U.apply(n.html, { watch: false });
-  assert.equal(n.listeners.length, 0);
+  assert.equal(metas['color-scheme'].getAttribute('content'), 'light');
+  assert.equal(metas['theme-color'].getAttribute('content'), palettes.presets.find((p) => p.id === 'glacier').tokens.background);
 });
-
-test('坏 cookie / 没有 DOM 能力也不抛：默认 terra + 跟随系统', () => {
+test('坏 cookie / 没有 DOM 能力也不抛：默认 terra（深套）', () => {
   const s = sandbox({ cookie: 'sgx-ui=%%%' });
   assert.equal(s.U.read(), null);
   assert.equal(s.U.decode(''), null);
   assert.equal(s.U.decode(null), null);
   assert.equal(s.U.read(null), null);
   const a = s.U.apply(s.html);
-  assert.deepEqual(plain(a), { mode: 'system', dark: false, pal: 'terra', fs: 'standard', rm: false, seed: '' });
+  assert.deepEqual(plain(a), { dark: true, pal: 'terra', fs: 'standard', rm: false });
 });
 
 test('cookie 属性按主机名 / 协议：localhost / http 不带 Domain / Secure；styrigx.com 及子域 https 带（P5-1 跨站 e2e 修法）', async () => {

@@ -47,11 +47,11 @@ const over = (f, b) => [0, 1, 2].map((i) => f[i] * f[3] + b[i] * (1 - f[3])).con
 const lum = (c) => { const v = c.slice(0, 3).map((x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
 const cr = (a, b) => { const x = lum(a); const y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
-test('§6.2 对比度：22 套预设 × 深浅色，非当前项 / 当前项文字都 ≥ 4.5:1', () => {
+test('§6.2 对比度：22 套预设（v4 起每套一个模式），非当前项 / 当前项文字都 ≥ 4.5:1', () => {
   const { presets } = JSON.parse(rd('space/web/data/shell/palettes.json'));
   assert.equal(presets.length, 22);
-  for (const p of presets) for (const mode of ['light', 'dark']) {
-    const t = p.tokens[mode];
+  for (const p of presets) {
+    const t = p.tokens, mode = p.mode;
     const base = over(rgba(t['topbar-glass']), rgba(t.background));
     const ns = rgba(t['nav-selected']);
     const bg = over([ns[0], ns[1], ns[2], 0.45], base);

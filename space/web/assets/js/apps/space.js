@@ -1,5 +1,5 @@
 /**
- * @fileoverview 状态页（/status/）与主页的页面模块：自定义主题色同步、首屏 about 卡 Uptime（screen-time 窗 v6 P4 随数字健康删除，定稿 v5.5 §四）。
+ * @fileoverview 状态页（/status/）与主页的页面模块：首屏 about 卡 Uptime（screen-time 窗 v6 P4 随数字健康删除，定稿 v5.5 §四）。
  * 2026-11 对齐 PR-C：风格页 /theme/ 退役（调色板 / 恢复默认都在顶栏外观弹层），调色板网格代码删除。
  * 2026-11 对齐 PR-B：/wellbeing/ /about/ 并进旷野页 /wild/，15 分钟提醒删除（Gray 04:01）。
  * P4-3 PR-4b（2026-11-07，Gray）：显示页（/display/）整页删除——深色 / 跟随系统 / 语言 / 布局都在快捷面板（共享外壳），这里不再有主题模式、布局、语言三段。
@@ -9,7 +9,6 @@
  * mountSpace() 在加载时挂一次（入口 entry-space.js / entry-space-status.js），返回 destroy()：拆掉本次挂的全部监听。
  */
 import { on as evOn } from '../lib/events.js';
-import { syncAccent } from '../lib/accent-roles.js';
 import { uptimeDays, uptimeText } from '../lib/uptime.js';
 
 /**
@@ -25,10 +24,6 @@ export function mountSpace() {
     offs.push(off);
     return off;
   };
-
-  /* 自定义主题色（sgx-accent）：缓存缺失 / 过期时按种子重算整套角色（lib/palette-scheme.js）。
-     风格页 /theme/ 的调色板网格 2026-11 对齐 PR-C 退役（功能在顶栏外观弹层，共享外壳 quick-panel.js），这里只剩这一步。 */
-  syncAccent();
 
   /* ---- 主页首屏 about 卡（v5 S7，原旷野 › about 窗）neofetch 的 Uptime（自 2026-10-07，Gray 2026-11-09）：构建时写过一份，这里按今天重算（页面可能是几天前构建的） ---- */
   (function () {

@@ -45,45 +45,41 @@ test('v6 P4：四站页面都没有「分享本页」磁贴（Gray 11-11 17:47�
   }
 });
 
-test('子站外观面板改外观（深色、调色板）→ 回主站同步生效；再在主站改回来，子站也跟着', async ({ page }) => {
+test('子站外观面板换调色板（v4：深浅跟着调色板）→ 回主站同步生效；再在主站侧改回来，子站也跟着', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' });
   await page.goto('/curio/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
-  await openSet(page);
-  /* MODE 默认跟随系统：点「深」= 明确选深色 */
-  await expect(page.locator('#sgx-qp [data-qp-mode="system"]')).toHaveAttribute('aria-pressed', 'true');
-  await page.locator('#sgx-qp [data-qp-mode="dark"]').click();
+  /* 默认 terra 是深套：系统浅色也是深的 */
   await expect(page.locator('html')).toHaveClass(/\bdark\b/);
-  await expect(page.locator('#sgx-qp [data-qp-mode="dark"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#sgx-qp [data-qp-mode="system"]')).toHaveAttribute('aria-pressed', 'false');
-  await page.locator('#sgx-qp [data-qp-palette="forest"]').click();
-  await expect(page.locator('html')).toHaveAttribute('data-palette', 'forest');
+  await openSet(page);
+  await expect(page.locator('#sgx-qp [data-qp-mode]')).toHaveCount(0);
+  await page.locator('#sgx-qp [data-qp-palette="sage"]').click();
+  await expect(page.locator('html')).toHaveAttribute('data-palette', 'sage');
+  await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
   const cookie = (await page.context().cookies()).find((c) => c.name === 'sgx-ui');
   expect(cookie, '写了 sgx-ui cookie').toBeTruthy();
 
-  /* 主站：同源同一份 cookie / localStorage，首帧就是深色 + forest */
+  /* 主站：同源同一份 cookie / localStorage，首帧就是浅套 sage */
   for (const p of ['/', '/status/']) {
     await page.goto(p, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('html'), p).toHaveClass(/\bdark\b/);
-    await expect(page.locator('html'), p).toHaveAttribute('data-palette', 'forest');
+    await expect(page.locator('html'), p).not.toHaveClass(/\bdark\b/);
+    await expect(page.locator('html'), p).toHaveAttribute('data-palette', 'sage');
   }
-  expect(await page.evaluate(() => [localStorage.getItem('sgx-theme-mode'), localStorage.getItem('sgx-palette')])).toEqual(['dark', 'forest']);
+  expect(await page.evaluate(() => [localStorage.getItem('sgx-theme-mode'), localStorage.getItem('sgx-palette')])).toEqual([null, 'sage']);
 
   /* 日刻、博客也跟着（读同一个 cookie） */
   for (const p of ['/daymark/', '/blog/']) {
     await page.goto(p, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('html'), p).toHaveClass(/\bdark\b/);
-    await expect(page.locator('html'), p).toHaveAttribute('data-palette', 'forest');
+    await expect(page.locator('html'), p).not.toHaveClass(/\bdark\b/);
+    await expect(page.locator('html'), p).toHaveAttribute('data-palette', 'sage');
   }
 
-  /* 反过来：日刻外观面板改回浅色 + 默认色板 → 奇趣首帧浅色 */
+  /* 反过来：日刻外观面板恢复默认（terra，深套）→ 奇趣首帧深色、没有 data-palette */
   await page.goto('/daymark/', { waitUntil: 'domcontentloaded' });
   await openSet(page);
-  await page.locator('#sgx-qp [data-qp-mode="light"]').click();
-  await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
   await page.locator('#sgx-qp [data-qp-reset]').click();
-  await expect(page.locator('html')).not.toHaveAttribute('data-palette', 'forest');
+  await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+  await expect(page.locator('html')).not.toHaveAttribute('data-palette', 'sage');
   await page.goto('/curio/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
-  await expect(page.locator('html')).not.toHaveAttribute('data-palette', 'forest');
+  await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+  await expect(page.locator('html')).not.toHaveAttribute('data-palette', /.+/);
 });

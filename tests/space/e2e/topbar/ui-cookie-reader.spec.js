@@ -18,20 +18,18 @@ const SHELL_FILES = {
   'shell.css': 'space/web/assets/css/shell/shell.css',
   'ui-cookie-read.js': 'space/web/assets/js/lib/ui-cookie-read.js',
   'favicon.js': 'space/web/assets/js/shell/favicon.js',
-  'palette-scheme.js': 'space/web/assets/js/lib/palette-scheme.js',
 };
 const shell = (f) => fs.readFileSync(path.join(REPO, SHELL_FILES[f]), 'utf8');
 const SUB = '/__ui-cookie-subsite/';
 
-/** 子站页：<head> 里样式 → 读端原文 → 一行 apply（没缓存时异步加载外壳引擎算自定义色）→ 记下首帧前的状态 */
+/** 子站页：<head> 里 color-scheme / theme-color（默认 terra）→ 样式 → 读端原文 → 一行 apply → 记下首帧前的状态 */
 function subsiteHtml() {
   return `<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8">
+<meta name="color-scheme" content="dark"><meta name="theme-color" content="#161412">
 <link rel="icon" href="/favicon.ico" sizes="32x32"><link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>${shell('tokens.css')}\n${shell('shell.css')}</style>
 <script>${shell('ui-cookie-read.js')}</script>
-<script>SgxUI.apply(document.documentElement, { onMiss: function (seed) {
-  import('${SUB}palette-scheme.js').then(function (m) { SgxUI.setRoles(seed, m.rolesCss(seed)); window.__sgxRoles = seed; });
-} });</script>
+<script>SgxUI.apply(document.documentElement);</script>
 <script>window.__pre = { cls: document.documentElement.className, style: document.documentElement.getAttribute('style') };</script>
 </head><body><a class="sgx-tb-logo" href="/"><span class="sgx-tb-ps">❯</span><span class="sgx-tb-name">styrigx</span><span class="sgx-tb-tl">:~$</span><span class="sgx-tb-cu"></span></a>
 <script type="module">${shell('favicon.js')}\ninitFavicon();</script>
@@ -51,10 +49,9 @@ const measure = () => {
     dark: d.classList.contains('dark'),
     reducedMotion: d.classList.contains('reduced-motion'),
     /* data-font-size 不比：主站 2026-10-23 删了字体大小设置、不再写这个属性；子站读端照旧按 cookie 的 fs 写（写端固定 standard），只比实际字号 fontSize */
-    attrs: Object.fromEntries(['data-theme-mode', 'data-dark', 'data-palette', 'data-reduced-motion'].map((k) => [k, d.getAttribute(k)])),
+    attrs: Object.fromEntries(['data-dark', 'data-palette', 'data-reduced-motion'].map((k) => [k, d.getAttribute(k)])),
     fontSize: d.style.fontSize,
-    seed: d.style.getPropertyValue('--sgx-seed'),
-    hasRoles: !!document.getElementById('sgx-accent-roles'),
+    meta: ['color-scheme', 'theme-color'].map((n) => (document.querySelector('meta[name="' + n + '"]') || { content: null }).content),
     primary: cs.color,
     text: cs.backgroundColor,
     dot: dot ? getComputedStyle(dot).color : null,
@@ -64,12 +61,12 @@ const measure = () => {
   return out;
 };
 
+/* 调色板 v4：深浅只由调色板决定——系统深浅（scheme）、旧 sgx-theme-mode 都不影响 */
 const CASES = [
-  { name: '默认 terra 深色', page: '/', local: { 'sgx-theme-mode': 'dark' }, want: { pal: null, dark: true } },
-  { name: 'forest 亮色（存的是旧撞色 xforest，主站首屏迁到 forest）', page: '/', local: { 'sgx-theme-mode': 'light', 'sgx-palette': 'xforest' }, want: { pal: 'forest', dark: false } },
-  { name: 'lake 深色（PR-G 起是普通色板）', page: '/', local: { 'sgx-theme-mode': 'dark', 'sgx-palette': 'lake' }, want: { pal: 'lake', dark: true } },
-  /* 自定义色：旷野页 / 子页加载时 syncAccent 才算角色（apps/space.js），所以主站这边量旷野子页风格页 /status/（P4-3 PR-4b 前是设置页；显示页 /display/ 已删除） */
-  { name: '自定义主题色 #1f8a70 跟随系统（系统深色）', page: '/status/', local: { 'sgx-accent': '#1f8a70' }, scheme: 'dark', want: { pal: null, dark: true, seed: '#1f8a70' } },
+  { name: '默认 terra（深套），系统浅色', page: '/', local: {}, scheme: 'light', want: { pal: null, dark: true } },
+  { name: 'forest（存的是旧撞色 xforest，主站首屏迁到 forest）', page: '/', local: { 'sgx-palette': 'xforest' }, want: { pal: 'forest', dark: true } },
+  { name: '雾霾蓝 dustyblue（浅套），系统深色 + 旧 mode=dark 残留', page: '/', local: { 'sgx-palette': 'dustyblue', 'sgx-theme-mode': 'dark' }, scheme: 'dark', want: { pal: 'dustyblue', dark: false } },
+  { name: '旧自定义主题色残留：两边都按调色板渲染，不插角色样式', page: '/status/', local: { 'sgx-accent': '#1f8a70', 'sgx-palette': 'lake' }, want: { pal: 'lake', dark: true } },
 ];
 
 test.describe('子站读端 = 主站外观（真写端 cookie → 共享外壳 ui-cookie-read.js）', () => {
@@ -102,7 +99,6 @@ test.describe('子站读端 = 主站外观（真写端 cookie → 共享外壳 u
       const cookie = await page.evaluate(() => window.__sgxUi);
       /* 语言：本页明确选了中文（sgx-lang=zh）→ 写端带 lang: 'zh'，子站据此跟随 */
       expect(Buffer.from(cookie.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')).toContain('"lang":"zh"');
-      if (c.local['sgx-accent']) await expect.poll(() => page.evaluate(() => !!document.getElementById('sgx-accent-roles'))).toBe(true);
       /* 字标在顶栏 logo 里（2026-11 PR-1 起是文字字标 ❯ styrigx :~$_） */
       await expect(page.locator('.sgx-tb-logo .sgx-tb-ps')).toBeVisible();
       const main = await page.evaluate(measure);
@@ -114,24 +110,22 @@ test.describe('子站读端 = 主站外观（真写端 cookie → 共享外壳 u
       await blockExternalRequests(sp);
       await sp.route('**/favicon.svg', (r) => r.continue());
       await sp.route('**' + SUB, (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: subsiteHtml() }));
-      await sp.route('**' + SUB + 'palette-scheme.js', (r) => r.fulfill({ contentType: 'text/javascript', body: shell('palette-scheme.js') }));
       await sub.addCookies([{ name: 'sgx-ui', value: cookie, url: new URL(page.url()).origin }]);
       await sp.goto(SUB, { waitUntil: 'load' });
-      if (c.local['sgx-accent']) await expect.poll(() => sp.evaluate(() => window.__sgxRoles || '')).toBe(c.local['sgx-accent']);
       const s = await sp.evaluate(measure);
       const pre = await sp.evaluate(() => window.__pre);
 
       /* 主站自己先对（不然两边一起错也会相等） */
       expect(main.attrs['data-palette']).toBe(c.want.pal);
       expect(main.dark).toBe(c.want.dark);
-      expect(main.seed).toBe(c.want.seed || '');
-      expect(main.hasRoles).toBe(!!c.want.seed);
+      expect(await page.evaluate(() => !!document.getElementById('sgx-accent-roles'))).toBe(false);
+      expect(await sp.evaluate(() => !!document.getElementById('sgx-accent-roles'))).toBe(false);
       expect(s).toEqual(main);
       expect(s.dot).toBe(s.primary);
       expect(s.ink).toBe(s.text);
       /* 首帧前就落好了（不是之后的脚本补的）：class / style 和最终一致 */
       expect(pre.cls.split(/\s+/).includes('dark')).toBe(main.dark);
-      if (!c.local['sgx-accent']) expect(pre.style || '').toBe(await sp.evaluate(() => document.documentElement.getAttribute('style') || ''));
+      expect(pre.style || '').toBe(await sp.evaluate(() => document.documentElement.getAttribute('style') || ''));
       /* SVG 标签页图标：同一份 favicon.js + favicon.svg → 同一个 data: 地址 */
       await expect.poll(() => sp.locator('link[rel="icon"][type="image/svg+xml"]').getAttribute('href')).toBe(mainIcon);
       /* 读端从不写 cookie：子站页上 sgx-ui 还是原值 */
@@ -140,9 +134,9 @@ test.describe('子站读端 = 主站外观（真写端 cookie → 共享外壳 u
     });
   }
 
-  test('坏 cookie / 未知版本：子站按默认 terra + 跟随系统，不报错', async ({ browser, baseURL }) => {
+  test('坏 cookie / 未知版本：子站按默认 terra（深套），不报错', async ({ browser, baseURL }) => {
     for (const value of ['%%%garbage', 'eyJ2IjozLCJtb2RlIjoiZGFyayJ9' /* {"v":3,"mode":"dark"} */]) {
-      const sub = await browser.newContext({ colorScheme: 'dark' });
+      const sub = await browser.newContext({ colorScheme: 'light' });
       const sp = await sub.newPage();
       const errors = [];
       sp.on('pageerror', (e) => errors.push(String(e)));
@@ -151,7 +145,8 @@ test.describe('子站读端 = 主站外观（真写端 cookie → 共享外壳 u
       await sub.addCookies([{ name: 'sgx-ui', value, url: baseURL }]);
       await sp.goto(SUB, { waitUntil: 'load' });
       const s = await sp.evaluate(measure);
-      expect(s.attrs).toEqual({ 'data-theme-mode': 'system', 'data-dark': '1', 'data-palette': null, 'data-reduced-motion': '0' });
+      expect(s.attrs).toEqual({ 'data-dark': '1', 'data-palette': null, 'data-reduced-motion': '0' });
+      expect(s.meta).toEqual(['dark', '#161412']);
       expect(s.dark).toBe(true);
       expect(s.dot).toBe(s.primary);
       expect(errors).toEqual([]);

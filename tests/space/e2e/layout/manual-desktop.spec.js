@@ -12,17 +12,16 @@ const { blockExternalRequests, freezeTime, expect } = require('../helpers/helper
 const PHONE_UA = 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
 const ORIG = 'width=device-width, initial-scale=1';
 
-async function go(page, { pref, theme, palette, path = '/zh/' } = {}) {
+async function go(page, { pref, palette, path = '/zh/' } = {}) {
   await blockExternalRequests(page);
   await freezeTime(page);
   await page.addInitScript((o) => {
     try {
       localStorage.setItem('sgx-lang', 'zh');
       if (o.pref && !sessionStorage.getItem('sgx-e2e-set')) { localStorage.setItem('sgx-layout', o.pref); sessionStorage.setItem('sgx-e2e-set', '1'); }
-      if (o.theme) localStorage.setItem('sgx-theme-mode', o.theme);
       if (o.palette) localStorage.setItem('sgx-palette', o.palette);
     } catch (e) {}
-  }, { pref, theme, palette });
+  }, { pref, palette });
   await page.goto(path, { waitUntil: 'load' });
 }
 const state = (page) => page.evaluate(() => ({
@@ -90,14 +89,23 @@ test.describe('手机（412 宽，手机 UA）', () => {
     /* 不是 rgb() 的值不认（不往样式里拼任意字符串） */
     await page.evaluate(() => sessionStorage.setItem('sgx-fp-bg', 'red}html{color:red'));
     await page.reload({ waitUntil: 'load' });
-    expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(252, 243, 239)'); /* 2026-11 PR-A：默认访客 = terra，浅色首帧底 #fcf3ef */
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(22, 20, 18)'); /* 调色板 v4：默认访客 = terra（深套），首帧底 #161412 */
   });
 
-  test('首帧底色：本站深色、系统浅色，样式表没到 → color-scheme / theme-color 是深色，html 底色是深色（不是白底）', async ({ page }) => {
+  test('首帧底色（调色板 v4）：深套 lake、系统浅色，样式表没到 → color-scheme / theme-color 是这套的深色，html 底色 = 这套 bg-1（不是白底）', async ({ page }) => {
     await page.route(/\/css\/main\.[0-9a-f]+\.css$/, (r) => r.abort());
-    await go(page, { theme: 'dark' });
+    await go(page, { palette: 'lake' });
     expect(await page.evaluate(() => document.querySelector('meta[name="color-scheme"]').getAttribute('content'))).toBe('dark');
-    expect(await page.evaluate(() => Array.from(document.querySelectorAll('meta[name="theme-color"]')).map((m) => m.getAttribute('content')))).toEqual(['#161412', '#161412']);
+    expect(await page.evaluate(() => Array.from(document.querySelectorAll('meta[name="theme-color"]')).map((m) => m.getAttribute('content')))).toEqual(['#01172b']);
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(1, 23, 43)'); /* lake bg-1 #01172b */
+    expect(await page.evaluate(() => document.head.firstElementChild && document.head.firstElementChild.id)).toBe('sgx-first-paint');
+  });
+
+  test('首帧底色：默认 terra（深套），系统浅色也不白底', async ({ page }) => {
+    await page.route(/\/css\/main\.[0-9a-f]+\.css$/, (r) => r.abort());
+    await go(page);
+    expect(await page.evaluate(() => document.querySelector('meta[name="color-scheme"]').getAttribute('content'))).toBe('dark');
+    expect(await page.evaluate(() => Array.from(document.querySelectorAll('meta[name="theme-color"]')).map((m) => m.getAttribute('content')))).toEqual(['#161412']);
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(22, 20, 18)'); /* terra 深色 #161412，同 theme-color */
     expect(await page.evaluate(() => document.head.firstElementChild && document.head.firstElementChild.id)).toBe('sgx-first-paint');
   });
@@ -105,7 +113,7 @@ test.describe('手机（412 宽，手机 UA）', () => {
   test('首帧底色只是最低层的兜底：样式表到了以后照常按调色板（换了调色板 = 那套的 bg-1，不是默认色）', async ({ page }) => {
     await go(page, { palette: 'lake' });
     await expect(page.locator('html')).toHaveAttribute('data-palette', 'lake');
-    expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(240, 246, 252)');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(1, 23, 43)'); /* lake bg-1 #01172b（v4 起湖蓝是深套） */
   });
 });
 
