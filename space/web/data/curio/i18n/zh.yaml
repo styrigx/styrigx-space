@@ -136,6 +136,7 @@ music:
   player: 播放器
   position: 进度
   playbackSpeed: 倍速
+  shuffle: 随机播放
   previous: 上一首
   play: 播放
   pause: 暂停
@@ -382,4 +383,6 @@ js:
     play: 播放
     pause: 暂停
     speed: 倍速 {s}×
+    shuffleOn: 随机播放：开
+    shuffleOff: 随机播放：关
     noPermission: 当前用户没有这个权限。

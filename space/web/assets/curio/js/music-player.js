@@ -3,7 +3,8 @@
  * 只播放，不管理（上传 / 删除留在奇趣音乐页 curio-music.js）。功能按方案 §7.1 播放层：
  *   - 正在播：封面小图 + 歌名 + 歌手 + 专辑名；标签页标题跟着歌名。
  *   - 播放控制：播放 / 暂停、上一首、下一首；进度条可拖（Range）+ 当前时间 / 总时长。
- *   - 播放模式：顺序 / 随机（共用核 setShuffle；模式记在 localStorage「sgx-music-mode」，下次打开还是上次的）。
+ *   - 播放模式：顺序 / 随机（共用核 setShuffle；模式记在 localStorage「sgx-music-mode」，下次打开还是上次的；
+ *     奇趣音乐页同一个设置，另一边改了 storage 事件同步过来）。
  *   - 倍速：1× → 1.25× → 1.5× → 2× 循环（PLAYER_SPEEDS；只记在本窗口内存里，奇趣页 0.75–2 各管各的）。
  *   - 音量滑条 + 静音（本窗口）。
  *   - 歌词：有 LRC 显示当前一句（跟播放同步）；点一下展开全部，再点收起。
@@ -248,6 +249,12 @@ function mediaPos(){
 
 /* ---------- 启动 ---------- */
 P.setShuffle(CORE.readMode(store) === 'shuffle');
+/* 奇趣页那边改了随机（同一个本地设置）：这边跟着变 */
+G.addEventListener('storage', function(e){
+  if (e && e.key !== CORE.MODE_KEY) return;
+  var on = CORE.readMode(store) === 'shuffle';
+  if (on !== P.state.shuffle) P.setShuffle(on);
+});
 syncVol();
 function done(){ doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); }); }
 req('GET', '/curio/api/music').then(function(j){

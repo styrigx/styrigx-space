@@ -8,8 +8,8 @@
  *   - 倍速：换曲目也保持。
  *   - 防同时响：同源各页共用 BroadcastChannel「sgx-music」，一边开播就广播 playing，别的页（奇趣页 / 播放器）收到就暂停。
  *   - 播放模式（2b，方案 v1.13 §7.1 / §7.2）：顺序 / 随机。随机 = 专辑内把曲序打乱成一个队列（不重复、当前这首排第一），
- *     放完一轮重新打乱、新一轮第一首避开刚放完的那首；切回顺序从正在播的这首按曲序往下。默认顺序；只有调用方 setShuffle(true) 才随机
- *     （奇趣页没有随机按钮，不调，行为同 2a）。模式记在 localStorage「sgx-music-mode」（readMode / saveMode，调用方自己读写）。
+ *     放完一轮重新打乱、新一轮第一首避开刚放完的那首；切回顺序从正在播的这首按曲序往下。默认顺序；调用方按本地设置 setShuffle。
+ *     模式记在 localStorage「sgx-music-mode」（readMode / saveMode），奇趣页和弹出播放器共用这一个设置。
  * 只管声音和状态，不画界面：画什么由调用方的 onTrack / onChange / onStop 决定。
  */
 (function(){

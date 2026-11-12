@@ -138,6 +138,7 @@ music:
   player: Player
   position: Position
   playbackSpeed: Playback speed
+  shuffle: Shuffle
   previous: Previous
   play: Play
   pause: Pause
@@ -393,4 +394,6 @@ js:
     play: Play
     pause: Pause
     speed: Speed {s}×
+    shuffleOn: 'Shuffle: on'
+    shuffleOff: 'Shuffle: off'
     noPermission: Your current user doesn’t have permission for this.

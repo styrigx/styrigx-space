@@ -439,3 +439,44 @@ test('播放器和奇趣页不同时响：播放器开播，奇趣页那边自�
   await expect(a.locator('#mu-toggle')).not.toHaveClass(/is-playing/);
   await ctx.close();
 });
+
+test('随机播放：奇趣页有随机按钮，和播放器共用一个本地设置（sgx-music-mode）；一边切了另一边跟着变；奇趣页随机时下一首按打乱的队列', async ({ browser }) => {
+  const ctx = await browser.newContext({ locale: 'zh-CN' });
+  const a = await ctx.newPage(), b = await ctx.newPage();
+  await mockMusic(a, 'owner'); await mockMusic(b, 'owner');
+  await a.goto('/curio/zh/music/');
+  await b.goto('/curio/zh/music/player/');
+  await expect(b.locator('#mp-app')).toBeVisible();
+  const sa = a.locator('#mu-shuffle'), sb = b.locator('#mp-shuffle');
+  await expect(sa).toHaveAttribute('aria-pressed', 'false');
+  await expect(sb).toHaveAttribute('aria-pressed', 'false');
+  /* 奇趣页的随机按钮在播放条里（播放条开播才出现）。两页同时开着，后台那页不跑动画帧，等不到「稳定」，点击用 dispatchEvent */
+  await a.locator('#mu-play-all').dispatchEvent('click');
+  await expect(a.locator('#mu-player')).toBeVisible();
+  await sa.dispatchEvent('click');
+  await expect(sa).toHaveAttribute('aria-pressed', 'true');
+  expect(await a.evaluate(() => localStorage.getItem('sgx-music-mode'))).toBe('shuffle');
+  await expect(sb).toHaveAttribute('aria-pressed', 'true');
+  await sb.dispatchEvent('click');
+  await expect(sb).toHaveAttribute('aria-pressed', 'false');
+  await expect(sa).toHaveAttribute('aria-pressed', 'false');
+  /* 重新打开奇趣页：还是上次的模式 */
+  await sb.dispatchEvent('click');
+  await a.reload();
+  await expect(a.locator('#mu-shuffle')).toHaveAttribute('aria-pressed', 'true');
+  /* 奇趣页随机：从第 2 首开播，下一首是另一首（两首的专辑 = 第 1 首），不停 */
+  await a.locator('#mu-tracks [data-t="1"]').dispatchEvent('click');
+  await expect(a.locator('#mu-now-title')).toHaveText('My Old Man');
+  await a.locator('#mu-next').dispatchEvent('click');
+  await expect(a.locator('#mu-now-title')).toHaveText('All I Want');
+  await ctx.close();
+});
+
+test('随机播放（访客，没进站）：奇趣页随机按钮不可用', async ({ page }) => {
+  await mockMusic(page, 'visitor');
+  await asVisitor(page);
+  await page.goto('/curio/zh/music/');
+  await expect(page.locator('html')).toHaveClass(/mu-view-only/);
+  await expect(page.locator('#mu-shuffle')).toBeVisible();
+  await expect(page.locator('#mu-shuffle')).toBeDisabled();
+});
