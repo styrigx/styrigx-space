@@ -100,7 +100,7 @@ export async function addAirport(env, name, url, now = Date.now(), fetchFn = fet
   if (old) {
     const got = await fetchAirport(url.trim(), await userAgent(env, now, fetchFn), fetchFn);
     if (!got.ok) return { ok: false, error: got.error, kept: true, oldHost: old.host || '', host };
-    const ex = extractProxies(got.text);
+    const ex = extractProxies(got.text, { links: true });
     if (!ex.ok) return { ok: false, error: ex.error, kept: true, oldHost: old.host || '', host };
     await replaceAirport(env, old.id, host, await seal(key, aad(old.id, 'url'), url.trim()),
       await seal(key, aad(old.id, 'nodes'), JSON.stringify(ex.proxies)), ex.proxies.length, now);
