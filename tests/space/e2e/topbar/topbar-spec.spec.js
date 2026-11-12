@@ -119,6 +119,9 @@ for (const dark of [false, true]) {
         await expect(page.locator('.sgx-tb-back, [data-go-back], .sgx-tb-more, .sgx-tb-search, #sgx-tb-search, .sgx-tb-nav, .sgx-tb-end, #sgx-drawer')).toHaveCount(0);
         expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-prog']);
         expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.replace(/\s*\bis-busy\b/, '')))).toEqual([ /* 去掉 .is-busy：加载中头像外圈转快（2026-11-09） */'sgx-tb-btn sgx-tb-quick', 'sgx-tb-btn sgx-tb-grid', 'sgx-tb-btn sgx-tb-music', 'sgx-tb-btn sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-btn sgx-tb-term', 'sgx-tb-av']);
+        /* 音乐图标：音乐方案第一步是链接，去奇趣音乐页（当前语言）；不再是 aria-disabled 的死按钮 */
+        await expect(page.locator('.sgx-tb-music')).toHaveAttribute('href', /\/curio\/(zh\/)?music\/$/);
+        await expect(page.locator('.sgx-tb-music')).not.toHaveAttribute('aria-disabled', /.*/);
         /* 页名胶囊：标记在、只放页名，顶栏不显示 */
         expect(await page.locator('#site-nav .sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-title']);
         await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
