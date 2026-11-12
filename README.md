@@ -155,7 +155,7 @@ space/scripts/ci-local.sh unit build          # 只跑指定分组
 
 GitHub Actions（[`deploy.yml`](.github/workflows/deploy.yml)）：
 
-- **PR**：`unit`、`build`（含生成物 `--check`、分层与路由检查）、`e2e-lock`、`e2e-sites`、`visual`、`lighthouse`，汇总为 `quality`；另有 `passkey-e2e`。两项都绿、分支与 `main` 同步后才能合并，只允许 squash。
+- **PR**：`unit`、`build`（含生成物 `--check`、分层与路由检查）、`e2e-lock`、`e2e-sites`、`visual`、`lighthouse`，汇总为 `quality`；另有 `passkey-e2e`。两项都绿、分支与 `main` 同步后才能合并，只允许 merge 提交。
 - **main**：按依赖顺序部署 Worker（AI、监测、账号 → 站点核心 → 奇趣 / 日刻接口；规则集反代并行），最后部署 Pages；每一步都有部署后核对与冒烟，失败自动回滚到部署前的版本。
 - 每个部署作业使用各自最小权限的部署令牌，放在只允许 `main` 使用的 GitHub environment 里；仓库里没有任何密钥。
 
