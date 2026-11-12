@@ -11,6 +11,8 @@
 /favicon-32x32.png  /avatar/32.webp  301
 /apple-touch-icon.png  /avatar/192.webp  301
 /wild/  /status/  301
+/music/  /curio/music/  302
+/zh/music/  /curio/zh/music/  302
 /zh/wild/  /zh/status/  301
 /about/  /#about  301
 /zh/about/  /zh/#about  301
