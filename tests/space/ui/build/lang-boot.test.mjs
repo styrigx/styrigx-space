@@ -11,8 +11,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readLangPref, langBootTarget, bootLang, cookieLangRaw } from '../../../../space/web/assets/js/lib/lang-boot.js';
-import { setLangs, langPath, systemLang, langs, isHomePath } from '../../../../space/web/assets/js/lib/lang-path.js';
+import { readLangPref, langBootTarget, bootLang, cookieLangRaw } from '../../../../space/web/assets/shell/js/lib/lang-boot.js';
+import { setLangs, langPath, systemLang, langs, isHomePath } from '../../../../space/web/assets/shell/js/lib/lang-path.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const rd = (/** @type {string} */ p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -40,10 +40,10 @@ test('偏好：明确存 system；旧版的空 / 没有 = 跟随系统（兼容�
   assert.equal(readLangPref('', ''), 'system');
   assert.equal(readLangPref(null, 'system'), 'system');
   assert.equal(readLangPref('zh', ''), 'zh');
-  const prefs = rd('space/web/assets/js/lib/prefs.js');
+  const prefs = rd('space/web/assets/shell/js/lib/prefs.js');
   assert.match(prefs, /sset\('sgx-lang', pick\)/, 'prefs.js 明确写 system');
   assert.doesNotMatch(prefs, /sremove\('sgx-lang'\)/);
-  const pw = rd('space/web/assets/js/lib/prefs-write.js');
+  const pw = rd('space/web/assets/shell/js/lib/prefs-write.js');
   assert.match(pw, /lsSet\('sgx-lang', configuredLangs\(\)\.indexOf\(v\) >= 0 \? v : 'system'\)/);
   assert.equal(cookieLangRaw('sgx-ui=' + b64({ v: 2, lang: 'system' })), 'system');
 });

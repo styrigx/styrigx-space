@@ -16,8 +16,8 @@ const SHELL_FILES = {
   'nav.json': 'space/web/data/shell/nav.json',
   'tokens.css': 'space/web/assets/css/shell/tokens.css',
   'shell.css': 'space/web/assets/css/shell/shell.css',
-  'ui-cookie-read.js': 'space/web/assets/js/lib/ui-cookie-read.js',
-  'favicon.js': 'space/web/assets/js/shell/favicon.js',
+  'ui-cookie-read.js': 'space/web/assets/shell/js/lib/ui-cookie-read.js',
+  'favicon.js': 'space/web/assets/shell/js/shell/favicon.js',
 };
 const shell = (f) => fs.readFileSync(path.join(REPO, SHELL_FILES[f]), 'utf8');
 const SUB = '/__ui-cookie-subsite/';

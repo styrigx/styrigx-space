@@ -1,6 +1,6 @@
 /**
  * 顶栏长度统一（P4-3 再修，Gray 2026-11-06 立规⑥：顶栏一会长一会短是设计问题；P4-3 PR-4b Gray 2026-11-07 定稿布局只有手机 / 桌面）。
- * 规则只有一份：共享外壳 layout-mode.js __sgxLayout()（源头 space/web/assets/js/lib/layout-mode.js），四站 <head> 原样内联，写 <html data-sgx-layout="phone|desktop">；
+ * 规则只有一份：共享外壳 layout-mode.js __sgxLayout()（源头 space/web/assets/shell/js/lib/layout-mode.js），四站 <head> 原样内联，写 <html data-sgx-layout="phone|desktop">；
  * 顶栏宽只在共享外壳 shell.css 按它定：手机布局 min(100% − 32, 640)；桌面布局按 <html data-sgx-device>（__sgxDevice()）分档——
  * 手机设备 min(720, 100% − 48)，电脑 / 平板 min(clamp(720, 60vw, 960), 100% − 48)（Gray 2026-11-07），居中；上限按 100%（不含滚动条），vw 只在 clamp 中间项。
  * 本文件：① 四站 <head> 内联的是同一份 layout-mode.js、都调 __sgxLayout() 写属性、都按 matchMedia 重算；
@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
-const LIB = read('space/web/assets/js/lib/layout-mode.js');
+const LIB = read('space/web/assets/shell/js/lib/layout-mode.js');
 
 const TPL = {
   main: read('space/web/layouts/_default/baseof.html'),
@@ -29,9 +29,9 @@ const SCRIPTS = Object.fromEntries(Object.entries(TPL).map(([k, t]) => [k, t.mat
 /** 各站同步来的 layout-mode.js（子站带 @sgx-shell 头注释） */
 const COPIES = {
   main: LIB,
-  curio: read('space/web/assets/js/lib/layout-mode.js'),
-  daymark: read('space/web/assets/js/lib/layout-mode.js'),
-  blog: read('space/web/assets/js/lib/layout-mode.js'),
+  curio: read('space/web/assets/shell/js/lib/layout-mode.js'),
+  daymark: read('space/web/assets/shell/js/lib/layout-mode.js'),
+  blog: read('space/web/assets/shell/js/lib/layout-mode.js'),
 };
 const body = (s) => s.slice(s.indexOf('function __sgxUaMobile')).replace(/\/\* @sgx-shell:end \*\/\n?$/, '');
 

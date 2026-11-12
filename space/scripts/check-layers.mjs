@@ -6,12 +6,12 @@
  * 解析不到文件的相对 import 直接报错：以前这种情况记成 'unknown' 并且放行，
  * api → api（'./lock-reauth.js'）、api → middleware（'../_middleware.js'）都因此漏检。
  *
- * 前端（space/web/assets/js/）：
+ * 前端（space/web/assets/shell/js/）：
  *  1. lib/ 只能 import lib/（不得 import auth/、shell/、apps/、entries/）
  *  2. auth/ 只能 import lib/、auth/（鉴权与凭证流程；不得 import shell/、apps/、entries/）
  *  3. shell/ 不得 import apps/、entries/
  *  4. apps/ 不得 import entries/
- *  5. 前端不得 import space/web/assets/js/ 以外的文件（前后端隔离，含 functions/、workers/）
+ *  5. 前端不得 import space/web/assets/shell/js/ 以外的文件（前后端隔离，含 functions/、workers/）
  *  6. lib/ 不得包含鉴权逻辑：不得出现鉴权接口地址（/api/lock-*、/api/space-*、/api/account）
  *     和 navigator.credentials（这些放 auth/）
  *  7. 前端代码禁止出现 cookie 名 `sgx-space-session`（HttpOnly，前端读不到；`data-sgx-lock-session` 属性名不算）
@@ -44,7 +44,7 @@
  *
  * 账号命名 v2（2026-11-08）：
  * 22. 退役名单（space/scripts/retired-names.json 的 account）里的旧名字不许出现在账号 Worker（workers/account/src/）
- *     和账号前端（space/web/assets/js/shell/account/）——注释也算，旧名字只留在退役名单这一处
+ *     和账号前端（space/web/assets/shell/js/shell/account/）——注释也算，旧名字只留在退役名单这一处
  *     （19–21 的 Worker 目录 = workers/ 下有 wrangler.toml 的子目录；workers/ 下每个子目录都得有 wrangler.toml，
  *     tests/space/ui/build/check-layers.test.mjs 核对。只管这四条，依赖方向不在这里查）
  *
@@ -145,9 +145,9 @@ export function stripComments(src) {
  */
 export function layerOf(root, abs) {
   const rel = relative(root, abs).split(sep).join('/');
-  let m = rel.match(/^space\/web\/assets\/js\/([^/]+)\//);
+  let m = rel.match(/^space\/web\/assets\/shell\/js\/([^/]+)\//);
   if (m) return { area: 'frontend', layer: m[1], rel };
-  if (rel.startsWith('space/web/assets/js/')) return { area: 'frontend', layer: '(root)', rel };
+  if (rel.startsWith('space/web/assets/shell/js/')) return { area: 'frontend', layer: '(root)', rel };
   const g = gatewayLayer(rel);
   if (g) return { area: 'gateway', layer: g, rel, worker: 'space-core' };
   m = rel.match(/^workers\/([^/]+)\//);
@@ -283,7 +283,7 @@ export function checkGatewayAccountAuth(rel, src, kind = 'js') {
 }
 
 /* 规则 22：退役名单的检查范围（账号 Worker 源码、账号前端） */
-export const RETIRED_SCOPE_RE = /^(?:workers\/account\/src\/|space\/web\/assets\/js\/shell\/account\/)/;
+export const RETIRED_SCOPE_RE = /^(?:workers\/account\/src\/|space\/web\/assets\/shell\/js\/shell\/account\/)/;
 /** @type {string[]|null} */
 let retiredCache = null;
 /** 退役名单（space/scripts/retired-names.json 的 account） */
@@ -365,7 +365,7 @@ export function checkFile(root, abs, srcOverride) {
 
     if (self.area === 'frontend') {
       if (t.area !== 'frontend') {
-        errors.push(`${r}: 前端禁止 import space/web/assets/js/ 以外的文件 (${spec})`);
+        errors.push(`${r}: 前端禁止 import space/web/assets/shell/js/ 以外的文件 (${spec})`);
         continue;
       }
       const allowed = FRONTEND_ALLOWED[self.layer];
@@ -712,7 +712,7 @@ function listFiles(root) {
  * @returns {{files:number, errors:string[]}}
  */
 export function checkRepo(root, opts = {}) {
-  const files = walk(join(root, 'space/web/assets/js')).concat(walk(join(root, 'workers')));
+  const files = walk(join(root, 'space/web/assets/shell/js')).concat(walk(join(root, 'workers')));
   const errors = [];
   for (const f of files) errors.push(...checkFile(root, f));
   if (existsSync(join(root, SHARED_DIR))) {

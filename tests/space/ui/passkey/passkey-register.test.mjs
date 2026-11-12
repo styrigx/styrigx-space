@@ -24,7 +24,7 @@ Object.defineProperty(globalThis, 'navigator', {
 globalThis.window = /** @type {any} */ ({ PublicKeyCredential: function () {} });
 
 const { registerPasskey, attestationToJSON, creationOptions, genPkPrefillName, cleanPasskeyName } =
-  await import('../../../../space/web/assets/js/auth/passkey-register.js');
+  await import('../../../../space/web/assets/shell/js/auth/passkey-register.js');
 
 const B = (s) => new TextEncoder().encode(s).buffer;
 const fakeCred = () => ({ id: 'cid-1', rawId: B('raw'), type: 'public-key', response: { clientDataJSON: B('cd'), attestationObject: B('ao') } });
@@ -153,14 +153,14 @@ test('creationOptions：服务端没给用户名时用页面兜底；预填名�
 test('账号 / 进站都只经 passkey-register.js 注册：不再手写 credentials.create / 命名弹层', () => {
   /* 2026-11-08：账号安全页删了，账号通行密钥在终端的账号层 shell/account/cmd/keys.js 里注册（命名在终端里问，不用命名弹层） */
   {
-    const src = rd('space/web/assets/js/shell/account/cmd/keys.js');
+    const src = rd('space/web/assets/shell/js/shell/account/cmd/keys.js');
     assert.ok(src.includes("from '../../../auth/passkey-register.js'"));
     assert.ok(src.includes('registerPasskey({'));
     assert.ok(!src.includes('navigator.credentials.create'), 'keys.js 不手写注册');
     assert.ok(src.includes("genPkPrefillName('')"), 'keys.js 预填名不拿界面文案兜底');
   }
   /* v6 P4：旧进站通行密钥的注册（shell/space/keys.js、reset.js）随旧进站会话删了；自己的通行密钥只在账号层 cmd/keys.js（POST /api/identity） */
-  for (const f of ['space/web/assets/js/shell/space/keys.js', 'space/web/assets/js/shell/space/reset.js']) assert.ok(!existsSync(join(root, f)), f + ' 已删（v6 P4）');
+  for (const f of ['space/web/assets/shell/js/shell/space/keys.js', 'space/web/assets/shell/js/shell/space/reset.js']) assert.ok(!existsSync(join(root, f)), f + ' 已删（v6 P4）');
   for (const f of []) {
     const src = rd(f);
     assert.ok(src.includes("from '../../auth/passkey-register.js'"), f);
@@ -170,8 +170,8 @@ test('账号 / 进站都只经 passkey-register.js 注册：不再手写 credent
     assert.ok(src.includes("genPkPrefillName('')"), f + ' 预填名不拿界面文案兜底');
     assert.ok(!src.includes("genPkPrefillName(t("), f);
   }
-  assert.ok(!existsSync(join(root, 'space/web/assets/js/apps/security-lock.js')), 'security-lock.js 已删');
+  assert.ok(!existsSync(join(root, 'space/web/assets/shell/js/apps/security-lock.js')), 'security-lock.js 已删');
   /* 全站只有这一处 credentials.create */
-  const lib = rd('space/web/assets/js/auth/passkey-register.js');
+  const lib = rd('space/web/assets/shell/js/auth/passkey-register.js');
   assert.ok(lib.includes('navigator.credentials.create'));
 });

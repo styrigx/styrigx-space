@@ -260,7 +260,7 @@ test('NAVIGATE / 外观 / 页脚（顶栏 v3）：NAVIGATE 五项 + lang / layou
 test('P4-2b：搜索层整套删除——没有 search.js、shell.css 没有 search 段、主站没有 search-layer / search-host', () => {
   assert.equal(files['search.js'], undefined);
   assert.doesNotMatch(files['shell.css'], /---- search ----|\.sgx-srch/);
-  for (const f of ['space/web/assets/js/shell/search-layer.js', 'space/web/assets/js/shell/search-host.js', 'space/web/shared/shell/search.js', 'space/web/static/opensearch.xml'])
+  for (const f of ['space/web/assets/shell/js/shell/search-layer.js', 'space/web/assets/shell/js/shell/search-host.js', 'space/web/shared/shell/search.js', 'space/web/static/opensearch.xml'])
     assert.ok(!existsSync(path.join(REPO, f)), f);
 });
 
@@ -276,5 +276,5 @@ test('AI 窗口头部（2026-11 PR-5 按设计稿 ai-v1）：G 徽标 · Gray AI
   assert.doesNotMatch(src, /styrigx@gmail\.com/);
   assert.doesNotMatch(src, /ai@styrigx\.com/);
   /* v5 S5：锁屏界面（shell/space/entry.js）删了，进站在终端里 */
-  assert.ok(!existsSync(path.join(REPO, 'space/web/assets/js/shell/space/entry.js')));
+  assert.ok(!existsSync(path.join(REPO, 'space/web/assets/shell/js/shell/space/entry.js')));
 });

@@ -11,7 +11,7 @@
 
 ## 0. 数据源与生成链
 
-0.1 颜色值的**唯一来源**是 `space/web/assets/js/lib/palette-scheme.js` 的 `THEMES` + `FG_POOL`。`space/web/data/palettes.yaml`（id / 名字 / 分组）与定稿夹具 `tests/fixtures/palette-v0.3.json` 只是被单测逐项核对的副本。
+0.1 颜色值的**唯一来源**是 `space/web/assets/shell/js/lib/palette-scheme.js` 的 `THEMES` + `FG_POOL`。`space/web/data/palettes.yaml`（id / 名字 / 分组）与定稿夹具 `tests/fixtures/palette-v0.3.json` 只是被单测逐项核对的副本。
 
 0.2 生成链（CI 对两个脚本都跑 `--check`）：
 

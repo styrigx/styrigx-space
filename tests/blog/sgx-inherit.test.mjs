@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { bootLang } from '../../space/web/assets/js/lib/lang-boot.js';
+import { bootLang } from '../../space/web/assets/shell/js/lib/lang-boot.js';
 
 /* 首帧前的内联脚本：space/web/layouts/partials/blog/sgx-inherit.html 三个 <script>：
    ① 首帧语言跳转（共享外壳 lang-boot.js，四站同一份，语言清理 2026-11-07）② 共享读端（ui-cookie-read.js 压缩版）③ 博客胶水（只管外观） */
@@ -15,7 +15,7 @@ assert.equal(scripts.length, 3, 'sgx-inherit.html 应有三个 <script>');
 assert.match(scripts[0], /resources\.Get "js\/lib\/lang-boot\.js" \| js\.Build/, '第一个 <script> 内联首帧语言跳转');
 assert.match(scripts[1], /resources\.Get "js\/lib\/ui-cookie-read\.js"|\$reader\.Content/, '第二个 <script> 内联共享读端');
 const glue = scripts[2];
-const READER = readFileSync(new URL('../../space/web/assets/js/lib/ui-cookie-read.js', import.meta.url), 'utf8');
+const READER = readFileSync(new URL('../../space/web/assets/shell/js/lib/ui-cookie-read.js', import.meta.url), 'utf8');
 /* 模块那一半（entries/inherit.ts：数字健康、自定义色引擎）v6 P4 / 调色板 v4 先后删完，文件已删 */
 const HEAD = readFileSync(new URL('../../space/web/layouts/partials/blog/head.html', import.meta.url), 'utf8');
 const palettes = JSON.parse(
