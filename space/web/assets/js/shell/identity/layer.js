@@ -64,6 +64,13 @@ export function mountIdentityLayer(o) {
   function fail(r, cmd) {
     const j = (r && r.j) || {};
     const e = j.error || '';
+    if (e === 'identity') {
+      /* 提示符上的身份和服务端认定的对不上（root 层失效）：不执行，切到服务端回的真实身份 */
+      const was = (me() || {}).name || '';
+      setUser(j.user || null);
+      C.err(t(j.lapsed === 'timeout' ? 'layerTimeout' : 'layerGone', { r: was, u: j.user ? j.user.name : '' }), 'su ' + was);
+      return;
+    }
     const map = {
       auth: t('authFail'), cooldown: t('cooldown'), 'exit-first': t('exitFirst', { u: (me() || {}).name || '' }), 'already-root': t('alreadyRoot'),
       'root-creds': t('rootCreds'), temporary: t('temporary', { g: j.group || '' }), group: t('group', { g: j.group || '' }), expiry: t('expiry'),
@@ -295,7 +302,7 @@ export function mountIdentityLayer(o) {
     const send = function (/** @type {string} */ cur) {
       newPassword(function (np) {
         C.setMode('busy');
-        api.post('passwd', u.rescue ? { password: np } : { current: cur, password: np }).then(function (r) {
+        api.post('passwd', u.rescue ? { password: np, as: u.uid } : { current: cur, password: np, as: u.uid }).then(function (r) {
           if (r.j && r.j.ok) { C.ok(t('passwdDone')); C.toCmd(); return; }
           fail(r, 'passwd'); C.toCmd();
         }, net);

@@ -399,12 +399,12 @@ test('passwd：改自己的要先输当前密码；自己改 → 当前会话续
   const env = await setup();
   const t1 = await login(env, 'alice');
   const t2 = await login(env, 'alice');
-  const no = await id(env, { action: 'passwd', current: 'wrong-pass-9', password: 'alice-new-pass' }, t1, freshIp());
+  const no = await id(env, { action: 'passwd', current: 'wrong-pass-9', password: 'alice-new-pass', as: 1001 }, t1, freshIp());
   assert.equal(no.status, 401);
-  const other = await id(env, { action: 'passwd', user: 'styrigx', current: PW.alice, password: 'alice-new-pass' }, t1, freshIp());
+  const other = await id(env, { action: 'passwd', user: 'styrigx', current: PW.alice, password: 'alice-new-pass', as: 1001 }, t1, freshIp());
   assert.equal(other.status, 400, '传别人的名字被拒（改别人的是 root 的 passwd <名>）');
   assert.equal(other.json.error, 'target');
-  const ok = await id(env, { action: 'passwd', current: PW.alice, password: 'alice-new-pass' }, t1, freshIp());
+  const ok = await id(env, { action: 'passwd', current: PW.alice, password: 'alice-new-pass', as: 1001 }, t1, freshIp());
   assert.equal(ok.status, 200);
   assert.equal((await id(env, { action: 'whoami' }, t1)).json.user.name, 'alice', '当前会话续命');
   assert.equal((await id(env, { action: 'whoami' }, t2)).json.user, null, '其他会话作废');
@@ -412,13 +412,13 @@ test('passwd：改自己的要先输当前密码；自己改 → 当前会话续
   /* root 在 su root 里改自己的密码：要 root 的当前密码 */
   const tok = await login(env, 'styrigx');
   await suRoot(env, tok);
-  assert.equal((await id(env, { action: 'passwd', current: PW.styrigx, password: 'root-new-pass' }, tok, freshIp())).status, 401);
-  const rp = await id(env, { action: 'passwd', current: PW.root, password: 'root-new-pass' }, tok, freshIp());
+  assert.equal((await id(env, { action: 'passwd', current: PW.styrigx, password: 'root-new-pass', as: 0 }, tok, freshIp())).status, 401);
+  const rp = await id(env, { action: 'passwd', current: PW.root, password: 'root-new-pass', as: 0 }, tok, freshIp());
   assert.equal(rp.status, 200, JSON.stringify(rp.json));
   assert.equal((await id(env, { action: 'whoami' }, tok)).json.user.root, true, '自己改 → root 层续命');
   /* 救援会话：不用当前密码 */
   const rt = await rescueToken(env);
-  const rs = await id(env, { action: 'passwd', password: 'root-rescued-pass' }, rt, freshIp());
+  const rs = await id(env, { action: 'passwd', password: 'root-rescued-pass', as: 0 }, rt, freshIp());
   assert.equal(rs.status, 200);
   assert.equal((await id(env, { action: 'whoami' }, tok)).json.user.name, 'styrigx', '救援改 root 密码 → 别处的 root 层作废，栈底不动');
   assert.ok(rows(env, 'SELECT command FROM account_user_audit').some((a) => a.command === 'passwd rescue'));
@@ -433,7 +433,7 @@ test('救援会话：白名单 whoami / passwd / passkey / groups / exit / lock 
   assert.equal(w.json.user.rescue, true);
   assert.equal(w.json.user.path, 'root (rescue)');
   assert.equal((await id(env, { action: 'groups' }, rt)).status, 200);
-  assert.equal((await id(env, { action: 'passkey-list' }, rt)).status, 200);
+  assert.equal((await id(env, { action: 'passkey-list', as: 0 }, rt)).status, 200);
   for (const body of [{ action: 'useradd', name: 'x1' }, { action: 'userdel', name: 'alice' }, { action: 'usermod', op: '-aG', groups: ['ai'], name: 'alice' },
     { action: 'passwd-user', name: 'alice' }, { action: 'who' }, { action: 'su', user: 'alice', password: PW.alice }, { action: 'sudo', password: 'x', command: { action: 'who' } }, { action: 'idle' }]) {
     const r = await id(env, body, rt, freshIp());
@@ -613,7 +613,7 @@ test('P4-3 权限收紧：永久普通用户（alice）同样进不了 wheel / s
     assert.equal(r.status, 403, a);
     assert.equal(r.json.need, 'webmaster', a);
   }
-  const pw = await id(env, { action: 'passwd', current: PW.alice, password: 'alice-pass-02' }, at);
+  const pw = await id(env, { action: 'passwd', current: PW.alice, password: 'alice-pass-02', as: 1001 }, at);
   assert.equal(pw.status, 200, '普通用户只能 passwd 改自己的密码');
 });
 
@@ -744,27 +744,27 @@ test('passkey ls / add / rm：只管自己的；add 的 user.id = 已有钥匙�
   await seedV6Passkey(env, 1001, 'h-alice');
   const t1 = await login(env, 'styrigx');
   const t2 = await login(env, 'styrigx');
-  const l0 = await id(env, { action: 'passkey-list', uid: 1001 }, t1);
+  const l0 = await id(env, { action: 'passkey-list', uid: 1001, as: 1000 }, t1);
   assert.equal(l0.json.passkeys.length, 1, '只列自己的（uid 参数不认）');
-  const ch = await id(env, { action: 'passkey-add-challenge' }, t1);
+  const ch = await id(env, { action: 'passkey-add-challenge', as: 1000 }, t1);
   assert.equal(ch.json.user.id, 'h-sty');
   assert.equal(ch.json.user.name, 'styrigx');
   assert.equal(ch.json.user.displayName, 'Sloan Gray', '钥匙显示名：第一行站长名、第二行用户名（Gray 2026-11-12）');
   assert.equal(ch.json.excludeCredentials.length, 1);
   const cred = await fx.makeAttestationCredential(ch.json.challenge, 'styrigx.com', ORIGIN);
-  const forged = await id(env, { action: 'passkey-add', cid: ch.json.cid, credential: cred, handle: 'h-alice' }, t1);
+  const forged = await id(env, { action: 'passkey-add', cid: ch.json.cid, credential: cred, handle: 'h-alice', as: 1000 }, t1);
   assert.equal(forged.status, 403, 'handle 对不上 challenge 的用途 → challenge 无效');
-  const ch2 = await id(env, { action: 'passkey-add-challenge' }, t1);
+  const ch2 = await id(env, { action: 'passkey-add-challenge', as: 1000 }, t1);
   const cred2 = await fx.makeAttestationCredential(ch2.json.challenge, 'styrigx.com', ORIGIN);
-  const add = await id(env, { action: 'passkey-add', cid: ch2.json.cid, credential: cred2, handle: ch2.json.user.id, name: 'S24' }, t1);
+  const add = await id(env, { action: 'passkey-add', cid: ch2.json.cid, credential: cred2, handle: ch2.json.user.id, name: 'S24', as: 1000 }, t1);
   assert.equal(add.status, 200, JSON.stringify(add.json));
   assert.equal((await id(env, { action: 'whoami' }, t1)).json.user.name, 'styrigx', '当前会话续命');
   assert.equal((await id(env, { action: 'whoami' }, t2)).json.user, null, '其他会话作废');
-  const l1 = await id(env, { action: 'passkey-list' }, t1);
+  const l1 = await id(env, { action: 'passkey-list', as: 1000 }, t1);
   assert.deepEqual(l1.json.passkeys.map((k) => k.n), [1, 2]);
   assert.equal(rows(env, 'SELECT user_handle FROM account_user_passkey WHERE uid = 1000 ORDER BY rowid')[1].user_handle, 'h-sty');
-  assert.equal((await id(env, { action: 'passkey-delete', n: 2 }, t1)).status, 200);
-  assert.equal((await id(env, { action: 'passkey-delete', n: 2 }, t1)).status, 404);
+  assert.equal((await id(env, { action: 'passkey-delete', n: 2, as: 1000 }, t1)).status, 200);
+  assert.equal((await id(env, { action: 'passkey-delete', n: 2, as: 1000 }, t1)).status, 404);
   assert.equal(rows(env, 'SELECT * FROM account_user_passkey WHERE uid = 1001').length, 1, 'alice 的钥匙没动');
 });
 
@@ -917,6 +917,30 @@ test('P2c sudo 的目标：身份接口本身 400 action；v6 P4 删掉的旧接
   assert.equal(d.status, 200, JSON.stringify(d.json));
 });
 
+test('凭据命令 fail closed：as 和服务端认定的身份对不上 / 没带 → 409 identity，不执行，回真实身份；root 层超时 lapsed=timeout，epoch 变了 lapsed=gone（Gray 2026-11-12：root 层失效后 passkey add 静默落到 styrigx）', async () => {
+  const env = await setup();
+  const tok = await login(env, 'styrigx');
+  await suRoot(env, tok);
+  assert.equal((await id(env, { action: 'passkey-list', as: 0 }, tok)).status, 200, '对得上照常');
+  const miss = await id(env, { action: 'passkey-list' }, tok);
+  assert.deepEqual([miss.status, miss.json.error, miss.json.user.name, miss.json.lapsed], [409, 'identity', 'root', ''], '没带 as 也拒');
+  /* root 层超时：服务端按 styrigx 认，终端还以为是 root */
+  env.D1_ACCOUNT.raw.prepare('UPDATE account_session_stack SET expires_at = 1').run();
+  const before = rows(env, 'SELECT COUNT(*) AS n FROM account_user_passkey')[0].n;
+  for (const body of [{ action: 'passkey-add-challenge' }, { action: 'passkey-add', cid: 'x', handle: 'h' }, { action: 'passkey-list' }, { action: 'passkey-delete', n: 1 }, { action: 'passwd', current: PW.root, password: 'root-new-pass-3' }]) {
+    const r = await id(env, { ...body, as: 0 }, tok, freshIp());
+    assert.deepEqual([r.status, r.json.error, r.json.user.name, r.json.user.uid, r.json.lapsed], [409, 'identity', 'styrigx', 1000, 'timeout'], body.action);
+  }
+  assert.equal(rows(env, 'SELECT COUNT(*) AS n FROM account_user_passkey')[0].n, before, '没执行');
+  assert.equal((await id(env, { action: 'passkey-list', as: 1000 }, tok)).status, 200, '按真实身份带 as 照常');
+  /* epoch 变了（别处改了 root 的凭据）：层没超时也失效 → gone */
+  const t2 = await login(env, 'styrigx');
+  await suRoot(env, t2);
+  env.D1_ACCOUNT.raw.prepare('UPDATE account_users SET epoch = epoch + 1 WHERE uid = 0').run();
+  const g = await id(env, { action: 'passkey-add-challenge', as: 0 }, t2);
+  assert.deepEqual([g.status, g.json.user.name, g.json.lapsed], [409, 'styrigx', 'gone']);
+});
+
 test('P2c sudo 不能动 root 的凭据（栈顶必须是 root）：sudo 下 identity passwd / passkey 全拒（旧 keys / reset 接口已删，400 action）；su root 后（栈顶 root）passwd 改 root 才行', async () => {
   const env = await setup();
   const tok = await login(env, 'styrigx');
@@ -926,6 +950,6 @@ test('P2c sudo 不能动 root 的凭据（栈顶必须是 root）：sudo 下 ide
   }
   assert.equal((await id(env, { action: 'sudo', password: PW.styrigx, command: { method: 'POST', path: '/api/account/keys', body: { action: 'password-set', password: 'n-e-w-pass-1' } } }, tok, freshIp())).json.error, 'action');
   await suRoot(env, tok);
-  const p = await id(env, { action: 'passwd', current: PW.root, password: 'root-pass-02x' }, tok, freshIp());
+  const p = await id(env, { action: 'passwd', current: PW.root, password: 'root-pass-02x', as: 0 }, tok, freshIp());
   assert.equal(p.status, 200, JSON.stringify(p.json));
 });

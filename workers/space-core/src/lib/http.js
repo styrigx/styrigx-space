@@ -73,6 +73,7 @@ export const ERROR_CODES = Object.freeze({
   permission: [403], /* 档不够（带 need：要哪一档） */
   'exit-first': [409], /* 普通用户态不能 su 到另一个普通用户，先 exit */
   'already-root': [409],
+  identity: [409], /* 凭据命令带的身份（as）和服务端认定的对不上（root 层失效），不执行 */
   'must-change': [403], /* 一次性密码首登：带 newPassword 再来一次 */
   weak: [400], /* 新密码不合格（≥ 8 位、不等于用户名 / 旧密码） */
   'root-creds': [403], /* sudo / passwd <名> 不能动 root 的凭据，只能在 su root 或救援会话里 passwd */

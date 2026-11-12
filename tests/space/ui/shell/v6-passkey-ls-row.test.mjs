@@ -26,7 +26,7 @@ function ctx(lang, keys) {
   const out = [];
   const sent = [];
   const C = {
-    t, tf, esc: (s) => String(s), inReset: false, reauthExp: 0, status: { configured: { passkey: false } }, k: (x) => x,
+    t, tf, esc: (s) => String(s), inReset: false, reauthExp: 0, status: { configured: { passkey: false } }, k: (x) => x, asUid: () => 1000,
     api: {
       v6keys: { passkeyList: () => { sent.push('v6.passkeyList'); return Promise.resolve({ s: 200, j: { ok: true, keys } }); } },
       keys: { passkeyList: () => { sent.push('old.passkeyList'); return Promise.resolve({ s: 200, j: { ok: true, keys } }); } }, reset: {},

@@ -353,6 +353,8 @@ account:
   v6:
     notSignedIn: "not signed in · su <user> first"
     forbidden: "permission denied · run {x} first"
+    layerTimeout: "{r} timed out · you are now {u} · not run · {x} and try again"
+    layerGone: "{r} session ended · you are now {u} · not run · {x} and try again"
   session:
     guest: "Not signed in"
     signIn: "Sign in to the account"
@@ -502,6 +504,8 @@ identity:
   permission: "{c}: Permission denied"
   trySudo: "sudoers can run it with {x}"
   rootCreds: "sudo can’t change root’s password or passkeys · su root first"
+  layerTimeout: "{r} timed out · you are now {u} · not run · {x} and try again"
+  layerGone: "{r} session ended · you are now {u} · not run · {x} and try again"
   temporary: "a user with an expiry can’t join {g}"
   group: "unknown group: {g}"
   expiry: "the date must be a future YYYY-MM-DD"

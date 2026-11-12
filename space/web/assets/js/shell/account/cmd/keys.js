@@ -32,7 +32,7 @@ export function mountKeys(C) {
   /** 取列表（不打印） @param {(ok: boolean) => void} [then]*/
   C.loadKeys = function (then) {
     C.setMode('busy');
-    return api.v6keys.passkeyList().then(function (/** @type {any} */ res) {
+    return api.v6keys.passkeyList(C.asUid()).then(function (/** @type {any} */ res) {
       C.toCmd();
       if (res.j && res.j.ok) {
         C.keyList = res.j.keys || [];
@@ -65,9 +65,9 @@ export function mountKeys(C) {
     let handle = '';
     const x = {
       passkeyAddChallenge: function () {
-        return api.v6keys.passkeyAddChallenge().then(function (/** @type {any} */ r) { handle = (r && r.j && r.j.user && r.j.user.id) || ''; return r; });
+        return api.v6keys.passkeyAddChallenge(C.asUid()).then(function (/** @type {any} */ r) { handle = (r && r.j && r.j.user && r.j.user.id) || ''; return r; });
       },
-      passkeyAdd: function (/** @type {any} */ body) { return api.v6keys.passkeyAdd(body, handle); },
+      passkeyAdd: function (/** @type {any} */ body) { return api.v6keys.passkeyAdd(body, handle, C.asUid()); },
     };
     let done = false;
     /* 等系统窗口时可 ^C / esc / 点 ^C（2026-11-09）：收起系统窗口（AbortController），之后回来的结果不再提示、不再提交注册 */
@@ -106,7 +106,7 @@ export function mountKeys(C) {
         y: function () {
           C.echoPick('y');
           C.setMode('busy');
-          api.v6keys.passkeyDelete(key.n || n).then(function (/** @type {any} */ res) {
+          api.v6keys.passkeyDelete(key.n || n, C.asUid()).then(function (/** @type {any} */ res) {
             if (res.j && res.j.ok) {
               C.out('<span class="sgx-at-ok">✓</span> ' + esc(t('keys.passkey.deleted')));
               C.keyList = [];

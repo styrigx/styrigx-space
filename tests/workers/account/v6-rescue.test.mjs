@@ -203,7 +203,7 @@ test('白名单只在 precedence() 一处：救援会话 whoami / groups / passk
 
   const env = await setup();
   const { tok } = await rescueOk(env);
-  for (const action of ['whoami', 'groups', 'passkey-list']) assert.equal((await call(env, { action }, tok)).status, 200, action);
+  for (const action of ['whoami', 'groups', 'passkey-list']) assert.equal((await call(env, { action, as: 0 }, tok)).status, 200, action);
   for (const body of [{ action: 'useradd', name: 'x1' }, { action: 'userdel', name: 'styrigx' }, { action: 'usermod', op: '-aG', groups: ['ai'], name: 'styrigx' },
     { action: 'passwd-user', name: 'styrigx' }, { action: 'who' }, { action: 'su', user: 'styrigx', password: PW.styrigx }, { action: 'idle' },
     { action: 'sudo', password: PW.root, command: { action: 'who' } }, { action: 'sudo', password: PW.root, command: { method: 'POST', path: '/api/account/proxy', body: { action: 'status' } } }]) {
@@ -218,7 +218,7 @@ test('白名单只在 precedence() 一处：救援会话 whoami / groups / passk
     assert.equal(c.allowed, false, m + ' ' + p);
     assert.equal(c.rescue, true);
   }
-  const pw = await call(env, { action: 'passwd', password: 'root-rescued-pass-01' }, tok);
+  const pw = await call(env, { action: 'passwd', password: 'root-rescued-pass-01', as: 0 }, tok);
   assert.equal(pw.status, 200, JSON.stringify(pw.json));
   const e = await call(env, { action: 'exit' }, tok);
   assert.equal(e.json.user, null, '救援 exit 直接回访客');
@@ -231,7 +231,7 @@ test('重置后 epoch +1：救援里改 root 密码 → root epoch +1，别处�
   assert.equal((await call(env, { action: 'su', user: 'root', password: PW.root }, st)).status, 200);
   const e0 = rows(env, 'SELECT epoch FROM account_users WHERE uid = 0')[0].epoch;
   const { tok } = await rescueOk(env);
-  assert.equal((await call(env, { action: 'passwd', password: 'root-rescued-pass-01' }, tok)).status, 200);
+  assert.equal((await call(env, { action: 'passwd', password: 'root-rescued-pass-01', as: 0 }, tok)).status, 200);
   assert.equal(rows(env, 'SELECT epoch FROM account_users WHERE uid = 0')[0].epoch, e0 + 1);
   const w = await call(env, { action: 'whoami' }, st);
   assert.equal(w.json.user.name, 'styrigx', 'root 层作废，栈底不动');
@@ -250,7 +250,7 @@ test('15 分钟到期不续期：whoami 不续写；到期后回访客', async (
   assert.deepEqual(rows(env, 'SELECT expires_at, renewed_at FROM account_sessions')[0], before);
   env.D1_ACCOUNT.raw.prepare('UPDATE account_sessions SET expires_at = ?').run(Date.now() - 1);
   assert.equal((await call(env, { action: 'whoami' }, tok)).json.user, null);
-  assert.equal((await call(env, { action: 'passwd', password: 'root-rescued-pass-01' }, tok)).status, 401);
+  assert.equal((await call(env, { action: 'passwd', password: 'root-rescued-pass-01', as: 0 }, tok)).status, 401);
 });
 
 test('限流：单独计数（不影响 su）；按 uid 渐进退避 1s → 5s → 30s → 5min（第一次失败就等 1s），不硬锁；按 IP 每分钟 6 次失败硬上限', async () => {

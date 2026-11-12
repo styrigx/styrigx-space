@@ -43,7 +43,7 @@ test.describe('自己的通行密钥（v6）', () => {
     await typeLine(page, 'passkey rm 2');
     await typeLine(page, 'y');
     await expect(log(page)).toContainText('Samsung Pass 里手动删掉');
-    expect(calls.find((c) => c.action === 'identity/passkey-delete')).toEqual({ action: 'identity/passkey-delete', n: 2 });
+    expect(calls.find((c) => c.action === 'identity/passkey-delete')).toEqual({ action: 'identity/passkey-delete', n: 2, as: 1000 });
     await mode(page, 'cmd');
     await typeLine(page, 'clear');
     await typeLine(page, 'passkey ls');
