@@ -687,12 +687,13 @@ test('预览接口：没有身份 401、没写组 403 forbidden、非同源 403�
 
 /* ================= 迁移 / 配置 ================= */
 
-test('迁移：0001–0004 在空库上连跑两次不报错，得到种子的分类和收藏，全部公开', async () => {
+test('迁移：0001–0004 在空库上连跑两次不报错（0005 有 ALTER，只跑一次，D1 迁移记录保证），得到种子的分类和收藏，全部公开', async () => {
   const raw = new DatabaseSync(':memory:');
   const dir = W + '/migrations';
   const files = readdirSync(dir).filter((n) => n.endsWith('.sql')).sort();
-  assert.deepEqual(files, ['0001_init.sql', '0002_seed.sql', '0003_devices_games.sql', '0004_movies_music.sql']);
-  for (let k = 0; k < 2; k++) for (const f of files) raw.exec(readFileSync(dir + '/' + f, 'utf8'));
+  assert.deepEqual(files, ['0001_init.sql', '0002_seed.sql', '0003_devices_games.sql', '0004_movies_music.sql', '0005_music_kind_artists.sql']);
+  const once = new Set(['0005_music_kind_artists.sql']);
+  for (let k = 0; k < 2; k++) for (const f of files) if (k === 0 || !once.has(f)) raw.exec(readFileSync(dir + '/' + f, 'utf8'));
   const seed = SEED.loadSeed();
   const v = await list(makeD1(raw), 'lock');
   assert.deepEqual(v.cats.map((c) => c.name), seed.map((c) => c.name));

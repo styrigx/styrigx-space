@@ -435,14 +435,15 @@ test('reader：recentMovies 按观看日期倒序（没填日期的在后）、n
 
 /* ================= 迁移 / 配置 ================= */
 
-test('迁移 0004 和 MOVIE_SCHEMA / MUSIC_SCHEMA 建出来的表一致；wrangler.toml 有 D1_MOVIES / D1_MUSIC / R2_MUSIC，没有 secret', () => {
+test('迁移 0004 + 0005 和 MOVIE_SCHEMA / MUSIC_SCHEMA 建出来的表一致；wrangler.toml 有 D1_MOVIES / D1_MUSIC / R2_MUSIC，没有 secret', () => {
   const a = new DatabaseSync(':memory:');
   a.exec(readFileSync(W + '/migrations/0004_movies_music.sql', 'utf8'));
   a.exec(readFileSync(W + '/migrations/0004_movies_music.sql', 'utf8'));
+  a.exec(readFileSync(W + '/migrations/0005_music_kind_artists.sql', 'utf8'));
   const b = new DatabaseSync(':memory:');
   for (const s of [...MV.MOVIE_SCHEMA, ...MU.MUSIC_SCHEMA]) b.exec(s);
   const cols = (db, t) => db.prepare(`PRAGMA table_info(${t})`).all().map((c) => [c.name, c.type, c.notnull, c.dflt_value, c.pk]);
-  for (const t of ['movies', 'music_albums', 'music_tracks', 'music_tokens']) assert.deepEqual(cols(b, t), cols(a, t), t);
+  for (const t of ['movies', 'music_albums', 'music_tracks', 'music_tokens', 'music_artists']) assert.deepEqual(cols(b, t), cols(a, t), t);
   const idx = (db) => db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map((r) => r.name);
   assert.deepEqual(idx(b), idx(a));
   const t = readFileSync(W + '/wrangler.toml', 'utf8');
@@ -455,4 +456,29 @@ test('迁移 0004 和 MOVIE_SCHEMA / MUSIC_SCHEMA 建出来的表一致；wrangl
   const src = ['_music.js', 'music-play.js', 'music-stream.js'].map((f) => readFileSync(W + '/src/api/' + f, 'utf8')).join('\n');
   assert.match(src, /crypto\.getRandomValues/);
   assert.doesNotMatch(src, /env\.[A-Z_]*(SECRET|KEY|HMAC)/);
+});
+
+test('迁移 0005：现有专辑默认 album；按专辑歌手文本（去首尾空白）去重建歌手并回填 artist_id，曲目跟专辑；kind 只收 album / single', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(readFileSync(W + '/migrations/0004_movies_music.sql', 'utf8'));
+  db.exec("INSERT INTO music_albums (title, artist) VALUES ('A', '周杰伦'), ('B', ' 周杰伦 '), ('C', ''), ('D', 'Jay Chou')");
+  db.exec("INSERT INTO music_tracks (album_id, title) VALUES (1, 't1'), (2, 't2'), (3, 't3'), (4, 't4'), (99, '孤儿')");
+  db.exec(readFileSync(W + '/migrations/0005_music_kind_artists.sql', 'utf8'));
+  assert.deepEqual(db.prepare('SELECT id, name FROM music_artists ORDER BY id').all().map((r) => [r.id, r.name]), [[1, '周杰伦'], [2, 'Jay Chou']]);
+  assert.deepEqual(db.prepare('SELECT kind, artist_id FROM music_albums ORDER BY id').all().map((r) => [r.kind, r.artist_id]), [['album', 1], ['album', 1], ['album', 0], ['album', 2]]);
+  assert.deepEqual(db.prepare('SELECT artist_id FROM music_tracks ORDER BY id').all().map((r) => r.artist_id), [1, 1, 0, 2, 0]);
+  assert.throws(() => db.exec("UPDATE music_albums SET kind = 'ep'"), /CHECK/);
+});
+
+test('上限按 kind 分开算：专辑 100、单曲 500；单曲记录不占专辑名额', async () => {
+  assert.equal(MU.MUSIC_LIMITS.albums, 100);
+  assert.equal(MU.MUSIC_LIMITS.singles, 500);
+  const db = makeD1();
+  await MU.ensureMusicSchema(db);
+  const ins = db.raw.prepare("INSERT INTO music_albums (title, kind) VALUES (?, ?)");
+  for (let i = 0; i < 99; i++) ins.run('a' + i, 'album');
+  for (let i = 0; i < 5; i++) ins.run('s' + i, 'single');
+  const ok = await MU.applyMusicOp(db, MU.parseMusicOp({ op: 'album.add', title: '第 100 张' }));
+  assert.ok(!('error' in ok), JSON.stringify(ok));
+  assert.deepEqual(await MU.applyMusicOp(db, MU.parseMusicOp({ op: 'album.add', title: '第 101 张' })), { error: 'limit' });
 });
