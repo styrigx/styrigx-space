@@ -20,7 +20,7 @@
 
 ```
 styrigx-space/
-├─ .github/        CI 工作流、共享 action、Renovate 配置
+├─ .github/        CI 工作流、共享 action
 ├─ docs/           规范书（本目录）
 ├─ space/          网站 + 构建 / 检查脚本
 │  ├─ scripts/
@@ -40,7 +40,7 @@ styrigx-space/
 | `workers/` | 一个 Worker 一个目录，目录名 = Worker 名去掉 `styrigx-` |
 | `tests/` | 按测试对象分目录 |
 | `docs/` | 规范书，入口 `docs/README.md` |
-| `.github/` | `workflows/`（`deploy.yml`、`update-snapshots.yml`）、`actions/`（setup-hugo / setup-node-deps / setup-playwright）、`renovate.json`、`renovate-preset.json` |
+| `.github/` | `workflows/`（`deploy.yml`、`update-snapshots.yml`）、`actions/`（setup-hugo / setup-node-deps / setup-playwright） |
 | `package.json` | npm 依赖与脚本（npm 只认根目录） |
 
 ## 3. `space/web/`

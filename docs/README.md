@@ -69,7 +69,7 @@
 
 4.1 每个 Worker 的职责、路由、绑定、数据与迁移写在 `workers/<名字>/README.md`；Worker 骨架契约在 [`workers/README.md`](../workers/README.md)。本目录不重复这些内容。
 
-4.2 共享 CI action 的说明在 [`.github/actions/README.md`](../.github/actions/README.md)；Renovate 配置在 `.github/renovate.json` 与 `.github/renovate-preset.json`。
+4.2 共享 CI action 的说明在 [`.github/actions/README.md`](../.github/actions/README.md)。依赖与工具链升级手动开 `[deps]` PR；Dependabot 只开安全更新（不分组）。
 
 ## 5. 新增 / 修改文档
 

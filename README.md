@@ -80,7 +80,7 @@ Sloan Gray（styrigx）的个人数字空间：一个终端风格的个人网站
 | 存储 | Cloudflare D1、KV、R2、Vectorize、Secrets Store |
 | AI | Workers AI（Gemma 4、GPT-OSS 20B、bge-m3 向量）、Google Gemini API |
 | 测试 | `node:test`（含 `node:sqlite` 跑真实 SQL）、Playwright、Lighthouse CI、stylelint |
-| CI / CD | GitHub Actions、Renovate |
+| CI / CD | GitHub Actions、Dependabot 安全更新 |
 
 ## 架构
 
@@ -107,7 +107,7 @@ styrigx-space/
 ├─ workers/      全部 Worker，一个目录一个（目录名 = Worker 名去掉 styrigx-）
 ├─ tests/        全部测试，按对象分目录
 ├─ docs/         规范书与 ADR（入口 docs/README.md）
-└─ .github/      CI 工作流、共享 composite action、Renovate 配置
+└─ .github/      CI 工作流、共享 composite action
 ```
 
 完整说明见 [SGX-ARCH-002 仓库结构](docs/architecture/repo-structure.md)。
