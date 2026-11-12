@@ -749,6 +749,7 @@ test('passkey ls / add / rm：只管自己的；add 的 user.id = 已有钥匙�
   const ch = await id(env, { action: 'passkey-add-challenge' }, t1);
   assert.equal(ch.json.user.id, 'h-sty');
   assert.equal(ch.json.user.name, 'styrigx');
+  assert.equal(ch.json.user.displayName, 'Sloan Gray', '钥匙显示名：第一行站长名、第二行用户名（Gray 2026-11-12）');
   assert.equal(ch.json.excludeCredentials.length, 1);
   const cred = await fx.makeAttestationCredential(ch.json.challenge, 'styrigx.com', ORIGIN);
   const forged = await id(env, { action: 'passkey-add', cid: ch.json.cid, credential: cred, handle: 'h-alice' }, t1);

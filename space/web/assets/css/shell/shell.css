@@ -1024,6 +1024,10 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 :root[data-sgx-layout="desktop"] .sgx-term-dlg { padding-top: calc(var(--sgx-tb-h) + env(safe-area-inset-top, 0px) + max(24px, min(96px, 10vh))); }
 :root[data-sgx-layout="desktop"] .sgx-term-dlg .sgx-term { display: flex; flex-direction: column; width: min(1040px, 86vw); height: 72vh; }
 :root[data-sgx-layout="desktop"] .sgx-term--drawer .sgx-term-body { flex: 1 1 auto; height: auto; min-height: 0; }
+/* 键盘跟随（Gray 2026-11-12 16:37，topbar-panel.js 写 --sgx-kb / data-kb，只在触屏）：窗口下沿抬到键盘上方，正文让位、在窗里滚，输入行贴着键盘；收起恢复 */
+.sgx-term-dlg[data-kb] { padding-bottom: calc(var(--sgx-kb, 0px) + 8px); }
+.sgx-term-dlg[data-kb] .sgx-term { display: flex; flex-direction: column; max-height: var(--sgx-term-kb-max, 100%); }
+.sgx-term-dlg[data-kb] .sgx-term--drawer .sgx-term-body, .sgx-term-dlg[data-kb] .sgx-term-man { flex: 0 1 auto; min-height: 0; }
 /* 输入行在等待 / 完成时收起（input-line.js 写 hidden）；秘密输入（解锁 / 账号密码、恢复钥匙、新密码、机场链接）不回显，同真 sudo */
 .sgx-term-line[hidden] { display: none; }
 .sgx-term-line:is([data-mode="pw"], [data-mode="rkey"], [data-mode="newpw"], [data-mode="newpw2"], [data-mode="suburl"]) .sgx-term-in { color: transparent; -webkit-text-fill-color: transparent; }
