@@ -147,13 +147,13 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(html, /nobody@space:~\$<\/span><span class="?sgx-envps-g sgx-envps-u"? translate="?no"?>styrigx<\/span><span class="?sgx-envps-g"? translate="?no"?>@space:~\$<\/span><span class="?sgx-envps-r"? translate="?no"?>root@space:~#<\/span><\/span> ls -lt blog\//, '页头命令');
     assert.match(html, /<h1 class="?sgx-ph-title"?>博客<\/h1>/, '中文 h1「博客」（可见）');
     assert.match(await (await fetch(base + '/blog/')).text(), /<h1 class="?sgx-ph-title"?>Blog<\/h1>/, '英文 h1「Blog」');
-    assert.match(html, /写下来的东西。共 10 篇 · 最近更新 <span class=\"?sgx-nw\"?>\d{4}-\d{2}-\d{2}<\/span>/, '日期整段不折行（2026-11-09 细节 6）');
+    assert.match(html, /写下来的东西。共 17 篇 · 最近更新 <span class=\"?sgx-nw\"?>\d{4}-\d{2}-\d{2}<\/span>/, '日期整段不折行（2026-11-09 细节 6）');
     const chips = [...html.matchAll(/class="?sgx-chip"?[^>]*data-chip="?([^" >]*)"?/g)].map((m) => m[1]);
     assert.equal(chips[0], '', '第一个 chip = 全部');
     assert.ok(chips.length >= 2 && chips.length <= 7, '全部 + 至多 6 个分类：' + chips.length);
-    assert.match(html, /aria-current="?true"?[^>]*>全部 <i>10<\/i>|data-chip=""? aria-current="?true"?>全部 <i>10<\/i>/, '全部 10 是当前项');
+    assert.match(html, /aria-current="?true"?[^>]*>全部 <i>17<\/i>|data-chip=""? aria-current="?true"?>全部 <i>17<\/i>/, '全部 17 是当前项');
     assert.match(html, /class="?sgx-chip sgx-chip--more"? href="?\/blog\/zh\/tree\/"?/, 'tree blog/ → 目录页');
-    assert.equal((html.match(/data-post[ >]/g) || []).length, 10, '10 篇都在页里（不跑脚本也能看全）');
+    assert.equal((html.match(/data-post[ >]/g) || []).length, 17, '17 篇都在页里（不跑脚本也能看全）');
     assert.match(html, /<h2 class="?sgx-yr"? data-year="?2026"?>2026<\/h2>/, '按年分组');
     assert.match(html, /class="?sgx-pl-rt"?>\d+ 分钟</, '阅读分钟（中文单位，2026-11-09 细节 9）');
     assert.match(html, /class="?sgx-pl-ex"?>/, '摘要');
@@ -178,21 +178,32 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(html, /data-tree-pane="?year"? hidden/, '年份视图默认收起');
     const ser = html.match(/id="?series-[^" >]+"?[\s\S]*?(?=<p class="?sgx-tl"?><span class="?tp"? aria-hidden="?true"?>[├└]── <\/span><(?:a|span) class="?cb)/);
     assert.ok(ser, '系列目录');
-    assert.match(ser[0], /Styrigx UI 鉴权规范\//);
+    assert.match(ser[0], /styrigx 鉴权体系规范的变迁\//);
     const posts = [...ser[0].matchAll(/href="?\/blog\/zh\/post\/([^"/]+)\/"?/g)].map((m) => m[1]);
-    assert.deepEqual(posts, ['2026-10-11-key-spec-whitepaper', '2026-10-11-key-spec-whitepaper-v2']);
+    assert.deepEqual(posts, [
+      '2026-10-11-key-spec-whitepaper',
+      '2026-10-11-key-spec-whitepaper-v2',
+      '2026-10-18-auth-gateway-worker',
+      '2026-10-21-owner-credential-to-account',
+      '2026-10-24-temp-lockkey-six-tickets',
+      '2026-11-04-account-split-binary-entry',
+      '2026-11-08-account-three-keys',
+      '2026-11-09-account-v3-site-entry',
+      '2026-11-10-v5-one-terminal',
+      '2026-11-12-identity-v6',
+    ]);
     assert.match(html, /ls blog\/ --by-year/);
     assert.match(html, /class="?sgx-arch-m"?><span class="?sgx-arch-k"?>10 月<\/span>/, '月份行');
     assert.match(html, /<ul class="?sgx-tags2"?/);
     assert.match(html, /href="?\/blog\/zh\/\?tag=[^"]+"?><span class="?k"?>#/, '标签 → 首页筛选');
-    assert.match(html, /\d+ directories, 10 files/);
+    assert.match(html, /\d+ directories, 17 files/);
     assert.equal((await fetch(base + '/blog/tree/')).status, 200, '英文目录页');
   });
 
   it('系列文章页（对齐 PR-C，设计稿 pg=post）：元信息里有系列 n / N（链到目录页系列目录），cd ../prev 卡是系列上一篇；没有旧系列小块 / 分享按钮行 / 更多文章', async () => {
     const html = await (await fetch(base + '/blog/zh/post/2026-10-11-key-spec-whitepaper-v2/')).text();
     assert.doesNotMatch(html, /sgx-series-block|share-buttons|share-row|related-posts/);
-    assert.match(html, /class="?metadata-item sgx-series-meta"? href="?\/blog\/zh\/tree\/#series-[^"]+"?>Styrigx UI 鉴权规范 · 第 2 \/ 2 篇</);
+    assert.match(html, /class="?metadata-item sgx-series-meta"? href="?\/blog\/zh\/tree\/#series-[^"]+"?>styrigx 鉴权体系规范的变迁 · 第 2 \/ 10 篇</);
     assert.match(html, /class="?sgx-nx-a"? rel="?prev"? href="?\/blog\/zh\/post\/2026-10-11-key-spec-whitepaper\/"?[^>]*>‹ cd \.\.\/prev/);
     assert.match(html, /cd \.\.\/next ›/);
     assert.match(html, /cat ~\/blog\/[^/]+\/2026-10-11-key-spec-whitepaper-v2\.md/, '面包屑带分类目录');

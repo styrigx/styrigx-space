@@ -4,7 +4,7 @@ description: "This site is locked by default. V3 splits \"can you come in\" and 
 date: 2026-11-09
 tags: ["Styrigx UI", "auth", "Security", "Passkey"]
 series: ["Styrigx Auth Spec: How It Evolved"]
-seriesOrder: 3
+seriesOrder: 8
 ---
 
 This website is my personal space. It isn't open to the public, and every page starts at a lock screen. Since October the entry and account design has gone through several rounds: first a front-end-only lock screen with a captcha, then server-signed sessions, then the account split out into its own service. The version from November 9 (I call it V3) is the first one that feels properly sorted out, so I'm writing it down.
