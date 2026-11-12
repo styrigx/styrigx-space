@@ -3,7 +3,7 @@
  *
  * v5 S7：主页首屏不再嵌终端（换成 neofetch about 卡，提示符跟身份）；主页也用顶栏 >_ / Ctrl K 打开终端窗口（v5 S6）：
  * - 真输入框（有可访问名）+ aria-live=polite 的输出区；欢迎语指向 man（help 删了）；提示符按身份 nobody@space:~$（访客，服务端说了算）
- * - man 索引按身份列、open blog 收起窗口滚到 [01] 博客、未知命令 · 试试 man、↑ / ↓ 历史、tab 补全 + 补全影子、theme dark / light、clear
+ * - man 索引按身份列、open blog 收起窗口滚到 [01] 博客、未知命令 · 试试 man、↑ / ↓ 历史、tab 补全 + 补全影子、theme <调色板 id>、clear
  * 全站终端窗口（#sgx-term，桌面居中大窗、手机整块卡片）：
  * - /blog/ 上 Ctrl K 打开（提示符 ~/blog$），Esc 关、焦点还回去；NAVIGATE 里的「Ctrl K 终端 ›」也能打开；open 去别的站 = 跳转
  * - su <用户> 在终端里原地选方式（v6 P4 起旧 sudo styrigx 删了）；盾牌 / sgx:sudo 打开终端、预填 su （不替人回车）
@@ -397,4 +397,60 @@ test('Samsung Pass（S9）：空命令行 / [y/N] 时表单里没有用户名字
   await page.keyboard.press('Control+c');
   await expect(home(page).locator('[data-term-form]')).toHaveAttribute('data-mode', 'cmd');
   await expect(pmu).toHaveCount(0);
+});
+
+/* 键盘跟随（Gray 2026-11-12 16:37）：手机上键盘弹起时终端窗口缩到键盘上方、输入行贴着键盘，收起恢复；桌面不动。
+   假的 VirtualKeyboard API（vk.js 优先用它）驱动键盘高度；触屏用假的 matchMedia('(pointer: coarse)')，同 quick-panel.spec.js 的 AI 窗用例 */
+async function fakeTouchKeyboard(page, coarse) {
+  await page.addInitScript((c) => {
+    const vk = new EventTarget();
+    vk.overlaysContent = false;
+    vk.boundingRect = { height: 0 };
+    Object.defineProperty(navigator, 'virtualKeyboard', { value: vk, configurable: true });
+    window.__kb = (h) => { vk.boundingRect = { height: h }; vk.dispatchEvent(new Event('geometrychange')); };
+    if (!c) return;
+    const mm = window.matchMedia.bind(window);
+    const noop = () => {};
+    window.matchMedia = (q) => (/pointer:\s*coarse/.test(q) ? { matches: true, media: q, onchange: null, addEventListener: noop, removeEventListener: noop, addListener: noop, removeListener: noop } : mm(q));
+  }, coarse);
+}
+const termGeo = (page) => page.evaluate(() => {
+  const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+  return { vh: window.innerHeight, card: r('#sgx-term .sgx-term').bottom, bar: r('#sgx-term .sgx-term-bar').top, input: r('#sgx-term-in').bottom, tb: r('.sgx-topbar').bottom };
+});
+
+test('手机键盘跟随：输入行聚焦、键盘弹起 → 窗口下沿和输入行都在键盘上方，标题栏还在；键盘收起 → 失焦、复位；关窗复位', async ({ page }) => {
+  await fakeTouchKeyboard(page, true);
+  await go(page, '/zh/status/', { vp: { width: 412, height: 915 } });
+  await openTerm(page);
+  for (let i = 0; i < 12; i++) await run(page, 'pwd');
+  await input(page).click();
+  await page.evaluate(() => window.__kb(420));
+  await expect(home(page)).toHaveAttribute('data-kb', '');
+  const g = await termGeo(page);
+  expect(g.card).toBeLessThanOrEqual(g.vh - 420 + 1);
+  expect(g.input).toBeLessThanOrEqual(g.vh - 420 + 1);
+  expect(g.bar).toBeGreaterThanOrEqual(g.tb);
+  /* 键盘变高（候选栏）跟着走 */
+  await page.evaluate(() => window.__kb(480));
+  const g2 = await termGeo(page);
+  expect(g2.input).toBeLessThanOrEqual(g2.vh - 480 + 1);
+  /* 系统手势收键盘：输入框失焦，窗口回原位 */
+  await page.evaluate(() => window.__kb(0));
+  await expect(home(page)).not.toHaveAttribute('data-kb', '');
+  expect(await page.evaluate(() => document.activeElement === document.getElementById('sgx-term-in'))).toBe(false);
+  /* 再点又跟上；关窗复位 */
+  await input(page).click();
+  await page.evaluate(() => window.__kb(300));
+  await expect(home(page)).toHaveAttribute('data-kb', '');
+  await page.keyboard.press('Escape');
+  await expect(home(page)).not.toHaveAttribute('data-kb', '');
+});
+
+test('桌面（不是触屏）：键盘几何变化不动终端窗口', async ({ page }) => {
+  await fakeTouchKeyboard(page, false);
+  await go(page, '/zh/status/', { term: true });
+  await input(page).click();
+  await page.evaluate(() => window.__kb(300));
+  await expect(home(page)).not.toHaveAttribute('data-kb', '');
 });

@@ -76,6 +76,7 @@ export async function v6CheckAssertion(env, rp, purpose, body, expectUid) {
 
 /**
  * 注册第一步（passkey add，给自己加）：user.id = 已有钥匙的 user_handle（没有 → 新生成）；name = 用户名。
+ * displayName 固定 Sloan Gray（Gray 2026-11-12：Samsung Pass 第一行站长名、第二行 root / styrigx）；passkey-* 是 owner 档，只有站长和 root 走得到这里。
  * @param {any} env @param {{rpId:string}} rp @param {{uid:number, name:string}} user
  */
 export async function v6RegistrationChallenge(env, rp, user) {
@@ -85,7 +86,7 @@ export async function v6RegistrationChallenge(env, rp, user) {
   const cid = await issueChallenge(env, V6_PURPOSE.add + ':' + user.uid + ':' + handle, challenge, CHALLENGE_TTL);
   return {
     cid, challenge, rpId: rp.rpId, rp: { id: rp.rpId, name: 'Styrigx' },
-    user: { id: handle, name: user.name, displayName: user.name },
+    user: { id: handle, name: user.name, displayName: 'Sloan Gray' },
     excludeCredentials: keys.map((k) => ({ id: k.rec.credId, type: 'public-key' })),
   };
 }

@@ -816,6 +816,42 @@ export function mountTopbar(o) {
       });
       /* 点遮罩（窗口外）关 */
       termDlg.addEventListener('click', function (e) { if (e.target === termDlg && termSheet) termSheet.close(); });
+      /* 键盘跟随（Gray 2026-11-12 16:37）：触屏输入框聚焦时把键盘高度写进 --sgx-kb，窗口缩到键盘上方、输入行贴着键盘；收起 / 失焦 / 关窗恢复。桌面不动 */
+      /** @type {(() => void)|null} */ let termKbStop = null;
+      let termKbSeen = false;
+      const termBody = /** @type {HTMLElement|null} */ (termDlg.querySelector('[data-term-body]'));
+      const termKbSet = function (/** @type {number} */ h) {
+        termDlg.style.setProperty('--sgx-kb', (h > 0 ? Math.round(h) : 0) + 'px');
+        termDlg.toggleAttribute('data-kb', h > 0);
+        if (h > 0 && termBody) termBody.scrollTop = termBody.scrollHeight;
+      };
+      const termKbEnd = function () {
+        const s = termKbStop;
+        termKbStop = null;
+        termKbSeen = false;
+        if (s) { try { s(); } catch (e) {} }
+        termKbSet(0);
+      };
+      termDlg.addEventListener('focusin', function (e) {
+        const t = /** @type {any} */ (e.target);
+        if (termKbStop || !o.keyboard || !coarse() || !t || t.tagName !== 'INPUT') return;
+        termKbSeen = false;
+        try {
+          termKbStop = o.keyboard(function (/** @type {number} */ h) {
+            if (h > 0) { termKbSeen = true; termKbSet(h); return; }
+            /* 键盘升起过、现在收了而输入框还聚焦（系统返回 / 手势收键盘）→ 交出焦点，下次点输入行再弹 */
+            const a = /** @type {any} */ (doc.activeElement);
+            if (termKbSeen && a && a.tagName === 'INPUT' && termDlg.contains(a)) { a.blur(); return; }
+            termKbSet(0);
+          }) || null;
+        } catch (err) { termKbStop = null; }
+      });
+      termDlg.addEventListener('focusout', function (e) {
+        const n = /** @type {any} */ (e.relatedTarget);
+        if (n && n.tagName === 'INPUT' && termDlg.contains(n)) return;
+        termKbEnd();
+      });
+      termDlg.addEventListener('close', termKbEnd);
     }
     if (termEl) {
       view = T.mountTerminal(termEl, term, {
