@@ -80,7 +80,7 @@ Shared by all four sites:
 | Storage | Cloudflare D1, KV, R2, Vectorize, Secrets Store |
 | AI | Workers AI (Gemma 4, GPT-OSS 20B, bge-m3 embeddings), Google Gemini API |
 | Testing | `node:test` (real SQL on `node:sqlite`), Playwright, Lighthouse CI, stylelint |
-| CI / CD | GitHub Actions, Renovate |
+| CI / CD | GitHub Actions, Dependabot security updates |
 
 ## Architecture
 
@@ -107,7 +107,7 @@ styrigx-space/
 ├─ workers/      all Workers, one directory each (directory = Worker name without styrigx-)
 ├─ tests/        all tests, grouped by what they test
 ├─ docs/         specifications and ADRs (index: docs/README.md)
-└─ .github/      CI workflows, shared composite actions, Renovate config
+└─ .github/      CI workflows, shared composite actions
 ```
 
 Full details: [SGX-ARCH-002 Repository layout](docs/architecture/repo-structure.md).

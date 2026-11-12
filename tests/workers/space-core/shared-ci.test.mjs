@@ -1,6 +1,6 @@
 /**
  * 共享 CI（.github/actions/*）：Hugo 版本与 extended 只在 setup-hugo 定义一处；主站工作流用本地 action；
- * Renovate 预设只从这一处认 Hugo，并认子站对 styrigx-space 共享 action 的固定 tag / SHA 引用；必需检查的 job 名不变。
+ * 必需检查的 job 名不变。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -100,25 +100,3 @@ test('visual 分 2 片：matrix.shard=[1,2]、fail-fast 关、带 CJK 字体、�
   assert.match(read('space/scripts/ci-local.sh'), /VISUAL_SHARD[\s\S]*--shard=\$\{VISUAL_SHARD%\/2\}\/2/);
 });
 
-test('Renovate 预设：Hugo 只从 setup-hugo 认；子站对 styrigx-space 的 tag / SHA 引用两种写法都认', () => {
-  const preset = JSON.parse(read('.github/renovate-preset.json'));
-  const hugo = preset.customManagers.find((m) => m.depNameTemplate === 'gohugoio/hugo');
-  assert.deepEqual(hugo.managerFilePatterns, ['/(^|/)\\.github/actions/setup-hugo/action\\.ya?ml$/']);
-  const hits = hugo.matchStrings.flatMap((s) => [...read(HUGO_ACTION).matchAll(new RegExp(s, 'g'))]);
-  assert.equal(hits.length, 1);
-  assert.equal(hits[0].groups.currentValue, yaml.load(read(HUGO_ACTION)).runs.steps[0].env.HUGO_VERSION);
-
-  const ci = preset.customManagers.find((m) => m.datasourceTemplate === 'github-tags');
-  const re = new RegExp(ci.matchStrings[0]);
-  const tag = re.exec('        uses: styrigx/styrigx-space/.github/actions/setup-hugo@v1.0.0');
-  assert.equal(tag.groups.depName, 'styrigx/styrigx-space');
-  assert.equal(tag.groups.currentValue, 'v1.0.0');
-  assert.equal(tag.groups.currentDigest, undefined);
-  const sha = re.exec("        uses: styrigx/styrigx-space/.github/actions/setup-playwright@0123456789abcdef0123456789abcdef01234567 # v1.2.3");
-  assert.equal(sha.groups.currentDigest, '0123456789abcdef0123456789abcdef01234567');
-  assert.equal(sha.groups.currentValue, 'v1.2.3');
-  assert.equal(re.exec('        uses: styrigx/styrigx-space/.github/actions/setup-hugo@main'), null, '不跟 main');
-  /* 同一条引用只归 regex manager：github-actions manager 对它关掉 */
-  const off = preset.packageRules.find((r) => (r.matchManagers || []).includes('github-actions') && (r.matchDepNames || []).includes('styrigx/styrigx-space'));
-  assert.equal(off.enabled, false);
-});

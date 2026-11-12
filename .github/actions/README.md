@@ -31,14 +31,7 @@ git push origin v1.0.1
 
 tag 打上后不移动、不删除（建议在 Settings → Rules → Rulesets 给 `refs/tags/v*` 加「禁止更新 / 删除」）。打错就发下一个版本。
 
-## 子站怎么升级
+## Hugo 升级
 
-- Renovate（共享预设的 regex manager，组名「styrigx-space 共享 CI」）在子站各自的排期日（curio 周二、daymark 周三、blog 周四）发现新 tag 就开 PR，把同一仓库里所有 `styrigx/styrigx-space/...@vX.Y.Z` 一起改掉；写成 `@<40 位 SHA> # vX.Y.Z` 也认，SHA 和注释一起改。minor / patch 在 CI 全绿后自动合并，major 要在 Dependency Dashboard 批准。
-- 子站 PR 的 CI 会用新 tag 里的 Hugo / Node / Playwright 真跑构建和测试，所以 Hugo 升级在每个子站都先过 CI 再落地。
-- 同一条引用不归 github-actions manager（预设 ④a 关掉），blog 的 Dependabot 也 ignore 了它，不会重复开 PR。
+手动开 `[deps]` PR，只改 `setup-hugo/action.yml` 的 `HUGO_VERSION`，完整 CI 全绿后等 Gray 下令合并。
 
-## Hugo 升级的完整路径
-
-1. 主站 Renovate（周一）改 `setup-hugo/action.yml` 的 `HUGO_VERSION`，主站 CI 全绿后自动合并。
-2. 有人按上面的步骤打一个 patch tag。
-3. 子站 Renovate 在各自的排期日开「styrigx-space 共享 CI」PR，CI 全绿后自动合并。

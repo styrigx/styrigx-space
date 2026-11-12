@@ -17,7 +17,7 @@ runs:
       id: pick
       shell: bash
       env:
-        # 唯一的 Hugo 版本定义。Renovate（.github/renovate-preset.json 的 regex manager）只改下面这一行；
+        # 唯一的 Hugo 版本定义。升级时手动 [deps] PR 只改下面这一行；
         # extended：四个仓库统一用 extended（2026-10-26 决定）。Hugo 将来取消 extended 包时在这里一起改。
         HUGO_VERSION: '0.169.0'
         HUGO_EXTENDED: 'true'
