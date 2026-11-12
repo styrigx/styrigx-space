@@ -428,7 +428,9 @@ test('手机键盘跟随：输入行聚焦、键盘弹起 → 窗口下沿和输
   await page.evaluate(() => window.__kb(420));
   await expect(home(page)).toHaveAttribute('data-kb', '');
   const g = await termGeo(page);
-  expect(g.card).toBeLessThanOrEqual(g.vh - 420 + 1);
+  const why = await page.evaluate(() => { const d = document.getElementById('sgx-term'); const c = d.querySelector('.sgx-term'); const cs = getComputedStyle(d); const cc = getComputedStyle(c);
+    return JSON.stringify({ kb: d.style.getPropertyValue('--sgx-kb'), max: d.style.getPropertyValue('--sgx-term-kb-max'), pb: cs.paddingBottom, dh: cs.height, cmax: cc.maxHeight, cdisp: cc.display, ch: cc.height, layout: document.documentElement.getAttribute('data-sgx-layout') }); });
+  expect(g.card, why).toBeLessThanOrEqual(g.vh - 420 + 1);
   expect(g.input).toBeLessThanOrEqual(g.vh - 420 + 1);
   expect(g.bar).toBeGreaterThanOrEqual(g.tb);
   /* 键盘变高（候选栏）跟着走 */

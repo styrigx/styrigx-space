@@ -820,8 +820,12 @@ export function mountTopbar(o) {
       /** @type {(() => void)|null} */ let termKbStop = null;
       let termKbSeen = false;
       const termBody = /** @type {HTMLElement|null} */ (termDlg.querySelector('[data-term-body]'));
+      const termCard = /** @type {HTMLElement|null} */ (termDlg.querySelector('.sgx-term'));
       const termKbSet = function (/** @type {number} */ h) {
         termDlg.style.setProperty('--sgx-kb', (h > 0 ? Math.round(h) : 0) + 'px');
+        /* 窗口最高 = 键盘上沿 − 窗口上沿 − 8px（直接给 px，不靠百分比解析） */
+        const top = termCard ? termCard.getBoundingClientRect().top : 0;
+        termDlg.style.setProperty('--sgx-term-kb-max', h > 0 ? Math.max(120, Math.floor(window.innerHeight - h - top - 8)) + 'px' : '');
         termDlg.toggleAttribute('data-kb', h > 0);
         if (h > 0 && termBody) termBody.scrollTop = termBody.scrollHeight;
       };
