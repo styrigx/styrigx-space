@@ -862,6 +862,13 @@ export function mountTopbar(o) {
           st();
         }
       };
+      const termKbEnd = function () {
+        const s = termKbStop;
+        termKbStop = null;
+        termKbSeen = false;
+        if (s) { try { s(); } catch (e) {} }
+        termKbSet(0);
+      };
       termDlg.addEventListener('focusin', function (e) {
         const t = /** @type {any} */ (e.target);
         if (termKbStop || !o.keyboard || !coarse() || !t || t.tagName !== 'INPUT') return;
