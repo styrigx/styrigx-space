@@ -5,7 +5,7 @@ description: "站内终端每条命令能干什么、谁能用、要不要再验
 date: 2026-11-12
 series: ["styrigx 鉴权体系规范的变迁"]
 seriesOrder: 11
-tags: ["Styrigx UI", "鉴权", "终端"]
+tags: ["Styrigx UI", "鉴权"]
 ---
 
 > 本文是「styrigx 鉴权体系规范的变迁」系列的一篇，是[《身份统一 v6》](/blog/zh/post/2026-11-12-identity-v6/)的配套手册。它是活文档：命令一改，这里就跟着改。现在写的是 v6 P4 的样子，设备标记等 2g 的内容上线后再补。
