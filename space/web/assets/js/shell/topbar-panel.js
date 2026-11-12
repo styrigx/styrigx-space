@@ -147,49 +147,28 @@ export function mountTopbar(o) {
     try { window.dispatchEvent(new Event('sgx-layout-change')); } catch (e) {}
   }
   /**
-   * viewport meta 刚被 __sgxViewportSync 原地改过：逐帧看新视口生效没有（最多约 12 帧——浏览器应用新 meta 是异步的，忙的时候不止两帧），
-   * cb(true) = 生效（不用重载），cb(false) = 只能整页重载。
-   * 生效 = 布局视口宽对了（固定宽 width=N：innerWidth ≥ 720；还原成 device-width：innerWidth < 720），且整页看得全
-   * （visualViewport 宽 ≥ 布局视口 90%，没有停在放大的比例上）。浏览器原地不认新 meta（宽度一直不变）就重载，和以前一样。
-   * 等满了宽度对了但停在放大比例上：临时补一次 initial-scale = maximum-scale = 屏宽 / N 把比例压回「整页适配」，两帧后去掉，再等一轮。
-   * Chromium 手机模式（e2e）原地改 meta 直接生效；三星浏览器 / X 应用内浏览器（Android WebView）真机未验，所以留着重载兜底。
+   * 切出「DeX」：viewport meta 刚被 __sgxViewportSync 原地还原成 device-width，逐帧看新视口生效没有
+   * （最多约 12 帧——浏览器应用新 meta 是异步的，忙的时候不止两帧）。cb(true) = 生效（不用重载），cb(false) = 只能整页重载。
+   * 生效 = 布局视口回到手机宽（innerWidth < 720）且整页看得全（visualViewport 宽 ≥ 布局视口 90%，没停在放大比例上）。
+   * 切进 DeX 不走这里，直接重载：2026-11-13 Gray S23 录屏，三星浏览器原地改成 980 宽后先整页适配半秒，
+   * 接着把缩放弹回 1 倍（只剩 980 宽页面的左边一截），约 5 秒后才由兜底重载恢复；偶发。
    * @param {(ok: boolean) => void} cb
    */
   function viewportInPlace(cb) {
     const w = window;
-    const m = doc.querySelector('meta[name="viewport"]');
-    const c = m ? m.getAttribute('content') || '' : '';
-    const fx = /^width=(\d+)$/.exec(c);
-    const widthOk = function () {
-      const iw = w.innerWidth;
-      return fx ? iw >= 720 : iw < 720;
-    };
     const good = function () {
       const vv = w.visualViewport;
-      return widthOk() && (!vv || vv.width >= w.innerWidth * 0.9);
+      return w.innerWidth < 720 && (!vv || vv.width >= w.innerWidth * 0.9);
     };
-    /** @param {number} n @param {(ok: boolean) => void} done */
-    const wait = function (n, done) {
+    /** @param {number} n */
+    const wait = function (n) {
       raf(function () {
-        if (good()) return done(true);
-        if (n <= 1) return done(false);
-        wait(n - 1, done);
+        if (good()) return cb(true);
+        if (n <= 1) return cb(false);
+        wait(n - 1);
       });
     };
-    wait(12, function (ok) {
-      if (ok) return cb(true);
-      let sw = 0;
-      try { sw = w.screen.width; } catch (e) {}
-      if (!fx || !m || !(sw > 0) || !widthOk()) return cb(false);
-      const s = Math.round((sw / +fx[1]) * 1000) / 1000;
-      m.setAttribute('content', c + ',initial-scale=' + s + ',maximum-scale=' + s);
-      raf(function () {
-        raf(function () {
-          m.setAttribute('content', c);
-          wait(12, cb);
-        });
-      });
-    });
+    wait(12);
   }
 
   /**
@@ -349,21 +328,23 @@ export function mountTopbar(o) {
         if (sb && !sb.disabled) {
           if (P.setLayout) P.setLayout(sb.getAttribute('data-v') || '');
           /* 手机屏切进 / 切出「DeX」：共享外壳 layout-mode.js 把 viewport 换成 980 宽（或还原）。
-             2026-11-07 Gray 真机：以前一律整页重载，三星浏览器 / X 应用内浏览器都白闪一下。现在先原地生效（viewportInPlace），
-             新视口真的没生效（宽度没变 / 停在放大的比例上）才退回整页重载：先关面板（退掉历史哨兵，返回键不多一步），再重载 */
+             切进 DeX（meta 成了 width=N）：整页重载。原地改在三星浏览器上偶发弹回 1 倍缩放（2026-11-13 Gray S23 录屏），重载最稳。
+             切出 DeX：先原地生效（viewportInPlace，2026-11-07 Gray 真机：一律重载会白闪），没生效才重载。
+             重载前先关面板（退掉历史哨兵，返回键不多一步），并把此刻页面底色交给下一页首帧（layout-mode.js __sgxFirstPaint 读 sessionStorage sgx-fp-bg），不露浏览器白底 */
           const vw = /** @type {any} */ (window).__sgxViewportSync;
           if (typeof vw === 'function' && vw()) {
-            viewportInPlace(function (ok) {
-              if (ok) {
-                relayout();
-                paintNav();
-                return;
-              }
-              /* 重载兜底：把此刻页面底色交给下一页首帧（layout-mode.js __sgxFirstPaint 读 sessionStorage sgx-fp-bg），不露浏览器白底 */
+            const reload = function () {
               try { sessionStorage.setItem('sgx-fp-bg', getComputedStyle(doc.documentElement).backgroundColor); } catch (e) {}
               const go = o.reload || function () { location.reload(); };
               if (nav && nav.ms.isOpen()) nav.ms.close(go);
               else go();
+            };
+            const vm = doc.querySelector('meta[name="viewport"]');
+            if (/^width=\d+$/.test(vm ? vm.getAttribute('content') || '' : '')) { reload(); return; }
+            viewportInPlace(function (ok) {
+              if (!ok) return reload();
+              relayout();
+              paintNav();
             });
             return;
           }
