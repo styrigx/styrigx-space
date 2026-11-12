@@ -5,7 +5,7 @@
 //   歌单 / 封面 public（GET /api/music 只回元数据：专辑名、艺术家、年份、有没有封面、曲目号 / 名 / 时长；没有任何音频地址、R2 key、令牌）；
 //   听 entry（进站即可，含分享链接进来的 by=link：POST /api/music-play 签令牌、GET /api/music-stream 取音频）；
 //   上传 / 管理 music（进站 + 账号会话 + curio.write，与其他写接口同一套作用域）。写另要同源（403 origin）。
-// 表（D1 styrigx-curio-core，绑定 D1_MUSIC；迁移 migrations/0004_movies_music.sql，MUSIC_SCHEMA 只兜底全新的库，两边一致，测试核对）：
+// 表（D1 styrigx-curio-core，绑定 D1_MUSIC；迁移 migrations/0004_movies_music.sql + 0005_music_kind_artists.sql，MUSIC_SCHEMA 只兜底全新的库，两边一致，测试核对）：
 //   music_albums  专辑：名、艺术家、年份、封面（R2_MUSIC 的 key）、排序
 //   music_tracks  曲目：专辑、曲序、名、时长（秒）、音频（R2_MUSIC 的 key、类型、字节数）、可选歌词 LRC
 //   music_tokens  播放令牌：随机 32 字节（crypto.getRandomValues，base64url），一张专辑一枚，10 分钟有效；
@@ -16,18 +16,22 @@
 import { err, isSameOrigin } from './_lib.js';
 
 export const MUSIC_SCHEMA = [
-  "CREATE TABLE IF NOT EXISTS music_albums (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, artist TEXT NOT NULL DEFAULT '', year INTEGER NOT NULL DEFAULT 0, cover TEXT NOT NULL DEFAULT '', pos INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0)",
-  "CREATE TABLE IF NOT EXISTS music_tracks (id INTEGER PRIMARY KEY AUTOINCREMENT, album_id INTEGER NOT NULL, no INTEGER NOT NULL DEFAULT 0, title TEXT NOT NULL, duration INTEGER NOT NULL DEFAULT 0, r2_key TEXT NOT NULL DEFAULT '', type TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0, lrc TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL DEFAULT 0)",
+  "CREATE TABLE IF NOT EXISTS music_albums (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, artist TEXT NOT NULL DEFAULT '', year INTEGER NOT NULL DEFAULT 0, cover TEXT NOT NULL DEFAULT '', pos INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0, kind TEXT NOT NULL DEFAULT 'album' CHECK (kind IN ('album', 'single')), artist_id INTEGER NOT NULL DEFAULT 0)",
+  "CREATE TABLE IF NOT EXISTS music_tracks (id INTEGER PRIMARY KEY AUTOINCREMENT, album_id INTEGER NOT NULL, no INTEGER NOT NULL DEFAULT 0, title TEXT NOT NULL, duration INTEGER NOT NULL DEFAULT 0, r2_key TEXT NOT NULL DEFAULT '', type TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0, lrc TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL DEFAULT 0, artist_id INTEGER NOT NULL DEFAULT 0)",
   'CREATE INDEX IF NOT EXISTS music_tracks_album ON music_tracks (album_id, no, id)',
   'CREATE TABLE IF NOT EXISTS music_tokens (token TEXT PRIMARY KEY, album_id INTEGER NOT NULL, expires_at INTEGER NOT NULL)',
   'CREATE INDEX IF NOT EXISTS music_tokens_exp ON music_tokens (expires_at)',
+  "CREATE TABLE IF NOT EXISTS music_artists (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, avatar TEXT NOT NULL DEFAULT '', bio TEXT NOT NULL DEFAULT '', style TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0)",
+  'CREATE INDEX IF NOT EXISTS music_albums_kind ON music_albums (kind, pos, id)',
+  'CREATE INDEX IF NOT EXISTS music_albums_artist ON music_albums (artist_id)',
+  'CREATE INDEX IF NOT EXISTS music_tracks_artist ON music_tracks (artist_id)',
 ];
 
 /**
- * 上限：专辑 500 张、每张 200 首；名字 / 艺术家 120 字；歌词 60000 字；
+ * 上限（音乐分层方案 v1.13）：专辑 100 张、单曲 500 首，按 music_albums.kind 分开算；每张专辑 200 首；名字 / 艺术家 120 字；歌词 60000 字；
  * 单个音频文件 95 MB（Workers 请求体上限 100 MB，留余量；浏览器端直传，不分片）；封面 3 MB（浏览器先缩到 1600 webp）。
  */
-export const MUSIC_LIMITS = { albums: 500, tracks: 200, short: 120, lrc: 60000, trackBytes: 95 * 1024 * 1024, coverBytes: 3 * 1024 * 1024 };
+export const MUSIC_LIMITS = { albums: 100, singles: 500, tracks: 200, short: 120, lrc: 60000, trackBytes: 95 * 1024 * 1024, coverBytes: 3 * 1024 * 1024 };
 /** 播放令牌有效期：10 分钟 */
 export const TOKEN_TTL_MS = 10 * 60 * 1000;
 export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
@@ -153,7 +157,7 @@ export async function listAlbums(db, full = false) {
 export async function applyMusicOp(db, o, now = Date.now()) {
   switch (o.op) {
     case 'album.add': {
-      const n = await db.prepare('SELECT COUNT(*) AS n, COALESCE(MAX(pos), -1) AS p FROM music_albums').first();
+      const n = await db.prepare("SELECT SUM(kind = 'album') AS n, COALESCE(MAX(pos), -1) AS p FROM music_albums").first();
       if (n && n.n >= L.albums) return { error: 'limit' };
       const f = o.fields;
       const r = await db.prepare('INSERT INTO music_albums (title, artist, year, pos, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)')
