@@ -4939,7 +4939,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
    部件见 partials/icon.html tb-shield（打勾 .sgx-sh-ok、小人 .sgx-sh-u、盾身 .sgx-sh-b）。没写档（本地 / 测试构建、还没问到身份）= 原样 */
 .sgx-tb-shield:is([data-sgx-tier="guest"], [data-sgx-tier="user"]) .sgx-sh-ok { display: none; }
 .sgx-tb-shield[data-sgx-tier="user"] .sgx-sh-u { display: inline; }
-.sgx-tb-shield:is([data-sgx-tier="owner"], [data-sgx-tier="root"]) { color: var(--sgx-primary); }
+.sgx-tb-shield:is([data-sgx-tier="webmaster"], [data-sgx-tier="root"]) { color: var(--sgx-primary); }
 .sgx-tb-shield[data-sgx-tier="root"] .sgx-sh-b { fill: currentColor; }
 .sgx-tb-shield[data-sgx-tier="root"] .sgx-sh-ok { stroke: var(--sgx-surface); }
 @keyframes sgx-av-orbit { to { transform: rotate(1turn); } }

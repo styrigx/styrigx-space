@@ -15,10 +15,10 @@ const json = (o, status = 200) => ({ status, contentType: 'application/json', bo
  * @param {string} [name]
  */
 const V6_USER = (name = 'root') => {
-  if (name === 'root') return { uid: 0, name: 'root', groups: [], root: true, rescue: false, via: 'styrigx', path: 'root via styrigx', owner: false, wheel: false, sudoers: false, layerExpiresAt: Date.now() + 3600000, idleMs: 0 };
-  const owner = name === 'styrigx';
-  const groups = owner ? ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write'] : [];
-  return { uid: owner ? 1000 : 1001, name, groups, root: false, rescue: false, via: '', path: name, owner, wheel: owner, sudoers: owner, layerExpiresAt: Date.now() + 30 * 86400000, idleMs: 0 };
+  if (name === 'root') return { uid: 0, name: 'root', groups: [], root: true, rescue: false, via: 'styrigx', path: 'root via styrigx', webmaster: false, wheel: false, sudoers: false, layerExpiresAt: Date.now() + 3600000, idleMs: 0 };
+  const webmaster = name === 'styrigx';
+  const groups = webmaster ? ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write'] : [];
+  return { uid: webmaster ? 1000 : 1001, name, groups, root: false, rescue: false, via: '', path: name, webmaster, wheel: webmaster, sudoers: webmaster, layerExpiresAt: Date.now() + 30 * 86400000, idleMs: 0 };
 };
 
 /**

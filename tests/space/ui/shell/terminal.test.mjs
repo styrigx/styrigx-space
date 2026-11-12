@@ -304,8 +304,8 @@ test('门槛（cmds/keys/gate.js，只是提示，真拦截在服务端）：访
   for (const l of ['lock', 'passkey', 'device', 'profile', 'sub']) assert.equal(text(sh('nobody').exec(l, v).out[0]), need, l);
   for (const l of ['sub mv a b', 'sub show']) assert.equal(text(sh('u:alice').exec(l, v).out[0]), 'permission denied · run su root first', l);
   /* P4-3：站长（sudoers）的 sub 与 device rm（root 档，定稿 v5.5 §五）提示同 main 的「先 su root」，不另出 sudo <这一行> 提示 */
-  const owner = () => createShell({ act, storage: mem(), who: Object.assign(fixedWho('u:styrigx'), { v6: () => ({ name: 'styrigx', owner: true, sudoers: true, groups: ['sudoers'] }) }) });
-  for (const l of ['sub mv a b', 'sub show', 'device rm 2', 'device rm --all']) assert.equal(text(owner().exec(l, v).out[0]), 'permission denied · run su root first', l);
+  const webmaster = () => createShell({ act, storage: mem(), who: Object.assign(fixedWho('u:styrigx'), { v6: () => ({ name: 'styrigx', webmaster: true, sudoers: true, groups: ['sudoers'] }) }) });
+  for (const l of ['sub mv a b', 'sub show', 'device rm 2', 'device rm --all']) assert.equal(text(webmaster().exec(l, v).out[0]), 'permission denied · run su root first', l);
   assert.deepEqual(calls, [], '没过门槛的不进流程');
 });
 

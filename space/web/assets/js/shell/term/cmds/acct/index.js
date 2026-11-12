@@ -4,8 +4,8 @@ import { v6Root } from '../../core/who.js';
 /**
  * 账号命令（v6；P4-3 按定稿 v5.5 §四 / §五 / §七 / §八收紧）：
  * - passwd：改自己的密码（先输当前密码）/ passwd <名>：root 发一次性密码（身份层 shell/identity/layer.js）；普通用户层
- * - passkey [ls | add | rm <n>]：站长与 root 自己的通行密钥（POST /api/identity passkey-*，owner 档；普通用户不能管通行密钥，§八）
- * - device：设备列表（POST /api/account/devices list，owner 档，全站视图）；device rm <n> | rm --all：踢出（root 档）——
+ * - passkey [ls | add | rm <n>]：站长与 root 自己的通行密钥（POST /api/identity passkey-*，webmaster 档；普通用户不能管通行密钥，§八）
+ * - device：设备列表（POST /api/account/devices list，webmaster 档，全站视图）；device rm <n> | rm --all：踢出（root 档）——
  *   root 直接做；别的身份提示先 su root（同 sub）；sudoers 可 sudo device rm …（keys/sudo.js 借 root 跑）
  * - profile [set name | nick | sign | email <值> | avatar]：个人资料（PUT /api/profile 站长 + root；头像一份，归站长）；普通用户只能看
  * 流程在账号层（shell/account/cmd/*）；这里只把门、查参数。v6 P4 起旧账号会话（sudo root）与 reset 层删除，一律按 v6 身份。
@@ -13,7 +13,7 @@ import { v6Root } from '../../core/who.js';
 
 const V6 = /** @type {any} */ (['user', 'root6']);
 /** 站长层（定稿 v5.5 §四 man 分段：root → 站长 → 普通用户 → 访客；core/who.js tierOf 取最低一层） */
-const OWNER = /** @type {any} */ (['owner', 'root6']);
+const WEBMASTER = /** @type {any} */ (['webmaster', 'root6']);
 
 const passwd = {
   name: 'passwd',
@@ -36,7 +36,7 @@ const passwd = {
 const passkey = {
   name: 'passkey',
   args: ['add', 'rm'],
-  audience: OWNER,
+  audience: WEBMASTER,
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     const a = p.args.map(function (s) { return s.toLowerCase(); });
@@ -64,7 +64,7 @@ function acct(x, name) {
 const device = {
   name: 'device',
   args: ['rm'],
-  audience: OWNER,
+  audience: WEBMASTER,
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     const a = p.args.map(function (s) { return s.toLowerCase(); });

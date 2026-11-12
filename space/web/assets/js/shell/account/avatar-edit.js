@@ -1,6 +1,6 @@
 /**
  * @fileoverview 换头像 / 移除头像（2026-11-08 起只在账号终端 › 个人资料「头像」一行用，shell/account/profile.js；原 apps/avatar-edit.js）。
- * 服务端 /api/avatar 是 owner 档（站长 + root）。
+ * 服务端 /api/avatar 是 webmaster 档（站长 + root）。
  *
  * 「头像」一行展开「选择照片… / 移除照片」（没有自定义头像时只有第一项），调这里导出的 chooseAvatarPhoto / removeAvatar / avatarIsCustom。
  * 选照片 → 全屏裁剪：圆形取景框，单指拖动、双指缩放（电脑上滚轮缩放），照片始终盖满取景框（O7：交互不变，只换成稿的样子）。

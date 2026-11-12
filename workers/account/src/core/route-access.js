@@ -14,10 +14,10 @@
  * 7. decided：盘点时拿不准、由 Gray 定稿的条目（2026-11-11；docs/specs/v6-route-inventory.md「已定」汇总）。
  * 8. rescue：救援会话能走的路由（白名单）。一条路由有多个 action 时，rescueActions 列出救援能用的那几个（没列 = 整条都能用）；
  *    判断用 rescueOf(method, path, { action })，结果交给 permits 的 opts.rescue（P2，定稿 v4 §三 / §九）。
- * 9. owner：站长档（= styrigx 的 uid；名片属于站长），root 由 permits 第 2 步放行（P2）。
+ * 9. webmaster：站长档（= styrigx 的 uid；名片属于站长），root 由 permits 第 2 步放行（P2）。
  * 10. private（割接）：公开读接口里的私密行与 canWrite 提示——GET 路由档是 public（谁都能读公开部分），actions.private 是能看私密行的那一档
  *    （= 对应的写组）；子站接口 Worker 读完路由后按 action 'private' 问 admit（同一张表、同一个 permits），不自己比组。
- *    2c：POST /api/ai 也挂 private（= owner：站长 styrigx + root）——AI 回答召回私密条目、能切模型（GET /api/ai 的 canChoose 问同一条）；
+ *    2c：POST /api/ai 也挂 private（= webmaster：站长 styrigx + root）——AI 回答召回私密条目、能切模型（GET /api/ai 的 canChoose 问同一条）；
  *    跨奇趣 / 日刻 / 博客的私密内容，对应旧「账号会话」（= 站长本人），不按某一个写组。
  *
  * 判断不在这里：这张表只回答「要哪一档」，够不够由 core/groups.js permits() 判断（全站唯一一处）。
@@ -44,7 +44,7 @@ const R = (r) => Object.freeze(Object.assign({ host: MAIN_HOST }, r, r.actions ?
 /** @type {ReadonlyArray<Readonly<RouteRule>>} */
 export const ROUTE_ACCESS = Object.freeze([
   /* ---------- 站点核心 styrigx-space-core 自己的接口（workers/space-core/src/router.js API_ROUTES） ---------- */
-  R({ method: 'POST', path: '/api/ai', level: 'ai', worker: 'space-core', why: 'AI 对话（转 styrigx-ai /ask；私密召回与切模型只给 owner，见 actions.private）', actions: { private: 'owner' } }),
+  R({ method: 'POST', path: '/api/ai', level: 'ai', worker: 'space-core', why: 'AI 对话（转 styrigx-ai /ask；私密召回与切模型只给 webmaster，见 actions.private）', actions: { private: 'webmaster' } }),
   R({ method: 'GET', path: '/api/ai', level: 'ai', worker: 'space-core', why: 'AI 可选模型列表（转 styrigx-ai /models）' }),
   R({ method: 'GET', path: '/api/find', level: 'public', worker: 'space-core', why: '关键词搜索，只回公开页面元数据（IP 限流）' }),
   R({ method: 'GET', path: '/api/geo', level: 'public', worker: 'space-core', why: '只回调用者自己的城市 / 时区' }),
@@ -56,27 +56,27 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'POST', path: '/api/identity', level: 'public', worker: 'account', why: 'v6 身份命令（P2）：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>；P3 救援入口 rescue；每个 action 一档',
     actions: {
       whoami: 'public', 'su-challenge': 'public', su: 'public', exit: 'public', idle: 'public', lock: 'public', rescue: 'public',
-      /* 定稿 v5.5 §五：通行密钥增删与列表 owner（站长 + root）；普通用户只能 passwd 改自己的密码（§八） */
-      passwd: 'user', 'passkey-list': 'owner', 'passkey-add-challenge': 'owner', 'passkey-add': 'owner', 'passkey-delete': 'owner', groups: 'user', who: 'user',
+      /* 定稿 v5.5 §五：通行密钥增删与列表 webmaster（站长 + root）；普通用户只能 passwd 改自己的密码（§八） */
+      passwd: 'user', 'passkey-list': 'webmaster', 'passkey-add-challenge': 'webmaster', 'passkey-add': 'webmaster', 'passkey-delete': 'webmaster', groups: 'user', who: 'user',
       'sudo-challenge': 'sudoers', sudo: 'sudoers',
       useradd: 'root', userdel: 'root', usermod: 'root', 'passwd-user': 'root',
     },
     rescue: true, rescueActions: ['whoami', 'exit', 'lock', 'passwd', 'passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete', 'groups'] }),
   /* v6 P4：旧账号会话（GET /api/account、/session、/reauth、/reset、/keys）删除 */
-  R({ method: 'POST', path: '/api/account/devices', level: 'owner', worker: 'account', why: '设备会话（全站视图：列出全站会话，2g 按 sgx-device 合并同一台设备）',
-    actions: { list: 'owner', revoke: 'root', 'revoke-all': 'root' },
-    decided: '定稿 v5.5 §五：设备会话的列表与踢出属后台控制，root 档（站长 sudo），列表为全站视图；§七：站长打开账号页时设备卡列表直接可读，只有改动才预填 sudo（Gray 2026-11-11 19:59）→ list owner、revoke / revoke-all root' }),
+  R({ method: 'POST', path: '/api/account/devices', level: 'webmaster', worker: 'account', why: '设备会话（全站视图：列出全站会话，2g 按 sgx-device 合并同一台设备）',
+    actions: { list: 'webmaster', revoke: 'root', 'revoke-all': 'root' },
+    decided: '定稿 v5.5 §五：设备会话的列表与踢出属后台控制，root 档（站长 sudo），列表为全站视图；§七：站长打开账号页时设备卡列表直接可读，只有改动才预填 sudo（Gray 2026-11-11 19:59）→ list webmaster、revoke / revoke-all root' }),
   R({ method: 'POST', path: '/api/account/proxy', level: 'root', worker: 'account', why: '代理订阅管理 sub（转 styrigx-proxy-rules ProxyAdmin；含令牌、age 公钥）',
     actions: { status: 'root', show: 'root', token: 'root', key: 'root', add: 'root', mv: 'root', on: 'root', off: 'root', upload: 'root', rm: 'root' },
     decided: 'Gray 2026-11-11 定 root，不加新组' }),
-  R({ method: 'PUT', path: '/api/avatar', level: 'owner', worker: 'account', why: '换站点头像（全站一份配置，归站长 styrigx）', decided: '定稿 v5.5 §五：avatar、prefs 写入 owner（站长 + root）；§七：全站只有一份配置（Gray 2026-11-11 18:10–18:39）' }),
-  R({ method: 'DELETE', path: '/api/avatar', level: 'owner', worker: 'account', why: '删站点头像（回默认）', del: 'item', decided: '定稿 v5.5 §五：同上' }),
+  R({ method: 'PUT', path: '/api/avatar', level: 'webmaster', worker: 'account', why: '换站点头像（全站一份配置，归站长 styrigx）', decided: '定稿 v5.5 §五：avatar、prefs 写入 webmaster（站长 + root）；§七：全站只有一份配置（Gray 2026-11-11 18:10–18:39）' }),
+  R({ method: 'DELETE', path: '/api/avatar', level: 'webmaster', worker: 'account', why: '删站点头像（回默认）', del: 'item', decided: '定稿 v5.5 §五：同上' }),
   R({ method: 'GET', path: '/avatar/:file', level: 'public', worker: 'account', why: '头像图片（页面路径）' }),
   R({ method: 'GET', path: '/api/profile', level: 'public', worker: 'account', why: '站点个人资料（公开数据）', decided: 'Gray 2026-11-11 定 public：资料是公开数据（KV_PROFILE 只放公开数据）' }),
-  R({ method: 'PUT', path: '/api/profile', level: 'owner', worker: 'account', why: '改站点个人资料（站长资料，不是每个用户一份）',
+  R({ method: 'PUT', path: '/api/profile', level: 'webmaster', worker: 'account', why: '改站点个人资料（站长资料，不是每个用户一份）',
     decided: 'Gray 2026-11-11 定稿 v4：站长（styrigx）+ root（root 由 permits 放行），其余一律拒；名片只有一份，属于站长' }),
   R({ method: 'GET', path: '/api/prefs', level: 'user', worker: 'account', why: '读设置云同步（全站一份配置，归站长 styrigx；普通用户只能看）', decided: '定稿 v5.5 §七：全站只有一份配置，普通用户只能看' }),
-  R({ method: 'POST', path: '/api/prefs', level: 'owner', worker: 'account', why: '写设置云同步（全站一份配置）', decided: '定稿 v5.5 §五：avatar、prefs 写入 owner（站长 + root）' }),
+  R({ method: 'POST', path: '/api/prefs', level: 'webmaster', worker: 'account', why: '写设置云同步（全站一份配置）', decided: '定稿 v5.5 §五：avatar、prefs 写入 webmaster（站长 + root）' }),
   /* v6 P4：数字健康 POST / GET /api/wellbeing 随数字健康整套删除（定稿 v5.5 §四、§五） */
 
   /* ---------- 奇趣接口 styrigx-curio-core（styrigx.com/curio/api/*，不经网关；workers/curio-core/src/routes.js） ---------- */

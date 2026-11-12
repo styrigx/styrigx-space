@@ -158,7 +158,7 @@ export function createShell(o) {
   }
   who.on(emit);
 
-  /** whoami 的 user（组、owner 标记；没有 → null） */
+  /** whoami 的 user（组、webmaster 标记；没有 → null） */
   const meV6 = function () { return who && typeof who.v6 === 'function' ? who.v6() : null; };
   /** 命令拿到的上下文 */
   const x = {
@@ -170,7 +170,7 @@ export function createShell(o) {
     setCwd: function (d) { cwd = d; emit(); },
     /** 终端身份（core/who.js；每次现读） */
     who: function () { return who.get(); },
-    /** whoami 的 user（组、owner 标记；访客 / 没问到 → null） */
+    /** whoami 的 user（组、webmaster 标记；访客 / 没问到 → null） */
     me: meV6,
     /** 这个身份在 man 索引里列出的命令名（registry listed；组与站长看 whoami 的 user） */
     names: function () { return REG.listed(who.get(), meV6()); },

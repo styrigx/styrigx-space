@@ -7,9 +7,9 @@
  * - fail-closed：新用户默认无组；styrigx 的默认组 = STYRIGX_DEFAULT_GROUPS。
  * - 普通用户（uid 1001 起，含临时用户）永不进 wheel、sudoers、写组（canJoinGroup 拒绝，代码级，不靠 root 自觉；定稿 v5.5 §四）。
  * - 访问档（ACCESS 的取值）：public（谁都行）/ user（任一已登录身份，含无组的临时用户：改自己的凭据、whoami 这类）/
- *   组名 / owner（站长 = styrigx 的 uid；名片属于站长，P2）/ root。不认识的档一律拒绝。
+ *   组名 / webmaster（站长 = styrigx 的 uid；名片属于站长，P2）/ root。不认识的档一律拒绝。
  * - 判断顺序固定（定稿 v4 §三，P2）：① 救援会话 → 只放标了 rescue 的路由 / action（白名单），其余一律拒、不往下走；
- *   ② root → 一律放行，不留例外；③ 按档：public 谁都行、user 任一已登录身份、组名看组、owner 看是不是 styrigx。
+ *   ② root → 一律放行，不留例外；③ 按档：public 谁都行、user 任一已登录身份、组名看组、webmaster 看是不是 styrigx。
  *
  * 判断只在这里：permits(identity, level, { rescue })。网关与子站接口 Worker 只传路由（或拿结论），不自己比组。
  *
@@ -34,10 +34,10 @@ export const WRITE_GROUPS = Object.freeze(['curio-write', 'daymark-write']);
 /** styrigx 的默认组（v6 定稿 §三） */
 export const STYRIGX_DEFAULT_GROUPS = Object.freeze(['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write']);
 
-/** 访问档里不是组名的四个取值（组名不许和它们重名）；OWNER = 站长（styrigx 的 uid，名片属于站长，P2） */
-export const ACCESS = Object.freeze({ PUBLIC: 'public', USER: 'user', OWNER: 'owner', ROOT: 'root' });
+/** 访问档里不是组名的四个取值（组名不许和它们重名）；WEBMASTER = 站长（styrigx 的 uid，名片属于站长，P2） */
+export const ACCESS = Object.freeze({ PUBLIC: 'public', USER: 'user', WEBMASTER: 'webmaster', ROOT: 'root' });
 /** 全部合法的访问档 */
-export const ACCESS_LEVELS = Object.freeze([ACCESS.PUBLIC, ACCESS.USER, ...GROUPS, ACCESS.OWNER, ACCESS.ROOT]);
+export const ACCESS_LEVELS = Object.freeze([ACCESS.PUBLIC, ACCESS.USER, ...GROUPS, ACCESS.WEBMASTER, ACCESS.ROOT]);
 
 /** 临时用户：有期限（expires_at > 0）。临时用户永不进特权组、写组 @param {{expiresAt:number}|null|undefined} user */
 export function isTemporary(user) {
@@ -92,7 +92,7 @@ export function precedence(identity, opts) {
  *    不往下走——即使它是 root、即使这一档是 public
  * 2. root（uid 0）：一律放行，不留例外
  * 3. 按档：public 谁都行（含访客 null）；访客只有 public；user 任一已登录身份；root 档只有 root（第 2 步已放）；
- *    owner 只有站长 styrigx；组名要在组里
+ *    webmaster 只有站长 styrigx；组名要在组里
  * admit 若有 root 快速放行，同样要先过第 1 步（core/admit.js 只经这里判断，没有别的快速路径）。
  * @param {Identity|null|undefined} identity @param {string} level @param {{rescue?:boolean}} [opts]
  * @returns {boolean}
@@ -106,7 +106,7 @@ export function permits(identity, level, opts) {
   if (!id) return false;
   if (level === ACCESS.USER) return true;
   if (level === ACCESS.ROOT) return false;
-  if (level === ACCESS.OWNER) return id.uid === STYRIGX_UID;
+  if (level === ACCESS.WEBMASTER) return id.uid === STYRIGX_UID;
   return Array.isArray(id.groups) && id.groups.indexOf(level) !== -1;
 }
 

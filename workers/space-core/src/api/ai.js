@@ -6,7 +6,7 @@
  *   1. 只接受同源 POST（lib/http.js isSameOrigin）→ 否则 403 origin；别的方法 405 method（router 的 pickHandler）
  *   2. 要 v6 身份（ai 组，账号 Worker 判）→ 没有身份 401 unauthorized、不在组 403 forbidden；私密内容另看第 4 步
  *   3. AI 限流（core/ai-limit.js）：每 IP 每分钟 6 次 → 429 cooldown；全站总闸每分钟 60 次 → 429 busy（D1 出错也 busy）
- *   4. 私密范围（aiConclusionHeaders，2c）：按 v6 身份——问账号 Worker POST /api/ai 的 action private（ROUTE_ACCESS = owner，permits() 判），
+ *   4. 私密范围（aiConclusionHeaders，2c）：按 v6 身份——问账号 Worker POST /api/ai 的 action private（ROUTE_ACCESS = webmaster，permits() 判），
  *      够就写 X-Styrigx-Account-Session: 1（core/conclusion.js writeV6PrivateConclusion）；不够 / 没有 v6 会话 / 出错 → 不写 = 只给公开内容
  *      （v6 P4 起旧账号会话的回退删了，定稿 v5.2 §十三）
  *   5. 转给 AI_SERVICE：新建的请求只带 Content-Type 和结论头，不转 cookie、不转浏览器的任何别的头（浏览器伪造的

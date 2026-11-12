@@ -22,7 +22,7 @@ test('访客入口预填 GUEST_LINE = 「su 」；所有 prefill 都用它；v6 
   const prefills = [...js.matchAll(/view\.prefill\(([A-Z_]+)\)/g)].map((m) => m[1]);
   assert.ok(prefills.length >= 3, String(prefills));
   /* P4-3：盾牌徽章按身份预填（shieldCmd：访客 GUEST_LINE、站长 su root、普通用户 / root exit；定稿 v5.5 §七） */
-  assert.match(js, /if \(t === 'owner'\) return 'su root';\s*if \(t === 'user' \|\| t === 'root'\) return 'exit';\s*return t === 'guest' \|\| !who \|\| who\.get\(\) === 'nobody' \? GUEST_LINE : '';/);
+  assert.match(js, /if \(t === 'webmaster'\) return 'su root';\s*if \(t === 'user' \|\| t === 'root'\) return 'exit';\s*return t === 'guest' \|\| !who \|\| who\.get\(\) === 'nobody' \? GUEST_LINE : '';/);
   assert.deepEqual([...new Set(prefills)], ['GUEST_LINE']);
   assert.equal([...js.matchAll(/\bSUDO_LINE\b/g)].length, 0, 'SUDO_LINE 删了');
   assert.match(js, /showTerm\(function \(\) \{ view\.prefill\(GUEST_LINE\); \}\);/, '?entry=… 一律预填 su ');

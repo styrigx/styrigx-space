@@ -2,7 +2,7 @@ import { fill } from '../../core/out.js';
 
 /**
  * ask <问题>：打开 AI 窗口代发。man 里按 ai 组列（定稿 v5.5 §四「ask：按本节 ai 组，ai 组成员的 man 都列出 ask；私密内容仍只给站长与 root」，
- * Gray 2026-11-11 19:59；私密档在服务端 POST /api/ai actions.private = owner）；root 看全部。
+ * Gray 2026-11-11 19:59；私密档在服务端 POST /api/ai actions.private = webmaster）；root 看全部。
  * 访客（nobody，AI 上锁）：不开窗口，提示先 su、搜关键词用 find（v5 S4；割接起入口是 su，同 AI 窗口的「已上锁，su 登录后可用」，定稿 §七）。
  */
 export default {

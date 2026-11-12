@@ -4,7 +4,7 @@
  * v6 P4-3（定稿 v5.5 §五「设备会话的列表与踢出属后台控制，root 档（站长 sudo），列表为全站视图、列出全站会话」；
  * §七「站长打开账号页时设备卡列表直接可读，只有改动才预填 sudo」；§十一 2g「设备列表按 sgx-device 合并同一台设备的会话」）：
  * - list → { ok, devices:[{ n, path, since, expiresAt, current }] }：全站会话按设备标记归并（core/user-admin.js deviceList）；
- *   档 owner（站长直读，root 放行）。
+ *   档 webmaster（站长直读，root 放行）。
  * - revoke { n } → 踢出第 n 台设备（它的全部会话；含本会话 → 400 current）；档 root（站长 sudo device rm <n>）。
  * - revoke-all → 踢出自己（本会话栈底用户）的其他全部会话，范围同 main（Gray 11-11 22:35）；档 root（站长 sudo device rm --all）。
  * 档在路由表（core/route-access.js /api/account/devices 的 actions），判断只经 context.auth.v6(action)（同 permits）；
@@ -59,7 +59,7 @@ export const onRequestPost = guarded(async function (context) {
   const v = await v6Admitted(context);
   if (!v) return apiError(401, 'session');
   if (action !== 'list' && action !== 'revoke' && action !== 'revoke-all') return apiError(400, 'action');
-  /* 这条 action 的档（list owner；revoke / revoke-all root）：同一张路由表、同一个 permits */
+  /* 这条 action 的档（list webmaster；revoke / revoke-all root）：同一张路由表、同一个 permits */
   const va = await context.auth.v6(action);
   if (!va || va.allowed !== true) return apiError(403, 'permission', { need: va && va.level ? va.level : 'root' });
   return v6Devices(context, body, action, va);

@@ -1,6 +1,6 @@
 /**
  * 2c（v6 割接后续）：AI 回答的私密范围按 v6 身份——网关这一侧（workers/space-core/src/api/ai.js aiConclusionHeaders）。
- * - 先问账号 Worker POST /api/ai 的 action private（ROUTE_ACCESS = owner，经 permits()）：styrigx（站长）/ root → 只写 X-Styrigx-Account-Session: 1
+ * - 先问账号 Worker POST /api/ai 的 action private（ROUTE_ACCESS = webmaster，经 permits()）：styrigx（站长）/ root → 只写 X-Styrigx-Account-Session: 1
  * - v6 不够（bob：ai 组但不是站长）/ 没有 v6 会话 → 不写 = 只给公开内容（v6 P4 起旧账号会话回退删除，定稿 v5.2 §十三）
  * - GET /api/ai（模型列表的 canChoose）问同一条，与 POST 一致
  * - 浏览器伪造的结论头不会带过去
@@ -39,9 +39,9 @@ function setup(o = {}) {
   return { env, rec };
 }
 
-test('AI_PRIVATE：就是账号路由表里 POST /api/ai 的 action private（= owner），不是救援可用', () => {
+test('AI_PRIVATE：就是账号路由表里 POST /api/ai 的 action private（= webmaster），不是救援可用', () => {
   assert.deepEqual({ ...IA.AI_PRIVATE }, { method: 'POST', path: '/api/ai', action: 'private' });
-  assert.equal(RA.levelOf('POST', '/api/ai', { action: 'private' }), 'owner');
+  assert.equal(RA.levelOf('POST', '/api/ai', { action: 'private' }), 'webmaster');
   assert.equal(RA.levelOf('POST', '/api/ai'), 'ai', '进接口本身仍是 ai 组');
   assert.equal(RA.rescueOf('POST', '/api/ai', { action: 'private' }), false);
 });

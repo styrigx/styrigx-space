@@ -539,18 +539,18 @@ export function mountTopbar(o) {
     return who.get().indexOf('u:') !== 0;
   };
   /**
-   * 徽章四档（定稿 v5.5 §七）：root（含救援）· owner 站长 styrigx · user 普通用户 · guest 访客（页面有网关标记、没有 v6 身份）；
+   * 徽章四档（定稿 v5.5 §七）：root（含救援）· webmaster 站长 styrigx · user 普通用户 · guest 访客（页面有网关标记、没有 v6 身份）；
    * 都不是（本地 / 测试构建没有网关标记、还没问到身份）→ ''。
-   * @returns {''|'guest'|'user'|'owner'|'root'}
+   * @returns {''|'guest'|'user'|'webmaster'|'root'}
    */
   const tierOf = function () {
     const u = who && who.v6 ? who.v6() : null;
-    if (u) return u.root ? 'root' : u.owner === true ? 'owner' : 'user';
+    if (u) return u.root ? 'root' : u.webmaster === true ? 'webmaster' : 'user';
     return avGuest() ? 'guest' : '';
   };
   /** 徽章点击预填（按还能晋升到哪一档；到顶就 exit） @param {string} t */
   const shieldCmd = function (t) {
-    if (t === 'owner') return 'su root';
+    if (t === 'webmaster') return 'su root';
     if (t === 'user' || t === 'root') return 'exit';
     return t === 'guest' || !who || who.get() === 'nobody' ? GUEST_LINE : '';
   };
@@ -559,7 +559,7 @@ export function mountTopbar(o) {
   /** 普通用户（不是站长、不是 root）：头像不可点（定稿 v5.5 §七） */
   const avDecor = function () {
     const u = who && who.v6 ? who.v6() : null;
-    return !!(u && !u.root && u.owner !== true);
+    return !!(u && !u.root && u.webmaster !== true);
   };
   /** 头像该预填的命令：只有访客预填 su （已登录 → ''，交给账号页） */
   const avV6Cmd = function () {
@@ -577,7 +577,7 @@ export function mountTopbar(o) {
       if (img.getAttribute('src') !== src0) img.setAttribute('src', src0);
     }
     /* 头像角标：root「#」、站长「$」（同提示符末字，Gray 11-12 00:33）；普通用户、访客不加 */
-    const ch = u ? (u.root ? '#' : u.owner === true ? '$' : '') : '';
+    const ch = u ? (u.root ? '#' : u.webmaster === true ? '$' : '') : '';
     let mark = acctBtn.querySelector('.sgx-tb-av-mark');
     if (ch) {
       if (!mark) {
