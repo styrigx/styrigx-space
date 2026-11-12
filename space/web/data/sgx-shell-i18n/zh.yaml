@@ -349,6 +349,8 @@ account:
   v6:
     notSignedIn: "没有登录 · 先 su <用户>"
     forbidden: "当前用户没有这个权限 · 先 {x}"
+    layerTimeout: "{r} 已超时退出，当前是 {u}，未执行 · 请重新 {x} 后再试"
+    layerGone: "{r} 会话已失效，当前是 {u}，未执行 · 请重新 {x} 后再试"
   session:
     guest: "账号未登录"
     signIn: "登录账号"
@@ -498,6 +500,8 @@ identity:
   permission: "{c}：权限不够"
   trySudo: "sudoers 可以用 {x}"
   rootCreds: "sudo 不能改 root 的密码或通行密钥 · 先 su root"
+  layerTimeout: "{r} 已超时退出，当前是 {u}，未执行 · 请重新 {x} 后再试"
+  layerGone: "{r} 会话已失效，当前是 {u}，未执行 · 请重新 {x} 后再试"
   temporary: "有期限的用户不能进 {g}"
   group: "没有这个组：{g}"
   expiry: "日期要是将来的 YYYY-MM-DD"

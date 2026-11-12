@@ -77,6 +77,8 @@ P4 变更（2026-11-11，定稿 v5.3 §十三 P4 行）：删旧入口 20 条—
 
 P4-3 变更（2026-11-11，定稿 v5.5 §五、§七）：`PUT` / `DELETE /api/avatar`、`POST /api/prefs` user → **webmaster**（全站一份配置，归站长，读写都落到 styrigx 那份）；`POST /api/identity` 的 `passkey-*` user → **webmaster**；`POST /api/account/devices` user → **webmaster**（`list` webmaster 站长直读、`revoke` / `revoke-all` root，站长 `sudo device rm …`），列表改为全站视图并按 2g 设备标记 `sgx-device` 合并同一台设备。路由数不变。
 
+2026-11-12：`POST /api/identity` 的 `passwd` / `passkey-*` 加身份核对——请求的 `as`（uid）和服务端认定的不一致 → 409 `identity`（带 `user` 和 `lapsed`：`timeout` / `gone` / 空），不执行。档位与路由数不变。
+
 P4 收尾（2026-11-11，定稿 v5.3 §十二，Gray 19:41）：应用授权整套删除——`POST /api/account/grants`（app allow | deny）删去（58 → 57 条，root 6 → 5）；奇趣 / 日刻写入只按 v6 会话加组判定，`SpaceVerifier.conclusion()` 一并删除。
 
 档名改名（2026-11-12，Gray）：站长档 `owner` 改名 **webmaster**（root 管系统，webmaster 拥有这个站）；本表与 `ROUTE_ACCESS` 一起换，whoami 的 `owner` 字段同改 `webmaster`，userdel 保护站长的 403 回 `target: webmaster`。各档条数、权限不变。

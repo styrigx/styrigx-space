@@ -71,7 +71,7 @@ test('注册 challenge（passkey-add-challenge）：rp.id === styrigx.com；user
   const env = await setup();
   const a = await seedPasskey(env, 'HANDLE-original-bytes', 'LEGACY-original-bytes');
   const tok = await login(env);
-  const j = (await id(env, { action: 'passkey-add-challenge' }, tok)).json;
+  const j = (await id(env, { action: 'passkey-add-challenge', as: 1000 }, tok)).json;
   assert.equal(j.rp.id, 'styrigx.com');
   assert.equal(j.rpId, 'styrigx.com');
   assert.deepEqual([j.user.id, j.user.name, j.rp.name], ['HANDLE-original-bytes', 'styrigx', 'Styrigx']);

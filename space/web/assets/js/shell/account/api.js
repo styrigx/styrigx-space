@@ -52,20 +52,23 @@ function post(entry, action, fields) {
  * v6 用户自己的通行密钥（定稿 §八「普通用户用 passwd、passkey 改自己的凭据；通行密钥自带 WebAuthn 验证」）。
  * 后端 POST /api/identity passkey-list | passkey-add-challenge | passkey-add | passkey-delete（user 档，按服务端会话的 uid，
  * 栈顶是谁就是谁的：su root 后是 root 的，救援白名单也有）。回的形状：列表 keys[]。没有改名接口（加的时候带上预填名）。
+ * 每个请求带 as = 终端提示符上的 uid；服务端认定的身份对不上 → 409 identity（auth-err.js 切回真实身份），不执行。
  */
 export const v6keys = Object.freeze({
   /** @returns {Promise<{s: number, j: any}>} j.keys = 自己的钥匙（每把带服务端编号 n） */
-  passkeyList: function () {
-    return postJSON(IDENTITY_API, { action: 'passkey-list' }).then(function (r) {
+  /** @param {number} as */
+  passkeyList: function (as) {
+    return postJSON(IDENTITY_API, { action: 'passkey-list', as: as }).then(function (r) {
       const got = r && r.j && r.j.ok ? r.j : null;
       return got ? { s: r.s, j: { ok: true, keys: got.passkeys || [] } } : r;
     });
   },
-  passkeyAddChallenge: function () { return postJSON(IDENTITY_API, { action: 'passkey-add-challenge' }); },
-  /** @param {any} body registerPasskey 给的注册结果 @param {string} handle challenge 里的 user.id（服务端用它对上这次 challenge） */
-  passkeyAdd: function (body, handle) { return postJSON(IDENTITY_API, Object.assign({ action: 'passkey-add' }, body, { handle: handle })); },
-  /** @param {number} n 服务端列表里的编号 */
-  passkeyDelete: function (n) { return postJSON(IDENTITY_API, { action: 'passkey-delete', n: n }); },
+  /** @param {number} as */
+  passkeyAddChallenge: function (as) { return postJSON(IDENTITY_API, { action: 'passkey-add-challenge', as: as }); },
+  /** @param {any} body registerPasskey 给的注册结果 @param {string} handle challenge 里的 user.id（服务端用它对上这次 challenge） @param {number} as */
+  passkeyAdd: function (body, handle, as) { return postJSON(IDENTITY_API, Object.assign({ action: 'passkey-add' }, body, { handle: handle, as: as })); },
+  /** @param {number} n 服务端列表里的编号 @param {number} as */
+  passkeyDelete: function (n, as) { return postJSON(IDENTITY_API, { action: 'passkey-delete', n: n, as: as }); },
 });
 
 /** 设备会话（定稿 v5.5 §五：list webmaster 档、全站视图；revoke / revoke-all root 档，站长经 sudo） */

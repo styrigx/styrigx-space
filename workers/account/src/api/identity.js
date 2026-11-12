@@ -69,6 +69,9 @@ function view(adm) {
   };
 }
 
+/** 改自己凭据的命令：请求里的 as 必须等于服务端认定的 uid（dispatch 开头核对） */
+const CRED_ACTIONS = Object.freeze(['passwd', 'passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete']);
+
 /** 清会话 cookie + 登录标记 @param {Headers} h */
 function clearAll(h) {
   h.append('Set-Cookie', clearSid());
@@ -211,6 +214,11 @@ export async function onRequestPost(context) {
 async function dispatch(c) {
   const { env, body, action, adm, identity, token, ip, audit } = c;
   const now = Date.now();
+  if (CRED_ACTIONS.indexOf(action) !== -1) {
+    /* fail closed：凭据命令要带终端以为的身份（as = uid），和服务端认定的对不上就不执行，回真实身份让终端切过去
+       （root 层失效后静默按 styrigx 办，root 的通行密钥注册到了 styrigx 名下，Gray 2026-11-12 真机） */
+    if (body.as !== identity.uid) return apiError(409, 'identity', { user: view(adm), lapsed: adm.lapsed || '' });
+  }
   switch (action) {
     case 'whoami': {
       const h = new Headers();

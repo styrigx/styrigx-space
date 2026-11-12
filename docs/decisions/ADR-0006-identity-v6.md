@@ -57,6 +57,7 @@
 - 到期：自动禁用并作废会话，宽限期后自动删除。
 - 站长 styrigx 用 `passwd`、`passkey` 改自己的凭据；普通用户（uid 1001 起）只能 `passwd` 改自己的密码，不能管通行密钥（定稿 v5.5 §八）。**`passwd` 改自己的密码须先输当前密码**，root 替别人重置不用；通行密钥自带 WebAuthn 验证，不另加。
 - `passwd` / `passkey` 指向 root 时须当前会话栈顶是 root（`su root` 或救援）；`sudo passwd root`、sudo 增删 root 通行密钥一律拒绝（定稿 v5.5 §十）。
+- 凭据命令（`passwd`、`passkey ls / add / rm`）fail closed（Gray 2026-11-12）：请求带终端提示符上的身份（`as` = uid），服务端认定的身份对不上（root 层超时、epoch 变了）就不执行，回 409 `identity` 和真实身份，终端提示符切过去。文案按原因：超时「root 已超时退出，当前是 styrigx，未执行 · 请重新 su root 后再试」；其他「root 会话已失效，当前是 styrigx，未执行 · 请重新 su root 后再试」（名字按实际套）。
 
 ### 2.7 epoch
 

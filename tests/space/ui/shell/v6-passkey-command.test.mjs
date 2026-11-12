@@ -97,7 +97,7 @@ function fakeCtx(v6reply) {
   let picker = null;
   const C = {
     t: (k) => k, tf: (k) => k, esc: (s) => String(s), inReset: false, reauthExp: 0, status: { configured: { passkey: false } },
-    k: (x) => '[' + x + ']',
+    k: (x) => '[' + x + ']', asUid: () => 1000,
     api: {
       v6keys: { passkeyList: v6('passkeyList'), passkeyAddChallenge: v6('passkeyAddChallenge'), passkeyAdd: v6('passkeyAdd'), passkeyDelete: v6('passkeyDelete') },
       keys: { passkeyList: old('passkeyList'), passkeyDelete: old('passkeyDelete') }, reset: {},
@@ -119,7 +119,7 @@ test('账号层 passkey：列表走 v6keys、不跑旧 reauth', async () => {
   mountKeys(a.C);
   a.C.passkeyList();
   await settle();
-  assert.deepEqual(a.sent, [['v6.passkeyList']]);
+  assert.deepEqual(a.sent, [['v6.passkeyList', 1000]]);
   assert.ok(!a.log.some((l) => l[0] === 'withReauth'));
   assert.equal(a.log.filter((l) => l[0] === 'out').length, 2);
   assert.ok(a.log.some((l) => l[0] === 'out' && l[1].includes('Pixel')));
@@ -130,7 +130,7 @@ test('账号层 passkey：列表走 v6keys、不跑旧 reauth', async () => {
   b.C.passkeyList();
   await settle();
   assert.ok(!b.log.some((l) => l[0] === 'withReauth'), '不跑旧 sudo root reauth');
-  assert.deepEqual(b.sent, [['v6.passkeyList']]);
+  assert.deepEqual(b.sent, [['v6.passkeyList', 1000]]);
 });
 
 test('账号层 passkey rm：y 之后按服务端编号删（passkey-delete { n }），不碰 credId 旧接口', async () => {
@@ -141,7 +141,7 @@ test('账号层 passkey rm：y 之后按服务端编号删（passkey-delete { n 
   await settle();
   a.pickY();
   await settle();
-  assert.deepEqual(a.sent, [['v6.passkeyList'], ['v6.passkeyDelete', 2]]);
+  assert.deepEqual(a.sent, [['v6.passkeyList', 1000], ['v6.passkeyDelete', 2, 1000]]);
   assert.ok(a.log.some((l) => l[0] === 'out' && l[1].includes('keys.passkey.deleted')));
 });
 
@@ -185,22 +185,36 @@ test('账号层 passkey add：challenge 的 user.id 随 passkey-add 带回；加
   }
 });
 
+test('authErr：409 identity（提示符上的身份和服务端认定的对不上）→ 不执行、切到服务端回的身份、按原因选文案（超时 / 失效），{r}{u}{x} 套名字', () => {
+  for (const [lapsed, key] of [['timeout', 'v6.layerTimeout'], ['gone', 'v6.layerGone'], ['', 'v6.layerGone']]) {
+    const a = fakeCtx(KEYS);
+    const seen = [];
+    a.C.tf = (k, v) => k + '|' + v.r + '|' + v.u;
+    let cur = { uid: 0, name: 'root' };
+    mountAuthErr(a.C, { v6: () => cur, setV6: (u) => { seen.push(u); cur = u; }, refresh: () => seen.push('refresh') });
+    const styrigx = { uid: 1000, name: 'styrigx' };
+    assert.equal(a.C.authErr({ s: 409, j: { ok: false, error: 'identity', user: styrigx, lapsed } }), true);
+    assert.deepEqual(seen, [styrigx], '切到服务端回的身份，不再另问');
+    assert.deepEqual(a.log, [['err', key + '|root|styrigx', 'su root']]);
+  }
+});
+
 test('api.v6keys：都打 POST /api/identity；列表 passkeys → keys；add 带 handle；delete 带 n', async () => {
   const g = /** @type {any} */ (globalThis);
   const prev = g.fetch;
   const got = [];
   g.fetch = (url, init) => { const b = JSON.parse(init.body); got.push([url, b]); return Promise.resolve({ status: 200, json: () => Promise.resolve(b.action === 'passkey-list' ? { ok: true, passkeys: [{ n: 1, credId: 'A' }] } : { ok: true }) }); };
   try {
-    const l = await accountApi.v6keys.passkeyList();
+    const l = await accountApi.v6keys.passkeyList(0);
     assert.deepEqual(l, { s: 200, j: { ok: true, keys: [{ n: 1, credId: 'A' }] } });
-    await accountApi.v6keys.passkeyAddChallenge();
-    await accountApi.v6keys.passkeyAdd({ cid: 'c', name: 'S25', credential: {} }, 'H');
-    await accountApi.v6keys.passkeyDelete(3);
+    await accountApi.v6keys.passkeyAddChallenge(0);
+    await accountApi.v6keys.passkeyAdd({ cid: 'c', name: 'S25', credential: {} }, 'H', 0);
+    await accountApi.v6keys.passkeyDelete(3, 0);
     assert.deepEqual(got, [
-      ['/api/identity', { action: 'passkey-list' }],
-      ['/api/identity', { action: 'passkey-add-challenge' }],
-      ['/api/identity', { action: 'passkey-add', cid: 'c', name: 'S25', credential: {}, handle: 'H' }],
-      ['/api/identity', { action: 'passkey-delete', n: 3 }],
+      ['/api/identity', { action: 'passkey-list', as: 0 }],
+      ['/api/identity', { action: 'passkey-add-challenge', as: 0 }],
+      ['/api/identity', { action: 'passkey-add', cid: 'c', name: 'S25', credential: {}, handle: 'H', as: 0 }],
+      ['/api/identity', { action: 'passkey-delete', n: 3, as: 0 }],
     ]);
   } finally { g.fetch = prev; }
 });

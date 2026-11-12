@@ -67,6 +67,9 @@ export function mountAccountLayer(o) {
   /** 本机缓存的资料（登录成功那一行的名字） */
   C.who = function () { return effectiveProfile(readCache(), profileDefaults()); };
 
+  /** 终端提示符上的身份 uid（凭据命令带给服务端核对；没有身份 → -1，服务端必拒） */
+  C.asUid = function () { const u = o.who && typeof o.who.v6 === 'function' ? o.who.v6() : null; return u && typeof u.uid === 'number' ? u.uid : -1; };
+
   /* ---------- 功能模块 ---------- */
   mountKeys(C);
   mountDevices(C);

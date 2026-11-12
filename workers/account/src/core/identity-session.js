@@ -135,7 +135,10 @@ export async function admitSession(env, token, now) {
     return { ...base, identity: { uid: ROOT_UID, name: String(row.t_name), groups: [], rescue: false },
       via: { uid: bottom.uid, name: bottom.name }, layerExpiresAt: Math.min(Number(row.k_expires), expiresAt), renew };
   }
-  return { ...base, identity: bottom, via: null, layerExpiresAt: expiresAt, renew };
+  /* 栈里还有 root 那一层但已失效（超时 / epoch 变了 / root 停用）：照旧按栈底放行，标出原因——凭据命令据此拒（identity.js credGuard） */
+  const lapsed = row.k_uid !== null && row.k_uid !== undefined && Number(row.k_uid) === ROOT_UID
+    ? ((Number(row.k_expires) || 0) <= t ? 'timeout' : 'gone') : '';
+  return { ...base, identity: bottom, via: null, layerExpiresAt: expiresAt, renew, ...(lapsed ? { lapsed } : {}) };
 }
 
 /**
