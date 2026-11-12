@@ -19,10 +19,8 @@ const config = await import(SRC + 'core/config.js');
 const db = await import(SRC + 'lib/db.js');
 const { SECRET_NAMES, resolveSecrets, _resetSecretCache } = await import(SRC + 'secrets.js');
 
-test('旧账号会话的时长只剩设备行保留期在用；三张票 / 两个纪元 / 旧恢复密钥常量已删（v6 P4，定稿 v5.3 §十三）', () => {
-  assert.deepEqual({ ...config.TICKET_MAX_AGE }, { session: 2592000 });
-  assert.equal(config.LEGACY_SESSION_MAX_AGE, 34560000);
-  for (const gone of ['TICKET', 'EPOCH', 'BY_PASSWORD', 'BY_PASSKEY', 'BY_RECOVERY_KEY', 'RECOVERY_KEY_SECRET']) assert.equal(gone in config, false, gone);
+test('旧账号会话的时长与三张票 / 两个纪元 / 旧恢复密钥常量已删（v6 P4，定稿 v5.3 §十三；旧设备行保留期随 core/devices.js 删除，v6 清理 #11/#12）', () => {
+  for (const gone of ['TICKET_MAX_AGE', 'LEGACY_SESSION_MAX_AGE', 'TICKET', 'EPOCH', 'BY_PASSWORD', 'BY_PASSKEY', 'BY_RECOVERY_KEY', 'RECOVERY_KEY_SECRET']) assert.equal(gone in config, false, gone);
 });
 
 test('challenge 有效期 / Secrets 名钉死', () => {
