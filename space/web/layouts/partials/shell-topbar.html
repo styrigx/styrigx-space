@@ -16,7 +16,7 @@
      headerClass / headerAttrs  <header> 的额外 class / 属性（博客：data-sgx-topbar-root data-mode）
      nav         shell-nav.json（items：id icon origin path hint；名字在 tr.nav.<id>.title）；site 当前项的 nav id（NAVIGATE「开」态、计数 01/04）
      mainOrigin  主站项（origin 为 styrigx.com、不是子站的项）地址前缀：主站不传（同源相对 /）；子站传 https://styrigx.com
-     icons       图标 SVG（名字 → SVG 串）：tb-palette tb-shield tb-term（终端）tb-grid（NAVIGATE 四格）tb-chat lock tb-undo share tb-send tb-newchat tb-history
+     icons       图标 SVG（名字 → SVG 串）：tb-palette tb-shield tb-term（终端）tb-grid（NAVIGATE 四格）tb-music（音乐，先只有样式）tb-chat lock tb-undo share tb-send tb-newchat tb-history
      wordmark    字标 SVG（partials/shell-wordmark.html；子站经 nav.json 的 wordmark）：顶栏左边 ❯ + 字标 + 闪烁下划线光标（2026-11 PR-2 起取代等宽文字 styrigx :~$）
      security    盾牌链接（没 JS / 中键时的去处：主站首页 #sec，当前语言；普通点击打开终端 #sgx-term，按身份徽章预填：访客 su 、普通用户 exit、站长 su root、root exit，定稿 v5.5 §七）
      status      NAVIGATE 底部「systemctl status」链接与 STATUS 区跳转按钮：主站状态页 /status/（当前语言）
@@ -35,12 +35,14 @@
     <a class="sgx-tb-logo" href="{{ .home }}" aria-label="{{ $t.topbar.home }}"><span class="sgx-tb-ps" aria-hidden="true">❯</span><span class="sgx-tb-name" aria-hidden="true" translate="no">{{ .wordmark | safeHTML }}</span><span class="sgx-tb-cu" aria-hidden="true"></span></a>
     <div class="sgx-tb-pill{{ with .pillClass }} {{ . }}{{ end }}">{{ .center | safeHTML }}</div>
     <div class="sgx-tb-acts">
-      {{- /* v5 S6 顶栏 E（已批截图 E-compare）：盾牌 · 外观 · 四格（NAVIGATE）| >_ 终端 · 头像。
+      {{- /* 顶栏 v6（Gray 2026-11-13 定稿）：外观 · 四格（NAVIGATE）· 音乐 · 盾牌 | >_ 终端 · 头像（原 v5 S6 顶栏 E：盾牌 · 外观 · 四格 | >_ · 头像）。
+         音乐：先只有图标样式（aria-disabled，点了没反应），功能等音乐方案的完整任务接上。
          盾牌：仍是链接（没 JS / 中键去首页 #sec）；不开任何窗口，是吉祥物兼状态标志：普通点击由 topbar-panel.js 接——打开终端、按身份预填（v6 P4-3 起盾牌 = 身份徽章四档，定稿 v5.5 §七；旧的「退出进站会话 [y/N]」随旧会话删除）。
          >_：打开全站终端 #sgx-term（同 Ctrl / ⌘ K）。头像：仍是链接（没 JS 去 /account/）；已进站点了开账号窗口 #sgx-acct，没进站是死按钮（aria-disabled，纯吉祥物，Gray 17:23） */}}
-      <a class="sgx-tb-btn sgx-tb-shield" href="{{ .security }}" aria-label="{{ $t.topbar.security }}" title="{{ $t.topbar.security }}" aria-haspopup="dialog" aria-controls="sgx-term">{{ index $i "tb-shield" | safeHTML }}</a>
       <button type="button" class="sgx-tb-btn sgx-tb-quick" aria-label="{{ $t.topbar.theme }}" title="{{ $t.topbar.theme }}" aria-haspopup="dialog" aria-controls="sgx-qp" aria-expanded="false">{{ index $i "tb-palette" | safeHTML }}</button>
       <button type="button" class="sgx-tb-btn sgx-tb-grid" aria-label="{{ $t.topbar.sites }}" title="{{ $t.topbar.sites }}" aria-haspopup="dialog" aria-controls="sgx-nav" aria-expanded="false">{{ index $i "tb-grid" | safeHTML }}</button>
+      <button type="button" class="sgx-tb-btn sgx-tb-music" aria-label="{{ $t.topbar.music }}" title="{{ $t.topbar.music }}" aria-disabled="true">{{ index $i "tb-music" | safeHTML }}</button>
+      <a class="sgx-tb-btn sgx-tb-shield" href="{{ .security }}" aria-label="{{ $t.topbar.security }}" title="{{ $t.topbar.security }}" aria-haspopup="dialog" aria-controls="sgx-term">{{ index $i "tb-shield" | safeHTML }}</a>
       <span class="sgx-tb-sep" aria-hidden="true"></span>
       <button type="button" class="sgx-tb-btn sgx-tb-term" aria-label="{{ $t.topbar.terminal }}" title="{{ $t.topbar.terminal }}" aria-haspopup="dialog" aria-controls="sgx-term" aria-expanded="false" aria-keyshortcuts="Control+K Meta+K">{{ index $i "tb-term" | safeHTML }}</button>
       <a class="sgx-tb-av" href="{{ .acct }}" aria-label="{{ $t.topbar.account }}" title="{{ $t.topbar.account }}" aria-haspopup="dialog" aria-controls="sgx-acct" aria-expanded="false"><img src="{{ .avatar }}" alt="" width="30" height="30" class="sgx-tb-avatar" data-sgx-avatar="192"></a>

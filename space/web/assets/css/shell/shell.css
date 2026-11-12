@@ -15,7 +15,7 @@
 @media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
 /* 顶栏 v3（2026-11 UI 重设计 PR-1，设计稿 tb4.html / tb-v3 / prog-v1；四个站同一套，标记来自共享外壳 shell-topbar.html）：
    通栏 .sgx-topbar（贴顶、全宽、底边 1px 线，毛玻璃材质）里 = [字标 .sgx-tb-logo ❯ styrigx :~$_] [.sgx-tb-pill 页名（v3 不显示）]
-   [右边 .sgx-tb-acts（v5 S6 顶栏 E）：盾牌 .sgx-tb-shield · 外观 .sgx-tb-quick · 四格 .sgx-tb-grid（NAVIGATE）· 分隔 · >_ .sgx-tb-term（终端）· 头像 .sgx-tb-av]；
+   [右边 .sgx-tb-acts（顶栏 v6）：外观 .sgx-tb-quick · 四格 .sgx-tb-grid（NAVIGATE）· 音乐 .sgx-tb-music · 盾牌 .sgx-tb-shield · 分隔 · >_ .sgx-tb-term（终端）· 头像 .sgx-tb-av]；
    底边 .sgx-tb-prog 滑页进度条；右下角 AI 浮钮 .sgx-tb-ai。内容宽只有一个 token：--sgx-content-w（1080）。
    等宽字体 --sgx-font-mono（系统等宽，不额外下载字体）。 */
 /* 顶栏尺寸 token：--sgx-tb-h 顶栏高（通栏，不含刘海安全区）；--sgx-tb-inset / --sgx-tb-btn 是旧胶囊的上边距 / 高，v3 只当「悬浮圆钮」尺寸用（博客回到顶部等）；
@@ -27,6 +27,11 @@
 /* 手机布局顶栏高 56px（Gray 2026-11-09：手机上原来约 73px 偏高；桌面仍 64）：只收上下留白——字标 / 图标 40px / 头像 30px（外圈 38px）都不变，垂直居中照旧；
    --sgx-tb-h 一处改，正文偏移 --nav-h / 面板 --sgx-qp-top / 终端层顶距都跟着走 */
 html[data-sgx-layout="phone"] { --sgx-tb-h: 56px; }
+/* 顶栏尺寸 v6（Gray 2026-11-13 定稿）：手机按钮 38 × 38、图标 20、间距 2（步距 40）、头像 30；桌面按钮 40 × 40、图标 22、间距 4、头像 32（外圈 40）。
+   分隔线不变。--sgx-tb-ic 也是字标点击框的高，跟着走 */
+:root:not([data-sgx-layout="desktop"]) { --sgx-tb-ic: 38px; --sgx-tb-icw: 38px; }
+:root { --sgx-tb-ic-svg: 20px; --sgx-tb-av-d: 30px; --sgx-tb-acts-gap: 2px; }
+:root[data-sgx-layout="desktop"] { --sgx-tb-ic-svg: 22px; --sgx-tb-av-d: 32px; --sgx-tb-acts-gap: 4px; }
 /* 顶栏标签 / 子站分段的常驻衬底：导航选中色 45%（段式标签、页名胶囊仍在用） */
 :root { --sgx-tb-label-bg: color-mix(in oklab, var(--sgx-nav-selected) 45%, transparent); }
 /* 尺寸体系（2026-10-23 PR-D）：--sgx-page-m 左右页边距（手机 < 600px 固定 12px——2026-11 对齐 PR-B 照设计稿 m=1 的 --pad，之前 16px；≥ 600px 从 840 宽 24px 线性到 1920 宽 48px）。
@@ -109,16 +114,19 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-tb-title { display: block; min-width: 0; max-width: 100%; box-sizing: border-box; height: 36px; padding: 0 20px; border-radius: 999px; text-align: center;
   font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; font-weight: 700; line-height: 36px; letter-spacing: normal;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background-color: var(--sgx-nav-selected); color: var(--sgx-on-nav-selected); }
-/* 右边（v5 S6 顶栏 E）：盾牌 · 外观 · 四格 · 分隔 · >_ · 头像。图标按钮 40 × 40、圆角 10、图标 20px；平时次要色，打开（aria-expanded）= 浅主题衬底 + 主题色。头像 30px 圆，最右 */
-.sgx-tb-acts { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 2px; }
+/* 右边（顶栏 v6，Gray 2026-11-13）：外观 · 四格 · 音乐 · 盾牌 · 分隔 · >_ · 头像。图标按钮手机 38 / 桌面 40、圆角 10、图标手机 20 / 桌面 22；平时次要色，打开（aria-expanded）= 浅主题衬底 + 主题色。头像 30px 圆，最右 */
+.sgx-tb-acts { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: var(--sgx-tb-acts-gap); }
 .sgx-tb-btn { width: var(--sgx-tb-icw); height: var(--sgx-tb-ic); flex-shrink: 0; padding: 0; margin: 0; border: 0; border-radius: 10px; box-sizing: border-box;
   background-color: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-secondary); cursor: pointer;
   text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease, color .15s ease; }
 .sgx-tb-btn svg { width: 20px; height: 20px; }
+.sgx-tb-acts .sgx-tb-btn svg { width: var(--sgx-tb-ic-svg); height: var(--sgx-tb-ic-svg); }
 .sgx-tb-btn[aria-expanded="true"] { background-color: var(--sgx-surface-container-high); color: var(--sgx-primary); }
+/* 音乐（顶栏 v6）：先只有样式，没功能前不当按钮用 */
+.sgx-tb-music[aria-disabled="true"] { cursor: default; }
 .sgx-tb-sep { flex: none; width: 1px; height: 22px; margin: 0 6px; background: var(--sgx-term-line); }
 .sgx-tb-av { flex: none; display: inline-grid; place-items: center; width: var(--sgx-tb-icw); height: var(--sgx-tb-ic); border-radius: 999px; -webkit-tap-highlight-color: transparent; }
-.sgx-tb-avatar { display: block; width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: var(--sgx-surface-container-high); }
+.sgx-tb-avatar { display: block; width: var(--sgx-tb-av-d); height: var(--sgx-tb-av-d); border-radius: 50%; object-fit: cover; background: var(--sgx-surface-container-high); }
 /* 头像外圈（Gray 2026-11-09，参考 mahmad.me；13:41 返工：弧压在白环外沿线上，不再是环外另一圈）：
    照片 30px → 外面 2.5px 表面色实心环 → 环外沿 0.5px 浅灰细线（外径 36px）→ 整个圆盘下一层柔和投影（遮罩色 --sgx-scrim，亮暗主题都是暗影）；
    深色弧 = 1.5px 细线，外径 = 环外径（36px，压住细线，没有空隙），约 80°：顺时针转，前端最深、尾巴渐隐，外侧带一点虚影。
@@ -135,6 +143,10 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
   mask: radial-gradient(closest-side, transparent 16.3px, var(--sgx-text-primary) 16.7px, var(--sgx-text-primary) 18px, color-mix(in srgb, var(--sgx-text-primary) 30%, transparent) 18.4px, transparent 19px);
   animation: sgx-av-orbit 2s linear infinite; }
 .sgx-tb-av.is-busy::before { animation-duration: .9s; }
+/* 桌面头像 32px（顶栏 v6）：外圈跟着放大 2px（环外径 38、弧元素 40），半径各加 1px */
+:root[data-sgx-layout="desktop"] .sgx-tb-av::before { width: 40px; height: 40px; margin: -20px 0 0 -20px;
+  -webkit-mask: radial-gradient(closest-side, transparent 17.3px, var(--sgx-text-primary) 17.7px, var(--sgx-text-primary) 19px, color-mix(in srgb, var(--sgx-text-primary) 30%, transparent) 19.4px, transparent 20px);
+  mask: radial-gradient(closest-side, transparent 17.3px, var(--sgx-text-primary) 17.7px, var(--sgx-text-primary) 19px, color-mix(in srgb, var(--sgx-text-primary) 30%, transparent) 19.4px, transparent 20px); }
 /* 头像 = whoami（v6 P2b）：root 身份在头像右下角叠一个「#」（同提示符的 #）；只在有 v6 新会话且是 root 时由 topbar-panel.js 插入 */
 .sgx-tb-av-mark { position: absolute; z-index: 3; right: 1px; bottom: 1px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; pointer-events: none;
   font: 700 10px/14px var(--sgx-font-mono); text-align: center; background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); box-shadow: 0 0 0 1.5px var(--sgx-surface); }

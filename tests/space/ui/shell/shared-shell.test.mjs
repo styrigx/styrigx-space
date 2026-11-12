@@ -161,7 +161,7 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 / 
   assert.match(files['tokens.css'], /--sgx-tag-bg: var\(--sgx-fg-4-tint\);/);
 });
 
-test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽屉；v5 S6 顶栏 E）：通栏 [字标 ❯ Styrigx_][页名（不显示）][盾牌 · 外观 · 四格 · | · >_ · 头像] + 进度条 + AI 浮钮；同一份标记四站共用', () => {
+test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽屉；v5 S6 顶栏 E；顶栏 v6 加音乐、盾牌挪到分隔线前）：通栏 [字标 ❯ Styrigx_][页名（不显示）][外观 · 四格 · 音乐 · 盾牌 · | · >_ · 头像] + 进度条 + AI 浮钮；同一份标记四站共用', () => {
   assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'inpage', 'wide', 'terminal']);
   const s = files['shell.css'];
   // 贴顶通栏：top 0、left 0 / right 0、底边 1px 线、毛玻璃材质；内容宽一个 token（1080）
@@ -180,7 +180,12 @@ test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽�
   assert.match(s, /\.sgx-tb-btn svg \{ width: 20px; height: 20px; \}/);
   assert.match(s, /\.sgx-tb-btn\[aria-expanded="true"\] \{ background-color: var\(--sgx-surface-container-high\); color: var\(--sgx-primary\); \}/);
   assert.match(s, /\.sgx-tb-sep \{[^}]*width: 1px; height: 22px;/);
-  assert.match(s, /\.sgx-tb-avatar \{[^}]*width: 30px; height: 30px; border-radius: 50%;/);
+  assert.match(s, /\.sgx-tb-avatar \{[^}]*width: var\(--sgx-tb-av-d\); height: var\(--sgx-tb-av-d\); border-radius: 50%;/);
+  /* 顶栏 v6（Gray 2026-11-13）：手机按钮 38、图标 20、间距 2、头像 30；桌面按钮 40、图标 22、间距 4、头像 32 */
+  assert.match(s, /:root:not\(\[data-sgx-layout="desktop"\]\) \{ --sgx-tb-ic: 38px; --sgx-tb-icw: 38px; \}/);
+  assert.match(s, /:root \{ --sgx-tb-ic-svg: 20px; --sgx-tb-av-d: 30px; --sgx-tb-acts-gap: 2px; \}/);
+  assert.match(s, /:root\[data-sgx-layout="desktop"\] \{ --sgx-tb-ic-svg: 22px; --sgx-tb-av-d: 32px; --sgx-tb-acts-gap: 4px; \}/);
+  assert.match(s, /\.sgx-tb-acts \.sgx-tb-btn svg \{ width: var\(--sgx-tb-ic-svg\); height: var\(--sgx-tb-ic-svg\); \}/);
   // AI 浮钮（右下角，主题实色）
   assert.match(s, /\.sgx-tb-ai \{ position: fixed;[^}]*width: 56px; height: 56px; border-radius: 18px;[^}]*background-color: var\(--sgx-primary-fill\); color: var\(--sgx-on-primary-fill\);/);
   // 页名不在顶栏显示（只在页面顶栏里藏；锁屏顶栏照旧用它当标题）
@@ -192,8 +197,8 @@ test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽�
   assert.equal(files['topbar.html'], src);
   assert.doesNotMatch(src.replace(/\{\{-? \/\*[\s\S]*?\*\/ -?\}\}/g, ''), /\bpartial |site\.Data|hugo\.Data|resources\.Get/, '只用参数，不调别的 partial / 数据');
   const header = src.slice(src.indexOf('<header id="site-nav" class='), src.indexOf('</header>'));
-  const order = ['class="sgx-tb-logo"', 'sgx-tb-ps', 'sgx-tb-name', 'sgx-tb-cu', 'class="sgx-tb-pill', 'sgx-tb-shield', 'sgx-tb-quick', 'sgx-tb-grid', 'sgx-tb-sep', 'sgx-tb-term', 'class="sgx-tb-av"', 'sgx-tb-prog', 'sgx-tb-ai'].map((k) => header.indexOf(k));
-  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), '字标（❯ SVG 字标 光标）→ 页名 → 盾牌 → 外观 → 四格 → 分隔 → >_ → 头像 → 进度条 → AI 浮钮（v5 S6 顶栏 E）');
+  const order = ['class="sgx-tb-logo"', 'sgx-tb-ps', 'sgx-tb-name', 'sgx-tb-cu', 'class="sgx-tb-pill', 'sgx-tb-quick', 'sgx-tb-grid', 'sgx-tb-music', 'sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-term', 'class="sgx-tb-av"', 'sgx-tb-prog', 'sgx-tb-ai'].map((k) => header.indexOf(k));
+  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), '字标（❯ SVG 字标 光标）→ 页名 → 外观 → 四格 → 音乐 → 盾牌 → 分隔 → >_ → 头像 → 进度条 → AI 浮钮（顶栏 v6，Gray 2026-11-13）');
   /* 四格 = NAVIGATE（tb-grid 图标），>_ = 终端（tb-term 图标，开 #sgx-term） */
   assert.match(header, /class="sgx-tb-btn sgx-tb-grid"[^>]*aria-controls="sgx-nav"[^>]*>\{\{ index \$i "tb-grid" \| safeHTML \}\}/);
   assert.match(header, /class="sgx-tb-btn sgx-tb-term"[^>]*aria-controls="sgx-term"[^>]*>\{\{ index \$i "tb-term" \| safeHTML \}\}/);
