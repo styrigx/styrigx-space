@@ -10,13 +10,6 @@
  */
 import { apiError } from '../lib/http.js';
 
-/* ---------- 旧账号会话的时长（秒）：只剩旧设备行（account_device，core/devices.js）的保留期还用 ---------- */
-export const TICKET_MAX_AGE = Object.freeze({
-  session: 2592000,
-});
-/** 2026-11-09 之前签的 400 天票（旧时长，秒）：旧设备行单独退出后的保留期（core/devices.js revokeDevice） */
-export const LEGACY_SESSION_MAX_AGE = 34560000;
-
 /* ---------- Secrets Store 里的名字（wrangler.toml secrets_store_secrets，binding = secret_name；secrets.js 换成字符串） ---------- */
 export const PASSWORD_PEPPER_SECRET = 'SGX_ACCOUNT_PASSWORD_PEPPER';
 /** v6 P3 救援钥匙（定稿 v5.2 §九；Gray 05:21 定名、已在现有 Store 建好）：只读 get()，代码不出现 Store 写 / 删 */
