@@ -71,12 +71,12 @@ test('man（P4-3，定稿 v5.5 §四）：按 root → 站长 → 普通用户 �
   const n0 = await names('nobody');
   for (const c of ['whoami', 'su', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'lock', 'passwd', 'passkey', 'device', 'profile', 'sub', 'sudo', 'ask']) assert.ok(!n0.includes(c), 'nobody 不列 ' + c);
   assert.ok(n0.includes('find') && n0.includes('man'));
-  const alice = { name: 'alice', owner: false, groups: ['listen', 'ai'] };
+  const alice = { name: 'alice', webmaster: false, groups: ['listen', 'ai'] };
   const u = await names('u:alice', alice);
   for (const c of ['whoami', 'su', 'groups', 'who', 'lock', 'passwd', 'profile', 'exit', 'ask', 'find']) assert.ok(u.includes(c), 'user 列 ' + c);
   for (const c of ['passkey', 'device', 'sudo', 'useradd', 'userdel', 'usermod', 'sub', 'app', 'share']) assert.ok(!u.includes(c), 'user 不列 ' + c);
-  assert.ok(!(await names('u:alice', { name: 'alice', owner: false, groups: ['listen'] })).includes('ask'), '不在 ai 组不列 ask');
-  const sty = { name: 'styrigx', owner: true, groups: ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write'] };
+  assert.ok(!(await names('u:alice', { name: 'alice', webmaster: false, groups: ['listen'] })).includes('ask'), '不在 ai 组不列 ask');
+  const sty = { name: 'styrigx', webmaster: true, groups: ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write'] };
   const o = await names('u:styrigx', sty);
   for (const c of ['passkey', 'device', 'sudo', 'ask', 'passwd', 'whoami', 'find', 'man']) assert.ok(o.includes(c), '站长列 ' + c);
   for (const c of ['useradd', 'userdel', 'usermod', 'sub']) assert.ok(!o.includes(c), '站长不列 root 层 ' + c);
@@ -218,9 +218,9 @@ test('接线：头像 = whoami（访客 → su ；站长 / root → 账号页；
   assert.match(tp, /if \(!u\) return avGuest\(\) \? GUEST_LINE : '';\n\s*return '';/);
   assert.doesNotMatch(tp, /return u\.wheel \? 'su root' : 'profile'/);
   assert.doesNotMatch(tp, /'\/avatar\/u' \+ u\.uid/, 'P4-3：头像一份，归站长（定稿 v5.5 §七），不再按 uid 取');
-  assert.match(tp, /return !!\(u && !u\.root && u\.owner !== true\);/, '普通用户 = 不是 root、不是站长');
+  assert.match(tp, /return !!\(u && !u\.root && u\.webmaster !== true\);/, '普通用户 = 不是 root、不是站长');
   assert.match(tp, /mark\.className = 'sgx-tb-av-mark';/);
-  assert.match(tp, /const ch = u \? \(u\.root \? '#' : u\.owner === true \? '\$' : ''\) : '';/, '角标：root #、站长 $、其余不加');
+  assert.match(tp, /const ch = u \? \(u\.root \? '#' : u\.webmaster === true \? '\$' : ''\) : '';/, '角标：root #、站长 $、其余不加');
   assert.match(tp, /return \{ acct: acctTerm, ident: ident \};/);
   assert.match(tp, /if \(who && who\.v6Hinted\(\)\) who\.refresh\(\);/);
   const qp = rd('space/web/assets/js/shell/quick-panel.js');

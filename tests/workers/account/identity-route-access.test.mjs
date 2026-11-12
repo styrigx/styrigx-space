@@ -116,9 +116,9 @@ test('action：源码里出现的 action / op 都在表里；没写 action 用�
   for (const m of music.matchAll(/case '([a-z]+\.[a-z]+)'/g)) assert.ok(RA.levelOf('POST', '/curio/api/music', { action: m[1] }), 'music ' + m[1]);
   assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'album.del' }), 'root');
   assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'track.del' }), 'curio-write');
-  /* 定稿 v5.5 §五 / §七：设备列表站长直读（owner），踢出属后台控制（root，站长 sudo） */
-  assert.equal(RA.levelOf('POST', '/api/account/devices'), 'owner');
-  assert.equal(RA.levelOf('POST', '/api/account/devices', { action: 'list' }), 'owner');
+  /* 定稿 v5.5 §五 / §七：设备列表站长直读（webmaster），踢出属后台控制（root，站长 sudo） */
+  assert.equal(RA.levelOf('POST', '/api/account/devices'), 'webmaster');
+  assert.equal(RA.levelOf('POST', '/api/account/devices', { action: 'list' }), 'webmaster');
   assert.equal(RA.levelOf('POST', '/api/account/devices', { action: 'revoke' }), 'root');
   assert.equal(RA.levelOf('POST', '/api/account/devices', { action: 'revoke-all' }), 'root');
   assert.equal(RA.levelOf('POST', '/api/account/devices', { action: 'hack' }), null);
@@ -143,17 +143,17 @@ test('档合法；删除两级；sudo 继任；root 不能从访客直接登录'
 test('摘要快照：各档路由数（改表必须改这里）', () => {
   const count = {};
   for (const r of RA.ROUTE_ACCESS) count[r.level] = (count[r.level] || 0) + 1;
-  assert.deepEqual(count, { public: 24, ai: 2, status: 1, root: 5, owner: 5, user: 1, 'curio-write': 8, listen: 3, 'daymark-write': 6 }, 'P4-3（定稿 v5.5 §五）：avatar PUT / DELETE、prefs POST、devices 由 user 改 owner');
+  assert.deepEqual(count, { public: 24, ai: 2, status: 1, root: 5, webmaster: 5, user: 1, 'curio-write': 8, listen: 3, 'daymark-write': 6 }, 'P4-3（定稿 v5.5 §五）：avatar PUT / DELETE、prefs POST、devices 由 user 改 webmaster');
   assert.equal(RA.ROUTE_ACCESS.length, 55, 'v6 P4 删旧入口 20 条（78 → 58），应用授权 /api/account/grants 删除（58 → 57），数字健康 POST / GET /api/wellbeing 删除（57 → 55）');
   assert.equal(RA.ROUTE_ACCESS.filter((r) => r.decided).length, 14, 'Gray 2026-11-11 定稿的 17 条，P4 删 lock-all-devices 后 16 条，数字健康两条删除后 14 条');
   assert.equal(RA.ROUTE_ACCESS.filter((r) => 'doubt' in r).length, 0, '不再有存疑');
   assert.equal(RA.levelOf('GET', '/curio/api/export'), 'root', '导出含私密 → root（Gray 2026-11-11）');
-  assert.equal(RA.levelOf('PUT', '/api/profile'), 'owner', '站长名片只有一份：站长 + root（P2 定稿 v4）');
+  assert.equal(RA.levelOf('PUT', '/api/profile'), 'webmaster', '站长名片只有一份：站长 + root（P2 定稿 v4）');
   assert.equal(RA.levelOf('GET', '/api/profile'), 'public', '主页名片公开');
-  /* P4-3（定稿 v5.5 §五「avatar、prefs 写入 owner」、§七「全站只有一份配置……普通用户只能看」） */
-  assert.equal(RA.levelOf('PUT', '/api/avatar'), 'owner');
-  assert.equal(RA.levelOf('DELETE', '/api/avatar'), 'owner');
-  assert.equal(RA.levelOf('POST', '/api/prefs'), 'owner');
+  /* P4-3（定稿 v5.5 §五「avatar、prefs 写入 webmaster」、§七「全站只有一份配置……普通用户只能看」） */
+  assert.equal(RA.levelOf('PUT', '/api/avatar'), 'webmaster');
+  assert.equal(RA.levelOf('DELETE', '/api/avatar'), 'webmaster');
+  assert.equal(RA.levelOf('POST', '/api/prefs'), 'webmaster');
   assert.equal(RA.levelOf('GET', '/api/prefs'), 'user', '普通用户只能看');
 });
 
@@ -161,8 +161,8 @@ test('/api/identity（P2）：每个 action 一档；救援白名单 = RESCUE_CO
   const lv = (a) => RA.levelOf('POST', '/api/identity', { action: a });
   for (const a of ['whoami', 'su-challenge', 'su', 'exit', 'idle', 'lock']) assert.equal(lv(a), 'public', a);
   for (const a of ['passwd', 'groups', 'who']) assert.equal(lv(a), 'user', a);
-  /* 定稿 v5.5 §五：通行密钥增删 owner，passkey 列表同样 owner；普通用户只能 passwd（§八） */
-  for (const a of ['passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete']) assert.equal(lv(a), 'owner', a);
+  /* 定稿 v5.5 §五：通行密钥增删 webmaster，passkey 列表同样 webmaster；普通用户只能 passwd（§八） */
+  for (const a of ['passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete']) assert.equal(lv(a), 'webmaster', a);
   for (const a of ['sudo', 'sudo-challenge']) assert.equal(lv(a), 'sudoers', a);
   for (const a of ['useradd', 'userdel', 'usermod', 'passwd-user']) assert.equal(lv(a), 'root', a);
   assert.equal(lv('recovery-key'), null, '不认识的 action 拒绝');

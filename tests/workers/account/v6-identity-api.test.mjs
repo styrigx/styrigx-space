@@ -115,7 +115,7 @@ test('su styrigx：访客 → 普通用户；cookie HttpOnly / Secure / SameSite
   assert.equal(r.status, 200);
   assert.equal(r.json.user.name, 'styrigx');
   assert.equal(r.json.user.uid, 1000);
-  assert.equal(r.json.user.owner, true);
+  assert.equal(r.json.user.webmaster, true);
   const c = r.cookies.find((x) => x.startsWith('sgx-session='));
   assert.match(c, /^sgx-session=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000$/);
   assert.ok(r.cookies.includes('sgx-id=1; Path=/; Secure; SameSite=Lax; Max-Age=2592000'), '登录标记（非 HttpOnly、值固定 1，P2b）');
@@ -329,7 +329,7 @@ test('userdel：拒删 root、styrigx；删别人连同会话、身份栈、密�
   assert.equal(r0.status, 403);
   assert.deepEqual(r0.json, { ok: false, error: 'protected', target: 'root' });
   const r1 = await id(env, { action: 'userdel', name: 'styrigx' }, tok);
-  assert.deepEqual(r1.json, { ok: false, error: 'protected', target: 'owner' });
+  assert.deepEqual(r1.json, { ok: false, error: 'protected', target: 'webmaster' });
   assert.equal((await id(env, { action: 'userdel', name: 'ghost' }, tok)).status, 404);
   const r = await id(env, { action: 'userdel', name: 'alice' }, tok);
   assert.equal(r.status, 200);
@@ -487,7 +487,7 @@ test('名片 PUT /api/profile：styrigx 能改、root 能改（写审计 profile
   assert.equal(g.json.profile.nickname, 'Sty', 'alice 没改动名片');
   assert.equal(g.json.profile.motto, 'root was here');
   assert.ok(rows(env, 'SELECT command, uid FROM account_user_audit').some((x) => x.command === 'profile set motto' && x.uid === 0), 'root 改名片留痕');
-  assert.equal(RA.levelOf('PUT', '/api/profile'), 'owner');
+  assert.equal(RA.levelOf('PUT', '/api/profile'), 'webmaster');
 });
 
 /* ---------------- user 路由：传他人 uid 被拒 / 被忽略 ---------------- */
@@ -538,7 +538,7 @@ test('P4-3 avatar：一份配置归站长——root 换头像写站点头像 ava
   assert.equal(env.KV_PROFILE.m.size, 0);
 });
 
-test('P4-3 devices：list owner（站长直读、全站视图）；revoke / revoke-all root（站长 403，sudo 借 root 才行）；普通用户 403', async () => {
+test('P4-3 devices：list webmaster（站长直读、全站视图）；revoke / revoke-all root（站长 403，sudo 借 root 才行）；普通用户 403', async () => {
   const env = await setup();
   const st = await login(env, 'styrigx');
   const a1 = await login(env, 'alice');
@@ -595,7 +595,7 @@ test('P4-3 2g 设备标记：su 发 sgx-device（HttpOnly / Secure / SameSite=La
   void old;
 });
 
-test('P4-3 权限收紧：永久普通用户（alice）同样进不了 wheel / sudoers / 写组；普通用户不能管通行密钥（passkey-* owner）；passwd 照旧', async () => {
+test('P4-3 权限收紧：永久普通用户（alice）同样进不了 wheel / sudoers / 写组；普通用户不能管通行密钥（passkey-* webmaster）；passwd 照旧', async () => {
   const env = await setup();
   const st = await login(env, 'styrigx');
   await suRoot(env, st);
@@ -611,7 +611,7 @@ test('P4-3 权限收紧：永久普通用户（alice）同样进不了 wheel / s
   for (const a of ['passkey-list', 'passkey-add-challenge', 'passkey-delete']) {
     const r = await id(env, { action: a, n: 1 }, at);
     assert.equal(r.status, 403, a);
-    assert.equal(r.json.need, 'owner', a);
+    assert.equal(r.json.need, 'webmaster', a);
   }
   const pw = await id(env, { action: 'passwd', current: PW.alice, password: 'alice-pass-02' }, at);
   assert.equal(pw.status, 200, '普通用户只能 passwd 改自己的密码');

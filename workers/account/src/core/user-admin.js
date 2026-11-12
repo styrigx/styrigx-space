@@ -73,7 +73,7 @@ export async function userdel(env, name) {
   const u = await userByName(env, name);
   if (!u) return { ok: false, error: 'no-user' };
   if (u.uid === ROOT_UID) return { ok: false, error: 'protected-root' };
-  if (u.uid === STYRIGX_UID) return { ok: false, error: 'protected-owner' };
+  if (u.uid === STYRIGX_UID) return { ok: false, error: 'protected-webmaster' };
   await deleteUserRows(env, u.uid);
   return { ok: true, uid: u.uid };
 }

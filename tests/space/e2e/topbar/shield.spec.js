@@ -53,7 +53,7 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
   });
 
   /* P4-3 盾牌 = 身份徽章四档（定稿 v5.5 §七，Gray 2026-11-11 20:03 / 20:10）：按还能晋升到哪一档预填，只预填、回车才生效；不问 [y/N]、不发别的请求 */
-  for (const [who, tier, want] of [['styrigx', 'owner', 'su root'], ['root', 'root', 'exit'], ['alice', 'user', 'exit']]) {
+  for (const [who, tier, want] of [['styrigx', 'webmaster', 'su root'], ['root', 'root', 'exit'], ['alice', 'user', 'exit']]) {
     test('已登录（' + who + '）：盾牌徽章 ' + tier + '，点了打开终端、预填「' + want + '」（不替人回车、不问 [y/N]）', async ({ page }) => {
       const calls = await go(page, { user: A.V6_USER(who) });
       const sh = page.locator('.sgx-tb-shield');
@@ -69,7 +69,7 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
   test('徽章四档的图形（现有盾形换部件）：访客空盾、普通用户小人、站长打勾（主题色）、root 实心盾上留勾（主题色，勾用底色）', async ({ page }) => {
     await go(page, { user: A.V6_USER('styrigx') });
     const sh = page.locator('.sgx-tb-shield');
-    await expect(sh).toHaveAttribute('data-sgx-tier', 'owner');
+    await expect(sh).toHaveAttribute('data-sgx-tier', 'webmaster');
     const look = () => sh.evaluate((el) => {
       const cs = (/** @type {string} */ q) => getComputedStyle(/** @type {Element} */ (el.querySelector(q)));
       return { ok: cs('.sgx-sh-ok').display, u: cs('.sgx-sh-u').display, fill: cs('.sgx-sh-b').fill, color: getComputedStyle(el).color,

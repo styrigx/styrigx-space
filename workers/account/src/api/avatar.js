@@ -2,7 +2,7 @@
  * PUT / DELETE /api/avatar —— 换头像、恢复默认头像（读取在 GET /avatar/<尺寸>.webp）。
  *
  * PUT（multipart/form-data，字段 32 / 96 / 192 / 512 各一张图）
- * - v6 会话、路由档 owner（站长 + root，src/gate.js scopeDenial → core/route-access.js）；必须同源。没有 → 401 session。
+ * - v6 会话、路由档 webmaster（站长 + root，src/gate.js scopeDenial → core/route-access.js）；必须同源。没有 → 401 session。
  *   v6 P4（定稿 v5.2 §十三）起旧进站会话 + 账号会话 + 作用域 avatar.write 删除。
  * - 图在前端裁好、缩好（Workers 里没有图片库），这里只校验格式（WebP 或 PNG 文件头）和大小。
  * - 先写四张图，最后写版本号 avatar:ver；返回 { ok:true, ver }。
@@ -12,7 +12,7 @@
  *
  * v6 P4-3（定稿 v5.5 §七「全站只有一份配置（头像、偏好、名片等），归站长 styrigx；root 与站长共同持有；普通用户只能看」）：
  * 写的永远是站长那一份（lib/avatar.js avatarPrefix(1000) = 原来的 avatar:*，站点头像），不再按会话 uid 分；
- * root 直接写、站长直接写（路由档 owner），普通用户 403。P2 期间别的 uid 写下的 avatar:u<uid>:* 不再读写（留在 KV，删不删见 PR 未决）。
+ * root 直接写、站长直接写（路由档 webmaster），普通用户 403。P2 期间别的 uid 写下的 avatar:u<uid>:* 不再读写（留在 KV，删不删见 PR 未决）。
  */
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 import { AVATAR_SIZES, AVATAR_MAX, keyOf, verKeyOf, sniffImage, NO_STORE, avatarKv } from '../lib/avatar.js';

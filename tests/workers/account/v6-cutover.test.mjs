@@ -139,7 +139,7 @@ test('AccountVerifier.admit 带 action：按 action 的档、回答带回 action
   assert.equal(r.sessionId, undefined, '会话行 id 不出账号 Worker');
 });
 
-test('路由表：action private 挂在奇趣 / 日刻公开 GET 上（档 = 本站写组）和 POST /api/ai 上（2c：= owner）', () => {
+test('路由表：action private 挂在奇趣 / 日刻公开 GET 上（档 = 本站写组）和 POST /api/ai 上（2c：= webmaster）', () => {
   const withPrivate = RA.ROUTE_ACCESS.filter((r) => r.actions && Object.prototype.hasOwnProperty.call(r.actions, 'private'));
   assert.deepEqual(withPrivate.map((r) => r.method + ' ' + r.path).sort(), [
     'GET /curio/api/icon', 'GET /curio/api/items', 'GET /curio/api/links', 'GET /curio/api/movies', 'GET /curio/api/music', 'GET /curio/api/photo',
@@ -148,9 +148,9 @@ test('路由表：action private 挂在奇趣 / 日刻公开 GET 上（档 = 本
   for (const r of withPrivate) {
     assert.deepEqual(Object.keys(r.actions), ['private'], r.path);
     if (r.path === '/api/ai') {
-      /* AI 私密召回跨站（奇趣 / 日刻 / 博客），对应旧「账号会话」= 站长本人：owner；进接口本身仍是 ai 组 */
+      /* AI 私密召回跨站（奇趣 / 日刻 / 博客），对应旧「账号会话」= 站长本人：webmaster；进接口本身仍是 ai 组 */
       assert.equal(r.level, 'ai');
-      assert.equal(r.actions.private, 'owner');
+      assert.equal(r.actions.private, 'webmaster');
       assert.equal(RA.rescueOf('POST', '/api/ai', { action: 'private' }), false, '救援不可用');
       continue;
     }
@@ -170,7 +170,7 @@ test('2c：POST /api/ai 的 action private 经 admit + permits 判——styrigx�
   r = await a(rt);
   assert.equal(r.allowed, true); assert.equal(r.root, true);
   r = await a(ali);
-  assert.equal(r.allowed, false); assert.equal(r.reason, 'need-owner'); assert.equal(r.action, 'private');
+  assert.equal(r.allowed, false); assert.equal(r.reason, 'need-webmaster'); assert.equal(r.action, 'private');
   assert.equal((await a('')).allowed, false, '访客');
   /* GET /api/ai 没列 action：不退回路由档 */
   assert.equal((await checkAdmit(env, sty, 'GET', '/api/ai', { action: 'private' })).reason, 'action');

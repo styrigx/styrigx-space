@@ -64,7 +64,7 @@ function view(adm) {
   return {
     uid: id.uid, name: id.name, groups: id.uid === ROOT_UID ? [] : id.groups.slice(), root: id.uid === ROOT_UID, rescue: id.rescue === true,
     via: adm.via ? adm.via.name : '', path: id.rescue ? 'root (rescue)' : adm.via ? id.name + ' via ' + adm.via.name : id.name,
-    owner: id.uid === STYRIGX_UID, wheel: id.groups.indexOf('wheel') !== -1, sudoers: id.groups.indexOf('sudoers') !== -1,
+    webmaster: id.uid === STYRIGX_UID, wheel: id.groups.indexOf('wheel') !== -1, sudoers: id.groups.indexOf('sudoers') !== -1,
     layerExpiresAt: adm.layerExpiresAt, idleMs: adm.via ? ROOT_IDLE_MS : 0,
   };
 }
@@ -167,7 +167,7 @@ function adminError(r) {
     case 'exists': return apiError(403, 'exists', extra);
     case 'no-user': return apiError(404, 'not-found', extra);
     case 'protected-root': return apiError(403, 'protected', { target: 'root' });
-    case 'protected-owner': return apiError(403, 'protected', { target: 'owner' });
+    case 'protected-webmaster': return apiError(403, 'protected', { target: 'webmaster' });
     case 'last-member': return apiError(409, 'last-member', extra);
     case 'root-creds': return apiError(403, 'root-creds');
     default: return apiError(503, 'server');

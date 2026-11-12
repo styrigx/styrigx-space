@@ -14,7 +14,7 @@
  * - 没绑 D1_ACCOUNT → 500 config（正式 / 预览的 wrangler.toml 都绑了；缺绑定只会是配置错误）
  *
  * v6 P4-3（定稿 v5.5 §七「全站只有一份配置（头像、偏好、名片等），归站长 styrigx；root 与站长共同持有；普通用户只能看」）：
- * 读写的永远是站长那一份（WHERE uid = 1000）。写（POST）路由档 owner（站长 + root），普通用户只能读。
+ * 读写的永远是站长那一份（WHERE uid = 1000）。写（POST）路由档 webmaster（站长 + root），普通用户只能读。
  *
  * GET  /api/prefs → { ok, items, updatedAt }
  * POST /api/prefs { changes: { key: { v, t } } } → 合并后 { ok, items, updatedAt }（只接受同源）

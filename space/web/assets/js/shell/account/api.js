@@ -68,7 +68,7 @@ export const v6keys = Object.freeze({
   passkeyDelete: function (n) { return postJSON(IDENTITY_API, { action: 'passkey-delete', n: n }); },
 });
 
-/** 设备会话（定稿 v5.5 §五：list owner 档、全站视图；revoke / revoke-all root 档，站长经 sudo） */
+/** 设备会话（定稿 v5.5 §五：list webmaster 档、全站视图；revoke / revoke-all root 档，站长经 sudo） */
 export const devices = Object.freeze({
   list: function () { return post('devices', 'list'); },
   /** @param {number} n 服务端列表里的编号 */

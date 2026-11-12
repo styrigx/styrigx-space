@@ -14,7 +14,7 @@ export default {
   name: 'sudo',
   args: [],
   /* man 分段（定稿 v5.5 §四）：站长层；只给 sudoers 组列（root 看全部） */
-  audience: /** @type {any} */ (['owner', 'root6']),
+  audience: /** @type {any} */ (['webmaster', 'root6']),
   group: 'sudoers',
   /** @param {any} p @param {any} x @param {string} [line0] 原样的一行（sub 的来源名大小写敏感） */
   run: function (p, x, line0) {

@@ -7,7 +7,7 @@
  *   GET /api/account（状态）、/session（sudo root 登录）、/reauth、/reset（旧恢复密钥）、/keys 删除；
  *   应用授权 /grants 删除（定稿 v5.3 §十二）。
  * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（v6 会话，档见 core/route-access.js）→ KV_PROFILE
- * - 个人资料（2026-11-07）：GET /api/profile（公开）、PUT /api/profile（v6 会话，owner 档）→ KV_PROFILE 的 profile 键
+ * - 个人资料（2026-11-07）：GET /api/profile（公开）、PUT /api/profile（v6 会话，webmaster 档）→ KV_PROFILE 的 profile 键
  * - 设置云同步：GET / POST /api/prefs（v6 会话）→ D1_ACCOUNT 的 settings_sync
  * - v6 身份命令（P2）：POST /api/identity（whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod；
  *   公开入口，每个 action 的档在 core/route-access.js，判断只经 core/groups.js permits）→ D1_ACCOUNT 的 account_users / account_sessions …
