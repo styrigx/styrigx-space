@@ -85,25 +85,26 @@ for (const dark of [false, true]) {
     test.use({ viewport: { width: 390, height: 844 } });
 
     for (const path of ['/', '/status/', '/404.html']) { /* 进站 v3 L1：/security/ 已删，短页换 404 */
-      test(`${path}：贴顶通栏（v5 S6 顶栏 E：字标 · 盾牌 · 外观 · 四格 · | · >_ · 头像；不显示页名），按钮 40 × 40；AI 浮钮右下角；按钮颜色按状态`, async ({ page }) => {
+      test(`${path}：贴顶通栏（顶栏 v6：字标 · 外观 · 四格 · 音乐 · 盾牌 · | · >_ · 头像；不显示页名），手机按钮 38 × 38；AI 浮钮右下角；按钮颜色按状态`, async ({ page }) => {
         await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
         await go(page, path, { dark });
         /* 390 宽、桌面 UA、自动：视口 < 720 → 手机布局 */
         await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'phone');
         const [bar, logo, q, sh, g, tm, av, ai] = await Promise.all(['.sgx-topbar', '.sgx-tb-logo', '.sgx-tb-quick', '.sgx-tb-shield', '.sgx-tb-grid', '.sgx-tb-term', '.sgx-tb-av', '.sgx-tb-ai'].map((s) => box(page, s)));
+        const mu = await box(page, '.sgx-tb-music');
         /* 通栏：贴顶、全宽；手机布局高 56（2026-11-09 fix/mobile-topbar-56，原 64；只收上下留白） */
         expect(near(bar.x, 0) && near(bar.width, 390), `顶栏 x ${bar.x} 宽 ${bar.width}`).toBe(true);
         expect(near(bar.y, 0) && near(bar.height, 56), `顶栏 y ${bar.y} 高 ${bar.height}`).toBe(true);
-        /* 字标 / 按钮 40 高、上下居中；按钮 40 宽；字标左缘贴页边距（12 − 4 内缩）、头像右缘贴页边距 12（对齐 PR-B） */
-        for (const b of [logo, q, sh, g, tm, av]) {
-          expect(near(b.height, 40), `高 ${b.height}`).toBe(true);
+        /* 字标 / 按钮 38 高（顶栏 v6 手机，原 40）、上下居中；按钮 38 宽；字标左缘贴页边距（12 − 4 内缩）、头像右缘贴页边距 12（对齐 PR-B） */
+        for (const b of [logo, q, sh, g, mu, tm, av]) {
+          expect(near(b.height, 38), `高 ${b.height}`).toBe(true);
           expect(near(b.y + b.height / 2, bar.y + bar.height / 2), `垂直居中 ${b.y}`).toBe(true);
         }
-        for (const b of [q, sh, g, tm, av]) expect(near(b.width, 40), `按钮宽 ${b.width}`).toBe(true);
+        for (const b of [q, sh, g, mu, tm, av]) expect(near(b.width, 38), `按钮宽 ${b.width}`).toBe(true);
         expect(near(logo.x, 8), `logo 左 ${logo.x}`).toBe(true);
         expect(near(av.x + av.width, 390 - 12), `头像右 ${av.x + av.width}`).toBe(true);
-        expect(sh.x < q.x && q.x < g.x && g.x < tm.x && tm.x < av.x, '盾牌 → 外观 → 四格 → >_ → 头像').toBe(true);
-        expect(logo.x + logo.width).toBeLessThanOrEqual(sh.x + 0.5);
+        expect(q.x < g.x && g.x < mu.x && mu.x < sh.x && sh.x < tm.x && tm.x < av.x, '外观 → 四格 → 音乐 → 盾牌 → >_ → 头像').toBe(true);
+        expect(logo.x + logo.width).toBeLessThanOrEqual(q.x + 0.5);
         expect(logo.width, `字标宽 ${logo.width}`).toBeGreaterThan(80);
         /* 2026-11 PR-2（Gray）：❯ + SVG 字标（手机 20px 高，和 ❯、光标上下居中）+ 光标；没有 :~$、窄屏不收 */
         await expect(page.locator('.sgx-tb-logo .sgx-tb-name svg.sgx-wordmark')).toHaveCount(1);
@@ -117,11 +118,11 @@ for (const dark of [false, true]) {
         }
         await expect(page.locator('.sgx-tb-back, [data-go-back], .sgx-tb-more, .sgx-tb-search, #sgx-tb-search, .sgx-tb-nav, .sgx-tb-end, #sgx-drawer')).toHaveCount(0);
         expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-prog']);
-        expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.replace(/\s*\bis-busy\b/, '')))).toEqual([ /* 去掉 .is-busy：加载中头像外圈转快（2026-11-09） */'sgx-tb-btn sgx-tb-shield', 'sgx-tb-btn sgx-tb-quick', 'sgx-tb-btn sgx-tb-grid', 'sgx-tb-sep', 'sgx-tb-btn sgx-tb-term', 'sgx-tb-av']);
+        expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.replace(/\s*\bis-busy\b/, '')))).toEqual([ /* 去掉 .is-busy：加载中头像外圈转快（2026-11-09） */'sgx-tb-btn sgx-tb-quick', 'sgx-tb-btn sgx-tb-grid', 'sgx-tb-btn sgx-tb-music', 'sgx-tb-btn sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-btn sgx-tb-term', 'sgx-tb-av']);
         /* 页名胶囊：标记在、只放页名，顶栏不显示 */
         expect(await page.locator('#site-nav .sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-title']);
         await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
-        for (const s of ['.sgx-tb-quick', '.sgx-tb-shield', '.sgx-tb-grid', '.sgx-tb-term']) {
+        for (const s of ['.sgx-tb-quick', '.sgx-tb-grid', '.sgx-tb-music', '.sgx-tb-shield', '.sgx-tb-term']) {
           await expect(page.locator(s + ' svg')).toHaveCount(1);
           const sv = await box(page, s + ' svg');
           expect(near(sv.width, 20) && near(sv.height, 20), `${s} 图标 20px`).toBe(true);
@@ -491,7 +492,7 @@ test.describe('390×844 行为', () => {
 test.describe('1280×800', () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
-  /* 顶栏 v3：通栏、高 64；内容区 = 居中的 min(宽 − 2 × 页边距, 1080)；按钮 40 × 40；自动（桌面 UA）视口 < 720 → 手机 */
+  /* 顶栏 v3：通栏、高 64；内容区 = 居中的 min(宽 − 2 × 页边距, 1080)；按钮桌面 40 × 40、手机 38 × 38（顶栏 v6）；自动（桌面 UA）视口 < 720 → 手机 */
   for (const [w, h] of [[600, 900], [840, 600], [1280, 800], [1920, 1080], [2560, 1440]]) {
     test(`${w}×${h}：通栏高 64（手机布局 56），内容区按公式（±1px），居中`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
@@ -502,7 +503,8 @@ test.describe('1280×800', () => {
       expect(near(bar.x, 0) && near(bar.width, w), `通栏 ${bar.x} / ${bar.width}`).toBe(true);
       expect(near(bar.height, desktop ? 64 : 56), `顶栏高 ${bar.height}`).toBe(true);
       const [logo, q, av, acts] = await Promise.all(['.sgx-tb-logo', '.sgx-tb-quick', '.sgx-tb-av', '.sgx-tb-acts'].map((s) => box(page, s)));
-      expect(near(q.width, 40) && near(av.width, 40) && near(logo.height, 40), `按钮 ${q.width} / ${av.width} / logo 高 ${logo.height}`).toBe(true);
+      const bw = desktop ? 40 : 38;
+      expect(near(q.width, bw) && near(av.width, bw) && near(logo.height, bw), `按钮 ${q.width} / ${av.width} / logo 高 ${logo.height}`).toBe(true);
       const p = pad(w);
       expect(near(acts.x + acts.width, w - p), `右缘 ${acts.x + acts.width} ≠ ${w - p}`).toBe(true);
       expect(near(logo.x, p - 4), `左缘 ${logo.x} ≠ ${p - 4}`).toBe(true);

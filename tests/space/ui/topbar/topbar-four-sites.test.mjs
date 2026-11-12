@@ -81,8 +81,8 @@ const built = Object.values(PUB).every((d) => existsSync(path.join(REPO, d, 'ind
 function skeleton(html) {
   const h = html.replace(/"/g, '');
   const hdr = h.slice(h.indexOf('<header id=site-nav'), h.indexOf('</header>'));
-  /* 2026-11 v5 S6：右侧 盾牌 · 调色盘 · 九宫格 · | · >_ · 头像 */
-  const order = ['sgx-topbar', 'sgx-tb-logo', 'sgx-tb-cu', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-shield', 'sgx-tb-quick', 'sgx-tb-grid', 'sgx-tb-sep', 'sgx-tb-term', 'sgx-tb-av', 'sgx-tb-prog', 'sgx-tb-ai'];
+  /* 顶栏 v6（Gray 2026-11-13）：右侧 调色盘 · 九宫格 · 音乐 · 盾牌 · | · >_ · 头像（原 v5 S6：盾牌 · 调色盘 · 九宫格 · | · >_ · 头像） */
+  const order = ['sgx-topbar', 'sgx-tb-logo', 'sgx-tb-cu', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-quick', 'sgx-tb-grid', 'sgx-tb-music', 'sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-term', 'sgx-tb-av', 'sgx-tb-prog', 'sgx-tb-ai'];
   const pos = order.map((c) => hdr.search(new RegExp(`class=[^>]*\\b${c}\\b`)));
   order.forEach((c, n) => assert.ok(pos[n] >= 0, '顶栏有 ' + c));
   const qp = h.slice(h.indexOf('<dialog id=sgx-qp'), h.indexOf('</dialog>', h.indexOf('<dialog id=sgx-qp')));
@@ -114,7 +114,7 @@ function skeleton(html) {
   };
 }
 
-test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字标 · 盾牌 · 调色盘 · 九宫格 · | · >_ · 头像 · 进度条 · AI 浮钮；NAVIGATE 四项同序、logo 回主站首页、STATUS 有跳转按钮且当前项「开」态；外观面板同一套；tmux 页脚当前窗口', (t) => {
+test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字标 · 调色盘 · 九宫格 · 音乐 · 盾牌 · | · >_ · 头像 · 进度条 · AI 浮钮；NAVIGATE 四项同序、logo 回主站首页、STATUS 有跳转按钮且当前项「开」态；外观面板同一套；tmux 页脚当前窗口', (t) => {
   if (!built) { t.skip('还没构建（先 npm run build）'); return; }
   const CUR = { atlas: 'home', blog: 'blog', curio: 'curio', daymark: 'daymark' };
   const NO = { home: '01', blog: '02', curio: '03', daymark: '04' };

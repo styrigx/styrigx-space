@@ -164,7 +164,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ $center := printf "<span class=\"sgx-tb-title\">%s</span>" (htmlEscape $pageName) }}
 {{ $shellNav := index site.Data "shell-nav" }}
 {{ $tbIcons := dict }}
-{{ range (slice "tb-palette" "tb-shield" "tb-term" "tb-grid" "tb-chat" "lock" "tb-undo" "share" "tb-send" "tb-newchat" "tb-history") }}{{ $tbIcons = merge $tbIcons (dict . (partial "icon.html" .)) }}{{ end }}
+{{ range (slice "tb-palette" "tb-shield" "tb-term" "tb-grid" "tb-music" "tb-chat" "lock" "tb-undo" "share" "tb-send" "tb-newchat" "tb-history") }}{{ $tbIcons = merge $tbIcons (dict . (partial "icon.html" .)) }}{{ end }}
 {{ range $shellNav.items }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "icon.html" .icon)) }}{{ end }}
 {{ range $shellNav.footer }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "icon.html" .icon)) }}{{ end }}
 {{ $tbPal := slice }}
