@@ -841,8 +841,9 @@ export function mountTopbar(o) {
       const termKbSet = function (/** @type {number} */ h) {
         termKbH = h > 0 ? Math.round(h) : 0;
         termDlg.style.setProperty('--sgx-kb', termKbH + 'px');
-        if (termKbH > 0) termKbFit(); else termDlg.style.setProperty('--sgx-term-kb-max', '');
         termDlg.toggleAttribute('data-kb', termKbH > 0);
+        /* 先挂 data-kb 再算、再滚到底：滚动要按收窄后的正文高度算 */
+        if (termKbH > 0) termKbFit(); else termDlg.style.setProperty('--sgx-term-kb-max', '');
         /* 键盘弹着时：可视区 resize / scroll、打字、输出变长都重算（VirtualKeyboard API 只在键盘几何变时发 geometrychange） */
         if (termKbH > 0 && !termVvStop) {
           const vv = window.visualViewport;
