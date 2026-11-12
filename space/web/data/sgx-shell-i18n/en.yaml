@@ -194,7 +194,7 @@ man:
   ls: "list a directory"
   cat: "print today’s daymark line"
   sudo: "run one command as root with your own credentials (sudoers only; no ticket kept)"
-  theme: "open the appearance panel, or set dark / light / auto"
+  theme: "open the palette panel, or switch to a palette"
   lock: "sign everything out and go back to visitor"
   ask: "ask Gray AI a question"
   find: "search the four sites’ public pages by keyword"

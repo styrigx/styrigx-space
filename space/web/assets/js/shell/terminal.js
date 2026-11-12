@@ -129,7 +129,7 @@ export function ghost(line) {
  *   pager = 输出交给全屏阅读页（man；值是页名，比如 SUB(1)），不进滚动区；flow = 交给那一层去跑了（它自己打输出、换输入模式）
  * @typedef {Object} TermAct
  * @property {(dir: string) => ({ kind: 'scroll', label: string } | { kind: 'nav', href: string, go: () => void })} cd  open 的站点目录
- * @property {(mode: string) => void} theme  '' = 打开外观面板；dark / light / auto = 设定
+ * @property {(mode: string) => void} theme  '' = 打开调色板面板；调色板 id = 切到那套
  * @property {(q: string) => void} ask
  * @property {(q: string) => Promise<any>} find  find <词>（v5 S4，GET /api/find）
  * @property {() => Promise<{ text: string, by: string } | null>} today

@@ -189,7 +189,7 @@ man:
   ls: "列出目录"
   cat: "显示今天的 daymark 一句"
   sudo: "输自己的凭据，用 root 权限执行一条命令（仅 sudoers 组；不留票据）"
-  theme: "打开外观面板，或设为 dark / light / auto"
+  theme: "打开调色板，或切到某套调色板"
   lock: "全部退出，回到访客"
   ask: "问 Gray AI 一个问题"
   find: "按关键词搜四个站的公开页面"
