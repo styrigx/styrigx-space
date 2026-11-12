@@ -2,39 +2,25 @@
 blogTitle: 博客
 nav: 导航
 tabs: 博客分区
-tabHome: 首页
-tabPosts: 文章
-tabTopics: 专题
 toc: 目录
 tocTitle: 目录
 progress: 阅读进度
 latest: 最新
-allPosts: 全部文章
 series: 系列
 categories: 分类
 tags: 标签
 clear: 清除
-postCount: '{{ .Count }} 篇'
-topicResults: '{label} · {n} 篇'
 seriesPart: '第 {{ .Current }} / {{ .Total }} 篇'
-seriesPrev: ‹ 上一篇
-seriesNext: 下一篇 ›
 emptyArchives: 还没有可归档的文章。
-tagCloudKicker: 标签星图
 tagPageTitle: '标签：{{ .Name }}'
 tagNote: '带有这个标签的文章共 {{ .Count }} 篇。'
 metadata: 文章元信息
-articleGroups: 文章分组
 readingTools: 阅读工具
 wordCount: '{{ .Count }} 字'
-readingTime: '{{ .Minutes }} 分钟阅读'
-moreInSeries: '{{ .Name }} 系列更多文章'
-moreFromSite: '{{ .Site }} 的更多文章'
 tocExpand: 展开目录
 tocCollapse: 收起目录
 tocShowAll: 显示全部
 tocCollapseButton: 收起
-shareHeading: 分享这篇文章
 shareCopy: 复制链接
 shareCopied: 已复制
 shareNative: 分享
@@ -53,11 +39,6 @@ shareOnX: 分享到 X
 tocSectionExpand: 展开小节
 tocSectionCollapse: 收起小节
 # 首页分区入口（共享外壳平铺入口）副标题与列表名（语言包化 2026-11-07）
-entHomeSub: 最新文章与系列
-entPostsSub: 全部文章，按时间排
-entTopicsSub: 系列、分类与标签
-entSections: 分区
-# 2026-11 UI 重设计 PR-3（终端风子页）
 lastUpdated: '最近更新 {{ .Date }}'
 readMin: '{{ .Minutes }} 分钟'
 onThisPage: ON THIS PAGE

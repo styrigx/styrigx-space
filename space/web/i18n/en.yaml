@@ -2,46 +2,27 @@
 blogTitle: Blog
 nav: Navigation
 tabs: Blog sections
-tabHome: Home
-tabPosts: Posts
-tabTopics: Topics
 toc: Contents
 tocTitle: Table of contents
 progress: Reading progress
 latest: Latest
-allPosts: All posts
 series: Series
 categories: Categories
 tags: Tags
 clear: Clear
-postCount:
-  one: '{{ .Count }} post'
-  other: '{{ .Count }} posts'
-# 首页话题筛选结果标题（assets/js/blog/app-tabs.ts 填 {label} {n}；模板把 one / other 两种放进 data-*，JS 按 Intl.PluralRules 选）
-topicResults:
-  one: '{label} · {n} post'
-  other: '{label} · {n} posts'
 seriesPart: 'Part {{ .Current }} of {{ .Total }}'
-seriesPrev: ‹ Previous
-seriesNext: Next ›
 emptyArchives: No articles are ready to archive yet.
-tagCloudKicker: Tag constellation
 tagPageTitle: 'Tag: {{ .Name }}'
 tagNote:
   one: '{{ .Count }} article with this tag.'
   other: '{{ .Count }} articles with this tag.'
 metadata: Article metadata
-articleGroups: Article groups
 readingTools: Reading tools
 wordCount: '{{ .Count }} words'
-readingTime: '{{ .Minutes }} min read'
-moreInSeries: 'More in {{ .Name }}'
-moreFromSite: 'More from {{ .Site }}'
 tocExpand: Expand table of contents
 tocCollapse: Collapse table of contents
 tocShowAll: Show all
 tocCollapseButton: Collapse
-shareHeading: Share this post
 shareCopy: Copy link
 shareCopied: Copied!
 shareNative: Share
@@ -60,11 +41,6 @@ shareOnX: Share on X
 tocSectionExpand: Expand section
 tocSectionCollapse: Collapse section
 # 首页分区入口（共享外壳平铺入口）副标题与列表名（语言包化 2026-11-07）
-entHomeSub: Latest posts and series
-entPostsSub: Every post, newest first
-entTopicsSub: Series, categories and tags
-entSections: Sections
-# 2026-11 UI redesign PR-3 (terminal-style sub-pages)
 lastUpdated: 'Last updated {{ .Date }}'
 readMin: '{{ .Minutes }} min'
 onThisPage: ON THIS PAGE

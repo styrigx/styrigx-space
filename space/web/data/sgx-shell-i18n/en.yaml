@@ -326,7 +326,6 @@ account:
         microsoft_password_manager: "Microsoft Password Manager"
         samsung_pass: "Samsung Pass"
   common:
-    signOutFail: "Couldn’t sign out. Check your connection."
     signOut: "Sign out"
     signedIn: "Signed in"
     edit: "Edit"

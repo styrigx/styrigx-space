@@ -23,7 +23,7 @@
 
 ## 2. 不变式
 
-2.1 `sgx-ui` MUST 只含 UI 设置，MUST NOT 含任何凭证或会话信息（会话 cookie 见 SGX-SPEC-001）。
+2.1 `sgx-ui` MUST 只含 UI 设置，MUST NOT 含任何凭证或会话信息。
 
 2.2 偏好的唯一来源是同源 localStorage（`sgx-palette`、`sgx-lang` 等；3.0 起 `sgx-theme-mode`、`sgx-accent` 删除，首帧清掉旧值）；cookie 只是镜像。主站首帧读 localStorage，不读 cookie。
 

@@ -12,7 +12,7 @@
 
 > 状态：P1（2026-11-11），基线 main 05abe443。**P1 只写脚本与文档，不对任何生产 D1 做数据写入**；什么时候执行由 Gray 在 P2 / P3 批准。
 > 表结构：`workers/account/migrations/0006_identity.sql`（合并后由账号部署 job 建空表）。脚本：`space/scripts/v6-identity-migrate.mjs`（只生成 SQL，不连 Cloudflare）。
-> 相关：ADR-0006、`docs/specs/v6-route-inventory.md`、`docs/specs/v6-stepup-app-map.md`。
+> 相关：ADR-0006、`docs/specs/v6-route-inventory.md`。
 
 ## 1. 新表（账号库 styrigx-account，不新增 D1）
 

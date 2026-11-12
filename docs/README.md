@@ -43,18 +43,13 @@
 | SGX-ARCH-010 | [`architecture/sites/space.md`](architecture/sites/space.md) | 参考 | 主站：首页、状态页、外壳组件 |
 | SGX-ARCH-011 | [`architecture/sites/blog.md`](architecture/sites/blog.md) | 参考 | 博客子站 |
 | SGX-ARCH-012 | [`architecture/sites/curio-daymark.md`](architecture/sites/curio-daymark.md) | 参考 | 奇趣、日刻两个子站及其接口 Worker |
-| SGX-SPEC-001 | [`specs/auth-state-machine.md`](specs/auth-state-machine.md) | 规范 | 进站 / 锁屏 / 回跳状态机与 cookie 表 |
-| SGX-SPEC-002 | [`specs/status-apis.md`](specs/status-apis.md) | 规范 | 只读状态接口分工 |
 | SGX-SPEC-003 | [`specs/ui-cookie.md`](specs/ui-cookie.md) | 规范 | 外观 cookie `sgx-ui` 契约（含博客读端） |
 | SGX-SPEC-004 | [`specs/v6-route-inventory.md`](specs/v6-route-inventory.md) | 草案 | v6 路由全量盘点：每条路由的档（public / user / 组 / root） |
 | SGX-SPEC-005 | [`specs/v6-identity-migration.md`](specs/v6-identity-migration.md) | 草案 | v6 数据迁移对照表：凭据 → root / styrigx、pepper 来源、userHandle |
-| SGX-SPEC-006 | [`specs/v6-stepup-app-map.md`](specs/v6-stepup-app-map.md) | 草案 | v6 STEPUP / APP 调用点与去向 |
 | SGX-DES-001 | [`design/palette.md`](design/palette.md) | 规范 | 调色板与色彩角色 token |
 | SGX-DES-002 | [`design/ui-system.md`](design/ui-system.md) | 规范 | 终端风格 UI 系统：顶栏、AI 窗、Auto 控件、提示符规则 |
-| SGX-SEC-001 | [`security/account-v3.md`](security/account-v3.md) | 规范 | 进站 / 账号安全模型 V3 |
 | SGX-OPS-001 | [`operations/deploy.md`](operations/deploy.md) | 规范 | CI 与部署 |
 | SGX-OPS-002 | [`operations/resources.md`](operations/resources.md) | 参考 | Cloudflare 资源清单（只有名字） |
-| SGX-OPS-003 | [`operations/v5-smoke.md`](operations/v5-smoke.md) | 清单 | v5（S1–S7 + sub v3.1）真机冒烟清单 |
 | SGX-CON-001 | [`contributing/pr-and-commits.md`](contributing/pr-and-commits.md) | 规范 | 分支、提交、PR、合并 |
 | SGX-CON-002 | [`contributing/blog-writing.md`](contributing/blog-writing.md) | 规范 | 写博客 |
 | ADR-0001 | [`decisions/ADR-0001-one-repo-one-site.md`](decisions/ADR-0001-one-repo-one-site.md) | 决策 | 子站并入一个仓库、一个 Hugo 站 |
