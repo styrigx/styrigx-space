@@ -155,8 +155,8 @@ space/
 
 | 顺序 | 一处 | 状态 |
 |---|---|---|
-| 0 | 本文件 + check-layers 加 23–27（红线 + 落点 + 待迁移表 + 例外表）；顺手修掉现有的两处红线：文章排序 `partials/blog/posts-sorted.html` 首页和奇趣都在用，挪进 `partials/shell/` | 进行中 |
-| 1 | `assets/js/` → `assets/shell/js/`（整体挪，不拆） | 未开始 |
+| 0 | 本文件 + check-layers 加 23–27（红线 + 落点 + 待迁移表 + 例外表）；顺手修掉现有的两处红线：文章排序 `partials/blog/posts-sorted.html` 首页和奇趣都在用，挪进 `partials/shell/` | 已合（#444） |
+| 1 | `assets/js/` → `assets/shell/js/`（整体挪，不拆） | 进行中 |
 | 2 | 拆 `lib/` 和 shell 平铺文件，按 §1.1 分组 | 未开始 |
 | 3 | `assets/css/` → `assets/shell/css/` | 未开始 |
 | 4 | `layouts/partials/` 的 Platform 部分 → `partials/shell/` | 未开始 |

@@ -71,7 +71,7 @@ globalThis.fetch = (url, init) => {
   return Promise.resolve({ status: r.s, json: () => Promise.resolve(r.j) });
 };
 
-const CS = await import('../../../../space/web/assets/js/lib/cloud-sync.js');
+const CS = await import('../../../../space/web/assets/shell/js/lib/cloud-sync.js');
 const { initCloudSync, lastPullAt, pullDue, PULL_KEY, PULL_INTERVAL, PUSH_DEBOUNCE, LAST_KEY, _resetForTest } = CS;
 
 async function settle() {
@@ -278,10 +278,10 @@ test('锁屏没解锁 / 开关关：不请求', async () => {
 });
 
 test('强制入口（v6 P4：旧账号终端 session.js 删了）：su / exit / lock 就地切页面标记发 sgx:session live → 云同步强制拉一次；core.js 照常起同步', () => {
-  assert.ok(!existsSync(path.join(ROOT, 'space/web/assets/js/shell/account/session.js')), '旧账号会话前端删了（定稿 v5.2 §十三 P4）');
-  const cs = readFileSync(path.join(ROOT, 'space/web/assets/js/lib/cloud-sync.js'), 'utf8');
-  const core = readFileSync(path.join(ROOT, 'space/web/assets/js/shell/core.js'), 'utf8');
-  const tp = readFileSync(path.join(ROOT, 'space/web/assets/js/shell/topbar-panel.js'), 'utf8');
+  assert.ok(!existsSync(path.join(ROOT, 'space/web/assets/shell/js/shell/account/session.js')), '旧账号会话前端删了（定稿 v5.2 §十三 P4）');
+  const cs = readFileSync(path.join(ROOT, 'space/web/assets/shell/js/lib/cloud-sync.js'), 'utf8');
+  const core = readFileSync(path.join(ROOT, 'space/web/assets/shell/js/shell/core.js'), 'utf8');
+  const tp = readFileSync(path.join(ROOT, 'space/web/assets/shell/js/shell/topbar-panel.js'), 'utf8');
   assert.match(tp, /new CustomEvent\(SESSION_EVENT, \{ detail: \{ ok: state === 'valid', live: true \} \}\)/, 'v6 命令后顶栏发 live');
   assert.match(cs, /if \(!d \|\| !d\.live\) return;\n\s+if \(d\.ok\) \{\n\s+okAt = 0;\n\s+initCloudSync\(\{ force: true \}\)/, '登录了强制拉');
   assert.match(core, /initCloudSync\(\)\.catch/);

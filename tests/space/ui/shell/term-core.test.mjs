@@ -8,11 +8,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkTermImports } from '../../../../space/scripts/gen-shell.mjs';
-import * as S from '../../../../space/web/assets/js/shell/term/core/strings.js';
-import * as P from '../../../../space/web/assets/js/shell/term/core/parse.js';
-import * as KH from '../../../../space/web/assets/js/shell/term/view/keyhint.js';
-import * as AC from '../../../../space/web/assets/js/shell/account/commands.js';
-import * as T from '../../../../space/web/assets/js/shell/terminal.js';
+import * as S from '../../../../space/web/assets/shell/js/shell/term/core/strings.js';
+import * as P from '../../../../space/web/assets/shell/js/shell/term/core/parse.js';
+import * as KH from '../../../../space/web/assets/shell/js/shell/term/view/keyhint.js';
+import * as AC from '../../../../space/web/assets/shell/js/shell/account/commands.js';
+import * as T from '../../../../space/web/assets/shell/js/shell/terminal.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const read = (f) => readFileSync(path.join(REPO, f), 'utf8');
@@ -30,7 +30,7 @@ test('宿主转出的是同一份（同一个引用）', async () => {
 test('没有残留的抄写：flatStrings / normCmd / lev 只定义在 term/core', () => {
   const files = ['terminal.js', 'ai-panel.js', 'term/view/keyhint.js', 'suggest.js', 'account/window.js', 'account/cmd/layer.js', 'account/commands.js'];
   for (const f of files) {
-    const src = read('space/web/assets/js/shell/' + f);
+    const src = read('space/web/assets/shell/js/shell/' + f);
     assert.doesNotMatch(src, /function (flatStrings|normCmd|lev)\(/, f);
     assert.doesNotMatch(src, /getElementById\('sgx-i18n-shell'\)/, f + ' 用 shellSection 读字符串表');
   }
@@ -48,8 +48,8 @@ test('shellSection：读一节；没有元素 / 坏 JSON / 不是对象 → {}',
 });
 
 test('gen-shell：terminal.js / ai-panel.js 过检；term/** 之外的 import（含 import()）、非字面量 import()、term/** 里再往外 import 都拒', () => {
-  checkTermImports(path.join(REPO, 'space/web/assets/js/shell/terminal.js'), 'terminal.js');
-  checkTermImports(path.join(REPO, 'space/web/assets/js/shell/ai-panel.js'), 'ai-panel.js');
+  checkTermImports(path.join(REPO, 'space/web/assets/shell/js/shell/terminal.js'), 'terminal.js');
+  checkTermImports(path.join(REPO, 'space/web/assets/shell/js/shell/ai-panel.js'), 'ai-panel.js');
   const root = mkdtempSync(path.join(tmpdir(), 'sgx-t1-'));
   const term = path.join(root, 'term');
   mkdirSync(path.join(term, 'core'), { recursive: true });

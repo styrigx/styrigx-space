@@ -15,7 +15,7 @@
  *     `openSheet(`（含 `openSheet as 别名` 的改名 import）只许出现在 SHEET_ALLOW 里的文件；新文件调用一律报错。
  *     选项类改行内展开单选（如 AI 窗口头部的模型单选；原账号页 AI 模型一行 2026-11-08 删除）。白名单里的弹层以后逐步换掉，只减不增。
  *
- * 扫描范围：space/web/assets/js/（2026-11 合站后子站直接用这里的外壳脚本，没有 shared/shell 副本）。
+ * 扫描范围：space/web/assets/shell/js/（2026-11 合站后子站直接用这里的外壳脚本，没有 shared/shell 副本）。
  * 去注释按词法走（字符串里的 // 不当注释），以前用正则去注释，'https://…' 之后同一行的代码会被当注释吞掉，
  * 那一行的 alert( 就查不到。
  * 原生弹窗除了裸调用和 window.，也查 globalThis. / self. / top. 和 window['alert'] 这种写法。
@@ -93,7 +93,7 @@ export function stripComments(src) {
  * （2026-11-08 账号 UI 改版：账号页删了，头像改成账号终端里的行内选项，apps/account.js、account-apps.js、avatar-edit.js 移出白名单）
  */
 export const SHEET_ALLOW = new Set([
-  'space/web/assets/js/shell/sheet.js',
+  'space/web/assets/shell/js/shell/sheet.js',
 ]);
 
 /* 规则 2 的匹配模式（作用于去注释后的代码，逐行检查，报错带行号） */
@@ -156,7 +156,7 @@ export function checkSource(r, src) {
  * @returns {{files:number, errors:string[]}}
  */
 export function checkRepo(root) {
-  const files = walk(join(root, 'space/web/assets/js'));
+  const files = walk(join(root, 'space/web/assets/shell/js'));
   const errors = [];
   for (const f of files) {
     const r = relative(root, f).split(sep).join('/');

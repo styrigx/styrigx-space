@@ -11,7 +11,7 @@
    - 视口变了（拖窗口、分屏、转屏、切桌面版网站）不刷新页面：__sgxLayoutWatch(fn) 用 matchMedia 听 720 那条线和横竖屏，
      bfcache 恢复（pageshow persisted）也重算一次，变了就调 fn（各站传 __applyLayout）。
    经典脚本 ES5，只定义全局函数，不碰 DOM；调用方把结果写进 <html data-sgx-layout="phone|desktop" data-sgx-device="phone|desktop"> 和各站自己的 layout-* 类。
-   主站 space/web/assets/js/lib/prefs.js resolveLayout() 是同一条规则（tests/space/ui/layout/layout-mode.test.mjs 对表）。
+   主站 space/web/assets/shell/js/lib/prefs.js resolveLayout() 是同一条规则（tests/space/ui/layout/layout-mode.test.mjs 对表）。
    另外三件首帧前的事也在这里（四站同一份、同一个时机：外观预读之后、样式表生效之前），见文件末尾：
    - 手动桌面 + 手机屏 → viewport 改成固定 980 宽（__sgxViewportSync）；
    - 首帧底色：color-scheme / theme-color / 最低优先级的 html 底色跟着本站深浅色走，不跟系统（__sgxFirstPaint）；

@@ -22,7 +22,7 @@ import { readFileSync, writeFileSync, readdirSync, statSync, existsSync, mkdirSy
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { langPath, stripLang } from '../web/assets/js/lib/lang-path.js';
+import { langPath, stripLang } from '../web/assets/shell/js/lib/lang-path.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const PUB = path.join(REPO, 'space/web/public');

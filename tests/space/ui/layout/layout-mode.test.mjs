@@ -12,11 +12,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveLayout, resolveDevice, normLayout, uaMobile, layoutNarrow } from '../../../../space/web/assets/js/lib/prefs.js';
+import { resolveLayout, resolveDevice, normLayout, uaMobile, layoutNarrow } from '../../../../space/web/assets/shell/js/lib/prefs.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const baseof = readFileSync(path.join(REPO, 'space/web/layouts/_default/baseof.html'), 'utf8');
-const lib = readFileSync(path.join(REPO, 'space/web/assets/js/lib/layout-mode.js'), 'utf8');
+const lib = readFileSync(path.join(REPO, 'space/web/assets/shell/js/lib/layout-mode.js'), 'utf8');
 const src = baseof.match(/function __layoutMode\(\)\{[\s\S]*?\n\}/)[0];
 
 const PHONE_UA = 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';

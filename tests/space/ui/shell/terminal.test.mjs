@@ -1,5 +1,5 @@
 /**
- * 终端引擎（v5 S5 终端合一，space/web/assets/js/shell/terminal.js）：一张命令表、一份历史、提示符按身份（v6 P4 起：访客 nobody / v6 用户 u:<名> / v6 root u:root，服务端说了算）。
+ * 终端引擎（v5 S5 终端合一，space/web/assets/shell/js/shell/terminal.js）：一张命令表、一份历史、提示符按身份（v6 P4 起：访客 nobody / v6 用户 u:<名> / v6 root u:root，服务端说了算）。
  * 测行为：解析、补全、影子、目录、各身份的 man / 提示符 / 门槛、要输入验证的命令交给两层上下文（账号 acct / v6 身份 ident）、exit、历史、文案。
  * 运行：node --test tests/space/ui/shell/terminal.test.mjs
  */
@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { parse, complete, ghost, normDir, cwdPath, fill, createShell, createWho, COMMANDS, ARGS, DIRS, TERM_EN } from '../../../../space/web/assets/js/shell/terminal.js';
+import { parse, complete, ghost, normDir, cwdPath, fill, createShell, createWho, COMMANDS, ARGS, DIRS, TERM_EN } from '../../../../space/web/assets/shell/js/shell/terminal.js';
 
 /* theme 的参数 = 调色板 id（2026-11-12 调色板 v4）：页面上来自共享读端 window.SgxUI.PRESETS，这里按 palettes.json 挂一个（取值时现读，import 之后挂也行） */
 const PAL = JSON.parse(readFileSync(new URL('../../../../space/web/data/shell/palettes.json', import.meta.url), 'utf8')).presets.map((p) => p.id);
@@ -405,21 +405,21 @@ test('文案：外壳字符串表 en / zh 都有 term 节，键和引擎英文�
 });
 
 test('共享外壳约束：terminal.js 只 import shell/term/**（终端统一 T1）、不写 innerHTML；四个顶栏入口都把它传给 mountTopbar', () => {
-  const src = readFileSync(path.join(REPO, 'space/web/assets/js/shell/terminal.js'), 'utf8');
+  const src = readFileSync(path.join(REPO, 'space/web/assets/shell/js/shell/terminal.js'), 'utf8');
   const imports = src.match(/^\s*import\s[^;]*;/gm) || [];
   assert.ok(imports.length > 0);
   for (const l of imports) assert.match(l.trim(), /from '\.\/term\/[a-z0-9/-]+\.js';$/, l);
   assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /\bimport\s*\(/);
   assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /innerHTML/);
-  for (const f of ['space/web/assets/js/shell/quick-panel.js', 'space/web/assets/curio/js/sgx/topbar-host.js', 'space/web/assets/daymark/js/sgx/topbar-host.js', 'space/web/assets/blog/js/entries/topnav.ts']) {
+  for (const f of ['space/web/assets/shell/js/shell/quick-panel.js', 'space/web/assets/curio/js/sgx/topbar-host.js', 'space/web/assets/daymark/js/sgx/topbar-host.js', 'space/web/assets/blog/js/entries/topnav.ts']) {
     const s = readFileSync(path.join(REPO, f), 'utf8');
-    assert.match(s, /import \* as terminal from '[./]+(js\/shell\/)?terminal\.js';/, f);
+    assert.match(s, /import \* as terminal from '[./]+((?:shell\/)?js\/shell\/)?terminal\.js';/, f);
     assert.match(s, /\n\s+terminal,\n/, f);
   }
 });
 
 test('man 节（en / zh）：键 = man 页的命令；英文表 = pages.js 英文底', async () => {
-  const { PAGES } = await import('../../../../space/web/assets/js/shell/term/man/pages.js');
+  const { PAGES } = await import('../../../../space/web/assets/shell/js/shell/term/man/pages.js');
   const en = yaml.load(readFileSync(path.join(REPO, 'space/web/data/sgx-shell-i18n/en.yaml'), 'utf8')).man;
   const zh = yaml.load(readFileSync(path.join(REPO, 'space/web/data/sgx-shell-i18n/zh.yaml'), 'utf8')).man;
   assert.deepEqual(Object.keys(en).sort(), Object.keys(PAGES).sort());

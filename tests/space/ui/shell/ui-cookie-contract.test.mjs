@@ -15,9 +15,9 @@ import { shellFiles, READER_SRC } from '../../../../space/scripts/gen-shell.mjs'
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const READER = readFileSync(READER_SRC, 'utf8');
-const WRITER = readFileSync(path.join(REPO, 'space/web/assets/js/lib/ui-cookie.js'), 'utf8');
+const WRITER = readFileSync(path.join(REPO, 'space/web/assets/shell/js/lib/ui-cookie.js'), 'utf8');
 /* 2026-11-04 P5-1：cookie 写法搬进外观写端 lib/prefs-write.js（共享外壳 prefs-write.js，四站一个写端）；ui-cookie.js 只先引读端再转导出 */
-const PREFS_WRITE = readFileSync(path.join(REPO, 'space/web/assets/js/lib/prefs-write.js'), 'utf8');
+const PREFS_WRITE = readFileSync(path.join(REPO, 'space/web/assets/shell/js/lib/prefs-write.js'), 'utf8');
 const fx = JSON.parse(readFileSync(FIXTURE, 'utf8'));
 const palettes = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/shell/palettes.json'), 'utf8'));
 
@@ -175,7 +175,7 @@ test('读端是 ES5 经典脚本：没有箭头函数 / let / const / 模板串 
 test('共享外壳带上读端 / 图标（2026-11 合站后子站直接用主站源文件；契约夹具只有 tests/fixtures 一份）', () => {
   const files = shellFiles();
   assert.equal(files['ui-cookie-read.js'], READER);
-  assert.equal(files['favicon.js'], readFileSync(path.join(REPO, 'space/web/assets/js/shell/favicon.js'), 'utf8'));
+  assert.equal(files['favicon.js'], readFileSync(path.join(REPO, 'space/web/assets/shell/js/shell/favicon.js'), 'utf8'));
   assert.equal(files['favicon.svg'], readFileSync(path.join(REPO, 'space/web/static/favicon.svg'), 'utf8'));
   assert.ok(readFileSync(FIXTURE, 'utf8').length > 100, '契约夹具');
 });
@@ -228,7 +228,7 @@ test('坏 cookie / 没有 DOM 能力也不抛：默认 terra（深套）', () =>
 });
 
 test('cookie 属性按主机名 / 协议：localhost / http 不带 Domain / Secure；styrigx.com 及子域 https 带（P5-1 跨站 e2e 修法）', async () => {
-  const { cookieAttrs } = await import('../../../../space/web/assets/js/lib/prefs-write.js');
+  const { cookieAttrs } = await import('../../../../space/web/assets/shell/js/lib/prefs-write.js');
   const prod = '; Domain=styrigx.com; Path=/; Max-Age=34560000; SameSite=Lax; Secure';
   assert.equal(cookieAttrs({ hostname: 'styrigx.com', protocol: 'https:' }), prod);
   assert.equal(cookieAttrs({ hostname: 'blog.styrigx.com', protocol: 'https:' }), prod);

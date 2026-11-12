@@ -21,9 +21,9 @@ function walk(dir) {
 }
 
 test('语音搜索删干净：没有 voice.js / voice-sheet.js、SpeechRecognition、麦克风按钮、语音文案和样式', () => {
-  assert.equal(existsSync(path.join(REPO, 'space/web/assets/js/shell/voice.js')), false);
-  assert.equal(existsSync(path.join(REPO, 'space/web/assets/js/shell/voice-sheet.js')), false);
-  for (const f of walk('space/web/assets/js')) {
+  assert.equal(existsSync(path.join(REPO, 'space/web/assets/shell/js/shell/voice.js')), false);
+  assert.equal(existsSync(path.join(REPO, 'space/web/assets/shell/js/shell/voice-sheet.js')), false);
+  for (const f of walk('space/web/assets/shell/js')) {
     const s = rd(f);
     assert.doesNotMatch(s, /SpeechRecognition|voiceSheet|voiceInput|data-mic|#voice/, f);
   }

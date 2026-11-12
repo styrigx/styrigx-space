@@ -1,15 +1,15 @@
 // 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个，标记 partials/sgx-shell-topbar.html）：快捷面板（导航 / 快捷设置，含「分享本页」）+ AI 窗口 + 文章页阅读进度细线。
 // 开合 / 互斥 / 两页 / 磁贴都在共享外壳 topbar.js；这里把状态机、外观写端、AI 内容、分享传进去。整页跳转，末尾的 initTopbar() 直接初始化。
-import { mountTopbar } from '../../../js/shell/topbar-panel.js';
-import { modalSheet } from '../../../js/shell/modal-sheet.js';
-import { mountAiChat } from '../../../js/shell/ai-panel.js';
-import { onKeyboardHeight } from '../../../js/shell/vk.js';
-import * as prefs from '../../../js/lib/prefs-write.js';
-import * as terminal from '../../../js/shell/terminal.js';
-import { KEY_SPACE_PASSWORD } from '../../../js/lib/key-names.js';
-import { mountAccountLayer } from '../../../js/shell/account/cmd/layer.js';
-import { mountIdentityLayer } from '../../../js/shell/identity/layer.js';
-import { whoami as identityWhoami, hasMarker as identityMarker } from '../../../js/shell/identity/api.js';
+import { mountTopbar } from '../../../shell/js/shell/topbar-panel.js';
+import { modalSheet } from '../../../shell/js/shell/modal-sheet.js';
+import { mountAiChat } from '../../../shell/js/shell/ai-panel.js';
+import { onKeyboardHeight } from '../../../shell/js/shell/vk.js';
+import * as prefs from '../../../shell/js/lib/prefs-write.js';
+import * as terminal from '../../../shell/js/shell/terminal.js';
+import { KEY_SPACE_PASSWORD } from '../../../shell/js/lib/key-names.js';
+import { mountAccountLayer } from '../../../shell/js/shell/account/cmd/layer.js';
+import { mountIdentityLayer } from '../../../shell/js/shell/identity/layer.js';
+import { whoami as identityWhoami, hasMarker as identityMarker } from '../../../shell/js/shell/identity/api.js';
 
 /** 文章阅读进度：#article-start（正文）从顶栏下沿开始读，到正文底部离开视口底部为 100%；画在长条底边。 */
 let ticking = false;

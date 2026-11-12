@@ -2,10 +2,10 @@
 /**
  * sgx-ui cookie 契约夹具（2026-10-22）：tests/fixtures/ui-cookie-contract.json。
  *
- * - writer 用例：在 Node 里给主站真写端 space/web/assets/js/lib/ui-cookie.js 搭一个最小 window / localStorage / document.cookie，
+ * - writer 用例：在 Node 里给主站真写端 space/web/assets/shell/js/lib/ui-cookie.js 搭一个最小 window / localStorage / document.cookie，
  *   按 local（localStorage）跑 syncUiCookie()，记下它写出的 cookie 值——夹具里的 cookie 就是写端的真实产出。
  * - handmade 用例：写端写不出来的（旧 v1、v4 之前写端写的 mode / accent / mat、未知版本、乱码、字段不合法），手写。
- * - 每个用例带读端 space/web/assets/js/lib/ui-cookie-read.js 的期望：read()、resolve(系统浅 / 深)、apply() 后 <html> 的状态。
+ * - 每个用例带读端 space/web/assets/shell/js/lib/ui-cookie-read.js 的期望：read()、resolve(系统浅 / 深)、apply() 后 <html> 的状态。
  *   期望值是这里按契约写死的，不是拿读端自己算的（读端改错了，单测会和夹具对不上）。
  * - 共享外壳（gen-shell.mjs）把夹具原样带给子站，子站仓库可以跑同一套断言。
  *
@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const FIXTURE = path.join(REPO, 'tests/fixtures/ui-cookie-contract.json');
-const WRITER = path.join(REPO, 'space/web/assets/js/lib/ui-cookie.js');
+const WRITER = path.join(REPO, 'space/web/assets/shell/js/lib/ui-cookie.js');
 const ROLES = path.join(REPO, 'space/web/data/palette-roles.json');
 /** 夹具生成时写端看到的固定时间（v4 起写端不再写 mat，留着只为把 Date.now 钉住） */
 export const NOW = 1761062400000;
@@ -165,7 +165,7 @@ export async function renderContract() {
     ...HANDMADE.map((c) => ({ name: c.name, source: 'handmade', cookie: c.cookie, read: c.read, ...expectations(c.read) })),
   ];
   const doc = {
-    _generated: 'styrigx-space space/scripts/gen-ui-cookie-contract.mjs ← space/web/assets/js/lib/ui-cookie.js（写端真实产出）；勿手改',
+    _generated: 'styrigx-space space/scripts/gen-ui-cookie-contract.mjs ← space/web/assets/shell/js/lib/ui-cookie.js（写端真实产出）；勿手改',
     _doc: 'cookie = sgx-ui 的值（document.cookie 里 sgx-ui= 后面那段）。read = SgxUI.read() 的期望（null = 当没有 cookie）；light / dark = 系统浅 / 深色时 SgxUI.resolve() 和 SgxUI.apply() 后 <html> 的期望（v4 起两者相同：深浅只由调色板决定）。root.dark / reduced-motion = class；fontSize = style.fontSize；data-palette null = 不写。',
     now: NOW,
     cases,

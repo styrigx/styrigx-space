@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { uptimeDays, uptimeText } from '../../../../space/web/assets/js/lib/uptime.js';
+import { uptimeDays, uptimeText } from '../../../../space/web/assets/shell/js/lib/uptime.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 

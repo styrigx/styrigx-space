@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { installI18nDom, setI18nLang } from '../../../fixtures/i18n-dom.mjs';
-import { fmtDaymarkDay, daymarkByline, paintDaymark } from '../../../../space/web/assets/js/lib/daymark-today.js';
+import { fmtDaymarkDay, daymarkByline, paintDaymark } from '../../../../space/web/assets/shell/js/lib/daymark-today.js';
 
 /* 语言包化 2026-11-07：文案和日期按页面语言（<html lang> + #sgx-i18n-space），参数 en 只是兼容旧调用 */
 installI18nDom('zh');

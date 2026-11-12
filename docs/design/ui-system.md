@@ -28,7 +28,7 @@
 
 ## 3. 布局模式
 
-3.1 只有两种布局：`phone` / `desktop`（界面叫 Mobile / DeX），写在 `<html data-sgx-layout>`；规则在 `assets/js/lib/layout-mode.js`（首帧前内联），与 `lib/prefs.js` `resolveLayout()` 同一条规则（单测对表）。
+3.1 只有两种布局：`phone` / `desktop`（界面叫 Mobile / DeX），写在 `<html data-sgx-layout>`；规则在 `assets/shell/js/lib/layout-mode.js`（首帧前内联），与 `lib/prefs.js` `resolveLayout()` 同一条规则（单测对表）。
 
 3.2 偏好存 localStorage `sgx-layout` = `phone` / `auto` / `desktop`（旧值 `mobile` → `phone`，`dex` / `pc` → `desktop`）。
 

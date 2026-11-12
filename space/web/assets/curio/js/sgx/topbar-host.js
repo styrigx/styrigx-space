@@ -7,17 +7,17 @@
  * - AI 窗口内容 ai.js（v6 P4 起「分享本页」磁贴随分享短链删除）。
  * 取代原来的 topbar.js（导航抽屉）、share-host.js（右圆分享）。
  */
-import { mountTopbar } from '../../../js/shell/topbar-panel.js';
-import { modalSheet } from '../../../js/shell/modal-sheet.js';
-import { mountAiChat } from '../../../js/shell/ai-panel.js';
-import { mountAccountWindow, layerFromPath } from '../../../js/shell/account/window.js';
-import { mountAccountLayer } from '../../../js/shell/account/cmd/layer.js';
-import { mountIdentityLayer } from '../../../js/shell/identity/layer.js';
-import { whoami as identityWhoami, hasMarker as identityMarker } from '../../../js/shell/identity/api.js';
-import { KEY_SPACE_PASSWORD } from '../../../js/lib/key-names.js';
-import { onKeyboardHeight } from '../../../js/shell/vk.js';
-import * as prefs from '../../../js/lib/prefs-write.js';
-import * as terminal from '../../../js/shell/terminal.js';
+import { mountTopbar } from '../../../shell/js/shell/topbar-panel.js';
+import { modalSheet } from '../../../shell/js/shell/modal-sheet.js';
+import { mountAiChat } from '../../../shell/js/shell/ai-panel.js';
+import { mountAccountWindow, layerFromPath } from '../../../shell/js/shell/account/window.js';
+import { mountAccountLayer } from '../../../shell/js/shell/account/cmd/layer.js';
+import { mountIdentityLayer } from '../../../shell/js/shell/identity/layer.js';
+import { whoami as identityWhoami, hasMarker as identityMarker } from '../../../shell/js/shell/identity/api.js';
+import { KEY_SPACE_PASSWORD } from '../../../shell/js/lib/key-names.js';
+import { onKeyboardHeight } from '../../../shell/js/shell/vk.js';
+import * as prefs from '../../../shell/js/lib/prefs-write.js';
+import * as terminal from '../../../shell/js/shell/terminal.js';
 
 function boot() {
   mountTopbar({

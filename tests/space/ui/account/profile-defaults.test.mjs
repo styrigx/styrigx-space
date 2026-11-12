@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
-const P = await import('../../../../space/web/assets/js/lib/profile.js');
+const P = await import('../../../../space/web/assets/shell/js/lib/profile.js');
 
 const DEF = { name: 'Sloan Gray', nickname: 'Styrigx', motto: 'To understand the world', email: 'me@styrigx.com' };
 
@@ -37,7 +37,7 @@ test('四站都输出 #sgx-profile-default（同一个片段，读 data/profile.
 });
 
 test('账号下拉头部：姓名 / 昵称只取 effectiveProfile 的结果，不写死 Styrigx 回退', () => {
-  const term = rd('space/web/assets/js/shell/account/window.js');
+  const term = rd('space/web/assets/shell/js/shell/account/window.js');
   assert.doesNotMatch(term, /p\.name \|\| 'Styrigx'|p\.nickname \|\| 'Styrigx'/);
   assert.match(term, /esc\(p\.name\)/);
 });
@@ -49,7 +49,7 @@ test('签名不限长度（Gray 2026-11-09 18:11）：前端 checkValue 不拦�
   assert.equal(P.checkValue('name', '甲'.repeat(41)), 'too-long');
   assert.equal(P.checkValue('nickname', 'x'.repeat(33)), 'too-long');
   assert.equal(P.PROFILE_FIELDS.find((f) => f.id === 'motto').max, null);
-  const ed = rd('space/web/assets/js/shell/account/cmd/profile.js');
+  const ed = rd('space/web/assets/shell/js/shell/account/cmd/profile.js');
   assert.match(ed, /checkValue\(id, v\)/, 'profile set 只经 lib/profile.js checkValue 检查');
   assert.doesNotMatch(ed, /maxlength/);
 });

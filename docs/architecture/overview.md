@@ -87,7 +87,7 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 
 ## 6. 前端分层
 
-前端代码在 `space/web/assets/js/`，四站共用。
+前端代码在 `space/web/assets/shell/js/`，四站共用。
 
 | 层 | 目录 | 允许 import |
 |---|---|---|
@@ -97,7 +97,7 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 | apps | `apps/` | 以上全部，`apps/` |
 | entries | `entries/` | 以上全部 |
 
-6.1 只能向左 import；前端 MUST NOT import `space/web/assets/js/` 以外的文件（`check-layers.mjs` 规则 1–5）。
+6.1 只能向左 import；前端 MUST NOT import `space/web/assets/shell/js/` 以外的文件（`check-layers.mjs` 规则 1–5）。
 
 6.2 `lib/` MUST NOT 含鉴权逻辑：不得出现 `/api/lock-*`、`/api/space-*`、`/api/account` 与 `navigator.credentials`（规则 6）。
 

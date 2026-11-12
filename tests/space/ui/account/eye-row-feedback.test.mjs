@@ -23,7 +23,7 @@ import {
   tapFeedback,
   setRowBusy,
   setRowSelected,
-} from '../../../../space/web/assets/js/lib/dialog-behavior.js';
+} from '../../../../space/web/assets/shell/js/lib/dialog-behavior.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -126,8 +126,8 @@ test('眼睛：EYE_OFF_SVG 带斜线、EYE_SVG 不带；icon.html 有 eye/eye-of
 });
 
 test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案为显示密码/隐藏密码', () => {
-  const spaceDir = 'space/web/assets/js/shell/space';
-  const files = ['space/web/assets/js/shell/account/window.js', 'space/web/assets/js/shell/account/cmd/keys.js']
+  const spaceDir = 'space/web/assets/shell/js/shell/space';
+  const files = ['space/web/assets/shell/js/shell/account/window.js', 'space/web/assets/shell/js/shell/account/cmd/keys.js']
     .concat(readdirSync(join(ROOT, spaceDir)).filter((f) => f.endsWith('.js')).map((f) => spaceDir + '/' + f));
   for (const f of files) {
     const src = read(f);
@@ -136,14 +136,14 @@ test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案�
   }
   /* 进站 v3 L1：安全页（security.js / security-lock.js）和锁屏 lock.js、cred-rows.js 都删了，进站凭证在盾牌终端里 */
   for (const f of ['apps/security.js', 'apps/security-lock.js', 'shell/lock.js', 'auth/cred-rows.js']) {
-    assert.ok(!existsSync(join(ROOT, 'space/web/assets/js', f)), f + ' 已删');
+    assert.ok(!existsSync(join(ROOT, 'space/web/assets/shell/js', f)), f + ' 已删');
   }
   /* v6 P4 收尾：旧账号页文案表 js.account 没有页面输出、没有脚本读，整节删了 */
   assert.deepEqual(jsDict('account'), {}, 'js.account 删了');
   /* v6 P4：钥匙层（shell/space/ 下的进站 / reset / 复验）随旧进站会话删了，只剩守卫 */
   for (const f of ['paths.js', 'layer.js', 'reset.js', 'session.js']) assert.ok(!existsSync(join(spaceDir, f)), 'shell/space/' + f + ' 已删（v6 P4）');
   /* P2-3：升级验证层（shell/upgrade.js）已删除 */
-  assert.ok(!existsSync(join(ROOT, 'space/web/assets/js/shell/upgrade.js')), 'shell/upgrade.js 已删除');
+  assert.ok(!existsSync(join(ROOT, 'space/web/assets/shell/js/shell/upgrade.js')), 'shell/upgrade.js 已删除');
 });
 
 test('行反馈：tapFeedback 有 vibrate 时以 10ms 调用，不支持时不报错', () => {

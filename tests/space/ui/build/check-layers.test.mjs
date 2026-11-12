@@ -37,7 +37,7 @@ const GW = 'workers/space-core/';
 
 /** 规则 19–21 要的骨架文件（README.md、带 name 的 package.json）：fixture 里的 Worker 目录有 wrangler.toml 时补上，免得干扰别的规则 @param {string} dir 如 'workers/account/' */
 const skeletonFiles = (dir) => ({ [dir + 'README.md']: '# x\n', [dir + 'package.json']: '{"name":"x","private":true,"type":"module"}' });
-const FE = 'space/web/assets/js/';
+const FE = 'space/web/assets/shell/js/';
 
 test('check-layers：本仓库通过', () => {
   const { files, errors } = layers.checkRepo(REPO);
@@ -165,20 +165,20 @@ test('check-layers：前端层方向', () => {
     [FE + 'auth/y.js']: 'export const y = 1;',
     [FE + 'shell/s.js']: "import { x } from '../auth/x.js';\nimport { b } from '../lib/b.js';\nimport { p } from '../apps/p.js';",
     [FE + 'apps/p.js']: "import { s } from '../shell/s.js';\nimport { x } from '../auth/x.js';\nimport { e } from '../entries/e.js';",
-    [FE + 'entries/e.js']: "import { p } from '../apps/p.js';\nimport { k } from '../../../../../workers/space-core/src/core/k.js';",
+    [FE + 'entries/e.js']: "import { p } from '../apps/p.js';\nimport { k } from '../../../../../../workers/space-core/src/core/k.js';",
     [GW + 'src/core/k.js']: 'export const k = 1;',
   });
   try {
     const { errors } = layers.checkRepo(root);
     const want = [
-      'space/web/assets/js/lib/a.js: lib/ 禁止 import shell/',
-      'space/web/assets/js/lib/a.js: lib/ 禁止 import auth/',
-      'space/web/assets/js/lib/a.js: lib/ 禁止 import apps/',
-      'space/web/assets/js/auth/x.js: auth/ 禁止 import shell/',
-      'space/web/assets/js/auth/x.js: auth/ 禁止 import apps/',
-      'space/web/assets/js/shell/s.js: shell/ 禁止 import apps/',
-      'space/web/assets/js/apps/p.js: apps/ 禁止 import entries/',
-      'space/web/assets/js/entries/e.js: 前端禁止 import space/web/assets/js/ 以外的文件',
+      'space/web/assets/shell/js/lib/a.js: lib/ 禁止 import shell/',
+      'space/web/assets/shell/js/lib/a.js: lib/ 禁止 import auth/',
+      'space/web/assets/shell/js/lib/a.js: lib/ 禁止 import apps/',
+      'space/web/assets/shell/js/auth/x.js: auth/ 禁止 import shell/',
+      'space/web/assets/shell/js/auth/x.js: auth/ 禁止 import apps/',
+      'space/web/assets/shell/js/shell/s.js: shell/ 禁止 import apps/',
+      'space/web/assets/shell/js/apps/p.js: apps/ 禁止 import entries/',
+      'space/web/assets/shell/js/entries/e.js: 前端禁止 import space/web/assets/shell/js/ 以外的文件',
     ];
     for (const w of want) assert.ok(errors.some((e) => e.startsWith(w)), '缺：' + w + '\n' + errors.join('\n'));
     assert.equal(errors.length, want.length, errors.join('\n'));
@@ -224,7 +224,7 @@ test('check-frontend：原生弹窗的各种写法', () => {
     "const u = 'https://styrigx.com/'; alert(u);",
   ];
   for (const code of bad) {
-    const errs = frontend.checkSource('space/web/assets/js/apps/x.js', code);
+    const errs = frontend.checkSource('space/web/assets/shell/js/apps/x.js', code);
     assert.equal(errs.length, 1, code + ' → ' + JSON.stringify(errs));
     assert.match(errs[0], /禁止原生弹窗/);
   }
@@ -234,48 +234,48 @@ test('check-frontend：原生弹窗的各种写法', () => {
     "confirmLockNow();",
     "const u = 'https://a/'; // alert(u)",
   ]) {
-    assert.deepEqual(frontend.checkSource('space/web/assets/js/apps/x.js', code), [], code);
+    assert.deepEqual(frontend.checkSource('space/web/assets/shell/js/apps/x.js', code), [], code);
   }
 });
 
 test('check-frontend：行号按原文（多行块注释之后）', () => {
-  const errs = frontend.checkSource('space/web/assets/js/apps/x.js', "/* a\n b\n c */\nconst s = 'http://x';\nalert(s);");
+  const errs = frontend.checkSource('space/web/assets/shell/js/apps/x.js', "/* a\n b\n c */\nconst s = 'http://x';\nalert(s);");
   assert.equal(errs.length, 1);
-  assert.match(errs[0], /^space\/web\/assets\/js\/apps\/x\.js:5:/);
+  assert.match(errs[0], /^space\/web\/assets\/shell\/js\/apps\/x\.js:5:/);
 });
 
 test('check-frontend：独立 token 变量', () => {
   for (const code of ['let token = 1;', 'token = x;', 'function f(token) {}', '(token) => token', 'post({ token: t })', 'post({ a, token })']) {
-    assert.equal(frontend.checkSource('space/web/assets/js/apps/x.js', code).length, 1, code);
+    assert.equal(frontend.checkSource('space/web/assets/shell/js/apps/x.js', code).length, 1, code);
   }
   for (const code of ['const csrfToken = 1;', 'submitToken(token2);', "// let token = 1"]) {
-    assert.deepEqual(frontend.checkSource('space/web/assets/js/apps/x.js', code), [], code);
+    assert.deepEqual(frontend.checkSource('space/web/assets/shell/js/apps/x.js', code), [], code);
   }
 });
 
 test('check-frontend 规则 3：openSheet( 只许白名单文件（P4-3 §6.7 不做底部弹出窗口）', () => {
   /* 白名单外：调用、改名 import 都拦；报错带行号和规则号 */
   for (const code of ["openSheet({ title: 'x' });", "import { openSheet } from '../shell/sheet.js';\nopenSheet({});", "import { openSheet as os } from '../shell/sheet.js';", 'const u = 1;\nopenSheet ({})']) {
-    const errs = frontend.checkSource('space/web/assets/js/apps/new-app.js', code);
+    const errs = frontend.checkSource('space/web/assets/shell/js/apps/new-app.js', code);
     assert.equal(errs.length, 1, code + ' → ' + JSON.stringify(errs));
     assert.match(errs[0], /规则 3/);
   }
-  assert.match(frontend.checkSource('space/web/assets/js/apps/x.js', 'const u = 1;\nopenSheet({});')[0], /^space\/web\/assets\/js\/apps\/x\.js:2:/);
+  assert.match(frontend.checkSource('space/web/assets/shell/js/apps/x.js', 'const u = 1;\nopenSheet({});')[0], /^space\/web\/assets\/shell\/js\/apps\/x\.js:2:/);
   /* 只 import 不调用、注释里、别的名字不算 */
   for (const code of ["import { closeSheet } from '../shell/sheet.js';", '// openSheet({})', '/* openSheet({}) */', 'openSheetLater();', 'reopenSheet();']) {
-    assert.deepEqual(frontend.checkSource('space/web/assets/js/apps/new-app.js', code), [], code);
+    assert.deepEqual(frontend.checkSource('space/web/assets/shell/js/apps/new-app.js', code), [], code);
   }
   /* 账号页 AI 模型已改行内展开：account-ai.js 不在白名单，再调就拦 */
-  assert.equal(frontend.SHEET_ALLOW.has('space/web/assets/js/apps/account-ai.js'), false);
-  assert.equal(frontend.checkSource('space/web/assets/js/apps/account-ai.js', 'openSheet({});').length, 1);
+  assert.equal(frontend.SHEET_ALLOW.has('space/web/assets/shell/js/apps/account-ai.js'), false);
+  assert.equal(frontend.checkSource('space/web/assets/shell/js/apps/account-ai.js', 'openSheet({});').length, 1);
   /* 白名单里照常放行；PR-4b 语言选择改行内后 settings.js 已删、移出白名单，旷野页 space.js 不在白名单 */
-  assert.equal(frontend.SHEET_ALLOW.has('space/web/assets/js/apps/settings.js'), false);
-  assert.equal(frontend.SHEET_ALLOW.has('space/web/assets/js/apps/space.js'), false);
+  assert.equal(frontend.SHEET_ALLOW.has('space/web/assets/shell/js/apps/settings.js'), false);
+  assert.equal(frontend.SHEET_ALLOW.has('space/web/assets/shell/js/apps/space.js'), false);
   /* 2026-11-08 账号整页删了、头像改成账号终端里的行内选项：白名单只剩 sheet.js 本身 */
-  for (const f of ['space/web/assets/js/apps/account.js', 'space/web/assets/js/apps/account-apps.js', 'space/web/assets/js/apps/avatar-edit.js', 'space/web/assets/js/shell/account/avatar-edit.js']) {
+  for (const f of ['space/web/assets/shell/js/apps/account.js', 'space/web/assets/shell/js/apps/account-apps.js', 'space/web/assets/shell/js/apps/avatar-edit.js', 'space/web/assets/shell/js/shell/account/avatar-edit.js']) {
     assert.equal(frontend.SHEET_ALLOW.has(f), false, f);
   }
-  for (const f of ['space/web/assets/js/shell/sheet.js']) {
+  for (const f of ['space/web/assets/shell/js/shell/sheet.js']) {
     assert.ok(frontend.SHEET_ALLOW.has(f), f);
     assert.deepEqual(frontend.checkSource(f, 'openSheet({});'), [], f);
   }
@@ -347,8 +347,8 @@ test('规则 16：注释、ACCOUNT_VERIFIER.authorize()、首帧提示属性名�
 test('规则 22：账号 Worker / 账号前端里出现退役旧名（含注释）报错；别处不管；名单只在 retired-names.json', () => {
   const errs = layers.checkFile(REPO, join(REPO, AC + 'src/core/session.js'), "// 原来叫 verifyAccountSession\nconst a = 'root-reset';\nconst b = 'reset-recovery-key';");
   assert.deepEqual(errs.map((e) => e.replace(/（.*$/, '')).sort(), [AC + 'src/core/session.js:1: 退役旧名 verifyAccountSession', AC + 'src/core/session.js:2: 退役旧名 root-reset'].sort());
-  assert.deepEqual(layers.checkFile(REPO, join(REPO, 'space/web/assets/js/shell/account/api.js'), "post('/api/account/session', { action: 'password' })"), []);
-  assert.ok(layers.checkFile(REPO, join(REPO, 'space/web/assets/js/shell/account/api.js'), "post('/api/account', { action: 'login-password' })").some((e) => /login-password/.test(e)));
+  assert.deepEqual(layers.checkFile(REPO, join(REPO, 'space/web/assets/shell/js/shell/account/api.js'), "post('/api/account/session', { action: 'password' })"), []);
+  assert.ok(layers.checkFile(REPO, join(REPO, 'space/web/assets/shell/js/shell/account/api.js'), "post('/api/account', { action: 'login-password' })").some((e) => /login-password/.test(e)));
   assert.deepEqual(layers.checkFile(REPO, join(REPO, 'space/scripts/x.mjs'), "const a = 'root-reset';"), [], '范围外不管');
   assert.ok(layers.retiredNames().includes('SGX_ACCOUNT_ROOT_KEY'));
 });

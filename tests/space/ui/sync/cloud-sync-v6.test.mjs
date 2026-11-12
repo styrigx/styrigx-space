@@ -40,8 +40,8 @@ globalThis.fetch = (url, init) => {
   return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(j) });
 };
 
-const CS = await import('../../../../space/web/assets/js/lib/cloud-sync.js');
-const P = await import('../../../../space/web/assets/js/lib/profile.js');
+const CS = await import('../../../../space/web/assets/shell/js/lib/cloud-sync.js');
+const P = await import('../../../../space/web/assets/shell/js/lib/profile.js');
 const settle = async () => { for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r)); };
 
 beforeEach(() => {

@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { shellFiles, readWordmark } from '../../../../space/scripts/gen-shell.mjs';
-import { toHex, recolor } from '../../../../space/web/assets/js/shell/favicon.js';
+import { toHex, recolor } from '../../../../space/web/assets/shell/js/shell/favicon.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p));
@@ -56,7 +56,7 @@ test('标签页图标 + 分享卡片：静态文件齐全、尺寸对', () => {
   /* 2026-10-23 PR-G：方块 = 当时默认色板 terra 的浅色主色 #a94521，和 favicon.js 的 BG 同一个值。
      2026-11-12 调色板 v4 起 terra 只有深套，静态图标保持这个颜色（favicon.js 按当前调色板的 primary 换色） */
   const dflt = '#a94521';
-  assert.ok(rd('space/web/assets/js/shell/favicon.js').toString().includes(`const BG = '${dflt}';`));
+  assert.ok(rd('space/web/assets/shell/js/shell/favicon.js').toString().includes(`const BG = '${dflt}';`));
   assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 1000 1000"><path fill="#a94521" d="M[^"]+"\/><path fill="#fff" d="M[^"]+"\/><\/svg>$/);
   assert.ok(svg.length < 2000, 'favicon.svg ' + svg.length);
   const ico = rd('space/web/static/favicon.ico');
