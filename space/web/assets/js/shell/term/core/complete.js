@@ -57,19 +57,3 @@ export function ghostOf(line, complete) {
   const full = c.line.replace(/\s+$/, '');
   return full.indexOf(s) === 0 ? full.slice(s.length) : '';
 }
-
-/**
- * 命令表 { names, args } → 补全函数（锁屏 / 盾牌 / 账号用；有参数候选的命令补全后加空格）
- * @param {{ names: readonly string[], args: Readonly<Record<string, readonly string[]>> }} table
- * @returns {(line: string) => {line: string, options: string[]}}
- */
-export function completerOf(table) {
-  const has = function (/** @type {string} */ c) { return Object.prototype.hasOwnProperty.call(table.args, c); };
-  return function (line) {
-    return completeLine(line, {
-      names: table.names.slice(),
-      argsOf: function (c) { return has(c) ? table.args[c].slice() : []; },
-      takesArgs: has,
-    });
-  };
-}

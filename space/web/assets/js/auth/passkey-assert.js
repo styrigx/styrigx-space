@@ -9,7 +9,6 @@
  * 不再各自手写 allowCredentials 映射和序列化。
  */
 import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
-import { loadI18n } from '../lib/i18n.js';
 
 /**
  * 服务端下发的断言 challenge → credentials.get 的 publicKey 选项。
@@ -108,26 +107,5 @@ export async function getPasskeyAssertion(options, opts) {
       try { hideEl.style.visibility = ''; } catch (e) {}
     }
   }
-}
-
-/**
- * B1-2：kind → 中文文案 key。
- * @param {string} kind
- * @param {boolean} en
- * @returns {string}
- */
-export function passkeyErrorText(kind, en) {
-  /* B1-2：文案走 i18n 表（sgx-i18n-core），无硬编码兜底 */
-  const key = kind === 'cancelled' ? 'pkCancelled'
-    : kind === 'timeout' ? 'pkTimeout'
-    : kind === 'nokey' ? 'pkNoKey'
-    : 'pkFailed';
-  try {
-    const T = loadI18n('sgx-i18n-core');
-    const text = T.t(key);
-    if (text) return text;
-  } catch (e) {}
-  console.warn('[i18n] missing key:', key);
-  return key;
 }
 

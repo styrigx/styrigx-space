@@ -9,8 +9,6 @@ import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel
 
 /** 接口地址 */
 export const IDENTITY_API = '/api/identity';
-/** 登录标记 cookie（服务端随 sgx-session 写；非 HttpOnly、值固定 1、不含秘密，只用来决定首帧要不要问 whoami） */
-export const V6_MARKER = 'sgx-id';
 
 /**
  * @param {string} action @param {Record<string, any>} [fields]
