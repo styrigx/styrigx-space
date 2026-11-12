@@ -188,12 +188,12 @@ test.describe('博客首页（对齐 PR-C，设计稿 pg=blog）：一页文章�
     await expect(page.locator('[data-series]')).toHaveCount(1);
   });
 
-  test('英文：Blog · All 9（英文 9 篇）', async ({ page }) => {
+  test('英文：Blog · All 16（英文 16 篇）', async ({ page }) => {
     await preferLang(page, 'en');
     await page.goto('/blog/', { waitUntil: 'domcontentloaded' });
     await listReady(page);
     await expect(page.locator('h1.sgx-ph-title')).toHaveText('Blog');
-    await expect(page.locator('.blog-chips [data-chip=""]').first()).toHaveText('All 9');
+    await expect(page.locator('.blog-chips [data-chip=""]').first()).toHaveText('All 16');
     await expect(page.locator('.sgx-tb-pill .sgx-tb-title')).toHaveText('Blog');
   });
 });
