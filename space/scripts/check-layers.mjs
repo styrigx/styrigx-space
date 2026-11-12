@@ -48,12 +48,24 @@
  *     （19–21 的 Worker 目录 = workers/ 下有 wrangler.toml 的子目录；workers/ 下每个子目录都得有 wrangler.toml，
  *     tests/space/ui/build/check-layers.test.mjs 核对。只管这四条，依赖方向不在这里查）
  *
+ * space 骨架契约（space/README.md，《space 架构规范 v1.8》，2026-11-13）：
+ * 23. Platform 不依赖 Products：Platform 的 JS / CSS / 模板不许 import、@import、partial、resources.Get、site.Data.<产品> 任何产品的东西
+ * 24. Products 之间不互相引用（判的是被引用对象属于哪个产品）
+ * 25. 前端（space/web/assets/** 的 JS / CSS）不许引用 space/web/assets/ 以外的文件；相对引用必须解析到真实文件
+ *     （规则 5 的扩展：规则 5 只管 assets/js/，迁移完 assets/js/ 后两条合一）
+ * 26. 落点：space/web/{assets,layouts,data}、space/scripts 下每个文件必须在 ALLOWED_PLACES 里，
+ *     或者在待迁移表 space/scripts/check/layers-pending.json 里（只许删不许加：表里的文件必须还在、且还不在目标位置）
+ * 27. 例外：space/scripts/check/layers-exceptions.json，只对 23–26 生效，每条必须有 reason；用不上的例外报错
+ *     （规范 v1.8：例外要写下来、说清楚原因，不悄悄绕过）
+ *     23–27 只在仓库根有 space/README.md 时查（单测的临时小仓库没有）；命令行直接跑时缺 README 就报错。
+ *
  * 用法：node space/scripts/check-layers.mjs [--root <仓库根>]
  * 规则函数导出给 tests/space/ui/build/check-layers.test.mjs 用。
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, relative, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { execFileSync } from 'node:child_process';
 
 const DEFAULT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -461,12 +473,245 @@ export function checkWorkerSkeleton(root) {
   return errors;
 }
 
+
+/* ───────────── space 骨架契约（规则 23–27，space/README.md） ───────────── */
+
+export const PRODUCTS = Object.freeze(['blog', 'curio', 'daymark']);
+
+/** 规则 26：允许的落点（和 space/README.md §1–§2 一致；改骨架两边同一个 PR 改） */
+export const ALLOWED_PLACES = Object.freeze([
+  /^space\/web\/assets\/shell\/(?:css|js)\/.+/,
+  /^space\/web\/assets\/(?:blog|curio|daymark)\/(?:css|js)\/.+/,
+  /^space\/web\/layouts\/[^/]+$/,
+  /^space\/web\/layouts\/(?:_default|shell|blog|curio|daymark)\/.+/,
+  /^space\/web\/layouts\/partials\/(?:shell|blog|curio|daymark)\/.+/,
+  /^space\/web\/data\/(?:shell|blog|curio|daymark)\/.+/,
+  /^space\/scripts\/(?:lib|build|check|gen|deploy|blog|curio|daymark)\/.+/,
+  /^space\/README\.md$/,
+]);
+const PLACE_SCOPE_RE = /^space\/(?:web\/(?:assets|layouts|data)|scripts)\//;
+
+export const PENDING_FILE = 'space/scripts/check/layers-pending.json';
+export const EXCEPTIONS_FILE = 'space/scripts/check/layers-exceptions.json';
+
+/**
+ * 文件归谁：某个产品，或 platform；不在 space/web 下 → null。
+ * @param {string} rel 仓库相对路径
+ */
+export function ownerOf(rel) {
+  if (!rel.startsWith('space/web/')) return null;
+  const m = rel.match(/^space\/web\/(?:assets|data|layouts\/partials|layouts)\/(blog|curio|daymark)\//);
+  return m ? m[1] : 'platform';
+}
+
+/**
+ * 模板里的引用：partial / partialCached / template、resources.Get / GetMatch / Match、site.Data.<键>、index site.Data "<键>"。
+ * 变量拼出来的路径查不到（只认字符串字面量）。
+ * @param {string} src
+ * @returns {{line:number, kind:'partial'|'resource'|'data', name:string, text:string}[]}
+ */
+export function templateRefsOf(src) {
+  const out = [];
+  const re = /\b(?:partial|partialCached|template)\s+"([^"]+)"|\bresources\.(?:Get|GetMatch|Match)\s+"([^"]+)"|(?:\bsite|\.Site|\bhugo)\.Data\.([A-Za-z_][\w-]*)|\bindex\s+(?:site|\$?\.Site)\.Data\s+"([^"]+)"/g;
+  const lines = src.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(lines[i]))) {
+      if (m[1] !== undefined) {
+        if (m[1].startsWith('_internal/')) continue;
+        out.push({ line: i + 1, kind: 'partial', name: m[1], text: m[0] });
+      } else if (m[2] !== undefined) out.push({ line: i + 1, kind: 'resource', name: m[2], text: m[0] });
+      else out.push({ line: i + 1, kind: 'data', name: m[3] ?? m[4], text: m[0] });
+    }
+  }
+  return out;
+}
+
+/** 模板引用的目标归谁 @param {{kind:string, name:string}} ref */
+function refOwner(ref) {
+  if (ref.kind === 'partial') return ownerOf('space/web/layouts/partials/' + ref.name);
+  if (ref.kind === 'resource') return ownerOf('space/web/assets/' + ref.name);
+  return PRODUCTS.includes(ref.name) ? ref.name : 'platform';
+}
+
+/** CSS 的 @import 目标（只认相对路径字面量） @param {string} src */
+export function cssImportsOf(src) {
+  const out = [];
+  const re = /@import\s+(?:url\(\s*)?['"]([^'"]+)['"]/g;
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, (t) => t.replace(/[^\n]/g, ' '));
+  let m;
+  while ((m = re.exec(code))) out.push(m[1]);
+  return out;
+}
+
+/**
+ * 23 / 24 的判定：from 引用 to 是否越界。
+ * @returns {''|'23'|'24'}
+ */
+export function crossRule(fromOwner, toOwner) {
+  if (!fromOwner || !toOwner || fromOwner === toOwner || toOwner === 'platform') return '';
+  return fromOwner === 'platform' ? '23' : '24';
+}
+
+/**
+ * 读例外表：[{rule, file, ref?, reason}]。没写 reason 的直接报错。
+ * @param {string} root
+ */
+export function loadExceptions(root) {
+  const p = join(root, EXCEPTIONS_FILE);
+  const errors = [];
+  if (!existsSync(p)) return { list: [], errors: [`${EXCEPTIONS_FILE}: 缺例外表（规则 27：没有例外也要留一个空数组 "exceptions": []）`] };
+  let list = [];
+  try { list = JSON.parse(readFileSync(p, 'utf8')).exceptions; } catch (e) { return { list: [], errors: [`${EXCEPTIONS_FILE}: 不是合法 JSON（${e.message}）`] }; }
+  if (!Array.isArray(list)) return { list: [], errors: [`${EXCEPTIONS_FILE}: exceptions 必须是数组`] };
+  list.forEach((x, i) => {
+    if (!x || !['23', '24', '25', '26'].includes(String(x.rule)) || typeof x.file !== 'string' || !x.file) {
+      errors.push(`${EXCEPTIONS_FILE}: 第 ${i + 1} 条要有 rule（23–26）和 file`);
+    }
+    if (!x || typeof x.reason !== 'string' || !x.reason.trim()) {
+      errors.push(`${EXCEPTIONS_FILE}: 第 ${i + 1} 条（${x && x.file}）没写 reason（规则 27：例外要写下来、说清楚原因）`);
+    }
+  });
+  return { list, errors };
+}
+
+/**
+ * 23–27：space 骨架契约。
+ * @param {string} root
+ * @param {{files?: string[]}} [opts] files：参与落点检查的仓库相对路径（默认 git ls-files，失败就扫目录）
+ * @returns {{files:number, errors:string[]}}
+ */
+export function checkSpace(root, opts = {}) {
+  const raw = [];
+  const ex = loadExceptions(root);
+  raw.push(...ex.errors.map((e) => ({ msg: e })));
+
+  /* JS 与 CSS：space/web/assets/** */
+  const assetsDir = join(root, 'space/web/assets');
+  const feFiles = [];
+  (function walkAll(dir) {
+    if (!existsSync(dir)) return;
+    for (const e of readdirSync(dir)) {
+      if (['node_modules', 'public', '.git'].includes(e)) continue;
+      const p = join(dir, e);
+      if (statSync(p).isDirectory()) walkAll(p);
+      else if (/\.(?:m?js|cjs|css)$/.test(e)) feFiles.push(p);
+    }
+  })(assetsDir);
+  for (const abs of feFiles) {
+    const rel = relative(root, abs).split(sep).join('/');
+    const src = readFileSync(abs, 'utf8');
+    const isCss = rel.endsWith('.css');
+    /* 生成物（main.css 等，不进仓库）跳过：它们由 @import 展开，查源头就够了 */
+    if (isCss && /\/main\.css$/.test(rel)) continue;
+    const specs = isCss ? cssImportsOf(src) : importsOf(stripComments(src));
+    for (const spec of specs) {
+      if (!spec.startsWith('.')) continue;
+      const target = resolve(dirname(abs), spec);
+      const tRel = relative(root, target).split(sep).join('/');
+      if (!tRel.startsWith('space/web/assets/')) {
+        raw.push({ rule: '25', file: rel, ref: tRel, msg: `${rel}: 前端不许引用 space/web/assets/ 以外的文件 ${tRel}（规则 25）` });
+        continue;
+      }
+      if (!existsSync(target) || statSync(target).isDirectory()) {
+        raw.push({ rule: '25', file: rel, ref: tRel, msg: `${rel}: 引用的文件不存在（${spec}）（规则 25）` });
+        continue;
+      }
+      const rule = crossRule(ownerOf(rel), ownerOf(tRel));
+      if (rule) raw.push({ rule, file: rel, ref: tRel, msg: crossMsg(rule, rel, ownerOf(rel), ownerOf(tRel), tRel) });
+    }
+  }
+
+  /* 模板：space/web/layouts/** */
+  const layoutFiles = [];
+  (function walkAll(dir) {
+    if (!existsSync(dir)) return;
+    for (const e of readdirSync(dir)) {
+      const p = join(dir, e);
+      if (statSync(p).isDirectory()) walkAll(p);
+      else layoutFiles.push(p);
+    }
+  })(join(root, 'space/web/layouts'));
+  for (const abs of layoutFiles) {
+    const rel = relative(root, abs).split(sep).join('/');
+    const from = ownerOf(rel);
+    for (const ref of templateRefsOf(readFileSync(abs, 'utf8'))) {
+      const to = refOwner(ref);
+      const rule = crossRule(from, to);
+      if (rule) raw.push({ rule, file: rel, ref: ref.name, msg: crossMsg(rule, `${rel}:${ref.line}`, from, to, ref.text) });
+    }
+  }
+
+  /* 落点 */
+  const files = (opts.files || listFiles(root)).filter((f) => PLACE_SCOPE_RE.test(f) || f === 'space/README.md');
+  const pendingPath = join(root, PENDING_FILE);
+  let pending = [];
+  if (!existsSync(pendingPath)) raw.push({ msg: `${PENDING_FILE}: 缺待迁移表（规则 26：迁移完了留一个空数组 "pending": []）` });
+  else {
+    try { pending = JSON.parse(readFileSync(pendingPath, 'utf8')).pending || []; } catch (e) { raw.push({ msg: `${PENDING_FILE}: 不是合法 JSON（${e.message}）` }); }
+  }
+  const pendingSet = new Set(pending);
+  const fileSet = new Set(files);
+  const allowed = (f) => ALLOWED_PLACES.some((re) => re.test(f));
+  for (const f of files) {
+    if (allowed(f) || pendingSet.has(f)) continue;
+    raw.push({ rule: '26', file: f, msg: `${f}: 放错了地方（规则 26：落点见 space/README.md §2；迁移中的旧位置只认待迁移表里已有的文件，新文件不许进表）` });
+  }
+  for (const f of pending) {
+    if (!fileSet.has(f)) raw.push({ msg: `${PENDING_FILE}: ${f} 已经不在了，从待迁移表删掉（规则 26）` });
+    else if (allowed(f)) raw.push({ msg: `${PENDING_FILE}: ${f} 已在目标位置，从待迁移表删掉（规则 26）` });
+  }
+
+  /* 例外：按 rule + file（+ ref）匹配，用不上的报错 */
+  const used = new Set();
+  const errors = [];
+  for (const r of raw) {
+    if (r.rule) {
+      const i = ex.list.findIndex((x) => x && String(x.rule) === r.rule && x.file === r.file && (!x.ref || x.ref === r.ref));
+      if (i >= 0 && ex.list[i].reason && String(ex.list[i].reason).trim()) { used.add(i); continue; }
+    }
+    errors.push(r.msg);
+  }
+  ex.list.forEach((x, i) => {
+    if (!used.has(i) && x && x.reason) errors.push(`${EXCEPTIONS_FILE}: 第 ${i + 1} 条例外（规则 ${x.rule} ${x.file}）已经用不上了，删掉（规则 27）`);
+  });
+  return { files: feFiles.length + layoutFiles.length, errors };
+}
+
+function crossMsg(rule, where, from, to, what) {
+  return rule === '23'
+    ? `${where}: Platform 不许依赖产品 ${to}（规则 23），发现 ${what}`
+    : `${where}: 产品 ${from} 不许引用产品 ${to}（规则 24），发现 ${what}`;
+}
+
+/** git 里的文件（仓库相对路径）；不是 git 仓库就扫目录 @param {string} root */
+function listFiles(root) {
+  try {
+    const out = execFileSync('git', ['-C', root, 'ls-files', '-z', '--', 'space/web/assets', 'space/web/layouts', 'space/web/data', 'space/scripts', 'space/README.md'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return out.split('\0').filter(Boolean);
+  } catch (e) {
+    const out = [];
+    (function walkAll(dir) {
+      if (!existsSync(dir)) return;
+      for (const e2 of readdirSync(dir)) {
+        if (['node_modules', 'public', '.git'].includes(e2)) continue;
+        const p = join(dir, e2);
+        if (statSync(p).isDirectory()) walkAll(p);
+        else out.push(relative(root, p).split(sep).join('/'));
+      }
+    })(join(root, 'space'));
+    return out;
+  }
+}
+
 /**
  * 查整个仓库。
  * @param {string} root
+ * @param {{space?: boolean}} [opts] space：查 23–27（默认：仓库根有 space/README.md 才查）
  * @returns {{files:number, errors:string[]}}
  */
-export function checkRepo(root) {
+export function checkRepo(root, opts = {}) {
   const files = walk(join(root, 'space/web/assets/js')).concat(walk(join(root, 'workers')));
   const errors = [];
   for (const f of files) errors.push(...checkFile(root, f));
@@ -478,13 +723,21 @@ export function checkRepo(root) {
   const acToml = join(root, 'workers/account/wrangler.toml');
   if (existsSync(acToml)) errors.push(...checkAccountToml('workers/account/wrangler.toml', readFileSync(acToml, 'utf8')));
   errors.push(...checkWorkerSkeleton(root));
-  return { files: files.length, errors };
+  let n = files.length;
+  const space = opts.space ?? existsSync(join(root, 'space/README.md'));
+  if (space) {
+    if (!existsSync(join(root, 'space/README.md'))) errors.push('space/README.md: 缺 space 骨架契约（规则 23–27 的依据）');
+    const r = checkSpace(root);
+    errors.push(...r.errors);
+    n += r.files;
+  }
+  return { files: n, errors };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   const i = process.argv.indexOf('--root');
   const root = i > 0 ? resolve(process.argv[i + 1]) : DEFAULT_ROOT;
-  const { files, errors } = checkRepo(root);
+  const { files, errors } = checkRepo(root, { space: true });
   if (errors.length) {
     console.error('check-layers.mjs: 发现分层违规：');
     for (const e of errors) console.error('  ✗ ' + e);

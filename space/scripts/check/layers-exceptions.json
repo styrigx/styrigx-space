@@ -1,0 +1,4 @@
+{
+  "_doc": "例外表（space/README.md §5、check-layers 规则 27）：规范实在处理不了的情况。每条 {rule: 23–26, file, ref?（只针对这一条引用）, reason（必填，说清楚原因）, since}；同一条也写进 space/README.md §5 的例外表。用不上的例外会报错。",
+  "exceptions": []
+}

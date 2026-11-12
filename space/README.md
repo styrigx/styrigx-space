@@ -36,7 +36,7 @@ space/
 │  │  │  ├─ shell/              Platform 的 partials
 │  │  │  └─ blog/  curio/  daymark/
 │  │  ├─ blog/  curio/  daymark/   各产品页面模板
-│  │  ├─ shell/                 Platform 的页面模板（共用播放器页；待定 D2）
+│  │  ├─ shell/                 Platform 的页面模板（共用播放器页）
 │  │  └─ index.html  404.html  alias.html  …   根模板（归 Platform）
 │  ├─ content/                  按产品分
 │  ├─ data/
@@ -96,19 +96,26 @@ space/
 
 ## 4. 检查
 
-`scripts/check-layers.mjs`（挪到 `scripts/check/` 后同名）拦三类，CI 必过：
+`scripts/check-layers.mjs`（挪 scripts/ 时进 `scripts/check/`）拦这几类，CI 必过：
 
-1. **红线**：§3 第 1、2、4 条。扫全部前端 JS（`assets/**`）和模板（`layouts/**` 里的 `partial`、`resources.Get`、`site.Data.*`）。
-2. **落点**：`space/web/{assets,layouts,data}`、`space/scripts` 下每个 git 里的文件，必须落在 §1 / §2 允许的目录里。允许目录写成一张白名单，放在 check-layers 里，和本文件 §1 一致（改骨架两边同一个 PR 改）。
-3. **安全**：§3 第 5 条。
+| 规则 | 拦什么 |
+|---|---|
+| 23 | Platform 依赖产品（§3 第 1 条） |
+| 24 | 产品之间互相引用（§3 第 2 条） |
+| 25 | 前端引用 `space/web/assets/` 以外的文件，或引用不存在的文件（§3 第 4 条） |
+| 26 | 落点：文件不在 §1 / §2 允许的目录里 |
+| 27 | 例外表：没写原因、或已经用不上的例外 |
+| 1–9 | 旧的前端分层与安全规则（§3 第 5 条），拆 lib 那个 PR 换成新分组的说法 |
 
-迁移期间，还没挪的路径记在 check-layers 的「待迁移」表里，暂不报落点错；每挪完一处就从表里删掉。表空了，迁移才算完。新文件不能进待迁移表。（待定 D4）
+- 23–25 扫 `assets/**` 的 JS（import、export from、动态 import()）和 CSS（@import），以及 `layouts/**` 模板里的 `partial` / `partialCached` / `template`、`resources.Get` / `GetMatch` / `Match`、`site.Data.<键>` / `index site.Data "<键>"`。只认字符串字面量，变量拼出来的路径查不到，靠评审。
+- 26 查 `space/web/{assets,layouts,data}`、`space/scripts` 下每个 git 里的文件。白名单是 check-layers 里的 `ALLOWED_PLACES`，和本文件 §1 一致，改骨架两边同一个 PR 改。
+- **待迁移表** `scripts/check/layers-pending.json`：迁移开始时（main 567bf9ce）不在目标位置的 156 个文件，暂不报 26。**只许删不许加**：挪走的文件必须同一个 PR 从表里删掉（表里的文件不在了、或已在目标位置都会报错）；新文件一律放目标位置。表空了迁移才算完。
 
 ## 5. 例外
 
 严格执行是默认。规范实在处理不了的情况允许灵活处理，但**例外要写下来、说清楚原因，不悄悄绕过**：
 
-- 每条例外同时写两处：本节的例外表，和 check-layers 的例外清单（每条带 `reason`，没写原因的例外 check-layers 直接报错）。
+- 每条例外同时写两处：本节的例外表，和 `scripts/check/layers-exceptions.json`（每条 `{rule, file, ref?, reason, since}`；没写 `reason` 的例外不放行，用不上的例外也报错，规则 27）。只对 23–26 生效，旧规则 1–22 不开例外口子。
 - 例外只针对具体文件或具体一条引用，不开整目录的口子。
 - 加例外和改代码同一个 PR，PR 正文里写明，由 Gray 合并即认可。
 
@@ -122,19 +129,14 @@ space/
 
 | 顺序 | 一处 | 状态 |
 |---|---|---|
-| 0 | 本文件 + check-layers 重写（红线 + 落点 + 待迁移表 + 例外清单） | 进行中 |
+| 0 | 本文件 + check-layers 加 23–27（红线 + 落点 + 待迁移表 + 例外表）；顺手修掉现有的两处红线：文章排序 `partials/blog/posts-sorted.html` 首页和奇趣都在用，挪进 `partials/shell/` | 进行中 |
 | 1 | `assets/js/` → `assets/shell/js/`（整体挪，不拆） | 未开始 |
 | 2 | 拆 `lib/` 和 shell 平铺文件，按 §1.1 分组 | 未开始 |
 | 3 | `assets/css/` → `assets/shell/css/` | 未开始 |
 | 4 | `layouts/partials/` 的 Platform 部分 → `partials/shell/` | 未开始 |
-| 5 | `data/` 的 Platform 部分 → `data/shell/`（待定 D1） | 未开始 |
-| 6 | `scripts/` 根目录 → `build/`、`check/`、`gen/`、`deploy/`（待定 D3） | 未开始 |
-| 7 | 共用播放器进 Platform，路由 `/curio/music/player/` 不变（待定 D2） | 未开始 |
+| 5 | `data/` 的 Platform 部分 → `data/shell/`；`palettes.yaml` 改名 `data/shell/palette-source.yaml`，避开和 `data/shell/palettes.json` 撞键 | 未开始 |
+| 6 | `scripts/` 根目录 → `build/`、`check/`、`gen/`、`deploy/`；`space/` 外面（`package.json`、`.github/workflows/`、workers 的 README / wrangler.toml 注释 / `csp-hashes.js` 文件头）只改路径字符串、不改逻辑，PR 里逐个列出 | 未开始 |
+| 7 | 共用播放器进 Platform，路由 `/curio/music/player/` 不变：播放器文案和 `.mp-*` 样式一起进 Platform，页面外壳改用 Platform 的 partial，外观不变，截图逐像素对照；脚本网址从 `/curio/js/…` 变成 `/shell/js/…` | 未开始 |
 | 8 | 旧文档对齐：overview.md §6–7、repo-structure.md 改为指向本文件 | 未开始 |
 
-## 待 Gray 定（定了从这里删掉，写进正文）
-
-- **D1** `data/palettes.yaml` 挪进 `data/shell/` 会和已有的 `data/shell/palettes.json` 撞成同一个键 `site.Data.shell.palettes`。提议：yaml 改名 `data/shell/palette-source.yaml`（它是 gen-palettes 的源文件）。
-- **D2** 播放器页现在用 curio 的文案、`partials/curio/common.html`、`curio.js` 和 curio CSS 里的 `.mp-*`，光挪位置会变成 Platform 依赖 Products。提议：文案和 `.mp-*` 跟着进 Platform，页面外壳改用 Platform 的 partial，外观、路由不变，单独一个 PR、截图对照；挪进 `assets/shell/js/` 后资源网址从 `/curio/js/…` 变成 `/shell/js/…`。
-- **D3** 挪 `scripts/` 要改 `space/` 外面的路径字符串：`package.json`、`.github/workflows/`、workers 的 README / wrangler.toml 注释 / `csp-hashes.js` 文件头。提议：只改路径字符串、不改逻辑，PR 里逐个列出。
-- **D4** 落点检查用白名单 + 待迁移表（见 §4）。
+> D1–D4（palettes 撞键、播放器怎么进 Platform、scripts 碰到 space/ 外的路径、落点怎么拦）Gray 2026-11-13 按默认方案定，已写进 §4、§6。

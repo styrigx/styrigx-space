@@ -71,8 +71,8 @@
     </div>
   </section>
 
-  {{/* [01] 博客 · 最新 3 篇（构建期从博客分区取，同博客首页的排序 partials/blog/posts-sorted.html） */}}
-  {{ $posts := partial "blog/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) }}
+  {{/* [01] 博客 · 最新 3 篇（构建期从博客分区取，同博客首页的排序 partials/shell/posts-sorted.html） */}}
+  {{ $posts := partial "shell/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) }}
   {{ $blogUrl := partial "sgx-lang-path.html" (dict "path" "/blog/" "lang" $pageLang) }}
   <section class="home-sec" id="blog" data-term-dir="blog" data-term-label="{{ $h.blogLabel }}" aria-labelledby="home-blog-h">
     <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[01] // BLOG</p><h2 class="home-sec-t" id="home-blog-h">{{ $h.blog }}</h2></div><a class="home-sec-more" href="{{ $blogUrl }}" translate="no">ls blog/ --all →</a></div>

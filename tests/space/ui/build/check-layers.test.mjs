@@ -523,3 +523,120 @@ test('本仓库：workers/ 下每个子目录都有 wrangler.toml（规则 19–
   assert.ok(dirs.length >= 7, dirs.join(','));
   for (const d of dirs) assert.ok(existsSync(join(REPO, 'workers', d, 'wrangler.toml')), `workers/${d} 缺 wrangler.toml`);
 });
+
+/* ───────── 规则 23–27：space 骨架契约（space/README.md，规范 v1.8） ───────── */
+
+/** 带 space/README.md 和两张表的最小仓库 */
+function spaceFixture(files, { pending = [], exceptions = [] } = {}) {
+  return fixture({
+    'space/README.md': '# space\n',
+    'space/scripts/check/layers-pending.json': JSON.stringify({ pending }),
+    'space/scripts/check/layers-exceptions.json': JSON.stringify({ exceptions }),
+    ...files,
+  });
+}
+const W = 'space/web/';
+
+test('check-layers 23/24：Platform 不依赖产品、产品之间不互相引用（JS、CSS、模板都查）；产品用 Platform 可以', () => {
+  const root = spaceFixture({
+    [W + 'assets/shell/js/a.js']: "import { c } from '../../curio/js/c.js';",
+    [W + 'assets/curio/js/c.js']: "import { a } from '../../shell/js/a.js';\nimport { d } from '../../daymark/js/d.js';",
+    [W + 'assets/daymark/js/d.js']: 'export const d = 1;',
+    [W + 'assets/blog/css/x.css']: "@import '../../curio/css/y.css';\n/* @import '../../daymark/css/z.css'; */",
+    [W + 'assets/curio/css/y.css']: '',
+    [W + 'layouts/index.html']: '{{ partial "curio/x.html" . }}{{ $j := resources.Get "daymark/js/d.js" }}{{ site.Data.blog.i18n }}{{ partial "shell/ok.html" . }}',
+    [W + 'layouts/partials/shell/ok.html']: '{{ index site.Data "curio" }}',
+    [W + 'layouts/partials/curio/x.html']: '{{ partial "blog/p.html" . }}{{ partial "shell/ok.html" . }}{{ site.Data.shell.nav }}{{ site.Data.curio.i18n }}',
+  });
+  try {
+    const { errors } = layers.checkSpace(root, { files: [] });
+    const want = [
+      [/assets\/shell\/js\/a\.js: Platform 不许依赖产品 curio（规则 23）/],
+      [/assets\/curio\/js\/c\.js: 产品 curio 不许引用产品 daymark（规则 24）/],
+      [/assets\/blog\/css\/x\.css: 产品 blog 不许引用产品 curio（规则 24）/],
+      [/layouts\/index\.html:1: Platform 不许依赖产品 curio（规则 23）.*partial "curio\/x\.html"/],
+      [/layouts\/index\.html:1: Platform 不许依赖产品 daymark（规则 23）.*resources\.Get/],
+      [/layouts\/index\.html:1: Platform 不许依赖产品 blog（规则 23）.*site\.Data\.blog/],
+      [/partials\/shell\/ok\.html:1: Platform 不许依赖产品 curio（规则 23）.*index site\.Data "curio"/],
+      [/partials\/curio\/x\.html:1: 产品 curio 不许引用产品 blog（规则 24）/],
+    ];
+    for (const [re] of want) assert.ok(errors.some((e) => re.test(e)), '缺：' + re + '\n' + errors.join('\n'));
+    assert.equal(errors.length, want.length, errors.join('\n'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('check-layers 25：前端不许引用 assets/ 以外，相对引用要解析到真实文件', () => {
+  const root = spaceFixture({
+    [W + 'assets/curio/js/c.js']: "import { k } from '../../../../../workers/x/src/k.js';\nimport { n } from './nope.js';",
+    'workers/x/src/k.js': 'export const k = 1;',
+  });
+  try {
+    const { errors } = layers.checkSpace(root, { files: [] });
+    assert.equal(errors.length, 2, errors.join('\n'));
+    assert.match(errors[0], /assets\/ 以外的文件.*规则 25/);
+    assert.match(errors[1], /不存在.*规则 25/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('check-layers 26：落点白名单 + 待迁移表（只许删不许加）', () => {
+  const root = spaceFixture({}, { pending: [W + 'assets/js/old.js', W + 'assets/js/gone.js', W + 'assets/shell/js/moved.js'] });
+  try {
+    const files = [
+      W + 'assets/shell/js/moved.js', W + 'assets/curio/js/ok.js', W + 'layouts/index.html', W + 'layouts/shell/player.html',
+      W + 'layouts/partials/shell/p.html', W + 'data/shell/nav.json', 'space/scripts/build/build-css.cjs', 'space/README.md',
+      W + 'assets/js/old.js',
+      W + 'assets/js/new.js', W + 'assets/curio/x.js', W + 'layouts/partials/loose.html', W + 'data/loose.yaml', 'space/scripts/loose.mjs',
+      W + 'static/anything.txt', W + 'content/blog/a.md',
+    ];
+    const { errors } = layers.checkSpace(root, { files });
+    const want = [
+      'assets/js/new.js: 放错了地方', 'assets/curio/x.js: 放错了地方', 'partials/loose.html: 放错了地方',
+      'data/loose.yaml: 放错了地方', 'space/scripts/loose.mjs: 放错了地方',
+      'assets/js/gone.js 已经不在了', 'assets/shell/js/moved.js 已在目标位置',
+    ];
+    for (const w of want) assert.ok(errors.some((e) => e.includes(w)), '缺：' + w + '\n' + errors.join('\n'));
+    assert.equal(errors.length, want.length, errors.join('\n'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('check-layers 27：例外必须有 reason，用得上才算，用不上的报错', () => {
+  const files = {
+    [W + 'assets/shell/js/a.js']: "import { c } from '../../curio/js/c.js';",
+    [W + 'assets/curio/js/c.js']: 'export const c = 1;',
+  };
+  const ok = spaceFixture(files, { exceptions: [{ rule: '23', file: W + 'assets/shell/js/a.js', ref: W + 'assets/curio/js/c.js', reason: '测试：说清楚了原因' }] });
+  const noReason = spaceFixture(files, { exceptions: [{ rule: '23', file: W + 'assets/shell/js/a.js', reason: ' ' }] });
+  const stale = spaceFixture({ [W + 'assets/curio/js/c.js']: '' }, { exceptions: [{ rule: '24', file: W + 'assets/curio/js/c.js', reason: '早就不需要了' }] });
+  try {
+    assert.deepEqual(layers.checkSpace(ok, { files: [] }).errors, []);
+    const e1 = layers.checkSpace(noReason, { files: [] }).errors;
+    assert.ok(e1.some((e) => /没写 reason/.test(e)), e1.join('\n'));
+    assert.ok(e1.some((e) => /规则 23/.test(e)), '没原因的例外不放行：' + e1.join('\n'));
+    const e2 = layers.checkSpace(stale, { files: [] }).errors;
+    assert.equal(e2.length, 1, e2.join('\n'));
+    assert.match(e2[0], /用不上了/);
+  } finally {
+    for (const r of [ok, noReason, stale]) rmSync(r, { recursive: true, force: true });
+  }
+});
+
+test('check-layers 23–27：本仓库有契约文件，checkRepo 默认就查；缺表报错', () => {
+  assert.ok(existsSync(join(REPO, 'space/README.md')));
+  const readme = readFileSync(join(REPO, 'space/README.md'), 'utf8');
+  for (const re of layers.ALLOWED_PLACES) assert.ok(re instanceof RegExp);
+  assert.match(readme, /例外/);
+  const root = fixture({ 'space/README.md': '# x\n' });
+  try {
+    const { errors } = layers.checkRepo(root);
+    assert.ok(errors.some((e) => /缺待迁移表/.test(e)), errors.join('\n'));
+    assert.ok(errors.some((e) => /缺例外表/.test(e)), errors.join('\n'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

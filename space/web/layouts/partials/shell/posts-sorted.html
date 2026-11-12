@@ -1,4 +1,4 @@
-{{- /* 文章排序（原 utils/content-dates.ts）。
+{{- /* 文章排序（原 utils/content-dates.ts）。Platform：博客、首页 [01]、奇趣条目页「相关文章」共用（2026-11-13 从 partials/blog/ 挪来，规则 23/24）。
 .mode "list"（默认，sortByDateDesc）：日期新→旧；同一天按 id 降序，但 -vN 后缀按数字比（v2 > v1）。
 .mode "archive"（sortBlogPostsForArchive，标签页用）：日期新→旧；同一天按 id 升序。id = 文件名（不含 .md）。 */ -}}
 {{- $rows := slice -}}
