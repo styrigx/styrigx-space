@@ -163,7 +163,7 @@ test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js �
   assert.match(movies, /partial "curio\/item-page\.html"/);
   const a = movies.indexOf('js/curio.js'), l = movies.indexOf('js/curio-list.js'), b = movies.indexOf('js/curio-items.js'), c = movies.indexOf('js/curio-movies.js');
   assert.ok(a > 0 && a < l && l < b && b < c);
-  for (const id of ['cu-pane-music', 'mu-app', 'mu-upload', 'mu-covers', 'mu-tracks', 'mu-play-all', 'mu-player', 'mu-lyrics', 'mu-seek', 'mu-speed', 'mu-prev', 'mu-toggle', 'mu-next', 'mu-audio',
+  for (const id of ['cu-pane-music', 'mu-app', 'mu-upload', 'mu-covers', 'mu-tracks', 'mu-play-all', 'mu-player', 'mu-lyrics', 'mu-seek', 'mu-speed', 'mu-shuffle', 'mu-prev', 'mu-toggle', 'mu-next', 'mu-audio',
     'mu-up-wrap', 'mu-up-name', 'mu-up-artist', 'mu-up-year', 'mu-up-audio', 'mu-up-cover', 'mu-up-lrc', 'mu-up-go']) {
     assert.ok(hasId(music, id), id);
   }
@@ -175,6 +175,22 @@ test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js �
   assert.match(music, /id="mu-app" class="hidden"/);
   assert.ok(music.indexOf('js/curio.js') < music.indexOf('js/music-core.js'), '共用核在 curio.js 之后');
   assert.ok(music.indexOf('js/music-core.js') < music.indexOf('js/curio-music.js'), '共用核（第二步 2a）在 curio-music.js 之前');
+});
+
+test('弹出播放器页（音乐第二步 2b）：地址 /curio/music/player/、/curio/zh/music/player/；部件都在；脚本 curio.js → music-core.js → music-player.js；不管上传 / 删除', () => {
+  const player = page('player');
+  assert.match(read('space/web/content/curio/music-player.md'), /^url: \/curio\/music\/player\/$/m);
+  assert.match(read('space/web/content/curio/music-player.zh.md'), /^url: \/curio\/zh\/music\/player\/$/m);
+  for (const f of ['music-player.md', 'music-player.zh.md']) assert.match(read('space/web/content/curio/' + f), /^layout: player$/m);
+  for (const id of ['mp-app', 'mp-cover', 'mp-title', 'mp-artist', 'mp-album', 'mp-note', 'mp-signin', 'mp-lyrics', 'mp-seek', 'mp-time', 'mp-dur',
+    'mp-shuffle', 'mp-prev', 'mp-toggle', 'mp-next', 'mp-speed', 'mp-mute', 'mp-volume', 'mp-tracks', 'mp-albums-btn', 'mp-albums', 'mp-audio']) {
+    assert.ok(hasId(player, id), id);
+  }
+  assert.match(player, /id="mp-app" class="mp-app hidden"/);
+  assert.equal((player.match(/class="mu-ic-lock"/g) || []).length, 1, '播放键带锁标（没进站 / 登录过期）');
+  for (const id of ['mu-upload', 'mu-up-wrap', 'mu-album-del']) assert.ok(!hasId(player, id), '播放器不管理：' + id);
+  const a = player.indexOf('js/curio.js'), b = player.indexOf('js/music-core.js'), c = player.indexOf('js/music-player.js');
+  assert.ok(a > 0 && a < b && b < c, '共用核在 music-player.js 之前');
 });
 
 test('不被收录、外观和语言跟主站（ui-inherit-run 在样式前）', () => {

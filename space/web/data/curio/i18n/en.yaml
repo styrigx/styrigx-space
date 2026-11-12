@@ -138,6 +138,7 @@ music:
   player: Player
   position: Position
   playbackSpeed: Playback speed
+  shuffle: Shuffle
   previous: Previous
   play: Play
   pause: Pause
@@ -152,6 +153,24 @@ music:
   lyricsLrcOptionalMatched: Lyrics .lrc (optional, matched by file name)
   trackOrderFollowsThe: 'Track order follows the number at the start of each file name (01, 02…). Each audio file can be up to 95 MB: mp3, m4a, aac, flac, ogg, opus, wav. The cover is resized to 1600 px.'
   upload: Upload
+player:
+  title: Player
+  nowPlaying: Now playing
+  nothing: Pick an album to start
+  lyrics: Lyrics
+  position: Position
+  previous: Previous
+  play: Play
+  pause: Pause
+  next: Next
+  shuffle: Shuffle
+  speed: Playback speed
+  volume: Volume
+  mute: Mute
+  albums: Albums
+  tracks: Tracks
+  signIn: Sign in
+  loading: Loading…
 curioCommon:
   cancel: Cancel
 curioItemView:
@@ -329,6 +348,24 @@ js:
     stars: '{n} out of 5'
     title: Movie
     editCmd: edit
+  curioPlayer:
+    tracks: '{n} tracks'
+    tracks_one: '{n} track'
+    failed: Something went wrong. Please try again.
+    loadFail: "error: couldn't load the list  # refresh to retry"
+    expired: Your sign-in has expired. Sign in again to keep listening.
+    locked: Sign in to listen.
+    noPermission: Your current user doesn’t have permission to listen.
+    empty: No albums yet.
+    play: Play
+    pause: Pause
+    mute: Mute
+    unmute: Unmute
+    shuffleOn: 'Shuffle: on'
+    shuffleOff: 'Shuffle: off'
+    speed: Speed {s}×
+    showLyrics: Show all lyrics
+    hideLyrics: Show one line
   curioMusic:
     viewOnly: "not signed in, browse only"
     locked: Sign in to listen
@@ -357,4 +394,6 @@ js:
     play: Play
     pause: Pause
     speed: Speed {s}×
+    shuffleOn: 'Shuffle: on'
+    shuffleOff: 'Shuffle: off'
     noPermission: Your current user doesn’t have permission for this.

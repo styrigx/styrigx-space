@@ -11,6 +11,8 @@
  *   - 「播放整张」从第 1 首按曲序放到最后一首；点某一首从那首开始，放完接下一首。
  *   - 歌词：有 LRC 就在播放条里滚动，当前行高亮（parseLrc / lrcIndex）。
  *   - 倍速：0.75 → 1 → 1.25 → 1.5 → 2 → 0.75 循环（SPEEDS），换曲目也保持。
+ *   - 随机播放（第二步 2b）：顺序 / 随机，模式记在 localStorage「sgx-music-mode」，和弹出播放器共用一个设置（方案 v1.13 §7.1）；
+ *     另一个窗口改了（storage 事件）这边跟着变。随机的队列规则在共用核。
  * 播放短链：POST /curio/api/music-play {album} 签随机令牌（10 分钟），<audio src> = /curio/api/music-stream?t=…&id=…（Range 拖进度）。
  *   签令牌、续签、切曲、倍速、防同时响都在共用核 music-core.js（SgxMusicCore.createPlayer；弹出播放器同一份），本文件只画界面。
  * 上传：「上传专辑」→ album.add → 封面缩到长边 1600、webp → 音频按文件名排序逐个直传（曲序取文件名开头的数字，单个 ≤ 95 MB）→ .lrc 按文件名对上曲目写进去。
@@ -209,7 +211,7 @@ function paintViewOnly(a){
 function setViewOnly(v){
   viewOnly = v;
   doc.documentElement.classList.toggle('mu-view-only', v);
-  ['#mu-prev', '#mu-next', '#mu-speed', '#mu-seek'].forEach(function(s){ $(s).disabled = v; });
+  ['#mu-prev', '#mu-next', '#mu-speed', '#mu-seek', '#mu-shuffle'].forEach(function(s){ $(s).disabled = v; });
   ['#mu-play-all', '#mu-toggle'].forEach(function(s){
     var b = $(s);
     if (v) { b.setAttribute('aria-disabled', 'true'); b.setAttribute('aria-label', T.locked); }
@@ -258,6 +260,20 @@ $('#mu-toggle').addEventListener('click', function(){
   if (viewOnly) return askSudo();
   if (!P.toggle()) { var a = album(); if (a && a.tracks.length) playFrom(a, 0); }
 });
+/* 随机播放：和弹出播放器共用本地设置（sgx-music-mode） */
+var modeStore = null;
+try { modeStore = G.localStorage; } catch (e) { modeStore = null; }
+function syncShuffle(){
+  var b = $('#mu-shuffle'), on = P.state.shuffle;
+  b.setAttribute('aria-pressed', String(on)); b.title = on ? T.shuffleOn : T.shuffleOff;
+}
+function applyMode(){ var on = CORE.readMode(modeStore) === 'shuffle'; if (on !== P.state.shuffle) P.setShuffle(on); syncShuffle(); }
+$('#mu-shuffle').addEventListener('click', function(){
+  if (viewOnly) return askSudo();
+  P.setShuffle(!P.state.shuffle); CORE.saveMode(modeStore, P.state.shuffle ? 'shuffle' : 'seq'); syncShuffle();
+});
+G.addEventListener('storage', function(e){ if (!e || e.key === CORE.MODE_KEY) applyMode(); });
+applyMode();
 $('#mu-prev').addEventListener('click', function(){ P.prev(); });
 $('#mu-next').addEventListener('click', function(){ P.next(); });
 $('#mu-speed').addEventListener('click', function(){

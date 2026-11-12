@@ -4,7 +4,7 @@
    三层（v5 S3；接口档在 workers/curio-core/src/routes.js ROUTE_ACCESS）：歌单 / 封面谁都能看（GET /curio/api/music 不带任何音频地址）；
    听要进站（没进站 = 只看模式：播放键是锁、播放条只显示专辑，点播放发 sgx:sudo，顶栏终端预填 sudo styrigx）；
    上传 / 删除要账号会话 + curio.write（接口回 canWrite 才显示）。noindex（baseof），不进站点地图 / 全站搜索 / AI 召回。
-   播放器交互借 jojo.best/music 的思路（只借交互）：封面横滑切专辑、整张按曲序播放、歌词跟着滚、倍速 0.75 / 1 / 1.25 / 1.5 / 2。
+   播放器交互借 jojo.best/music 的思路（只借交互）：封面横滑切专辑、整张按曲序播放、歌词跟着滚、倍速 0.75 / 1 / 1.25 / 1.5 / 2；随机播放（和弹出播放器共用本地设置）。
    播放走短链：/curio/api/music-play 签一枚随机令牌（10 分钟），<audio> 的地址是 /curio/api/music-stream?t=…&id=…（支持 Range，拖进度）。
    上传：「上传专辑」弹层，多个音频 + 可选封面 + 可选 .lrc 歌词，浏览器直传（单个音频 ≤ 95 MB）。 */}}
 <main id="cu-main" class="cu-wrap mu-wrap" data-cu-page="music">
@@ -31,7 +31,11 @@
 {{/* ===== 播放条（固定在底部；播放时出现） ===== */}}
 <div id="mu-player" class="mu-player hidden" role="region" aria-label="{{ $tr.music.player }}">
   <div class="mu-player-in">
-    <div class="mu-now"><span id="mu-now-title" class="mu-now-title"></span><span id="mu-now-sub" class="mu-now-sub"></span></div>
+    <div class="mu-now-row">
+      <div class="mu-now"><span id="mu-now-title" class="mu-now-title"></span><span id="mu-now-sub" class="mu-now-sub"></span></div>
+      {{/* 随机播放（第二步 2b，放在标题行右边，避开右下角 AI 浮钮：模式记在本地 sgx-music-mode，和弹出播放器共用一个设置，方案 v1.13 §7.1） */}}
+      <button id="mu-shuffle" type="button" class="mu-shuffle" aria-pressed="false" aria-label="{{ $tr.music.shuffle }}" title="{{ $tr.music.shuffle }}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h3.5c2 0 3.2 1 4.3 2.6l2.4 4.8C14.3 16 15.5 17 17.5 17H21M3 17h3.5c1.4 0 2.4-.5 3.2-1.4M14.3 8.4C15.1 7.5 16.1 7 17.5 7H21M18.5 4.5 21 7l-2.5 2.5M18.5 14.5 21 17l-2.5 2.5"/></svg></button>
+    </div>
     <div id="mu-lyrics" class="mu-lyrics" aria-hidden="true"><div id="mu-lyrics-in" class="mu-lyrics-in"></div></div>
     <div class="mu-seek-row">
       <span id="mu-time" class="mu-time">0:00</span>
