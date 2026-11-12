@@ -12,7 +12,7 @@
  *   - 歌词：有 LRC 就在播放条里滚动，当前行高亮（parseLrc / lrcIndex）。
  *   - 倍速：0.75 → 1 → 1.25 → 1.5 → 2 → 0.75 循环（SPEEDS），换曲目也保持。
  * 播放短链：POST /curio/api/music-play {album} 签随机令牌（10 分钟），<audio src> = /curio/api/music-stream?t=…&id=…（Range 拖进度）。
- *   快过期（剩不到 30 秒）再换曲目时先续签；放到一半令牌过期（<audio> 报错）就续签一次、接着原来的位置放。
+ *   签令牌、续签、切曲、倍速、防同时响都在共用核 music-core.js（SgxMusicCore.createPlayer；弹出播放器同一份），本文件只画界面。
  * 上传：「上传专辑」→ album.add → 封面缩到长边 1600、webp → 音频按文件名排序逐个直传（曲序取文件名开头的数字，单个 ≤ 95 MB）→ .lrc 按文件名对上曲目写进去。
  * 确认框、提示条、弹层开关借 curio.js 的（window.SgxCurioUI）。
  */
@@ -20,41 +20,13 @@
 "use strict";
 var G = typeof globalThis !== 'undefined' ? globalThis : this;
 
-var SPEEDS = [0.75, 1, 1.25, 1.5, 2];
+/* 播放用的纯函数（倍速、时间、歌词）在共用核 music-core.js，这里转出去（测试照旧从本文件取） */
+var CORE = typeof module !== 'undefined' && module.exports ? require('./music-core.js') : G.SgxMusicCore;
+var SPEEDS = CORE.SPEEDS, nextSpeed = CORE.nextSpeed, fmtTime = CORE.fmtTime, parseLrc = CORE.parseLrc, lrcIndex = CORE.lrcIndex;
 /** 单个音频上限（同 workers/curio-core/src/api/_music.js MUSIC_LIMITS.trackBytes） */
 var TRACK_MAX = 95 * 1024 * 1024;
 var EXT_TYPES = { mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', flac: 'audio/flac', ogg: 'audio/ogg', opus: 'audio/opus', wav: 'audio/wav', webm: 'audio/webm' };
 
-/** 下一档倍速 */
-function nextSpeed(cur){
-  var i = SPEEDS.indexOf(cur);
-  return SPEEDS[(i < 0 ? 0 : i + 1) % SPEEDS.length];
-}
-/** 秒 → m:ss（≥ 1 小时 h:mm:ss） */
-function fmtTime(s){
-  s = Math.max(0, Math.floor(Number(s) || 0));
-  var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
-  var p = function(n){ return (n < 10 ? '0' : '') + n; };
-  return h ? h + ':' + p(m) + ':' + p(x) : m + ':' + p(x);
-}
-/** LRC → [{t 秒, text}]，按时间排；一行多个时间戳各算一条；[ar:] 这类标签、空行丢掉 */
-function parseLrc(src){
-  var out = [];
-  String(src || '').split(/\r?\n/).forEach(function(line){
-    var re = /\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g, m, ts = [], last = 0;
-    while ((m = re.exec(line))) { ts.push(Number(m[1]) * 60 + Number(m[2]) + (m[3] ? Number('0.' + m[3]) : 0)); last = re.lastIndex; }
-    if (!ts.length) return;
-    var text = line.slice(last).trim();
-    ts.forEach(function(t){ out.push({ t: t, text: text }); });
-  });
-  return out.sort(function(a, b){ return a.t - b.t; });
-}
-/** 当前时间该亮哪一行（还没到第一行 → -1） */
-function lrcIndex(lines, time){
-  var lo = 0, hi = (lines || []).length - 1, ans = -1;
-  while (lo <= hi) { var mid = (lo + hi) >> 1; if (lines[mid].t <= time + 0.05) { ans = mid; lo = mid + 1; } else hi = mid - 1; }
-  return ans;
-}
 /** 文件名 → 曲序和曲名：开头的数字是曲序（没有就用 fallback），去掉扩展名和「01 - 」这类前缀 */
 function trackFromName(name, fallback){
   var base = String(name || '').replace(/\.[^./\\]+$/, '');
@@ -132,8 +104,19 @@ var NOTE = '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="
 
 var albums = [], cur = 0, coverVer = 0;
 var audio = $('#mu-audio');
-var play = { album: 0, list: [], i: -1, expires: 0, lines: [], line: -2, retried: false };
+/** 歌词（画在播放条里）；声音和令牌在共用核 P 里 */
+var lyr = { lines: [], line: -2 };
 var speed = 1;
+/* 共用核：签令牌走本页 req（401 = 只看模式），换曲 / 播停时这边只管画 */
+var P = CORE.createPlayer({
+  audio: audio,
+  sign: function(albumId){ return req('POST', '/curio/api/music-play', { album: albumId }); },
+  onTrack: paintTrack,
+  onChange: syncToggle,
+  onStop: function(){ renderAlbum(); syncToggle(); },
+  /* 点播失败报一句（没进站已切只看模式，不再报）；切曲 / 续签失败照旧不吭声 */
+  onError: function(e, where){ if (where === 'play' && !(e && e.sgxLocked)) toast(failMsg(e)); },
+});
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function toast(m){ if (UI) UI.toast(m); }
@@ -183,7 +166,7 @@ function renderAlbum(){
   $('#mu-album-sub').textContent = [a.artist, a.year ? String(a.year) : '', T.tracks(a.tracks.length)].filter(Boolean).join(' · ');
   $('#mu-play-all').disabled = !a.tracks.length;
   $('#mu-tracks').innerHTML = a.tracks.map(function(t, i){
-    var on = play.album === a.id && play.i === i;
+    var on = P.state.album === a.id && P.state.i === i;
     return '<li><button type="button" class="mu-track' + (on ? ' on' : '') + '" data-t="' + i + '"' + (on ? ' aria-current="true"' : '') + '>'
       + '<span class="mu-track-no">' + (t.no || i + 1) + '</span><span class="mu-track-title">' + esc(t.title) + '</span>'
       + '<span class="mu-track-dur">' + (t.duration ? fmtTime(t.duration) : '') + '</span></button></li>';
@@ -232,56 +215,40 @@ function setViewOnly(v){
     if (v) { b.setAttribute('aria-disabled', 'true'); b.setAttribute('aria-label', T.locked); }
     else b.removeAttribute('aria-disabled');
   });
-  if (v) { audio.pause(); audio.removeAttribute('src'); play.i = -1; doc.documentElement.classList.remove('mu-playing'); }
+  if (v) { P.reset(); doc.documentElement.classList.remove('mu-playing'); }
   renderAlbum();
 }
 
-/* ---------- 播放 ---------- */
-function session(a){
-  if (play.album === a.id && play.list.length && Date.now() < play.expires - 30000) return Promise.resolve();
-  return req('POST', '/curio/api/music-play', { album: a.id }).then(function(j){
-    play.album = a.id; play.list = j.tracks || []; play.expires = Date.now() + (j.ttl || 600000);
-  });
-}
+/* ---------- 播放（声音、令牌、切曲在共用核 music-core.js；这里只画） ---------- */
 function setLyrics(src){
-  play.lines = parseLrc(src); play.line = -2;
-  $('#mu-lyrics-in').innerHTML = play.lines.map(function(l, i){ return '<p data-l="' + i + '">' + esc(l.text || '♪') + '</p>'; }).join('');
-  $('#mu-lyrics').classList.toggle('hidden', !play.lines.length);
+  lyr.lines = parseLrc(src); lyr.line = -2;
+  $('#mu-lyrics-in').innerHTML = lyr.lines.map(function(l, i){ return '<p data-l="' + i + '">' + esc(l.text || '♪') + '</p>'; }).join('');
+  $('#mu-lyrics').classList.toggle('hidden', !lyr.lines.length);
 }
 function syncLyrics(){
-  if (!play.lines.length) return;
-  var i = lrcIndex(play.lines, audio.currentTime);
-  if (i === play.line) return;
-  play.line = i;
+  if (!lyr.lines.length) return;
+  var i = lrcIndex(lyr.lines, audio.currentTime);
+  if (i === lyr.line) return;
+  lyr.line = i;
   var box = $('#mu-lyrics'), inner = $('#mu-lyrics-in');
   inner.querySelectorAll('p.on').forEach(function(p){ p.classList.remove('on'); });
   var p = i >= 0 ? inner.querySelector('[data-l="' + i + '"]') : null;
   if (p) { p.classList.add('on'); inner.style.transform = 'translateY(' + Math.round(box.clientHeight / 2 - p.offsetTop - p.offsetHeight / 2) + 'px)'; }
   else inner.style.transform = 'translateY(' + Math.round(box.clientHeight / 2 - 12) + 'px)';
 }
-function startTrack(i, at){
-  var t = play.list[i];
-  if (!t) { stop(); return; }
-  play.i = i; play.retried = false;
-  audio.src = t.src;
-  audio.defaultPlaybackRate = speed; audio.playbackRate = speed;
-  if (at) audio.currentTime = at;
-  var a = albums.filter(function(x){ return x.id === play.album; })[0];
+/** 共用核开始放某一首：播放条标题、歌词、曲目高亮 */
+function paintTrack(t, st){
+  var a = albums.filter(function(x){ return x.id === st.album; })[0];
   $('#mu-now-title').textContent = t.title;
   $('#mu-now-sub').textContent = a ? [a.title, a.artist].filter(Boolean).join(' · ') : '';
   setLyrics(t.lrc);
   $('#mu-player').classList.remove('hidden');
   doc.documentElement.classList.add('mu-playing');
-  var p = audio.play();
-  if (p && p.catch) p.catch(function(){});
   renderAlbum();
 }
-function playFrom(a, i){
-  return session(a).then(function(){ startTrack(i, 0); }).catch(function(e){ if (!e.sgxLocked) toast(failMsg(e)); });
-}
-function stop(){ audio.pause(); play.i = -1; renderAlbum(); syncToggle(); }
+function playFrom(a, i){ return P.playFrom(a.id, i); }
 function syncToggle(){
-  var b = $('#mu-toggle'), on = !audio.paused && !audio.ended;
+  var b = $('#mu-toggle'), on = P.playing();
   b.classList.toggle('is-playing', on);
   b.setAttribute('aria-label', on ? b.dataset.lPause : b.dataset.lPlay);
 }
@@ -289,21 +256,13 @@ $('#mu-play-all').addEventListener('click', function(){ if (viewOnly) return ask
 $('#mu-tracks').addEventListener('click', function(e){ var b = e.target.closest('[data-t]'); var a = album(); if (!b || !a) return; if (viewOnly) return askSudo(); playFrom(a, Number(b.dataset.t)); });
 $('#mu-toggle').addEventListener('click', function(){
   if (viewOnly) return askSudo();
-  if (play.i < 0) { var a = album(); if (a && a.tracks.length) playFrom(a, 0); return; }
-  if (audio.paused) { var p = audio.play(); if (p && p.catch) p.catch(function(){}); } else audio.pause();
+  if (!P.toggle()) { var a = album(); if (a && a.tracks.length) playFrom(a, 0); }
 });
-function step(d){
-  if (play.i < 0) return;
-  var a = albums.filter(function(x){ return x.id === play.album; })[0];
-  var j = play.i + d;
-  if (j < 0 || j >= play.list.length) return;
-  if (a) session(a).then(function(){ startTrack(j, 0); }).catch(function(){});
-}
-$('#mu-prev').addEventListener('click', function(){ if (audio.currentTime > 3) { audio.currentTime = 0; return; } step(-1); });
-$('#mu-next').addEventListener('click', function(){ step(1); });
+$('#mu-prev').addEventListener('click', function(){ P.prev(); });
+$('#mu-next').addEventListener('click', function(){ P.next(); });
 $('#mu-speed').addEventListener('click', function(){
   speed = nextSpeed(speed);
-  audio.defaultPlaybackRate = speed; audio.playbackRate = speed;
+  P.setSpeed(speed);
   var b = $('#mu-speed'); b.textContent = speed + '×'; b.setAttribute('aria-label', T.speed(speed));
 });
 var seeking = false;
@@ -314,18 +273,6 @@ audio.addEventListener('timeupdate', function(){
   syncLyrics();
 });
 audio.addEventListener('loadedmetadata', function(){ $('#mu-dur').textContent = fmtTime(audio.duration); });
-audio.addEventListener('play', syncToggle);
-audio.addEventListener('pause', syncToggle);
-audio.addEventListener('ended', function(){ if (play.i + 1 < play.list.length) step(1); else stop(); });
-/* 令牌过期（放到一半 / 暂停很久以后拖进度）：续签一次，接着原来的位置放 */
-audio.addEventListener('error', function(){
-  if (play.i < 0 || play.retried) return;
-  var at = audio.currentTime || 0, i = play.i;
-  var a = albums.filter(function(x){ return x.id === play.album; })[0];
-  if (!a) return;
-  play.expires = 0;
-  session(a).then(function(){ startTrack(i, at); play.retried = true; }).catch(function(){});
-});
 
 /* ---------- 删除专辑 ---------- */
 $('#mu-album-del').addEventListener('click', function(){
@@ -333,7 +280,7 @@ $('#mu-album-del').addEventListener('click', function(){
   if (!a || !UI) return;
   UI.ask(T.delAlbum, T.del, function(){
     req('POST', '/curio/api/music', { op: 'album.del', id: a.id }).then(function(j){
-      if (play.album === a.id) { audio.pause(); audio.removeAttribute('src'); play = { album: 0, list: [], i: -1, expires: 0, lines: [], line: -2, retried: false }; $('#mu-player').classList.add('hidden'); doc.documentElement.classList.remove('mu-playing'); }
+      if (P.state.album === a.id) { P.reset(); lyr = { lines: [], line: -2 }; $('#mu-player').classList.add('hidden'); doc.documentElement.classList.remove('mu-playing'); }
       albums = j.albums || []; cur = Math.min(cur, Math.max(0, albums.length - 1)); renderCovers(); renderAlbum(); toast(T.deleted);
     }).catch(function(e){ if (!e.sgxLocked) toast(failMsg(e)); });
   });

@@ -156,7 +156,7 @@ test('设备 / 游戏子页：各自只有自己的面板和编辑弹层；条�
   }
 });
 
-test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js → curio-list.js → curio-items.js（借裁剪 / 条目文案）→ curio-movies.js；音乐 curio.js → curio-music.js，只看模式的锁标、上传上限说明，上传是页头命令', () => {
+test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js → curio-list.js → curio-items.js（借裁剪 / 条目文案）→ curio-movies.js；音乐 curio.js → music-core.js → curio-music.js，只看模式的锁标、上传上限说明，上传是页头命令', () => {
   for (const id of ['mv-list', 'mv-empty', 'mv-fab', 'mv-edit-wrap', 'mv-photo', 'mv-photo-prev', 'mv-title', 'mv-original', 'mv-year', 'mv-director', 'mv-watched', 'mv-rating', 'mv-review', 'mv-del', 'mv-save']) {
     assert.ok(hasId(movies, id), id);
   }
@@ -173,7 +173,8 @@ test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js �
   assert.ok(!hasId(music, 'mu-denied'), 'v5 S3：没有「仅本人可见」卡');
   assert.equal((music.match(/class="mu-ic-lock"/g) || []).length, 2, '播放整张 / 播放键各带一个锁标（只看模式）');
   assert.match(music, /id="mu-app" class="hidden"/);
-  assert.ok(music.indexOf('js/curio.js') < music.indexOf('js/curio-music.js'));
+  assert.ok(music.indexOf('js/curio.js') < music.indexOf('js/music-core.js'), '共用核在 curio.js 之后');
+  assert.ok(music.indexOf('js/music-core.js') < music.indexOf('js/curio-music.js'), '共用核（第二步 2a）在 curio-music.js 之前');
 });
 
 test('不被收录、外观和语言跟主站（ui-inherit-run 在样式前）', () => {
