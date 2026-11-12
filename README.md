@@ -95,7 +95,7 @@ Sloan Gray（styrigx）的个人数字空间：一个终端风格的个人网站
        ──► proxy-rules.styrigx.com   styrigx-proxy-rules   规则集加速反代
 ```
 
-请求路径、Worker 分工、前后端分层和 CI 守住的边界规则见 [系统总览 SGX-ARCH-001](docs/architecture/overview.md)；cookie 与进站状态机见 [SGX-SPEC-001](docs/specs/auth-state-machine.md)。
+请求路径、Worker 分工、前后端分层和 CI 守住的边界规则见 [系统总览 SGX-ARCH-001](docs/architecture/overview.md)。
 
 ## 仓库结构
 
@@ -170,7 +170,6 @@ GitHub Actions（[`deploy.yml`](.github/workflows/deploy.yml)）：
 | [术语表](docs/glossary.md) | 站点、进站、账号相关术语 |
 | [系统总览](docs/architecture/overview.md) | 请求路径、Worker 分工、分层规则 |
 | [主站](docs/architecture/sites/space.md) · [博客](docs/architecture/sites/blog.md) · [奇趣与日刻](docs/architecture/sites/curio-daymark.md) | 各站页面与代码位置 |
-| [进站与账号安全模型 V3](docs/security/account-v3.md) | 凭证、会话时长、reauth / reset |
 | [终端风格 UI 系统](docs/design/ui-system.md) · [调色板](docs/design/palette.md) | 界面规则 |
 | [CI 与部署](docs/operations/deploy.md) | 检查作业、部署顺序、回滚 |
 | [PR 与提交](docs/contributing/pr-and-commits.md) · [写博客](docs/contributing/blog-writing.md) | 贡献约定 |

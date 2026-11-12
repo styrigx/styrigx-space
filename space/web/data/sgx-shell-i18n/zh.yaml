@@ -322,7 +322,6 @@ account:
         microsoft_password_manager: "Microsoft 密码管理器"
         samsung_pass: "Samsung Pass"
   common:
-    signOutFail: "退出失败，请检查网络后重试"
     signOut: "退出登录"
     signedIn: "已登录"
     edit: "编辑"

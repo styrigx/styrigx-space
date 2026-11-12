@@ -95,7 +95,7 @@ browser ──► styrigx.com/*            styrigx-space-core   space session, p
         ──► proxy-rules.styrigx.com   styrigx-proxy-rules   rule-set accelerating proxy
 ```
 
-Request paths, Worker responsibilities, front-end / back-end layering and the boundary rules CI enforces: [System overview SGX-ARCH-001](docs/architecture/overview.md); cookies and the entry state machine: [SGX-SPEC-001](docs/specs/auth-state-machine.md).
+Request paths, Worker responsibilities, front-end / back-end layering and the boundary rules CI enforces: [System overview SGX-ARCH-001](docs/architecture/overview.md).
 
 ## Repository layout
 
@@ -170,7 +170,6 @@ The specifications live in [`docs/`](docs/README.md) (written in Chinese); the i
 | [Glossary](docs/glossary.md) | Site, space-entry and account terms |
 | [System overview](docs/architecture/overview.md) | Request paths, Worker responsibilities, layering rules |
 | [Main site](docs/architecture/sites/space.md) · [Blog](docs/architecture/sites/blog.md) · [Curio and Daymark](docs/architecture/sites/curio-daymark.md) | Pages and code locations per site |
-| [Space entry and account security model V3](docs/security/account-v3.md) | Credentials, session lifetimes, reauth / reset |
 | [Terminal-style UI system](docs/design/ui-system.md) · [Palette](docs/design/palette.md) | Interface rules |
 | [CI and deployment](docs/operations/deploy.md) | Check jobs, deploy order, rollback |
 | [PRs and commits](docs/contributing/pr-and-commits.md) · [Writing posts](docs/contributing/blog-writing.md) | Contribution conventions |
