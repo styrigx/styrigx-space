@@ -821,13 +821,47 @@ export function mountTopbar(o) {
       let termKbSeen = false;
       const termBody = /** @type {HTMLElement|null} */ (termDlg.querySelector('[data-term-body]'));
       const termCard = /** @type {HTMLElement|null} */ (termDlg.querySelector('.sgx-term'));
-      const termKbSet = function (/** @type {number} */ h) {
-        termDlg.style.setProperty('--sgx-kb', (h > 0 ? Math.round(h) : 0) + 'px');
-        /* 窗口最高 = 键盘上沿 − 窗口上沿 − 8px（直接给 px，不靠百分比解析） */
+      /** @type {number} */ let termKbH = 0;
+      /** @type {(() => void)|null} */ let termVvStop = null;
+      /* 窗口下沿 = min(键盘上沿, 可视区底) − 8px：浏览器平移 / 缩小可视区时（三星真机）也不让窗口越过可视区，
+         否则浏览器为露出光标把整页往上推、顶栏出屏（Gray 2026-11-12 真机视频）。直接给 px，不靠百分比解析 */
+      const termKbFit = function () {
+        if (!(termKbH > 0)) return;
+        const vv = window.visualViewport;
+        let bottom = window.innerHeight - termKbH;
+        if (vv && vv.scale <= 1.01) bottom = Math.min(bottom, vv.offsetTop + vv.height);
         const top = termCard ? termCard.getBoundingClientRect().top : 0;
-        termDlg.style.setProperty('--sgx-term-kb-max', h > 0 ? Math.max(120, Math.floor(window.innerHeight - h - top - 8)) + 'px' : '');
-        termDlg.toggleAttribute('data-kb', h > 0);
-        if (h > 0 && termBody) termBody.scrollTop = termBody.scrollHeight;
+        termDlg.style.setProperty('--sgx-term-kb-max', Math.max(120, Math.floor(bottom - top - 8)) + 'px');
+        if (termBody) termBody.scrollTop = termBody.scrollHeight;
+      };
+      let termFitRaf = 0;
+      const termKbFitSoon = function () {
+        if (!termFitRaf) termFitRaf = requestAnimationFrame(function () { termFitRaf = 0; termKbFit(); });
+      };
+      const termKbSet = function (/** @type {number} */ h) {
+        termKbH = h > 0 ? Math.round(h) : 0;
+        termDlg.style.setProperty('--sgx-kb', termKbH + 'px');
+        termDlg.toggleAttribute('data-kb', termKbH > 0);
+        /* 先挂 data-kb 再算、再滚到底：滚动要按收窄后的正文高度算 */
+        if (termKbH > 0) termKbFit(); else termDlg.style.setProperty('--sgx-term-kb-max', '');
+        /* 键盘弹着时：可视区 resize / scroll、打字、输出变长都重算（VirtualKeyboard API 只在键盘几何变时发 geometrychange） */
+        if (termKbH > 0 && !termVvStop) {
+          const vv = window.visualViewport;
+          /** @type {MutationObserver|null} */ let mo = null;
+          if (vv) { vv.addEventListener('resize', termKbFitSoon); vv.addEventListener('scroll', termKbFitSoon); }
+          termDlg.addEventListener('input', termKbFitSoon);
+          try { if (termBody) { mo = new MutationObserver(termKbFitSoon); mo.observe(termBody, { childList: true, subtree: true }); } } catch (e) { mo = null; }
+          termVvStop = function () {
+            if (vv) { vv.removeEventListener('resize', termKbFitSoon); vv.removeEventListener('scroll', termKbFitSoon); }
+            termDlg.removeEventListener('input', termKbFitSoon);
+            if (mo) mo.disconnect();
+            if (termFitRaf) { cancelAnimationFrame(termFitRaf); termFitRaf = 0; }
+          };
+        } else if (!(termKbH > 0) && termVvStop) {
+          const st = termVvStop;
+          termVvStop = null;
+          st();
+        }
       };
       const termKbEnd = function () {
         const s = termKbStop;

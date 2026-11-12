@@ -428,12 +428,10 @@ test('手机键盘跟随：输入行聚焦、键盘弹起 → 窗口下沿和输
   await page.evaluate(() => window.__kb(420));
   await expect(home(page)).toHaveAttribute('data-kb', '');
   const g = await termGeo(page);
-  const why = await page.evaluate(() => { const d = document.getElementById('sgx-term'); const c = d.querySelector('.sgx-term'); const cs = getComputedStyle(d); const cc = getComputedStyle(c);
-    return JSON.stringify({ kb: d.style.getPropertyValue('--sgx-kb'), max: d.style.getPropertyValue('--sgx-term-kb-max'), pb: cs.paddingBottom, dh: cs.height, cmax: cc.maxHeight, cdisp: cc.display, ch: cc.height, layout: document.documentElement.getAttribute('data-sgx-layout') }); });
-  expect(g.card, why).toBeLessThanOrEqual(g.vh - 420 + 1);
+  expect(g.card).toBeLessThanOrEqual(g.vh - 420 + 1);
   expect(g.input).toBeLessThanOrEqual(g.vh - 420 + 1);
   expect(g.bar).toBeGreaterThanOrEqual(g.tb);
-  /* 键盘变高（候选栏）跟着走 */
+  /* 键盘几何变了（变高）跟着走 */
   await page.evaluate(() => window.__kb(480));
   const g2 = await termGeo(page);
   expect(g2.input).toBeLessThanOrEqual(g2.vh - 480 + 1);
@@ -447,6 +445,44 @@ test('手机键盘跟随：输入行聚焦、键盘弹起 → 窗口下沿和输
   await expect(home(page)).toHaveAttribute('data-kb', '');
   await page.keyboard.press('Escape');
   await expect(home(page)).not.toHaveAttribute('data-kb', '');
+});
+
+/* 真机（三星）：键盘弹着、输出越来越长 → 窗口一直收在键盘上方，输入行可见，顶栏不出屏（页面不滚） */
+test('手机键盘跟随：键盘弹着时输出超过一屏，窗口仍在键盘上方、输入行可见、页面不滚', async ({ page }) => {
+  await fakeTouchKeyboard(page, true);
+  await go(page, '/zh/status/', { vp: { width: 412, height: 915 } });
+  await openTerm(page);
+  await input(page).click();
+  await page.evaluate(() => window.__kb(420));
+  await expect(home(page)).toHaveAttribute('data-kb', '');
+  for (let i = 0; i < 30; i++) await run(page, 'pwd');
+  await input(page).click();
+  const g = await termGeo(page);
+  expect(g.card).toBeLessThanOrEqual(g.vh - 420 + 1);
+  expect(g.input).toBeLessThanOrEqual(g.vh - 420 + 1);
+  expect(g.bar).toBeGreaterThanOrEqual(g.tb);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  expect(await page.evaluate(() => { const b = document.querySelector('#sgx-term [data-term-body]'); return b.scrollHeight - b.scrollTop - b.clientHeight; })).toBeLessThanOrEqual(2);
+});
+
+/* 真机（三星）：可视区比键盘上沿还小（浏览器缩可视区、不发 geometrychange）→ 按可视区底重算 */
+test('手机键盘跟随：可视区缩小（只发 visualViewport resize）时窗口下沿跟着可视区底', async ({ page }) => {
+  await fakeTouchKeyboard(page, true);
+  await go(page, '/zh/status/', { vp: { width: 412, height: 915 } });
+  await openTerm(page);
+  for (let i = 0; i < 20; i++) await run(page, 'pwd');
+  await input(page).click();
+  await page.evaluate(() => window.__kb(300));
+  await expect(home(page)).toHaveAttribute('data-kb', '');
+  await page.evaluate(() => {
+    const vv = window.visualViewport;
+    Object.defineProperty(vv, 'height', { configurable: true, get: () => window.innerHeight - 480 });
+    vv.dispatchEvent(new Event('resize'));
+  });
+  await expect.poll(async () => { const g = await termGeo(page); return g.vh - 480 + 1 - g.input; }).toBeGreaterThanOrEqual(0);
+  const g = await termGeo(page);
+  expect(g.card).toBeLessThanOrEqual(g.vh - 480 + 1);
+  expect(g.bar).toBeGreaterThanOrEqual(g.tb);
 });
 
 test('桌面（不是触屏）：键盘几何变化不动终端窗口', async ({ page }) => {
