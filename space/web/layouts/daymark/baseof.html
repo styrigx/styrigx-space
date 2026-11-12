@@ -113,6 +113,7 @@ __sgxLayoutWatch(__applyLayout);
   "langHref" $langHref
   "security" (printf "%s#sec" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" .Lang)))
   "status" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/status/" "lang" .Lang))
+  "music" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/curio/music/" "lang" .Lang))
   "pal" $pal
 ) }}
 {{ partial "sgx-profile-default.html" . }}
