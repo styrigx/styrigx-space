@@ -81,7 +81,17 @@ export async function v6CheckAssertion(env, rp, purpose, body, expectUid) {
  */
 export async function v6RegistrationChallenge(env, rp, user) {
   const keys = await listUserPasskeys(env, user.uid);
-  const handle = keys.length ? String(keys[0].row.user_handle) : randB64(32);
+  /* user.id 每人一份：迁移照抄来的 handle 若和别人的钥匙相同（root 与 styrigx 拆分前共用过），换新的——
+     否则密码管理器按 user.id 归到同一账号，root 的新钥匙显示成 styrigx（Gray 2026-11-12 真机） */
+  let handle = '';
+  for (const k of keys) {
+    const h = String(k.row.user_handle || '');
+    if (!h) continue;
+    const shared = await onDb(env, (d) => d.prepare('SELECT 1 AS x FROM account_user_passkey WHERE (user_handle = ? OR legacy_handle = ?) AND uid <> ? LIMIT 1')
+      .bind(h, h, user.uid).first());
+    if (!shared) { handle = h; break; }
+  }
+  if (!handle) handle = randB64(32);
   const challenge = randB64(32);
   const cid = await issueChallenge(env, V6_PURPOSE.add + ':' + user.uid + ':' + handle, challenge, CHALLENGE_TTL);
   return {

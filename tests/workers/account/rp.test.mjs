@@ -1,7 +1,7 @@
 /**
  * WebAuthn 依赖方红线（命名 v2 一律不动；v6 P4 起旧账号会话 / reauth / reset / keys 删除，检查移到 v6 身份命令 POST /api/identity）：
  * - wrangler.toml 正式 SGX_RP_ID = "styrigx.com"、SGX_ORIGIN = "https://styrigx.com"（账号和网关两份）；rp.id 一变，所有通行密钥都失效
- * - 注册 challenge（passkey-add-challenge）的 rp.id === 'styrigx.com'、user.id = 已有钥匙的 handle（沿用，不新建第二个）；
+ * - 注册 challenge（passkey-add-challenge）的 rp.id === 'styrigx.com'、user.id = 已有钥匙的 handle（沿用，不新建第二个；和别人的钥匙共用的不沿用）；
  *   登录 / 借权 challenge（su-challenge / sudo-challenge）的 rpId === 'styrigx.com'
  * - 断言验证：rpIdHash 对不上、origin 对不上都拒（不签会话）
  *
@@ -78,6 +78,20 @@ test('注册 challenge（passkey-add-challenge）：rp.id === styrigx.com；user
   assert.deepEqual(j.excludeCredentials.map((c) => c.id), [a.credId]);
   assert.deepEqual({ ...env.D1_ACCOUNT.raw.prepare('SELECT user_handle, legacy_handle FROM account_user_passkey').get() },
     { user_handle: 'HANDLE-original-bytes', legacy_handle: 'LEGACY-original-bytes' }, 'handle 一个字节都没动');
+});
+
+test('注册 challenge：已有 handle 和别人的钥匙相同（root 与 styrigx 拆分前共用过）→ 不沿用，换一个只属于自己的（密码管理器按 user.id 分账号）', async () => {
+  const env = await setup();
+  await seedPasskey(env, 'HANDLE-shared');
+  env.D1_ACCOUNT.raw.prepare("INSERT INTO account_user_passkey (credential_id, uid, user_handle, legacy_handle, record) VALUES ('root-cred', 0, 'HANDLE-shared', '', '{}')").run();
+  const tok = await login(env);
+  const j = (await id(env, { action: 'passkey-add-challenge' }, tok)).json;
+  assert.notEqual(j.user.id, 'HANDLE-shared');
+  assert.ok(j.user.id.length >= 32, '新生成');
+  /* 自己另有一把不共用的 → 沿用那把的 handle，不再每次新建 */
+  await seedPasskey(env, 'HANDLE-own');
+  const j2 = (await id(env, { action: 'passkey-add-challenge' }, tok)).json;
+  assert.equal(j2.user.id, 'HANDLE-own');
 });
 
 test('登录 / 借权 challenge（su-challenge / sudo-challenge）：rpId === styrigx.com', async () => {
