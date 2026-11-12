@@ -58,9 +58,3 @@ export async function sweepExpired(d, table, now) {
     await d.prepare('DELETE FROM ' + table + ' WHERE expires_at <= ?').bind(now || Date.now()).run();
   } catch (e) {}
 }
-
-/** @param {any} row */
-export function parseRecord(row) {
-  if (!row || typeof row.record !== 'string') return null;
-  try { return JSON.parse(row.record); } catch (e) { return null; }
-}

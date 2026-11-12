@@ -48,7 +48,7 @@ function extractCodeStatusPairs() {
 test('错误码登记表：每个返回的错误码都登记在 ERROR_CODES，HTTP 状态也在登记范围内', async () => {
   const { ERROR_CODES } = await import(join(ROOT, 'workers/space-core/src/lib/http.js'));
   const pairs = extractCodeStatusPairs();
-  assert.ok(pairs.length > 150, '应提取到一批错误响应，实际 ' + pairs.length);
+  assert.ok(pairs.length > 120, '应提取到一批错误响应，实际 ' + pairs.length); /* v6 清理 #11/#12：旧密码校验 checkPasswordAttempt / setPassword 删除后 144 条 */
   const bad = pairs.filter((p) => !Object.prototype.hasOwnProperty.call(ERROR_CODES, p.code) || !ERROR_CODES[p.code].includes(p.status));
   assert.deepEqual(bad, [], '新错误码或新状态要先登记到 workers/space-core/src/lib/http.js ERROR_CODES');
   /* 登记表里没有用不到的码 */

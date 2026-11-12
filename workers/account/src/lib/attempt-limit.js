@@ -1,8 +1,8 @@
 /**
- * 输错计数的 D1 读写（账号库 account_attempt_limit 表）：账号密码（core/password-limit.js）、恢复密钥（core/recovery-key.js）共用。
+ * 输错计数的 D1 读写（账号库 account_attempt_limit 表）：v6 身份（core/identity-auth.js）、救援（core/rescue.js）共用（旧账号密码限速 password-limit.js 与全局窗口随旧账号会话删除，v6 清理 #11/#12）。
  *
  * 行：(kind, bucket)。kind = 'password' | 'recovery-key'（限速按钥匙算，不按入口算：session 和 reauth 输错的是同一把密码，共用一个计数）；
- * bucket = IP 分桶（http.js ipBucket），全局窗口那一行 bucket = GLOBAL_BUCKET（'*'）。
+ * bucket = IP 分桶（http.js ipBucket）或调用方给的键。
  *
  * 每次记失败都是一条原子 UPSERT（INSERT ... ON CONFLICT DO UPDATE SET count = count + 1 ... RETURNING）：
  * 并发的两次输错不会互相覆盖（以前 KV 读-改-写，并发时只记上一次）。过期（expires_at <= now）的行在更新时按新行算，
@@ -12,8 +12,6 @@
  * 读写都走主库（db.js，不开 session、不缓存）。出错抛错，调用方 fail closed（503）。
  */
 import { onDb, sweepExpired } from './db.js';
-
-export const GLOBAL_BUCKET = '*';
 
 /**
  * 单 IP 的当前记录（过期的不认 → null）。
@@ -27,18 +25,6 @@ export async function readAttempt(env, kind, bucket) {
   ).bind(kind, bucket, now).first());
   if (!row) return null;
   return { count: Number(row.count) || 0, strikes: Number(row.strikes) || 0, lockedUntil: Number(row.locked_until) || 0 };
-}
-
-/**
- * 全局窗口当前是否「热」（窗口内失败次数 ≥ slowAt）。
- * @param {any} env @param {string} kind @param {number} windowMs @param {number} slowAt
- */
-export async function globalHot(env, kind, windowMs, slowAt) {
-  const now = Date.now();
-  const row = await onDb(env, (d) => d.prepare(
-    'SELECT count, window_start FROM account_attempt_limit WHERE kind = ? AND bucket = ?'
-  ).bind(kind, GLOBAL_BUCKET).first());
-  return !!(row && Number(row.window_start) + windowMs >= now && (Number(row.count) || 0) >= slowAt);
 }
 
 /**
@@ -85,22 +71,6 @@ export async function recordAttempt(env, kind, bucket, o) {
     return res;
   });
   return !!(row && Number(row.count) === 0 && Number(row.locked_until) > now);
-}
-
-/**
- * 全局窗口 +1（原子；窗口已过 → 从 1 重新开始）。
- * @param {any} env @param {string} kind @param {number} windowMs
- */
-export async function recordGlobal(env, kind, windowMs) {
-  const now = Date.now();
-  const stale = '(account_attempt_limit.window_start + ?3 < ?2)';
-  await onDb(env, (d) => d.prepare(
-    'INSERT INTO account_attempt_limit (kind, bucket, count, window_start, expires_at) VALUES (?1, \'' + GLOBAL_BUCKET + '\', 1, ?2, ?2 + ?3) ' +
-    'ON CONFLICT (kind, bucket) DO UPDATE SET ' +
-    'count = CASE WHEN ' + stale + ' THEN 1 ELSE account_attempt_limit.count + 1 END, ' +
-    'window_start = CASE WHEN ' + stale + ' THEN ?2 ELSE account_attempt_limit.window_start END, ' +
-    'expires_at = (CASE WHEN ' + stale + ' THEN ?2 ELSE account_attempt_limit.window_start END) + ?3'
-  ).bind(kind, now, windowMs).run());
 }
 
 /**

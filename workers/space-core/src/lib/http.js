@@ -52,11 +52,8 @@ export const ERROR_CODES = Object.freeze({
   challenge: [403],
   /* 凭证 */
   auth: [401],
-  wrong: [403],
   verify: [403], /* 通行密钥签名没过（passkey add） */
-  'not-set': [403],
   exists: [403],
-  short: [400],
   cooldown: [429],
   busy: [429], /* /api/ai 全站总闸（P4-1；D1 出错也回它，fail closed） */
   /* 账号设备 */
