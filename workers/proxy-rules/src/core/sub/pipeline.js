@@ -41,7 +41,7 @@ async function refreshOne(env, row, key, pubkey, now, owner, ua, fetchFn, noFetc
       const got = await fetchAirport(url, ua, fetchFn);
       if (!got.ok) error = got.error;
       else {
-        const ex = extractProxies(got.text);
+        const ex = extractProxies(got.text, { links: true });
         if (!ex.ok) error = ex.error;
         else {
           proxies = ex.proxies;

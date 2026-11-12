@@ -57,6 +57,43 @@ test('抽 proxies：只留 proxies，丢规则 / 分组；源内重名加 #2；�
   assert.deepEqual(extractProxies('proxies:\n' + Array.from({ length: 1001 }, (_, i) => `  - {name: n${i}, type: ss}`).join('\n')), { ok: false, error: 'too-many' });
 });
 
+test('节点链接列表（机场源）：base64 / 明文都认，六种协议转 mihomo 节点，认不出的行跳过；上传文件不认', () => {
+  const vm = Buffer.from(JSON.stringify({ v: '2', ps: '美国 VM', add: 'v.example.com', port: '443', id: 'u-1', aid: '0', scy: 'auto', net: 'ws', type: 'none', host: 'h.example.com', path: '/ws?ed=2048', tls: 'tls', sni: 's.example.com' })).toString('base64');
+  const ssUser = Buffer.from('aes-128-gcm:pw').toString('base64');
+  const lines = [
+    'hysteria2://pass@hy.example.com:443?sni=sni.example.com&insecure=1&obfs=salamander&obfs-password=op#%E9%A6%99%E6%B8%AF%20HY',
+    'hy2://p2@hop.example.com:20000,21000-22000/?sni=a#hop',
+    'vless://uuid-1@vl.example.com:443?security=reality&pbk=PK&sid=ab&fp=chrome&type=grpc&serviceName=svc&flow=xtls-rprx-vision&sni=www.example.com#VL',
+    'vmess://' + vm,
+    'trojan://tpw@tj.example.com:443?sni=t.example.com&type=ws&path=%2Fp#TJ',
+    'ss://' + ssUser + '@ss.example.com:8388#SS',
+    'tuic://uu:pp@tu.example.com:443?congestion_control=bbr&alpn=h3#TU',
+    'ssr://abc',
+    'not a link',
+    'hysteria2://pass@hy.example.com:443#%E9%A6%99%E6%B8%AF%20HY',
+  ].join('\n');
+  for (const text of [lines, Buffer.from(lines).toString('base64')]) {
+    const r = extractProxies(text, { links: true });
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.proxies.map((p) => [p.name, p.type]), [['香港 HY', 'hysteria2'], ['hop', 'hysteria2'], ['VL', 'vless'], ['美国 VM', 'vmess'], ['TJ', 'trojan'], ['SS', 'ss'], ['TU', 'tuic'], ['香港 HY #2', 'hysteria2']]);
+    const [hy, hop, vl, vmx, tj, ss, tu] = r.proxies;
+    assert.equal(hy.server, 'hy.example.com'); assert.equal(hy.port, '443'); assert.equal(hy.password, 'pass');
+    assert.equal(hy.sni, 'sni.example.com'); assert.equal(hy['skip-cert-verify'], true); assert.equal(hy.obfs, 'salamander'); assert.equal(hy['obfs-password'], 'op');
+    assert.equal(hop.port, '20000'); assert.equal(hop.ports, '20000,21000-22000');
+    assert.equal(vl.uuid, 'uuid-1'); assert.equal(vl.tls, true); assert.equal(vl.flow, 'xtls-rprx-vision'); assert.equal(vl.servername, 'www.example.com');
+    assert.deepEqual(vl['reality-opts'], { 'public-key': 'PK', 'short-id': 'ab' }); assert.equal(vl.network, 'grpc'); assert.deepEqual(vl['grpc-opts'], { 'grpc-service-name': 'svc' });
+    assert.equal(vmx.server, 'v.example.com'); assert.equal(vmx.uuid, 'u-1'); assert.equal(vmx.tls, true); assert.equal(vmx.servername, 's.example.com'); assert.equal(vmx.network, 'ws');
+    assert.deepEqual(vmx['ws-opts'], { path: '/ws', headers: { Host: 'h.example.com' }, 'max-early-data': 2048, 'early-data-header-name': 'Sec-WebSocket-Protocol' });
+    assert.equal(tj.password, 'tpw'); assert.equal(tj.sni, 't.example.com'); assert.deepEqual(tj['ws-opts'], { path: '/p', headers: {} });
+    assert.equal(ss.cipher, 'aes-128-gcm'); assert.equal(ss.password, 'pw'); assert.equal(ss.port, '8388');
+    assert.equal(tu.uuid, 'uu'); assert.equal(tu.password, 'pp'); assert.equal(tu['congestion-controller'], 'bbr'); assert.deepEqual(tu.alpn, ['h3']);
+  }
+  assert.deepEqual(extractProxies('ssr://x\nsocks://y\nhello', { links: true }), { ok: false, error: 'format' }, '一个都认不出 → 原 format');
+  assert.deepEqual(extractProxies(Buffer.from('hysteria2://p@h.example.com:443#A').toString('base64')), { ok: false, error: 'format' }, '上传文件不走链接列表');
+  const many = Array.from({ length: 1001 }, (_, i) => `trojan://p@h${i}.example.com:443#n${i}`).join('\n');
+  assert.deepEqual(extractProxies(many, { links: true }), { ok: false, error: 'too-many' });
+});
+
 test('公钥：只收 age1 X25519；PQ 明确拒绝；状态只显示头尾', async () => {
   assert.deepEqual(await admin.setKey(env, 'age1pq1abc'), { ok: false, error: 'pq-unsupported' });
   assert.deepEqual(await admin.setKey(env, 'AGE-SECRET-KEY-1XYZ'), { ok: false, error: 'pubkey' });
