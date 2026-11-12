@@ -4,7 +4,7 @@ url: /blog/zh/post/2026-10-11-key-spec-whitepaper-v2/
 title: "Styrigx UI 鉴权规范 2.0：锁屏、站长与应用的三道门"
 description: "Styrigx UI 鉴权规范 2.0：三层凭证（根凭证/站长凭证/锁屏凭证）各管各的；通行密钥分站长/锁屏/应用三类；锁屏入口按配置显示；重置锁屏走两步验证；安全页只有三个入口。"
 date: 2026-10-11
-series: ["Styrigx UI 鉴权规范"]
+series: ["styrigx 鉴权体系规范的变迁"]
 seriesOrder: 2
 tags: ["Styrigx UI", "鉴权", "安全", "Passkey", "Cloudflare"]
 ---

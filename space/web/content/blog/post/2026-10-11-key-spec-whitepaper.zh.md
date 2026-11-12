@@ -4,7 +4,7 @@ url: /blog/zh/post/2026-10-11-key-spec-whitepaper/
 title: Styrigx 密钥规范白皮书 v1.0：三对 Ed25519 密钥与跨站信任模型
 description: "一个主站签发、多个子站验证的个人站点群，怎样用三对按用途隔离的 Ed25519 密钥管住解锁、主站敏感操作和子站敏感操作，并做到可过期、可撤销、缺配置即拒绝。"
 date: 2026-10-11
-series: ["Styrigx UI 鉴权规范"]
+series: ["styrigx 鉴权体系规范的变迁"]
 seriesOrder: 1
 tags: ["规范", "安全", "Cloudflare", "Ed25519"]
 superseded: true
