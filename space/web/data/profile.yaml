@@ -1,5 +1,5 @@
 # 个人资料的构建期默认值（2026-11-07 Gray 定）：首屏先画这里的值，页面再用 GET /api/profile 覆盖（账号 › 个人资料页改的值存在
-# 账号 Worker 的 KV_PROFILE「profile」键；接口对没改过的字段回 null，就用这里的值）。前端读法见 assets/shell/js/lib/profile.js。
+# 账号 Worker 的 KV_PROFILE「profile」键；接口对没改过的字段回 null，就用这里的值）。前端读法见 assets/shell/js/prefs/profile.js。
 # 读者：首页名片（名字、签名、头像替代文字）、账号页顶部名字卡（姓名、昵称）、账号 › 个人资料页（默认值）、「关于本站」页脚 ©、
 #       四站 AI 窗口「仅公开内容 · 联系我」的 mailto（主站 baseof 传参；子站经共享外壳 nav.json 的 me.email，gen-shell 从这里读）、锁屏头像替代文字。
 # 头像不在这里：由账号 Worker 的 /avatar/* 提供（账号 › 个人资料页上传）。

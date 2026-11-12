@@ -9,7 +9,7 @@
   {{ with .Config }}{{ .SetOptions (dict "minify" true "target" "es2020" "defines" $.defines) }}{{ end }}
   {{ $bt := . }}
   {{ range $f := $.entries }}
-    {{ with $bt.Group $f }}{{ with .Script "main" }}{{ .SetOptions (dict "resource" (resources.Get (print "shell/js/entries/" $f ".js"))) }}{{ end }}{{ end }}
+    {{ with $bt.Group $f }}{{ with .Script "main" }}{{ .SetOptions (dict "resource" (resources.Get (print "shell/js/apps/entries/" $f ".js"))) }}{{ end }}{{ end }}
   {{ end }}
   {{ with .Build }}
     {{ range $g, $rs := .Groups }}

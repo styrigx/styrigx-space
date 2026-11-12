@@ -6,9 +6,9 @@
  * - hero：$ 行标语打字轮播（apps/home-typer.js）；# 行签名 motto 空值时整行隐藏（跟 sgx-profile-changed）
  * mountHome() 由 entries/entry-space.js 在加载时调一次（先于 initCore，事件监听在外壳取数之前挂好）。
  */
-import { mountDaymarkToday } from '../lib/daymark-today.js';
-import { i18nTable } from '../lib/i18n.js';
-import { PROFILE_EVENT } from '../lib/profile.js';
+import { mountDaymarkToday } from './daymark-today.js';
+import { i18nTable } from '../i18n/i18n.js';
+import { PROFILE_EVENT } from '../prefs/profile.js';
 import { mountTyper } from './home-typer.js';
 
 /** 界面文案：页面字符串表 #sgx-i18n-space */

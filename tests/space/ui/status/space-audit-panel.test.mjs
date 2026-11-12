@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { jsDict, strings } from '../../../fixtures/strings.mjs';
 import { existsSync, readFileSync } from 'node:fs';
-import { renderAudit, AUDIT_MAX } from '../../../../space/web/assets/shell/js/lib/status-view.js';
+import { renderAudit, AUDIT_MAX } from '../../../../space/web/assets/shell/js/status/status-view.js';
 import { AUDIT_SHOW } from '../../../../workers/space-core/src/api/space-audit.js';
 
 const read = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');

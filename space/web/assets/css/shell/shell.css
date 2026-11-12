@@ -978,7 +978,7 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
   font-size: 12px; font-weight: 700; letter-spacing: var(--sgx-track-label); text-transform: uppercase; color: var(--sgx-text-secondary); }
 /* ---- terminal ---- */
 /* 窗口 .sgx-term = 标题栏（三个圆点 · guest@space: ~ · 右边按键提示）+ 输出区（aria-live）+ 一行真输入框；全站抽屉 #sgx-term 里是 .sgx-term--drawer，页面里的静态窗（主页 about、旷野、博客 tree、日刻）是 .sgx-term--static。
-   引擎 / 视图 assets/shell/js/shell/terminal.js；输出的类：-k 关键字、-o 次要、-ok 箭头、-err 出错、-dir 目录、-q 引文、-a 链接、-pp 提示符。 */
+   引擎 / 视图 assets/shell/js/term/terminal.js；输出的类：-k 关键字、-o 次要、-ok 箭头、-err 出错、-dir 目录、-q 引文、-a 链接、-pp 提示符。 */
 .sgx-term { box-sizing: border-box; text-align: left; border: 1px solid var(--sgx-term-line); border-radius: 14px; overflow: hidden;
   background: var(--sgx-surface-container-lowest); color: var(--sgx-text-primary); font-family: var(--sgx-font-mono); letter-spacing: 0;
   box-shadow: 0 30px 70px rgba(0,0,0,.28); }

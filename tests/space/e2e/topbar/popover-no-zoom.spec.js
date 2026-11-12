@@ -3,7 +3,7 @@
  * 整页突然放大并左移、只看得见面板一角，关掉才恢复）。
  * 根因（本机能复现的那一半）：<dialog>.show() 自带的「对话框聚焦」把 [autofocus] 的面板滚进视野，不能带 preventScroll；
  * 桌面版网站下页面缩小显示，用户放大过（或浏览器给焦点元素做放大）时，这次滚动把可视视口平移到面板那边（offsetLeft 0 → 445）。
- * 修法见 space/web/assets/shell/js/shell/modal-sheet.js showDialog：开的那一下 inert，开完自己 focus({ preventScroll: true })。
+ * 修法见 space/web/assets/shell/js/ui/modal-sheet.js showDialog：开的那一下 inert，开完自己 focus({ preventScroll: true })。
  * 这里模拟桌面版网站：手机屏 412 + 触屏 + 桌面 UA + 布局视口 980（三星桌面版网站不理 viewport meta，用 980 宽排版），
  * 再用 CDP 把页面放大到 1 倍（只看得见左边 412），打开三个弹层，可视视口的位置 / 缩放都不能变，焦点要在弹层里。
  * 另：弹层里的输入框字号不小于 16px（iOS / 部分安卓浏览器聚焦小于 16px 的输入框会自动放大）。

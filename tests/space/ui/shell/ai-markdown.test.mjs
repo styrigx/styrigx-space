@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 globalThis.window = globalThis.window || {};
-const AP = await import('../../../../space/web/assets/shell/js/shell/ai-panel.js');
+const AP = await import('../../../../space/web/assets/shell/js/ai/ai-panel.js');
 const HERE = { host: 'styrigx.com', origin: 'https://styrigx.com' };
 
 /** 极简 DOM 替身 */
@@ -100,7 +100,7 @@ test('sourcesBlock：来源列表（只认 http(s)、最多 8 条、标题里的
 });
 
 test('ai-panel.js：不用 innerHTML / insertAdjacentHTML；助手回答走 renderMd；处理 event: sources；文案表有 sources / newTab（中英）', () => {
-  const src = readFileSync(new URL('../../../../space/web/assets/shell/js/shell/ai-panel.js', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../../../../space/web/assets/shell/js/ai/ai-panel.js', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /\.innerHTML\s*=|insertAdjacentHTML|outerHTML\s*=/);
   assert.match(src, /renderMd\(doc, text,/);
   assert.match(src, /ev === 'sources'/);

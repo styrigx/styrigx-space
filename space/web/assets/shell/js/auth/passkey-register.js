@@ -9,9 +9,9 @@
  * 只管 WebAuthn 仪式、请求体格式、结果分派和命名弹层的开关；接口调用、鉴权失败的处理（重新验证 / 回登录）、
  * 文案都由调用方传进来。
  */
-import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
-import { on } from '../lib/events.js';
-import { bindSubmitButton, onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
+import { b64urlToBuf, bufToB64url } from '../core/b64.js';
+import { on } from '../core/events.js';
+import { bindSubmitButton, onDialogBackdrop, onDialogCancel, recordDialogClose } from '../ui/dialog-behavior.js';
 
 /**
  * 统一的接口结果：{ status: HTTP 状态（网络层失败时由调用方 reject），json: 正文或 null }

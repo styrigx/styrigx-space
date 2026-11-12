@@ -136,7 +136,7 @@ paletteGroup:
   warm: "Warm"
   floral: "Floral"
   neutral: "Neutral"
-# 站内终端（2026-11 UI 重设计 PR-2，设计稿 term-v1）：主页首屏嵌入的终端 + 全站抽屉（Ctrl / ⌘ K），引擎 assets/shell/js/shell/terminal.js（缺键回退那里的英文底）。
+# 站内终端（2026-11 UI 重设计 PR-2，设计稿 term-v1）：主页首屏嵌入的终端 + 全站抽屉（Ctrl / ⌘ K），引擎 assets/shell/js/term/terminal.js（缺键回退那里的英文底）。
 # 命令名（help / cd / ls …）、目录名、提示符不翻译（按 v6 身份 <用户>@space，见 shell/term/core/who.js）。{x} {c} {help} {cd} 是占位。
 term:
   welcome: "space os 1.0 — type {help} to see all commands, {cd} to jump there"
@@ -188,7 +188,7 @@ term:
   suUser: "<user>"
   exitFirst: "signed in as {u} · {x} first"
   notHere: "{x}: run it in the terminal (Ctrl K)"
-# 站内终端 man 页的 NAME 说明（终端统一 T5；英文底在 assets/shell/js/shell/term/man/pages.js，懒加载）。键 = 命令名，命令写法不翻译。
+# 站内终端 man 页的 NAME 说明（终端统一 T5；英文底在 assets/shell/js/term/man/pages.js，懒加载）。键 = 命令名，命令写法不翻译。
 man:
   man: "read a command’s manual page"
   cd: "change the current directory (use open to go there)"
@@ -217,7 +217,7 @@ man:
   userdel: "delete a user with its sessions, keys and groups"
   usermod: "add a user to groups or remove it from them"
   rescue: "enter the recovery key → a 15-min root rescue session"
-# 站内终端 man 页的正文（S9：DESCRIPTION / AUTH / NOTES；= assets/shell/js/shell/term/man/pages.js 的英文底，行数一一对应，tests/space/ui/shell/man-i18n.test.mjs 查两边一致）。
+# 站内终端 man 页的正文（S9：DESCRIPTION / AUTH / NOTES；= assets/shell/js/term/man/pages.js 的英文底，行数一一对应，tests/space/ui/shell/man-i18n.test.mjs 查两边一致）。
 manBody:
   ask:
     desc:

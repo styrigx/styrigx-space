@@ -93,7 +93,7 @@ export function stripComments(src) {
  * （2026-11-08 账号 UI 改版：账号页删了，头像改成账号终端里的行内选项，apps/account.js、account-apps.js、avatar-edit.js 移出白名单）
  */
 export const SHEET_ALLOW = new Set([
-  'space/web/assets/shell/js/shell/sheet.js',
+  'space/web/assets/shell/js/ui/sheet.js',
 ]);
 
 /* 规则 2 的匹配模式（作用于去注释后的代码，逐行检查，报错带行号） */

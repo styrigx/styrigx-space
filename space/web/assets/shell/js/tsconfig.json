@@ -14,11 +14,7 @@
     "target": "es2020"
   },
   "include": [
-    "apps/**/*.js",
-    "auth/**/*.js",
-    "entries/**/*.js",
-    "lib/**/*.js",
-    "shell/**/*.js",
-    "lib/feat-flags.d.ts"
+    "**/*.js",
+    "features/feat-flags.d.ts"
   ]
 }

@@ -7,12 +7,16 @@
  * api → api（'./lock-reauth.js'）、api → middleware（'../_middleware.js'）都因此漏检。
  *
  * 前端（space/web/assets/shell/js/）：
- *  1. lib/ 只能 import lib/（不得 import auth/、shell/、apps/、entries/）
- *  2. auth/ 只能 import lib/、auth/（鉴权与凭证流程；不得 import shell/、apps/、entries/）
- *  3. shell/ 不得 import apps/、entries/
- *  4. apps/ 不得 import entries/
+ *  前端分组（space/README.md §1.1，迁移第 2 步起）分三层，下层不许 import 上层：
+ *    基础层 core/ i18n/ prefs/ ui/ features/ status/（原 lib/）
+ *    功能层 auth/ 与 term/ account/ identity/ nav/ ai/ topbar/ music/（原 auth/、shell/）
+ *    应用层 apps/（apps/entries/ 是页面入口）
+ *  1. 基础层只能 import 基础层
+ *  2. auth/ 只能 import 基础层和 auth/（鉴权与凭证流程；不得 import 其它功能组、apps/）
+ *  3. 功能组（auth/ 以外）不得 import apps/
+ *  4. apps/ 不得 import apps/entries/
  *  5. 前端不得 import space/web/assets/shell/js/ 以外的文件（前后端隔离，含 functions/、workers/）
- *  6. lib/ 不得包含鉴权逻辑：不得出现鉴权接口地址（/api/lock-*、/api/space-*、/api/account）
+ *  6. 基础层（原 lib/）不得包含鉴权逻辑：不得出现鉴权接口地址（/api/lock-*、/api/space-*、/api/account）
  *     和 navigator.credentials（这些放 auth/）
  *  7. 前端代码禁止出现 cookie 名 `sgx-space-session`（HttpOnly，前端读不到；`data-sgx-lock-session` 属性名不算）
  *  8. 前端代码禁止出现 `sgx-lock-shown` 字符串
@@ -44,7 +48,7 @@
  *
  * 账号命名 v2（2026-11-08）：
  * 22. 退役名单（space/scripts/retired-names.json 的 account）里的旧名字不许出现在账号 Worker（workers/account/src/）
- *     和账号前端（space/web/assets/shell/js/shell/account/）——注释也算，旧名字只留在退役名单这一处
+ *     和账号前端（space/web/assets/shell/js/account/）——注释也算，旧名字只留在退役名单这一处
  *     （19–21 的 Worker 目录 = workers/ 下有 wrangler.toml 的子目录；workers/ 下每个子目录都得有 wrangler.toml，
  *     tests/space/ui/build/check-layers.test.mjs 核对。只管这四条，依赖方向不在这里查）
  *
@@ -145,6 +149,7 @@ export function stripComments(src) {
  */
 export function layerOf(root, abs) {
   const rel = relative(root, abs).split(sep).join('/');
+  if (rel.startsWith('space/web/assets/shell/js/apps/entries/')) return { area: 'frontend', layer: 'entries', rel };
   let m = rel.match(/^space\/web\/assets\/shell\/js\/([^/]+)\//);
   if (m) return { area: 'frontend', layer: m[1], rel };
   if (rel.startsWith('space/web/assets/shell/js/')) return { area: 'frontend', layer: '(root)', rel };
@@ -163,15 +168,17 @@ function gatewayLayer(rel) {
 }
 
 /** 前端各层可 import 的层 */
+export const FE_BASE = Object.freeze(['core', 'i18n', 'prefs', 'ui', 'features', 'status']);
+export const FE_FEATURE = Object.freeze(['term', 'account', 'identity', 'nav', 'ai', 'topbar', 'music']);
 const FRONTEND_ALLOWED = {
-  lib: new Set(['lib']),
-  auth: new Set(['lib', 'auth']),
-  shell: new Set(['lib', 'auth', 'shell']),
-  apps: new Set(['lib', 'auth', 'shell', 'apps']),
-  entries: new Set(['lib', 'auth', 'shell', 'apps', 'entries']),
+  ...Object.fromEntries(FE_BASE.map((g) => [g, new Set(FE_BASE)])),
+  auth: new Set([...FE_BASE, 'auth']),
+  ...Object.fromEntries(FE_FEATURE.map((g) => [g, new Set([...FE_BASE, 'auth', ...FE_FEATURE])])),
+  apps: new Set([...FE_BASE, 'auth', ...FE_FEATURE, 'apps']),
+  entries: new Set([...FE_BASE, 'auth', ...FE_FEATURE, 'apps', 'entries']),
 };
 
-/* 规则 6：lib/ 里不许出现的鉴权痕迹 */
+/* 规则 6：基础层（原 lib/）里不许出现的鉴权痕迹 */
 const LIB_AUTH_RE = /\/api\/(?:lock-|space-|account\b)|navigator\s*\.\s*credentials/;
 
 const EXTERNAL_OK = new Set(['cloudflare:workers']);
@@ -283,7 +290,7 @@ export function checkGatewayAccountAuth(rel, src, kind = 'js') {
 }
 
 /* 规则 22：退役名单的检查范围（账号 Worker 源码、账号前端） */
-export const RETIRED_SCOPE_RE = /^(?:workers\/account\/src\/|space\/web\/assets\/shell\/js\/shell\/account\/)/;
+export const RETIRED_SCOPE_RE = /^(?:workers\/account\/src\/|space\/web\/assets\/shell\/js\/account\/)/;
 /** @type {string[]|null} */
 let retiredCache = null;
 /** 退役名单（space/scripts/retired-names.json 的 account） */
@@ -397,8 +404,8 @@ export function checkFile(root, abs, srcOverride) {
   if (RETIRED_SCOPE_RE.test(r)) errors.push(...checkRetiredNames(r, src));
 
   if (self.area === 'frontend') {
-    if (self.layer === 'lib' && LIB_AUTH_RE.test(code)) {
-      errors.push(`${r}: lib/ 不得包含鉴权逻辑（鉴权接口 / navigator.credentials 放 auth/）`);
+    if (FE_BASE.includes(self.layer) && LIB_AUTH_RE.test(code)) {
+      errors.push(`${r}: 基础层 ${self.layer}/ 不得包含鉴权逻辑（鉴权接口 / navigator.credentials 放 auth/）`);
     }
     if (/(?<!data-)sgx-space-session/.test(code)) {
       errors.push(`${r}: 前端禁止出现 sgx-space-session 字符串`);
@@ -480,7 +487,9 @@ export const PRODUCTS = Object.freeze(['blog', 'curio', 'daymark']);
 
 /** 规则 26：允许的落点（和 space/README.md §1–§2 一致；改骨架两边同一个 PR 改） */
 export const ALLOWED_PLACES = Object.freeze([
-  /^space\/web\/assets\/shell\/(?:css|js)\/.+/,
+  /^space\/web\/assets\/shell\/css\/.+/,
+  /^space\/web\/assets\/shell\/js\/(?:core|i18n|prefs|ui|features|status|auth|term|account|identity|nav|ai|topbar|music|apps)\/.+/,
+  /^space\/web\/assets\/shell\/js\/tsconfig\.json$/,
   /^space\/web\/assets\/(?:blog|curio|daymark)\/(?:css|js)\/.+/,
   /^space\/web\/layouts\/[^/]+$/,
   /^space\/web\/layouts\/(?:_default|shell|blog|curio|daymark)\/.+/,

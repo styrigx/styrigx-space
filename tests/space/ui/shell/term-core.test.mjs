@@ -8,15 +8,16 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkTermImports } from '../../../../space/scripts/gen-shell.mjs';
-import * as S from '../../../../space/web/assets/shell/js/shell/term/core/strings.js';
-import * as P from '../../../../space/web/assets/shell/js/shell/term/core/parse.js';
-import * as KH from '../../../../space/web/assets/shell/js/shell/term/view/keyhint.js';
-import * as AC from '../../../../space/web/assets/shell/js/shell/account/commands.js';
-import * as T from '../../../../space/web/assets/shell/js/shell/terminal.js';
+import * as S from '../../../../space/web/assets/shell/js/term/core/strings.js';
+import * as P from '../../../../space/web/assets/shell/js/term/core/parse.js';
+import * as KH from '../../../../space/web/assets/shell/js/term/view/keyhint.js';
+import * as AC from '../../../../space/web/assets/shell/js/account/commands.js';
+import * as T from '../../../../space/web/assets/shell/js/term/terminal.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const read = (f) => readFileSync(path.join(REPO, f), 'utf8');
 
+const FE_AT = { 'terminal.js': 'term/terminal.js', 'ai-panel.js': 'ai/ai-panel.js', 'suggest.js': 'term/suggest.js' };
 test('宿主转出的是同一份（同一个引用）', async () => {
   assert.equal(KH.KH_EN, S.KH_EN);
   assert.equal(AC.normCmd, P.normCmd);
@@ -30,7 +31,7 @@ test('宿主转出的是同一份（同一个引用）', async () => {
 test('没有残留的抄写：flatStrings / normCmd / lev 只定义在 term/core', () => {
   const files = ['terminal.js', 'ai-panel.js', 'term/view/keyhint.js', 'suggest.js', 'account/window.js', 'account/cmd/layer.js', 'account/commands.js'];
   for (const f of files) {
-    const src = read('space/web/assets/shell/js/shell/' + f);
+    const src = read('space/web/assets/shell/js/' + (FE_AT[f] || f));
     assert.doesNotMatch(src, /function (flatStrings|normCmd|lev)\(/, f);
     assert.doesNotMatch(src, /getElementById\('sgx-i18n-shell'\)/, f + ' 用 shellSection 读字符串表');
   }
@@ -48,8 +49,8 @@ test('shellSection：读一节；没有元素 / 坏 JSON / 不是对象 → {}',
 });
 
 test('gen-shell：terminal.js / ai-panel.js 过检；term/** 之外的 import（含 import()）、非字面量 import()、term/** 里再往外 import 都拒', () => {
-  checkTermImports(path.join(REPO, 'space/web/assets/shell/js/shell/terminal.js'), 'terminal.js');
-  checkTermImports(path.join(REPO, 'space/web/assets/shell/js/shell/ai-panel.js'), 'ai-panel.js');
+  checkTermImports(path.join(REPO, 'space/web/assets/shell/js/term/terminal.js'), 'terminal.js');
+  checkTermImports(path.join(REPO, 'space/web/assets/shell/js/ai/ai-panel.js'), 'ai-panel.js');
   const root = mkdtempSync(path.join(tmpdir(), 'sgx-t1-'));
   const term = path.join(root, 'term');
   mkdirSync(path.join(term, 'core'), { recursive: true });
@@ -57,12 +58,12 @@ test('gen-shell：terminal.js / ai-panel.js 过检；term/** 之外的 import（
     const w = (f, s) => { writeFileSync(path.join(root, f), s); return path.join(root, f); };
     w('term/core/ok.js', 'export const ok = 1;\n');
     checkTermImports(w('good.js', "import { ok } from './term/core/ok.js';\nexport function g() { return ok; }\n"), 'good.js', term);
-    assert.throws(() => checkTermImports(w('a.js', "import { esc } from '../lib/util.js';\nexport function x() {}\n"), 'a.js', term), /只能 import shell\/term/);
+    assert.throws(() => checkTermImports(w('a.js', "import { esc } from '../lib/util.js';\nexport function x() {}\n"), 'a.js', term), /只能 import term/);
     checkTermImports(w('b.js', "export function x() { return import('./term/core/ok.js'); }\n"), 'b.js', term);
-    assert.throws(() => checkTermImports(w('b2.js', "export function x() { return import('../lib/x.js'); }\n"), 'b2.js', term), /只能 import shell\/term/);
+    assert.throws(() => checkTermImports(w('b2.js', "export function x() { return import('../lib/x.js'); }\n"), 'b2.js', term), /只能 import term/);
     assert.throws(() => checkTermImports(w('b3.js', "export function x(p) { return import(p); }\n"), 'b3.js', term), /非字面量/);
     w('term/core/bad.js', "import { t } from '../../lib/toast.js';\nexport const c = 1;\n");
-    assert.throws(() => checkTermImports(w('d.js', "import { c } from './term/core/bad.js';\nexport function y() { return c; }\n"), 'd.js', term), /只能 import shell\/term/);
+    assert.throws(() => checkTermImports(w('d.js', "import { c } from './term/core/bad.js';\nexport function y() { return c; }\n"), 'd.js', term), /只能 import term/);
     assert.throws(() => checkTermImports(w('e.js', "import { c } from './term/core/nope.js';\nexport function y() {}\n"), 'e.js', term), /不存在/);
   } finally {
     rmSync(root, { recursive: true, force: true });

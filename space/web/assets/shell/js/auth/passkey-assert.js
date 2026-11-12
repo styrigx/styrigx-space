@@ -8,7 +8,7 @@
  * 账号登录 / 再验证）都走 getPasskeyAssertion，选项用 assertionOptions(ch)、提交体用 assertionToJSON(cred)，
  * 不再各自手写 allowCredentials 映射和序列化。
  */
-import { b64urlToBuf, bufToB64url } from '../lib/b64.js';
+import { b64urlToBuf, bufToB64url } from '../core/b64.js';
 
 /**
  * 服务端下发的断言 challenge → credentials.get 的 publicKey 选项。

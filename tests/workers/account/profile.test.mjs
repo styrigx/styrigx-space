@@ -1,6 +1,6 @@
 /**
  * 个人资料接口（2026-11-07 Gray 定；workers/account/src/api/profile.js、src/lib/profile.js）
- * - 字段表：姓名 / 昵称 / 签名 / 邮箱四项（头像另走 /avatar/*），与前端 space/web/assets/shell/js/lib/profile.js 同名同序、长度一致
+ * - 字段表：姓名 / 昵称 / 签名 / 邮箱四项（头像另走 /avatar/*），与前端 space/web/assets/shell/js/prefs/profile.js 同名同序、长度一致
  * - 校验 checkField：去首尾空白；长度上限（按字符）；单行（控制字符、换行不收）；姓名、昵称、邮箱不能为空串，签名可空；邮箱格式；null = 清掉
  * - GET /api/profile：公开（v6 P2c）；KV 没存 / 没绑 / 坏 JSON / 存了不合法的字段 → 对应字段 null（前端回退默认值），照样 200；回头像版本号
  * - PUT /api/profile：不同源 403；没有 v6 会话（只有旧进站会话 / 旧账号会话一样）或不是站长 / root 401 session（v6 P4，定稿 v5.3 §十三）；
@@ -66,7 +66,7 @@ test('字段表：name / nickname / motto / email（长度 40 / 32 / 不限 / 25
   assert.ok(Object.isFrozen(lib.PROFILE_FIELDS));
   for (const f of lib.PROFILE_FIELDS) assert.ok(Object.isFrozen(f));
   /* 前端同一份定义（不能互相 import：Worker 只 import 自己目录） */
-  const fe = readFileSync(REPO + '/space/web/assets/shell/js/lib/profile.js', 'utf8');
+  const fe = readFileSync(REPO + '/space/web/assets/shell/js/prefs/profile.js', 'utf8');
   const m = /PROFILE_FIELDS = Object\.freeze\(\[([\s\S]*?)\]\);/.exec(fe);
   assert.ok(m, '前端 lib/profile.js 有 PROFILE_FIELDS');
   const ids = [...m[1].matchAll(/id: '([a-z]+)', max: (\d+|null)/g)].map((x) => [x[1], x[2] === 'null' ? null : Number(x[2])]);

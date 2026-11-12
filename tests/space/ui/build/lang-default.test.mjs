@@ -1,6 +1,6 @@
 /**
  * P4-3 PR-4c（§6.8，§8 第 7 条）：四站英文是默认语言（无前缀），中文在 /zh/；旧 /en/… 删除不 301。
- * - 语言路径唯一函数 space/web/assets/shell/js/lib/lang-path.js：对表（主站、子站、/zh 边界、旧 /en/ 不是前缀）
+ * - 语言路径唯一函数 space/web/assets/shell/js/i18n/lang-path.js：对表（主站、子站、/zh 边界、旧 /en/ 不是前缀）
  * - 共享外壳原样复制了 lang-path.js / lang-path.html；子站的 sgx-lang-path.html 和主站一字不差
  * - 四站 Hugo 配置：defaultContentLanguage en、不生成 /en/ 跳转页；主站内容英文在 content/、中文在 content/zh/（url 带 /zh/）
  * - 构建产物（有才跑；CI 在拼树之后补跑）：任何文件路径都只有 ASCII；没有 en/ 目录；中文页 html lang=zh；
@@ -13,7 +13,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { langPath, pathLang, stripLang, langSwitch, systemLang } from '../../../../space/web/assets/shell/js/lib/lang-path.js';
+import { langPath, pathLang, stripLang, langSwitch, systemLang } from '../../../../space/web/assets/shell/js/i18n/lang-path.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const rd = (/** @type {string} */ p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -67,7 +67,7 @@ test('systemLang：zh 开头 = 中文，其余（含取不到）= 英文', () =>
 });
 
 test('共享外壳：lang-path.js / lang-path.html 只有主站一份（2026-11 合站后子站直接用，没有副本）', () => {
-  assert.match(rd('space/web/assets/shell/js/lib/lang-path.js'), /export function langPath\(/);
+  assert.match(rd('space/web/assets/shell/js/i18n/lang-path.js'), /export function langPath\(/);
   assert.ok(existsSync(path.join(REPO, 'space/web/layouts/partials/sgx-lang-path.html')));
   for (const s of SITES) {
     assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials', s, 'sgx-lang-path.html')), s + ' 没有 sgx-lang-path.html 副本');

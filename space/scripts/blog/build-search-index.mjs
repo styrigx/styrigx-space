@@ -19,7 +19,7 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { langPath } from '../../../space/web/assets/shell/js/lib/lang-path.js';
+import { langPath } from '../../../space/web/assets/shell/js/i18n/lang-path.js';
 
 /* 仓库根是 REPO；博客是主站 Hugo 站 space/web/ 的 blog 分区（2026-11 合站） */
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');

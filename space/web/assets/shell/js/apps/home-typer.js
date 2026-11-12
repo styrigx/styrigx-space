@@ -8,7 +8,7 @@
  * - 读屏：动的这份 aria-hidden，旁边 sr-only 一份完整文字（模板里），所以这里只改 textContent。
  * typerStep 是纯函数，单测看它（tests/space/ui/home/home-typer.test.mjs）。
  */
-import { reducedMotion } from '../lib/util.js';
+import { reducedMotion } from '../core/util.js';
 
 /** 节奏（毫秒）：打字、删除、整句停顿、删空后的空白 */
 export const TYPER_MS = Object.freeze({ type: 90, del: 45, hold: 2200, gap: 450 });
