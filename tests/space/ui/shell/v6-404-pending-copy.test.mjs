@@ -38,7 +38,7 @@ function layers() {
 }
 
 test('文案：新键 en / zh / TERM_EN 都有，en 与 TERM_EN 一致', () => {
-  for (const k of ['goneSudoV', 'goneSudoReauth', 'goneLockPasswd', 'goneLockPasskey', 'goneLockAll', 'usagePasskey6']) {
+  for (const k of ['usagePasskey6']) {
     assert.equal(EN.term[k], TERM_EN[k], 'en.' + k);
     assert.ok(typeof ZH.term[k] === 'string' && ZH.term[k] && ZH.term[k] !== TERM_EN[k], 'zh.' + k);
   }
@@ -52,47 +52,35 @@ test('第 2 项（P4-3）：sudo sub 接通——交给身份层先验自己的�
     const calls = [];
     const v = { ident: { hasSession: () => true, sudoProof: (done) => { calls.push('proof'); done(null); } }, acct: { sudo: (via) => calls.push(['sudo', via]), cmdSub: (l, g) => calls.push(['sub', l, g]) } };
     assert.equal(sh(w).exec('sudo sub show Foo', v).flow, true, w);
-    assert.deepEqual(calls, ['proof', ['sudo', null], ['sub', 'sub show Foo', { direct: true }]], w + '：来源名大小写原样');
+    assert.deepEqual(calls, ['proof', ['sudo', null], ['sub', 'sub show Foo', undefined]], w + '：来源名大小写原样');
     const L = layers();
     assert.equal(text(sh(w).exec('sudo app allow 1', L.v).out[0]), TERM_EN.usageSudo, w);
   }
 });
 
-test('第 3 项：v6 身份输已移除的 sudo -v / sudo root reauth / lock passwd | passkey | --all → 一行 v6 做法，不跑旧层', () => {
-  const want = {
-    'sudo -v': ['sudo -v is gone · in v6 every sudo verifies again', 'sudo -v 已移除 · v6 里每次 sudo 都会重新验证'],
-    'sudo root reauth': ['sudo root reauth is gone · to act as root, su root', 'sudo root reauth 已移除 · 需要 root 权限时直接 su root'],
-    'lock passwd': ['lock passwd is gone · change your own password with passwd', 'lock passwd 已移除 · 改自己的密码用 passwd'],
-    'lock passkey': ['lock passkey is gone · manage passkeys with passkey', 'lock passkey 已移除 · 通行密钥用 passkey 管理'],
-    'lock passkey add': ['lock passkey is gone · manage passkeys with passkey', 'lock passkey 已移除 · 通行密钥用 passkey 管理'],
-    'lock --all': ['lock --all is gone · sign out all devices on the account page', 'lock --all 已移除 · 所有设备在账号页退出'],
-  };
+test('旧命令 sudo -v / sudo root reauth / lock passwd | passkey | --all 删干净（Gray 2026-11-12 15:59「命令不需要」）：不留「已移除」提示，落到用法行，不跑任何层', () => {
+  for (const k of ['goneSudoV', 'goneSudoReauth', 'goneLockPasswd', 'goneLockPasskey', 'goneLockAll']) {
+    assert.equal(k in TERM_EN, false, k);
+    assert.equal(k in EN.term, false, 'en.' + k);
+    assert.equal(k in ZH.term, false, 'zh.' + k);
+  }
+  const want = { 'sudo -v': TERM_EN.usageSudo, 'sudo root reauth': TERM_EN.usageSudo, 'lock passwd': TERM_EN.usageLock, 'lock passkey': TERM_EN.usageLock, 'lock passkey add': TERM_EN.usageLock, 'lock --all': TERM_EN.usageLock };
   for (const w of ['u:styrigx', 'u:root']) {
-    for (const [l, [en, zh]] of Object.entries(want)) {
+    for (const [l, u] of Object.entries(want)) {
       const L = layers();
       const o = sh(w).exec(l, L.v).out;
       assert.equal(o.length, 1, w + ' ' + l);
-      assert.equal(text(o[0]), en, w + ' ' + l);
-      assert.equal(o[0].cls, 'err');
-      assert.equal(text(sh(w, ZH.term).exec(l, L.v).out[0]), zh, w + ' ' + l);
-      assert.equal(L.calls.length, 0, w + ' ' + l + ' 不跑旧层');
+      assert.equal(text(o[0]), u, w + ' ' + l);
+      assert.equal(L.calls.length, 0, w + ' ' + l + ' 不跑任何层');
     }
-  }
-  /* 访客：同 main 的门，先提示 su（v6 P4 不改访客的行为） */
-  for (const l of Object.keys(want)) {
-    const L = layers();
-    const o = sh('nobody').exec(l, L.v).out;
-    assert.equal(text(o[0]), 'not signed in · su <user> first', 'nobody ' + l);
-    assert.equal(L.calls.length, 0);
   }
 });
 
-test('第 3 项：lock（不带参数）清 v6 身份栈；v6 P4：旧身份的 sudo -v / lock passwd 删了（印「已移除」，不进任何层）', () => {
+test('第 3 项：lock（不带参数）清 v6 身份栈；带参数一律用法行', () => {
   const L = layers();
   assert.equal(sh('u:styrigx').exec('lock', L.v).flow, true);
   assert.deepEqual(L.calls, [['ident.cmdLock']]);
-  /* 应用内终端（没有层）：已移除的一行照印，不用去终端跑 */
-  assert.equal(text(sh('u:styrigx').exec('lock --all', {}).out[0]), 'lock --all is gone · sign out all devices on the account page');
+  assert.equal(text(sh('u:styrigx').exec('lock --all', {}).out[0]), 'usage: lock');
   assert.equal(text(sh('u:styrigx').exec('lock', {}).out[0]), 'lock: run it in the terminal (Ctrl K)');
   assert.equal(text(sh('u:styrigx').exec('lock x', L.v).out[0]), 'usage: lock');
 });

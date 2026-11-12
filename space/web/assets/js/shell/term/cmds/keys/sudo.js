@@ -1,4 +1,4 @@
-import { layer, notHere, needSu, nth, FLOW } from './gate.js';
+import { layer, notHere, nth, FLOW } from './gate.js';
 import { isV6 } from '../../core/who.js';
 import { SUDO_CMDS } from '../../core/ident-args.js';
 
@@ -8,8 +8,7 @@ import { SUDO_CMDS } from '../../core/ident-args.js';
  * sudo passkey … → 身份层回 rootCreds（定稿 §十：sudo 不能动 root 的凭据）。
  * sudo device … / sudo sub …（P4-3，定稿 v5.5 §四「后台数据控制……站长用 sudo 提权」）：借 root 跑账号层这一条（sudo app 随 app 命令删除，定稿 v5.3 §十二）。
  *   用法行 / man SYNOPSIS 维持 main 原文。
- * 已移除的 sudo -v / sudo root reauth → 一行「已移除 · v6 做法」
- * （v6 P4 起旧命令本身删了；访客照旧先提示 su）。旧写法 sudo styrigx [reset] / sudo root [reset] 随旧会话删除（定稿 §十三 P4），落到用法行。
+ * 旧写法 sudo styrigx / sudo root / sudo -v 删干净（定稿 §十三 P4；不留「已移除」提示，Gray 2026-11-12 15:59），落到用法行。
  */
 export default {
   name: 'sudo',
@@ -20,7 +19,6 @@ export default {
   /** @param {any} p @param {any} x @param {string} [line0] 原样的一行（sub 的来源名大小写敏感） */
   run: function (p, x, line0) {
     const a0 = (p.args[0] || '').toLowerCase();
-    const a1 = (p.args[1] || '').toLowerCase();
     if (SUDO_CMDS.indexOf(a0) !== -1 || (a0 === 'passkey' && isV6(x.who()))) {
       const I = layer(x, /** @type {any} */ ('ident'));
       if (!I) return notHere(x, 'sudo ' + p.args.join(' '));
@@ -35,7 +33,7 @@ export default {
       if (!I || !A) return notHere(x, 'sudo ' + p.args.join(' '));
       const rest = String(line0 || '').trim().replace(/^sudo\s+/i, '');
       const go = function () {
-        if (a0 === 'sub') { A.cmdSub(rest, { direct: true }); return; }
+        if (a0 === 'sub') { A.cmdSub(rest); return; }
         const a = p.args.slice(1).map(function (s) { return s.toLowerCase(); });
         if (!a.length) { A.deviceList(); return; }
         if (a[0] === 'rm' && a.length === 2 && nth(a[1])) { A.deviceRm(nth(a[1])); return; }
@@ -46,10 +44,6 @@ export default {
       I.sudoProof(function (/** @type {any} */ via) { A.sudo(via); go(); });
       return FLOW;
     }
-    /* 访客输旧的 sudo -v / sudo root …：同 main，先提示 su（main 的 gate） */
-    if ((a0 === '-v' || a0 === 'root') && !isV6(x.who())) return { out: [needSu(x)] };
-    if (a0 === '-v' && !a1) return { out: [x.k.plain(x.S.goneSudoV, 'err')] };
-    if (a0 === 'root' && a1 === 'reauth' && p.args.length === 2) return { out: [x.k.plain(x.S.goneSudoReauth, 'err')] };
     return { out: [x.k.plain(x.S.usageSudo)] };
   },
 };

@@ -40,22 +40,22 @@ const passkey = {
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     const a = p.args.map(function (s) { return s.toLowerCase(); });
-    const v6 = v6SelfGate(x);
-    if ('out' in v6) return v6;
+    const no = v6SelfGate(x);
+    if (no) return no;
     const A = layer(x, 'acct');
     if (!A) return notHere(x, 'passkey');
     if (typeof A.sudo === 'function') A.sudo(null);
-    if (!a.length || (a[0] === 'ls' && a.length === 1)) { A.passkeyList(v6); return FLOW; }
-    if (a[0] === 'add' && a.length === 1) { A.cmdPasskeyAdd(true, v6); return FLOW; }
-    if (a[0] === 'rm' && a.length === 2 && nth(a[1])) { A.passkeyRm(nth(a[1]), v6); return FLOW; }
+    if (!a.length || (a[0] === 'ls' && a.length === 1)) { A.passkeyList(); return FLOW; }
+    if (a[0] === 'add' && a.length === 1) { A.cmdPasskeyAdd(true); return FLOW; }
+    if (a[0] === 'rm' && a.length === 2 && nth(a[1])) { A.passkeyRm(nth(a[1])); return FLOW; }
     return { out: [x.k.plain(x.S.usagePasskey6)] };
   },
 };
 
 /** 账号层命令的共同开头：有 v6 会话、要在终端窗口里 @param {any} x @param {string} name @returns {{ A: any, no: any }} */
 function acct(x, name) {
-  const v6 = v6SelfGate(x);
-  if ('out' in v6) return { A: null, no: v6 };
+  const no = v6SelfGate(x);
+  if (no) return { A: null, no: no };
   const A = layer(x, 'acct');
   if (A && typeof A.sudo === 'function') A.sudo(null); /* 不是 sudo 的一条：直接调（keys/sudo.js 才给证明来源） */
   return A ? { A: A, no: null } : { A: null, no: notHere(x, name) };

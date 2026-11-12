@@ -18,7 +18,7 @@ import { mountProxy } from '../proxy.js';
 import { mountKeys } from './keys.js';
 import { mountDevices } from './devices.js';
 import { mountProfile } from './profile.js';
-import { mountV6Direct } from './v6-direct.js';
+import { mountAuthErr } from './auth-err.js';
 
 /**
  * @typedef {Object} TermLink 终端那一头（topbar-panel.js 给）
@@ -74,8 +74,8 @@ export function mountAccountLayer(o) {
   mountProxy(C);
   /** 终端输出里的按钮（sub 的复制）：终端窗口点到 [data-at-act] 时调 @param {string} a */
   C.actLog = function (a) { return C.actProxy(a); };
-  /* v6 的 401 / 403 提示（C.gated / C.authErrFor / C.authErr，见 ./v6-direct.js） */
-  mountV6Direct(C, o.who);
+  /* v6 的 401 / 403 提示（C.authErr，见 ./auth-err.js） */
+  mountAuthErr(C, o.who);
 
   /** 终端窗口关上：忘掉印过的地址 */
   C.onTermClosed = function () { C.forgetProxy(); };

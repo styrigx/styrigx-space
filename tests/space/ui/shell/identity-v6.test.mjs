@@ -103,15 +103,10 @@ test('命令分流：sudo <管理命令> → 身份层（每次验自己的凭�
   assert.deepEqual(L.calls.at(-1), ['sudo', ['who']]);
   const old = createShell({ act, storage: mem(), who: fixedWho('nobody') });
   const L2 = layers(false);
-  for (const line of ['sudo styrigx', 'sudo styrigx reset', 'sudo']) {
+  for (const line of ['sudo styrigx', 'sudo styrigx reset', 'sudo', 'sudo root', 'sudo root reset', 'sudo -v']) {
     const r = await run(old, line, L2.v);
     assert.ok(r.out.length && !r.flow, line + ' → 用法');
     assert.match(r.out[0].seg.map((x) => x[1]).join(''), /sudo useradd/, line + ' 的用法行是 v6 写法');
-  }
-  /* 访客输 sudo root …：同 main 的门，先提示 su */
-  for (const line of ['sudo root', 'sudo root reset']) {
-    const r = await run(old, line, L2.v);
-    assert.match(r.out[0].seg.map((x) => x[1]).join(''), /^not signed in · su <user> first$/, line);
   }
   assert.equal(L2.calls.length, 0, '旧写法不进任何层');
   /* AI 窗口（没有层）：要在终端里跑 */

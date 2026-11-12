@@ -15,12 +15,12 @@ export const SUB_CMD = {
   audience: /** @type {any} */ (['root6']),
   /** @param {any} p @param {any} x @param {string} line */
   run: function (p, x, line) {
-    const v6 = v6RootGate(x);
-    if ('out' in v6) return v6;
+    const no = v6RootGate(x);
+    if (no) return no;
     const A = layer(x, 'acct');
     if (!A) return notHere(x, 'sub');
     if (typeof A.sudo === 'function') A.sudo(null); /* 不是 sudo 的一条（sudo sub … 在 keys/sudo.js） */
-    A.cmdSub(String(line || '').trim(), { direct: true });
+    A.cmdSub(String(line || '').trim());
     return FLOW;
   },
 };

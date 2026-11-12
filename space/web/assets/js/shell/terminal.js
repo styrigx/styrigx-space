@@ -90,11 +90,6 @@ export const TERM_EN = {
   suUser: '<user>',
   exitFirst: 'signed in as {u} · {x} first',
   notHere: '{x}: run it in the terminal (Ctrl K)',
-  goneSudoV: 'sudo -v is gone · in v6 every sudo verifies again',
-  goneSudoReauth: 'sudo root reauth is gone · to act as root, su root',
-  goneLockPasswd: 'lock passwd is gone · change your own password with passwd',
-  goneLockPasskey: 'lock passkey is gone · manage passkeys with passkey',
-  goneLockAll: 'lock --all is gone · sign out all devices on the account page',
 };
 
 /**

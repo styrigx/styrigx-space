@@ -3,7 +3,7 @@
  * - 盾牌 = 身份徽章四档（P4-3，定稿 v5.5 §七）：打开终端、按身份预填——访客 su 、普通用户 exit、站长 su root、root exit（不替人回车）；旧地址 #sec[=层] 只打开终端；
  *   Ctrl 点盾牌照旧按链接走（/#sec）。旧的「退出进站会话 [y/N]」随旧会话删了。
  * - 已登录：提示符 styrigx@space:~$；man 列 lock / passkey / device，不列 share（分享短链整套删除，定稿 §二）
- * - lock：POST /api/identity lock（清空身份栈、删服务端会话行）→ 回访客 nobody@space；lock passwd / passkey / --all 印「已移除」
+ * - lock：POST /api/identity lock（清空身份栈、删服务端会话行）→ 回访客 nobody@space；lock passwd / passkey / --all 落到用法行
  * - 头像 = whoami（定稿 v5.5 §七）：访客预填 su ；站长与 root 开账号页；普通用户头像只作装饰、不可点
  * 测试构建（锁屏禁用、没有网关）：/api/identity 用替身（helpers/account-term.cjs mockAccount）。
  */
@@ -108,15 +108,14 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
     expect(new URL(page.url()).pathname).toBe('/zh/status/');
   });
 
-  test('已移除的 lock passwd / lock passkey / lock --all：印一行「已移除 · v6 做法」，不发请求', async ({ page }) => {
+  test('旧的 lock passwd / lock passkey / lock --all 删了：落到用法行，不发请求', async ({ page }) => {
     const calls = await go(page);
     await page.locator('#site-nav .sgx-tb-term').click();
-    await type(page, 'lock passwd');
-    await expect(tOut(page)).toContainText('lock passwd 已移除');
-    await type(page, 'lock passkey add');
-    await expect(tOut(page)).toContainText('lock passkey 已移除');
-    await type(page, 'lock --all');
-    await expect(tOut(page)).toContainText('lock --all 已移除');
+    for (const l of ['lock passwd', 'lock passkey add', 'lock --all']) {
+      await type(page, l);
+      await expect(tOut(page)).toContainText('用法：lock');
+      await expect(tOut(page)).not.toContainText('已移除');
+    }
     expect(calls.length).toBe(0);
   });
 

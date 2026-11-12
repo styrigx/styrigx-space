@@ -55,12 +55,8 @@ export function mountProxy(C) {
   const P = api.proxy;
   /** sub show / sub token 刚印出的令牌和地址（复制按钮按序号取；关终端就清） @type {string[]} */
   let urls = [];
-  /** 这一行 sub 的门（割接：v6 root = { direct: true }，见 cmdSub）；终端一次只跑一条命令，跑下一条时换掉 @type {{direct?: boolean}} */
-  let gate = {};
-  /** 原来要 reauth 的那几步（show / key / token）：v6 root 直接做 @param {() => void} run @param {string} lead */
-  const gated = function (run, lead) { C.gated(gate, run, lead); };
   /** 服务端说没会话 / 档不够 / 票过期 @param {any} res @returns {boolean} */
-  const authErr = function (res) { return C.authErrFor(gate, res); };
+  const authErr = function (res) { return C.authErr(res); };
 
   /** 错误类别 → 文案（没有就交给通用的） @param {any} res */
   function errOut(res) {
@@ -148,7 +144,7 @@ export function mountProxy(C) {
         send();
       }, { ps: t('proxy.keyPs'), hint: t('proxy.keyHint'), aria: t('proxy.keyPs') });
     };
-    gated(go, t('proxy.lead.key'));
+    go();
   }
 
   /**
@@ -167,17 +163,17 @@ export function mountProxy(C) {
     }
   }
 
-  /** sub show [名称]：reauth → 服务端解封令牌 → 印地址（随时可重印） @param {string} [name] */
+  /** sub show [名称]：服务端解封令牌 → 印地址（随时可重印） @param {string} [name] */
   function cmdShow(name) {
     withStatus(function (s) {
       if (name && !find(s, name)) { C.err(tf('proxy.notFound', { v: name })); return; }
       if (s.token !== 'sealed') { C.err(t(s.token === 'hash-only' ? 'proxy.err.token-unsealed' : 'proxy.err.no-token')); return; }
       const send = function () { call(function () { return P.show(); }, function (j) { printUrls(j, s.sources || [], name); }, send); };
-      gated(send, t('proxy.lead.show'));
+      send();
     });
   }
 
-  /** sub token reset：已有令牌先 y/N（旧链接全部失效）→ reauth → 换新 → 印新地址 */
+  /** sub token reset：已有令牌先 y/N（旧链接全部失效）→ 换新 → 印新地址 */
   function cmdToken() {
     withStatus(function (s) {
       const make = function () {
@@ -187,7 +183,7 @@ export function mountProxy(C) {
             printUrls(j, s.sources || []);
           }, send);
         };
-        gated(send, t('proxy.lead.token'));
+        send();
       };
       if (s.token === 'none') { make(); return; }
       C.out(esc(tf('proxy.tokenReplace', { n: (s.sources || []).length })), 'warn');
@@ -310,13 +306,12 @@ export function mountProxy(C) {
   });
 
   /**
-   * 跑一行 sub（runCmd 已回显）：终端 cmds/sub 判过是 v6 root（o.direct）；查参数，再分发。
-   * @param {string} raw 原样的一行 @param {{direct?: boolean}} [o]
+   * 跑一行 sub（runCmd 已回显）：终端 cmds/sub 判过是 v6 root；查参数，再分发。
+   * @param {string} raw 原样的一行
    */
-  C.cmdSub = function (raw, o) {
+  C.cmdSub = function (raw) {
     const p = parseSub(raw);
     if (!p) return;
-    gate = { direct: !!(o && o.direct) };
     const bad = checkSub(p);
     if (bad) { C.err('usage' in bad ? tf('proxy.usage', { x: bad.usage }) : t('proxy.badName')); return; }
     RUN[p.sub](p.args);

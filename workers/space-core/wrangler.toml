@@ -52,8 +52,8 @@ SGX_RP_ID = "styrigx.com"
 
 # ---- 服务绑定 ----
 # 账号 Worker styrigx-account（workers/account；没有公开地址，只能从这里进；方案第 1、10.1 节）：
-# - ACCOUNT（entrypoint AccountService）：src/router.js 转发表里的路径验完门后原样转过去，写全套身份头（X-Styrigx-Space-* / X-Styrigx-Client-*）
-# - ACCOUNT_VERIFIER（entrypoint AccountVerifier）：只读 RPC accountSession()——只有账号页首帧提示用（临时钥匙、短链只认锁屏进门会话 + 锁侧复验）
+# - ACCOUNT（entrypoint AccountService）：src/router.js 转发表里的路径验完门后原样转过去，只写客户端上下文头（X-Styrigx-Client-*）；身份由账号 Worker 按 v6 会话自己判
+# - ACCOUNT_VERIFIER（entrypoint AccountVerifier）：RPC admit()（v6 会话能不能走这条路由）、auditRoot()（root 特权操作留痕）、auditList()（审计卡）
 # 部署顺序：deploy.yml 里 deploy-account-worker 先于本 Worker（命名入口 PR2 已导出）。
 [[services]]
 binding = "ACCOUNT"
