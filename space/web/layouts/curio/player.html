@@ -1,0 +1,65 @@
+{{ define "main" }}
+{{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}{{ $t := $tr.player }}
+{{/* 奇趣 › 音乐 › 播放器（/curio/music/player/，中文 /curio/zh/music/player/；音乐分层方案 v1.13 第二步 2b，功能见 §7.1 播放层）：
+   独立小播放器页，桌面 / DeX 由入口用 window.open 开成小窗，手机是新标签页（入口是 2c）；主标签页随便跳，歌不断。music-player.js 画。
+   - 声音、签令牌、续签、切曲、防同时响、播放模式都在共用核 music-core.js（奇趣音乐页同一份）；本页不管上传 / 删除（留在奇趣音乐页）。
+   - 正在播（封面小图 + 歌名 + 歌手 + 专辑）、歌词（当前一句，点一下展开全部）、进度、播放控制、随机、倍速 1 / 1.25 / 1.5 / 2、音量 + 静音、
+     曲目列表、可收起的专辑列表、Media Session（锁屏 / 耳机键）。
+   - 没进站（网关标记 data-sgx-lock-session="locked"）或签令牌 401（登录过期）：给一句提示 + 「登录」（发 sgx:sudo），不静默卡住。
+   noindex（baseof），不进站点地图 / 全站搜索。 */}}
+<main id="cu-main" class="cu-wrap mp-wrap" data-cu-page="player">
+  <h1 class="sr-only">{{ $t.title }}</h1>
+  <section id="mp-app" class="mp-app hidden" aria-label="{{ $t.title }}">
+    <div class="mp-now">
+      <div id="mp-cover" class="mp-cover" aria-hidden="true"><span class="mu-cover-ph"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg></span></div>
+      <div class="mp-now-tx">
+        <p id="mp-now-k" class="mp-now-k hidden">{{ $t.nowPlaying }}</p>
+        <h2 id="mp-title" class="mp-title">{{ $t.nothing }}</h2>
+        <p id="mp-artist" class="mp-sub"></p>
+        <p id="mp-album" class="mp-sub"></p>
+      </div>
+    </div>
+
+    <p id="mp-note" class="mp-note hidden" role="status"><span id="mp-note-tx"></span><button id="mp-signin" type="button" class="mp-note-btn hidden">{{ $t.signIn }}</button></p>
+
+    <button id="mp-lyrics" type="button" class="mp-lyrics hidden" aria-expanded="false" aria-label="{{ $t.lyrics }}"><span id="mp-lyrics-in" class="mp-lyrics-in"></span></button>
+
+    <div class="mu-seek-row mp-seek-row">
+      <span id="mp-time" class="mu-time">0:00</span>
+      <input id="mp-seek" class="mu-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="{{ $t.position }}">
+      <span id="mp-dur" class="mu-time">0:00</span>
+    </div>
+
+    <div class="mp-ctrl">
+      <button id="mp-shuffle" type="button" class="mp-sbtn" aria-pressed="false" aria-label="{{ $t.shuffle }}" title="{{ $t.shuffle }}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h3.5c2 0 3.2 1 4.3 2.6l2.4 4.8C14.3 16 15.5 17 17.5 17H21M3 17h3.5c1.4 0 2.4-.5 3.2-1.4M14.3 8.4C15.1 7.5 16.1 7 17.5 7H21M18.5 4.5 21 7l-2.5 2.5M18.5 14.5 21 17l-2.5 2.5"/></svg></button>
+      <button id="mp-prev" type="button" class="mu-cbtn" aria-label="{{ $t.previous }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M7 6v12M18 6.5v11L9.5 12z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
+      <button id="mp-toggle" type="button" class="mu-cbtn mu-toggle" aria-label="{{ $t.play }}" data-l-play="{{ $t.play }}" data-l-pause="{{ $t.pause }}"><svg class="mu-ic-play" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg><svg class="mu-ic-pause" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg><svg class="mu-ic-lock" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
+      <button id="mp-next" type="button" class="mu-cbtn" aria-label="{{ $t.next }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M17 6v12M6 6.5v11l8.5-5.5z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
+      <button id="mp-speed" type="button" class="mu-speed mp-speed" aria-label="{{ $t.speed }}">1×</button>
+    </div>
+
+    <div class="mp-vol">
+      <button id="mp-mute" type="button" class="mp-sbtn" aria-pressed="false" aria-label="{{ $t.mute }}" title="{{ $t.mute }}"><svg class="mp-ic-vol" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg><svg class="mp-ic-muted" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/></svg></button>
+      <input id="mp-volume" class="mu-seek mp-volume" type="range" min="0" max="100" step="1" value="100" aria-label="{{ $t.volume }}">
+    </div>
+
+    <h3 class="mp-h">{{ $t.tracks }}<span id="mp-tracks-sub" class="mp-h-sub"></span></h3>
+    <ol id="mp-tracks" class="mu-tracks" aria-label="{{ $t.tracks }}"></ol>
+
+    <button id="mp-albums-btn" type="button" class="mp-h mp-albums-btn" aria-expanded="false" aria-controls="mp-albums">{{ $t.albums }}<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+    <ul id="mp-albums" class="mp-albums hidden" aria-label="{{ $t.albums }}"></ul>
+  </section>
+  <p id="mp-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant"></p>
+  <p class="it-loading text-center py-16 text-sm text-m-on-surface-variant">{{ $t.loading }}</p>
+</main>
+<audio id="mp-audio" preload="metadata"></audio>
+
+{{ partial "curio/common.html" (dict "tr" $tr "lang" $lang) }}
+{{ end }}
+
+{{ define "pagejs" }}
+<script src="{{ (resources.Get "curio/js/curio.js" | minify | fingerprint).RelPermalink }}"></script>
+{{/* 播放共用核（奇趣音乐页同一份），要在 music-player.js 之前 */}}
+<script src="{{ (resources.Get "curio/js/music-core.js" | minify | fingerprint).RelPermalink }}"></script>
+<script src="{{ (resources.Get "curio/js/music-player.js" | minify | fingerprint).RelPermalink }}"></script>
+{{ end }}

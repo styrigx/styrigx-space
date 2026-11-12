@@ -354,3 +354,88 @@ test('音乐（有权限）：上传专辑——音频按文件名排序逐个�
   await expect(page.locator('#mu-album-title')).toHaveText('Court and Spark');
   await expect(page.locator('#mu-tracks .mu-track-title')).toHaveText(['Court and Spark', 'Help Me', 'Twisted']);
 });
+
+/* ================= 弹出播放器（音乐第二步 2b，/curio/music/player/） ================= */
+
+test('播放器（有权限）：点曲目开播走短链；随机按钮记到本地；倍速 1 → 1.25 → 1.5 → 2 → 1；歌词点开全部；专辑列表收起 / 换专辑；静音', async ({ page }) => {
+  const calls = await mockMusic(page, 'owner');
+  await page.goto('/curio/zh/music/player/');
+  await expect(page.locator('#mp-app')).toBeVisible();
+  await expect(page.locator('#mp-title')).toHaveText('Blue');
+  await expect(page.locator('#mp-tracks .mu-track-title')).toHaveText(['All I Want', 'My Old Man']);
+  await expect(page.locator('#mp-upload, #mu-upload')).toHaveCount(0);
+  await page.locator('#mp-tracks [data-t="0"]').click();
+  await expect.poll(() => calls.filter((c) => c.play === 1).length).toBe(1);
+  await expect(page.locator('#mp-toggle')).toHaveClass(/is-playing/);
+  await expect(page.locator('#mp-title')).toHaveText('All I Want');
+  await expect(page.locator('#mp-artist')).toHaveText('Joni Mitchell');
+  await expect(page.locator('#mp-album')).toHaveText('Blue');
+  expect(await page.locator('#mp-audio').evaluate((a) => a.src)).toMatch(/\/curio\/api\/music-stream\?t=A{43}&id=11$/);
+  await expect(page.locator('#mp-tracks .mu-track.on .mu-track-title')).toHaveText('All I Want');
+  await expect(page).toHaveTitle(/^All I Want \| /);
+  /* 随机：按下、记到本地 */
+  await page.locator('#mp-shuffle').click();
+  await expect(page.locator('#mp-shuffle')).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => localStorage.getItem('sgx-music-mode'))).toBe('shuffle');
+  /* 倍速 */
+  const sp = page.locator('#mp-speed');
+  for (const want of ['1.25×', '1.5×', '2×', '1×']) { await sp.click(); await expect(sp).toHaveText(want); }
+  await sp.click();
+  expect(await page.locator('#mp-audio').evaluate((a) => a.playbackRate)).toBe(1.25);
+  /* 歌词：默认只一句，点开全部 */
+  await expect(page.locator('#mp-lyrics')).toBeVisible();
+  await expect(page.locator('#mp-lyrics')).toHaveAttribute('aria-expanded', 'false');
+  await page.locator('#mp-lyrics').click();
+  await expect(page.locator('#mp-lyrics')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#mp-lyrics-in > span:visible')).toHaveCount(3);
+  /* 静音 */
+  await page.locator('#mp-mute').click();
+  expect(await page.locator('#mp-audio').evaluate((a) => a.muted)).toBe(true);
+  /* 专辑列表：收起 → 展开 → 换专辑（换列表，不自动开播） */
+  await expect(page.locator('#mp-albums')).toBeHidden();
+  await page.locator('#mp-albums-btn').click();
+  await expect(page.locator('#mp-albums .mp-alb')).toHaveCount(2);
+  await page.locator('#mp-albums [data-a="1"]').click();
+  await expect(page.locator('#mp-tracks .mu-track-title')).toHaveText(['爱在西元前']);
+  expect(calls.filter((c) => c.play === 2).length).toBe(0);
+  await page.locator('#mp-tracks [data-t="0"]').click();
+  await expect.poll(() => calls.filter((c) => c.play === 2).length).toBe(1);
+  await expect(page.locator('#mp-title')).toHaveText('爱在西元前');
+});
+
+test('播放器：随机模式下次打开还在；?album= 先显示那张', async ({ page }) => {
+  await mockMusic(page, 'owner');
+  await page.addInitScript(() => localStorage.setItem('sgx-music-mode', 'shuffle'));
+  await page.goto('/curio/zh/music/player/?album=2');
+  await expect(page.locator('#mp-app')).toBeVisible();
+  await expect(page.locator('#mp-shuffle')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#mp-tracks .mu-track-title')).toHaveText(['爱在西元前']);
+});
+
+test('播放器（登录过期 / 没进站，签令牌 401）：给一句提示和「登录」，不静默卡住；点「登录」打开终端预填 su ', async ({ page }) => {
+  const calls = await mockMusic(page, 'visitor');
+  await page.goto('/curio/zh/music/player/');
+  await expect(page.locator('#mp-app')).toBeVisible();
+  await page.locator('#mp-tracks [data-t="0"]').click();
+  await expect.poll(() => calls.filter((c) => c.play401).length).toBe(1);
+  await expect(page.locator('#mp-note')).toBeVisible();
+  await expect(page.locator('#mp-note-tx')).toHaveText('登录已过期，重新登录后才能继续听。');
+  await expect(page.locator('#mp-signin')).toBeVisible();
+  await expect(page.locator('#mp-toggle')).not.toHaveClass(/is-playing/);
+  await page.locator('#mp-signin').click();
+  await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
+});
+
+test('播放器和奇趣页不同时响：播放器开播，奇趣页那边自动暂停', async ({ browser }) => {
+  const ctx = await browser.newContext({ locale: 'zh-CN' });
+  const a = await ctx.newPage(), b = await ctx.newPage();
+  await mockMusic(a, 'owner'); await mockMusic(b, 'owner');
+  await a.goto('/curio/zh/music/');
+  await a.locator('#mu-play-all').click();
+  await expect(a.locator('#mu-toggle')).toHaveClass(/is-playing/);
+  await b.goto('/curio/zh/music/player/');
+  await b.locator('#mp-tracks [data-t="1"]').click();
+  await expect(b.locator('#mp-toggle')).toHaveClass(/is-playing/);
+  await expect(a.locator('#mu-toggle')).not.toHaveClass(/is-playing/);
+  await ctx.close();
+});

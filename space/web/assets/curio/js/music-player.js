@@ -1,0 +1,268 @@
+/* assets/curio/js/music-player.js —— 弹出播放器页（/curio/music/player/；音乐分层方案 v1.13 第二步 2b；浏览器 IIFE；node 测试时导出纯函数）。
+ *
+ * 只播放，不管理（上传 / 删除留在奇趣音乐页 curio-music.js）。功能按方案 §7.1 播放层：
+ *   - 正在播：封面小图 + 歌名 + 歌手 + 专辑名；标签页标题跟着歌名。
+ *   - 播放控制：播放 / 暂停、上一首、下一首；进度条可拖（Range）+ 当前时间 / 总时长。
+ *   - 播放模式：顺序 / 随机（共用核 setShuffle；模式记在 localStorage「sgx-music-mode」，下次打开还是上次的）。
+ *   - 倍速：1× → 1.25× → 1.5× → 2× 循环（PLAYER_SPEEDS；只记在本窗口内存里，奇趣页 0.75–2 各管各的）。
+ *   - 音量滑条 + 静音（本窗口）。
+ *   - 歌词：有 LRC 显示当前一句（跟播放同步）；点一下展开全部，再点收起。
+ *   - 曲目列表：当前专辑，点一首直接播，正在播的高亮。专辑列表可收起，点一张换专辑（换的是列表，点曲目 / 播放才开播）。
+ *   - Media Session：锁屏 / 耳机键 播放、暂停、上一首、下一首、拖进度；显示歌名、歌手、专辑、封面。
+ *   - 防同时响：共用核的 BroadcastChannel「sgx-music」，奇趣页开播这边自动停，反过来一样。
+ *   - 登录过期提示：签令牌 401（没进站 / 进站过期，listen 档拒）→ 一句提示 +「登录」（SgxCurioUI.sudo → sgx:sudo，顶栏终端预填 su ），
+ *     403 → 没有权限；都不静默卡住。页面带网关标记 data-sgx-lock-session="locked" 时一打开就提示。
+ * 地址可带 ?album=<编号> 先显示那张专辑（入口 2c 用得上），没有就第一张。
+ */
+(function(){
+"use strict";
+var G = typeof globalThis !== 'undefined' ? globalThis : this;
+var CORE = typeof module !== 'undefined' && module.exports ? require('./music-core.js') : G.SgxMusicCore;
+
+/** 地址里的 ?album=<编号>；没有 / 不对返回 0 */
+function albumOf(search){ var m = /[?&]album=(\d+)(?:&|$)/.exec(String(search || '')); return m ? Number(m[1]) : 0; }
+/** 签令牌失败怎么提示：401 = 'expired'（进站过期 / 没进站），403 forbidden = 'noPermission'，其他 = 'failed' */
+function failKind(e){ if (e && (e.sgxLocked || e.status === 401)) return 'expired'; if (e && e.code === 'forbidden') return 'noPermission'; return 'failed'; }
+/** Media Session 的封面（有封面才给） */
+function artworkOf(a){ return a && a.cover ? [{ src: '/curio/api/music-cover?album=' + a.id, sizes: '512x512' }] : []; }
+/** 文案表（同 curio-music.js readDict / makeTr 的做法） */
+function readDict(doc, table){
+  try { var el = doc && doc.getElementById('sgx-i18n-' + table); var o = el && el.textContent ? JSON.parse(el.textContent) : null; return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; }
+}
+function makeTr(dict, lang){
+  var pr = null;
+  try { pr = new Intl.PluralRules(lang || 'en'); } catch (e) { pr = null; }
+  return function(key, vars){
+    var s = null;
+    if (vars && typeof vars.n === 'number' && pr) s = dict[key + '_' + pr.select(vars.n)];
+    if (s == null) s = dict[key];
+    s = s == null ? '' : String(s);
+    if (vars) for (var k in vars) s = s.split('{' + k + '}').join(String(vars[k]));
+    return s;
+  };
+}
+
+var pure = { albumOf: albumOf, failKind: failKind, artworkOf: artworkOf };
+if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
+G.SgxMusicPlayer = pure;
+
+var doc = G.document;
+if (!doc.getElementById('mp-app')) return;
+var UI = G.SgxCurioUI;
+var $ = function(s){ return doc.querySelector(s); };
+var lang = doc.documentElement.lang || 'en';
+var T = readDict(doc, 'curioPlayer'), tr = makeTr(T, lang);
+var baseTitle = doc.title;
+var store = null;
+try { store = G.localStorage; } catch (e) { store = null; }
+
+var albums = [], cur = 0, speed = 1, lyr = { lines: [], line: -2 };
+var audio = $('#mp-audio');
+var viewOnly = doc.documentElement.getAttribute('data-sgx-lock-session') === 'locked';
+var P = CORE.createPlayer({
+  audio: audio,
+  sign: function(albumId){ return req('POST', '/curio/api/music-play', { album: albumId }); },
+  onTrack: paintTrack,
+  onChange: syncState,
+  onStop: function(){ $('#mp-now-k').classList.add('hidden'); renderTracks(); syncState(); },
+  onError: function(e){ note(failKind(e)); },
+});
+
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function req(method, url, body){
+  return fetch(url, {
+    method: method, credentials: 'same-origin', cache: 'no-store',
+    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }).then(function(r){
+    return r.json().catch(function(){ return {}; }).then(function(j){
+      if (r.status === 401) throw Object.assign(new Error('locked'), { sgxLocked: true, status: 401 });
+      if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error, status: r.status });
+      return j;
+    });
+  });
+}
+function album(){ return albums[cur] || null; }
+function albumById(id){ return albums.filter(function(a){ return a.id === id; })[0] || null; }
+function coverUrl(a){ return '/curio/api/music-cover?album=' + a.id; }
+
+/* ---------- 提示（登录过期 / 没权限 / 出错） ---------- */
+/** kind：'expired' / 'locked'（带「登录」按钮）· 'noPermission' · 'failed' · ''（收起） */
+function note(kind){
+  var box = $('#mp-note'), sign = kind === 'expired' || kind === 'locked';
+  box.classList.toggle('hidden', !kind);
+  $('#mp-note-tx').textContent = kind ? tr(kind) : '';
+  $('#mp-signin').classList.toggle('hidden', !sign);
+  if (sign) { doc.documentElement.classList.add('mu-view-only'); P.reset(); }
+}
+$('#mp-signin').addEventListener('click', function(){ if (UI && UI.sudo) UI.sudo(); });
+
+/* ---------- 画 ---------- */
+function renderAlbums(){
+  $('#mp-albums').innerHTML = albums.map(function(a, i){
+    return '<li><button type="button" class="mp-alb' + (i === cur ? ' on' : '') + '" data-a="' + i + '"' + (i === cur ? ' aria-current="true"' : '') + '>'
+      + '<span class="mp-alb-im">' + (a.cover ? '<img src="' + coverUrl(a) + '" alt="" loading="lazy" decoding="async" onerror="this.remove()">' : '') + '</span>'
+      + '<span class="mp-alb-tx"><b>' + esc(a.title) + '</b><i>' + esc(a.artist || '') + '</i></span></button></li>';
+  }).join('');
+}
+function renderTracks(){
+  var a = album();
+  $('#mp-tracks-sub').textContent = a ? ' · ' + a.title + ' · ' + tr('tracks', { n: a.tracks.length }) : '';
+  $('#mp-tracks').innerHTML = a ? a.tracks.map(function(t, i){
+    var on = P.state.album === a.id && P.state.i === i;
+    return '<li><button type="button" class="mu-track' + (on ? ' on' : '') + '" data-t="' + i + '"' + (on ? ' aria-current="true"' : '') + '>'
+      + '<span class="mu-track-no">' + (t.no || i + 1) + '</span><span class="mu-track-title">' + esc(t.title) + '</span>'
+      + '<span class="mu-track-dur">' + (t.duration ? CORE.fmtTime(t.duration) : '') + '</span></button></li>';
+  }).join('') : '';
+  doc.querySelectorAll('.mp-alb').forEach(function(b, i){ b.classList.toggle('on', i === cur); if (i === cur) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current'); });
+}
+function paintCover(a){
+  var box = $('#mp-cover'), old = box.querySelector('img');
+  if (old) old.remove();
+  if (a && a.cover) { var img = doc.createElement('img'); img.alt = ''; img.decoding = 'async'; img.src = coverUrl(a); img.onerror = function(){ img.remove(); }; box.appendChild(img); }
+}
+/** 共用核开始放某一首：正在播、歌词、曲目高亮、Media Session、标签页标题 */
+function paintTrack(t, st){
+  var a = albumById(st.album);
+  note('');
+  $('#mp-now-k').classList.remove('hidden');
+  $('#mp-title').textContent = t.title;
+  $('#mp-artist').textContent = a && a.artist || '';
+  $('#mp-album').textContent = a ? a.title : '';
+  paintCover(a);
+  setLyrics(t.lrc);
+  doc.title = t.title + ' | ' + baseTitle;
+  if (a) { var k = albums.indexOf(a); if (k >= 0 && k !== cur) { cur = k; } }
+  renderTracks();
+  mediaMeta(t, a);
+}
+function syncState(){
+  var b = $('#mp-toggle'), on = P.playing();
+  b.classList.toggle('is-playing', on);
+  b.setAttribute('aria-label', on ? b.dataset.lPause : b.dataset.lPlay);
+  var ms = G.navigator && G.navigator.mediaSession;
+  if (ms) { try { ms.playbackState = P.state.i < 0 ? 'none' : on ? 'playing' : 'paused'; } catch (e) {} }
+  var sh = $('#mp-shuffle'); sh.setAttribute('aria-pressed', String(P.state.shuffle)); sh.title = tr(P.state.shuffle ? 'shuffleOn' : 'shuffleOff');
+}
+
+/* ---------- 歌词：当前一句；点一下展开全部，再点收起 ---------- */
+function setLyrics(src){
+  lyr.lines = CORE.parseLrc(src); lyr.line = -2;
+  $('#mp-lyrics-in').innerHTML = lyr.lines.map(function(l, i){ return '<span data-l="' + i + '">' + esc(l.text || '♪') + '</span>'; }).join('');
+  $('#mp-lyrics').classList.toggle('hidden', !lyr.lines.length);
+  syncLyrics();
+}
+function syncLyrics(){
+  if (!lyr.lines.length) return;
+  var i = CORE.lrcIndex(lyr.lines, audio.currentTime);
+  if (i === lyr.line) return;
+  lyr.line = i;
+  var box = $('#mp-lyrics');
+  box.querySelectorAll('[data-l].on').forEach(function(p){ p.classList.remove('on'); });
+  var p = box.querySelector('[data-l="' + Math.max(0, i) + '"]');
+  if (p) { if (i >= 0) p.classList.add('on'); if (box.getAttribute('aria-expanded') === 'true') p.scrollIntoView({ block: 'nearest' }); }
+}
+$('#mp-lyrics').addEventListener('click', function(){
+  var open = this.getAttribute('aria-expanded') !== 'true';
+  this.setAttribute('aria-expanded', String(open));
+  this.title = tr(open ? 'hideLyrics' : 'showLyrics');
+  lyr.line = -2; syncLyrics();
+});
+
+/* ---------- 操作 ---------- */
+function playFrom(i){
+  var a = album();
+  if (!a || !a.tracks.length) return;
+  if (viewOnly) { note('locked'); return; }
+  P.playFrom(a.id, i);
+}
+$('#mp-tracks').addEventListener('click', function(e){ var b = e.target.closest('[data-t]'); if (b) playFrom(Number(b.dataset.t)); });
+$('#mp-toggle').addEventListener('click', function(){
+  if (viewOnly) { note('locked'); if (UI && UI.sudo) UI.sudo(); return; }
+  if (!P.toggle()) playFrom(0);
+});
+$('#mp-prev').addEventListener('click', function(){ P.prev(); });
+$('#mp-next').addEventListener('click', function(){ P.next(); });
+$('#mp-shuffle').addEventListener('click', function(){
+  var on = !P.state.shuffle;
+  P.setShuffle(on);
+  CORE.saveMode(store, on ? 'shuffle' : 'seq');
+});
+$('#mp-speed').addEventListener('click', function(){
+  speed = CORE.nextSpeed(speed, CORE.PLAYER_SPEEDS);
+  P.setSpeed(speed);
+  this.textContent = speed + '×'; this.setAttribute('aria-label', tr('speed', { s: speed }));
+});
+/* 音量 + 静音（本窗口） */
+function syncVol(){
+  var m = audio.muted || audio.volume === 0, b = $('#mp-mute');
+  b.setAttribute('aria-pressed', String(m)); b.classList.toggle('is-muted', m); b.title = tr(m ? 'unmute' : 'mute');
+  $('#mp-volume').value = String(Math.round((audio.muted ? 0 : audio.volume) * 100));
+}
+$('#mp-volume').addEventListener('input', function(){ audio.volume = Number(this.value) / 100; audio.muted = audio.volume === 0; syncVol(); });
+$('#mp-mute').addEventListener('click', function(){ if (audio.muted || audio.volume === 0) { audio.muted = false; if (audio.volume === 0) audio.volume = 1; } else audio.muted = true; syncVol(); });
+audio.addEventListener('volumechange', syncVol);
+/* 进度 */
+var seeking = false;
+$('#mp-seek').addEventListener('input', function(){ seeking = true; if (audio.duration) $('#mp-time').textContent = CORE.fmtTime(audio.duration * this.value / 1000); });
+$('#mp-seek').addEventListener('change', function(){ seeking = false; if (audio.duration) audio.currentTime = audio.duration * this.value / 1000; });
+audio.addEventListener('timeupdate', function(){
+  if (!seeking && audio.duration) { $('#mp-seek').value = String(Math.round(audio.currentTime / audio.duration * 1000)); $('#mp-time').textContent = CORE.fmtTime(audio.currentTime); }
+  syncLyrics();
+  mediaPos();
+});
+audio.addEventListener('loadedmetadata', function(){ $('#mp-dur').textContent = CORE.fmtTime(audio.duration); mediaPos(); });
+/* 专辑列表：可收起；点一张换专辑（换列表，不自动开播） */
+$('#mp-albums-btn').addEventListener('click', function(){
+  var open = this.getAttribute('aria-expanded') !== 'true';
+  this.setAttribute('aria-expanded', String(open));
+  $('#mp-albums').classList.toggle('hidden', !open);
+});
+$('#mp-albums').addEventListener('click', function(e){
+  var b = e.target.closest('[data-a]'); if (!b) return;
+  cur = Number(b.dataset.a); renderTracks();
+  if (P.state.i < 0) { var a = album(); $('#mp-title').textContent = a.title; $('#mp-artist').textContent = a.artist || ''; $('#mp-album').textContent = ''; paintCover(a); }
+});
+
+/* ---------- Media Session（锁屏 / 耳机键） ---------- */
+function mediaMeta(t, a){
+  var ms = G.navigator && G.navigator.mediaSession;
+  if (!ms || typeof G.MediaMetadata !== 'function') return;
+  try { ms.metadata = new G.MediaMetadata({ title: t.title, artist: a && a.artist || '', album: a ? a.title : '', artwork: artworkOf(a) }); } catch (e) {}
+}
+function mediaPos(){
+  var ms = G.navigator && G.navigator.mediaSession;
+  if (!ms || !ms.setPositionState || !isFinite(audio.duration) || !audio.duration) return;
+  try { ms.setPositionState({ duration: audio.duration, playbackRate: audio.playbackRate || 1, position: Math.min(audio.currentTime, audio.duration) }); } catch (e) {}
+}
+(function(){
+  var ms = G.navigator && G.navigator.mediaSession;
+  if (!ms || !ms.setActionHandler) return;
+  var on = function(name, fn){ try { ms.setActionHandler(name, fn); } catch (e) { /* 浏览器不认这个动作 */ } };
+  on('play', function(){ if (P.state.i < 0) playFrom(0); else if (audio.paused) P.toggle(); });
+  on('pause', function(){ audio.pause(); });
+  on('previoustrack', function(){ P.prev(); });
+  on('nexttrack', function(){ P.next(); });
+  on('seekto', function(d){ if (d && typeof d.seekTime === 'number' && audio.duration) { audio.currentTime = Math.min(d.seekTime, audio.duration); mediaPos(); } });
+})();
+
+/* ---------- 启动 ---------- */
+P.setShuffle(CORE.readMode(store) === 'shuffle');
+syncVol();
+function done(){ doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); }); }
+req('GET', '/curio/api/music').then(function(j){
+  albums = j.albums || [];
+  done();
+  if (!albums.length) { var em = $('#mp-empty'); em.textContent = tr('empty'); em.classList.remove('hidden'); return; }
+  var want = albumOf(G.location.search), k = albums.map(function(a){ return a.id; }).indexOf(want);
+  cur = k < 0 ? 0 : k;
+  $('#mp-app').classList.remove('hidden');
+  renderAlbums(); renderTracks();
+  var a = album(); $('#mp-title').textContent = a.title; $('#mp-artist').textContent = a.artist || ''; paintCover(a);
+  if (viewOnly) note('locked');
+  syncState();
+}).catch(function(){
+  done();
+  var p = doc.querySelector('.it-loading'); if (p) { p.textContent = tr('loadFail') || tr('failed'); p.classList.remove('hidden'); }
+});
+})();
