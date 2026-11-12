@@ -155,7 +155,7 @@ space/scripts/ci-local.sh unit build          # only the named groups
 
 GitHub Actions ([`deploy.yml`](.github/workflows/deploy.yml)):
 
-- **Pull requests** — `unit`, `build` (including generated-file `--check`, layering and route checks), `e2e-lock`, `e2e-sites`, `visual`, `lighthouse`, rolled up into `quality`; plus `passkey-e2e`. Both must be green and the branch up to date with `main` before merging; squash only.
+- **Pull requests** — `unit`, `build` (including generated-file `--check`, layering and route checks), `e2e-lock`, `e2e-sites`, `visual`, `lighthouse`, rolled up into `quality`; plus `passkey-e2e`. Both must be green and the branch up to date with `main` before merging; merge commits only.
 - **main** — Workers deploy in dependency order (AI, status, account → site core → Curio / Daymark APIs; the rule-set proxy in parallel), Pages last; every step has post-deploy checks and a smoke test, and rolls back to the pre-deploy version on failure.
 - Every deploy job uses its own least-privilege deploy token, kept in a GitHub environment restricted to `main`; the repository holds no secrets.
 
