@@ -105,33 +105,33 @@ test.describe('博客首页（对齐 PR-C，设计稿 pg=blog）：一页文章�
   async function listReady(page) {
     await expect(page.locator('[data-blog-list]')).toHaveAttribute('data-ready', 'true');
   }
-  /* 2026-11-09 加了四篇后中文 8 篇（2026-11-10 代理订阅一文后 9 篇，2026-11-12 调色板 v4 一文后 10 篇），每页 6：首页本身就是两页（6 + 4），分页用例不再改 data-page-size */
-  test('页头 ls -lt blog/ · 博客_ · 一行说明；chips 全部 10（当前）+ 分类 + 虚线 tree blog/ →；页名胶囊 = 站名；没有分区入口 / 面板', async ({ page }) => {
+  /* 2026-11-09 加了四篇后中文 8 篇（2026-11-10 代理订阅一文后 9 篇，2026-11-12 调色板 v4 一文后 10 篇，同日鉴权系列补齐后 17 篇），每页 6：首页本身就是三页（6 + 6 + 5），分页用例不再改 data-page-size */
+  test('页头 ls -lt blog/ · 博客_ · 一行说明；chips 全部 17（当前）+ 分类 + 虚线 tree blog/ →；页名胶囊 = 站名；没有分区入口 / 面板', async ({ page }) => {
     await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
     await listReady(page);
     await expect(page.locator('.sgx-ph-cmd')).toHaveText('nobody@space:~$ ls -lt blog/', { useInnerText: true });
     await expect(page.locator('h1.sgx-ph-title')).toHaveText('博客');
-    await expect(page.locator('.sgx-ph-desc')).toContainText('共 10 篇');
+    await expect(page.locator('.sgx-ph-desc')).toContainText('共 17 篇');
     await expect(page.locator('.blog-chips [data-chip=""]').first()).toHaveAttribute('aria-current', 'true');
-    await expect(page.locator('.blog-chips [data-chip=""]').first()).toHaveText('全部 10');
+    await expect(page.locator('.blog-chips [data-chip=""]').first()).toHaveText('全部 17');
     await expect(page.locator('.sgx-chip--more')).toHaveAttribute('href', '/blog/zh/tree/');
     await expect(page.locator('.sgx-tb-pill .sgx-tb-title')).toHaveText('博客');
     await expect(page.locator('#blog-entries, [data-sgx-panes], [data-sgx-segs]')).toHaveCount(0);
   });
 
-  test('分页：每页 data-page-size 篇（6），-- less (1/2) --；点页码 / → 翻页，地址 ?page=2，刷新停在原页；返回回第 1 页', async ({ page }) => {
+  test('分页：每页 data-page-size 篇（6），-- less (1/3) --；点页码 / → 翻页，地址 ?page=2，刷新停在原页；返回回第 1 页', async ({ page }) => {
     await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
     await listReady(page);
     await expect(rows(page)).toHaveCount(6);
-    await expect(page.locator('[data-pg-less]')).toHaveText('-- less (1/2) --');
+    await expect(page.locator('[data-pg-less]')).toHaveText('-- less (1/3) --');
     await page.locator('.sgx-pg-next').click();
     await expect(page).toHaveURL(/\/blog\/zh\/\?page=2$/);
-    await expect(rows(page)).toHaveCount(4);
-    await expect(page.locator('[data-pg-less]')).toHaveText('-- less (2/2) --');
+    await expect(rows(page)).toHaveCount(6);
+    await expect(page.locator('[data-pg-less]')).toHaveText('-- less (2/3) --');
     await expect(page.locator('[data-pg-nums] a[aria-current="page"]')).toHaveText('2');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await listReady(page);
-    await expect(rows(page)).toHaveCount(4);
+    await expect(rows(page)).toHaveCount(6);
     await page.goBack();
     await expect(page).toHaveURL(/\/blog\/zh\/$/);
     await expect(rows(page)).toHaveCount(6);
@@ -144,7 +144,7 @@ test.describe('博客首页（对齐 PR-C，设计稿 pg=blog）：一页文章�
     await page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : null));
     await page.keyboard.press('Space');
     await expect(page).toHaveURL(/\?page=2$/);
-    await expect(page.locator('[data-pg-less]')).toHaveText('-- less (2/2) --');
+    await expect(page.locator('[data-pg-less]')).toHaveText('-- less (2/3) --');
   });
 
   test('chips 就地筛选：点分类 → 只剩该分类的文章、chip 主题色当前项、地址 ?tag=；点「全部」回来；行里的 #分类 同样筛选', async ({ page }) => {
@@ -188,12 +188,12 @@ test.describe('博客首页（对齐 PR-C，设计稿 pg=blog）：一页文章�
     await expect(page.locator('[data-series]')).toHaveCount(1);
   });
 
-  test('英文：Blog · All 9（英文 9 篇）', async ({ page }) => {
+  test('英文：Blog · All 16（英文 16 篇）', async ({ page }) => {
     await preferLang(page, 'en');
     await page.goto('/blog/', { waitUntil: 'domcontentloaded' });
     await listReady(page);
     await expect(page.locator('h1.sgx-ph-title')).toHaveText('Blog');
-    await expect(page.locator('.blog-chips [data-chip=""]').first()).toHaveText('All 9');
+    await expect(page.locator('.blog-chips [data-chip=""]').first()).toHaveText('All 16');
     await expect(page.locator('.sgx-tb-pill .sgx-tb-title')).toHaveText('Blog');
   });
 });
@@ -403,7 +403,7 @@ test.describe('文章页：页名 + 进度细线 + 抽屉目录', () => {
     await page.goto(SERIES_V2, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-series-block, .share-buttons, .related-posts')).toHaveCount(0);
     const meta = page.locator('.sgx-series-meta');
-    await expect(meta).toHaveText('Styrigx UI 鉴权规范 · 第 2 / 2 篇');
+    await expect(meta).toHaveText('styrigx 鉴权体系规范的变迁 · 第 2 / 10 篇');
     await expect(page.locator('.blog-nx a[rel="prev"]')).toHaveAttribute('href', '/blog/zh/post/2026-10-11-key-spec-whitepaper/');
     await expect(page.locator('.blog-nx a[rel="prev"]')).toContainText('cd ../prev');
     await meta.click();

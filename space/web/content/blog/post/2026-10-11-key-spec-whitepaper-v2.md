@@ -2,7 +2,7 @@
 title: "Styrigx UI Auth Spec 2.0: Three Doors for Lock Screen, Owner, and Apps"
 description: "Styrigx UI Auth Spec 2.0: three credential layers (root/owner/lock) each governing their own; passkeys in owner/lock/app classes; lock-screen entries adapt to configuration; two-step lock-screen reset; three entries on the Security page."
 date: 2026-10-11
-series: ["Styrigx UI Auth Spec"]
+series: ["Styrigx Auth Spec: How It Evolved"]
 seriesOrder: 2
 tags: ["Styrigx UI", "auth", "security", "Passkey", "Cloudflare"]
 ---

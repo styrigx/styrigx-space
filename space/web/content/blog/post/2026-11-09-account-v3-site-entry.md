@@ -3,6 +3,8 @@ title: "Account & Site Entry V3: The Site Owns the Door, the Account Owns Permis
 description: "This site is locked by default. V3 splits \"can you come in\" and \"can you write\" into two separate tickets: one lock for all four sites, reauth only with long-term credentials, share links that need only a session, and a lock button that locks this device only. Here is why."
 date: 2026-11-09
 tags: ["Styrigx UI", "auth", "Security", "Passkey"]
+series: ["Styrigx Auth Spec: How It Evolved"]
+seriesOrder: 8
 ---
 
 This website is my personal space. It isn't open to the public, and every page starts at a lock screen. Since October the entry and account design has gone through several rounds: first a front-end-only lock screen with a captcha, then server-signed sessions, then the account split out into its own service. The version from November 9 (I call it V3) is the first one that feels properly sorted out, so I'm writing it down.
