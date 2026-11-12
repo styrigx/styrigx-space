@@ -34,6 +34,7 @@ topbar:
   security: Site security
   # v5 S6 顶栏 E：终端按钮（盾牌 · 外观 · 四格 | >_ · 头像）
   terminal: Terminal
+  music: Music
   langKey: lang
   langAuto: Follow system language
   layoutKey: layout

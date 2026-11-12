@@ -30,6 +30,7 @@ topbar:
   security: 站点安全
   # v5 S6 顶栏 E：终端按钮（盾牌 · 外观 · 四格 | >_ · 头像）
   terminal: 终端
+  music: 音乐
   langKey: lang
   langAuto: 跟随系统语言
   layoutKey: layout
