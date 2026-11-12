@@ -9,7 +9,7 @@ seriesOrder: 2
 tags: ["Styrigx UI", "鉴权", "安全", "Passkey", "Cloudflare"]
 ---
 
-> 本文是「Styrigx UI 鉴权规范」系列第二版，前一版见[《Styrigx 密钥规范白皮书 v1.0》](/blog/zh/post/2026-10-11-key-spec-whitepaper/)。
+> 本文是「styrigx 鉴权体系规范的变迁」系列第二版，前一版见[《Styrigx 密钥规范白皮书 v1.0》](/blog/zh/post/2026-10-11-key-spec-whitepaper/)。
 
 ## 0. 摘要
 
