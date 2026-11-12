@@ -4,12 +4,12 @@
 {{ partial "blog/head.html" (dict "page" . "title" (i18n "tagPageTitle" (dict "Name" .Title)) "description" (i18n "tagNote" (dict "Count" $n))) }}
 {{ end }}
 {{ define "body" }}
-{{- $posts := partial "blog/posts-sorted.html" (dict "pages" .Pages "mode" "archive") -}}
+{{- $posts := partial "shell/posts-sorted.html" (dict "pages" .Pages "mode" "archive") -}}
 <body class="page-tag">
 {{ partial "blog/topnav.html" (dict "page" . "mode" "links") }}
 <main class="oui-archive-wrap blog-list">
   {{- /* 2026-11 对齐 PR-C：页头同全站 .sgx-ph（$ grep -l "#标签" blog/* · #标签_ · 共 n 篇），文章行同博客首页（partials/blog/post-rows.html） */ -}}
-  {{- $all := partial "blog/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) }}
+  {{- $all := partial "shell/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) }}
   {{ partial "sgx-ph.html" (dict "cmd" (printf "grep -l \"#%s\" blog/*" .Title) "title" (printf "#%s" .Title) "desc" (i18n "tagNote" (dict "Count" (len $posts))) "path" .RelPermalink) }}
   {{ partial "blog/post-rows.html" (dict "posts" $posts "home" (site.GetPage "/blog").RelPermalink "cf" (partial "blog/cat-field.html" $all)) }}
 </main>

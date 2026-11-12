@@ -10,7 +10,7 @@
 {{ partial "blog/head.html" (dict "page" . "title" .Title "description" .Description "alt" $alt) }}
 {{ end }}
 {{ define "body" }}
-{{- $posts := partial "blog/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) -}}
+{{- $posts := partial "shell/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) -}}
 {{- $home := (site.GetPage "/blog").RelPermalink -}}
 {{- $cf := partial "blog/cat-field.html" $posts -}}
 {{- $qk := cond (eq $cf "tags") "tag" "cat" -}}
