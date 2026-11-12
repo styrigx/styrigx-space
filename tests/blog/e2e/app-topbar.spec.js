@@ -105,15 +105,15 @@ test.describe('博客首页（对齐 PR-C，设计稿 pg=blog）：一页文章�
   async function listReady(page) {
     await expect(page.locator('[data-blog-list]')).toHaveAttribute('data-ready', 'true');
   }
-  /* 2026-11-09 加了四篇后中文 8 篇（2026-11-10 代理订阅一文后 9 篇，2026-11-12 调色板 v4 一文后 10 篇，同日鉴权系列补齐后 17 篇），每页 6：首页本身就是三页（6 + 6 + 5），分页用例不再改 data-page-size */
-  test('页头 ls -lt blog/ · 博客_ · 一行说明；chips 全部 17（当前）+ 分类 + 虚线 tree blog/ →；页名胶囊 = 站名；没有分区入口 / 面板', async ({ page }) => {
+  /* 2026-11-09 加了四篇后中文 8 篇（2026-11-10 代理订阅一文后 9 篇，2026-11-12 调色板 v4 一文后 10 篇，同日鉴权系列补齐后 17 篇，同日小白命令手册后 18 篇），每页 6：首页本身就是三页（6 + 6 + 6），分页用例不再改 data-page-size */
+  test('页头 ls -lt blog/ · 博客_ · 一行说明；chips 全部 18（当前）+ 分类 + 虚线 tree blog/ →；页名胶囊 = 站名；没有分区入口 / 面板', async ({ page }) => {
     await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
     await listReady(page);
     await expect(page.locator('.sgx-ph-cmd')).toHaveText('nobody@space:~$ ls -lt blog/', { useInnerText: true });
     await expect(page.locator('h1.sgx-ph-title')).toHaveText('博客');
-    await expect(page.locator('.sgx-ph-desc')).toContainText('共 17 篇');
+    await expect(page.locator('.sgx-ph-desc')).toContainText('共 18 篇');
     await expect(page.locator('.blog-chips [data-chip=""]').first()).toHaveAttribute('aria-current', 'true');
-    await expect(page.locator('.blog-chips [data-chip=""]').first()).toHaveText('全部 17');
+    await expect(page.locator('.blog-chips [data-chip=""]').first()).toHaveText('全部 18');
     await expect(page.locator('.sgx-chip--more')).toHaveAttribute('href', '/blog/zh/tree/');
     await expect(page.locator('.sgx-tb-pill .sgx-tb-title')).toHaveText('博客');
     await expect(page.locator('#blog-entries, [data-sgx-panes], [data-sgx-segs]')).toHaveCount(0);
@@ -403,7 +403,7 @@ test.describe('文章页：页名 + 进度细线 + 抽屉目录', () => {
     await page.goto(SERIES_V2, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-series-block, .share-buttons, .related-posts')).toHaveCount(0);
     const meta = page.locator('.sgx-series-meta');
-    await expect(meta).toHaveText('styrigx 鉴权体系规范的变迁 · 第 2 / 10 篇');
+    await expect(meta).toHaveText('styrigx 鉴权体系规范的变迁 · 第 2 / 11 篇');
     await expect(page.locator('.blog-nx a[rel="prev"]')).toHaveAttribute('href', '/blog/zh/post/2026-10-11-key-spec-whitepaper/');
     await expect(page.locator('.blog-nx a[rel="prev"]')).toContainText('cd ../prev');
     await meta.click();
