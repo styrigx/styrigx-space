@@ -165,7 +165,7 @@ test('check-layers：前端层方向', () => {
     [FE + 'auth/y.js']: 'export const y = 1;',
     [FE + 'shell/s.js']: "import { x } from '../auth/x.js';\nimport { b } from '../lib/b.js';\nimport { p } from '../apps/p.js';",
     [FE + 'apps/p.js']: "import { s } from '../shell/s.js';\nimport { x } from '../auth/x.js';\nimport { e } from '../entries/e.js';",
-    [FE + 'entries/e.js']: "import { p } from '../apps/p.js';\nimport { k } from '../../../../../workers/space-core/src/core/k.js';",
+    [FE + 'entries/e.js']: "import { p } from '../apps/p.js';\nimport { k } from '../../../../../../workers/space-core/src/core/k.js';",
     [GW + 'src/core/k.js']: 'export const k = 1;',
   });
   try {

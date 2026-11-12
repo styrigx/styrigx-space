@@ -12,8 +12,8 @@ import { bootLang } from '../../space/web/assets/shell/js/lib/lang-boot.js';
 const partial = readFileSync(new URL('../../space/web/layouts/partials/blog/sgx-inherit.html', import.meta.url), 'utf8');
 const scripts = [...partial.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 assert.equal(scripts.length, 3, 'sgx-inherit.html 应有三个 <script>');
-assert.match(scripts[0], /resources\.Get "js\/lib\/lang-boot\.js" \| js\.Build/, '第一个 <script> 内联首帧语言跳转');
-assert.match(scripts[1], /resources\.Get "js\/lib\/ui-cookie-read\.js"|\$reader\.Content/, '第二个 <script> 内联共享读端');
+assert.match(scripts[0], /resources\.Get "shell\/js\/lib\/lang-boot\.js" \| js\.Build/, '第一个 <script> 内联首帧语言跳转');
+assert.match(scripts[1], /resources\.Get "shell\/js\/lib\/ui-cookie-read\.js"|\$reader\.Content/, '第二个 <script> 内联共享读端');
 const glue = scripts[2];
 const READER = readFileSync(new URL('../../space/web/assets/shell/js/lib/ui-cookie-read.js', import.meta.url), 'utf8');
 /* 模块那一半（entries/inherit.ts：数字健康、自定义色引擎）v6 P4 / 调色板 v4 先后删完，文件已删 */
@@ -176,7 +176,7 @@ test('内联读端 = 共享外壳 ui-cookie-read.js 原样，和本仓库色板�
   assert.equal(U.DEFAULT_PAL, palettes.default);
   assert.deepEqual([...U.DARK], palettes.presets.filter((p) => p.mode === 'dark').map((p) => p.id), '读端深套表 = palettes.json');
   assert.deepEqual({ ...U.PRESETS }, SEEDS, '读端预设种子 = palettes.json');
-  assert.match(partial, /resources\.Get "js\/lib\/ui-cookie-read\.js"/);
+  assert.match(partial, /resources\.Get "shell\/js\/lib\/ui-cookie-read\.js"/);
   assert.doesNotMatch(partial, /data-sgx-seed|dataset\.sgxSeed|ui\.theme/);
 });
 

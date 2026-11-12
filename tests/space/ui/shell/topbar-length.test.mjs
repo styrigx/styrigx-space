@@ -63,9 +63,9 @@ function run(site, { w, ua = DESK_UA, uad, pref = null, search = '', screen, coa
 test('四站 <head> 原样内联同一份 layout-mode.js（共享外壳，sync-shell 同步）、用 __sgxLayout() 写 data-sgx-layout、按 matchMedia 重算', () => {
   for (const site of ['curio', 'daymark', 'blog']) {
     assert.equal(body(COPIES[site]), body(LIB), `${site} 的 layout-mode.js 和主站源头不同`);
-    assert.match(TPL[site], /<script>\{\{ \(resources\.Get "js\/lib\/layout-mode\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/, site);
+    assert.match(TPL[site], /<script>\{\{ \(resources\.Get "shell\/js\/lib\/layout-mode\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/, site);
   }
-  assert.match(TPL.main, /<script>\{\{ \(resources\.Get "js\/lib\/layout-mode\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
+  assert.match(TPL.main, /<script>\{\{ \(resources\.Get "shell\/js\/lib\/layout-mode\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
   for (const [site, s] of Object.entries(SCRIPTS)) {
     assert.match(s, /__sgxLayout\(\)/, site);
     assert.match(s, /setAttribute\('data-sgx-layout',/, site);

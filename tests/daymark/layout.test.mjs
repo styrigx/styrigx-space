@@ -38,7 +38,7 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 shell-topbar.
   assert.doesNotMatch(base, /"tiles" /);
   const host = read('space/web/assets/daymark/js/sgx/topbar-host.js');
   /* 合站：直接引主站的共享外壳源文件（没有 js/sgx/shell/ 副本） */
-  for (const m of ['../../../js/shell/topbar-panel.js', '../../../js/shell/modal-sheet.js', '../../../js/shell/ai-panel.js', '../../../js/shell/vk.js', '../../../js/lib/prefs-write.js']) {
+  for (const m of ['../../../shell/js/shell/topbar-panel.js', '../../../shell/js/shell/modal-sheet.js', '../../../shell/js/shell/ai-panel.js', '../../../shell/js/shell/vk.js', '../../../shell/js/lib/prefs-write.js']) {
     assert.match(host, new RegExp("from '" + m.replace(/[.\/]/g, '\\$&') + "'"), m);
   }
   assert.doesNotMatch(host, /share-button|mountShare/, 'v6 P4：分享本页磁贴拿掉');
@@ -154,7 +154,7 @@ test('head 内联脚本不打包整份 palettes.json（预设表 / 深套表在�
   /* 调色板 v4：<head> 里的 color-scheme / theme-color 默认值取默认调色板 terra 的 mode / 底色（只读两项，不整份输出） */
   assert.deepEqual([...base.matchAll(/[^\n]*site\.Data\.shell\.palettes[^\n]*/g)].map((m) => m[0]), ['{{- range site.Data.shell.palettes.presets }}{{ if eq .id "terra" }}', '{{ range site.Data.shell.palettes.presets }}']);
   assert.doesNotMatch(base, /palettes\.json[^\n]*jsonify/);
-  assert.match(base, /<script>\{\{ \(resources\.Get "js\/lib\/ui-cookie-read\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
+  assert.match(base, /<script>\{\{ \(resources\.Get "shell\/js\/lib\/ui-cookie-read\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
   assert.match(base, /js\/sgx\/ui-inherit-run\.js" \| js\.Build \(dict "format" "iife" "minify" true "target" "es2018"\)\)/);
 });
 

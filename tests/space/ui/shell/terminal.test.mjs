@@ -413,7 +413,7 @@ test('共享外壳约束：terminal.js 只 import shell/term/**（终端统一 T
   assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /innerHTML/);
   for (const f of ['space/web/assets/shell/js/shell/quick-panel.js', 'space/web/assets/curio/js/sgx/topbar-host.js', 'space/web/assets/daymark/js/sgx/topbar-host.js', 'space/web/assets/blog/js/entries/topnav.ts']) {
     const s = readFileSync(path.join(REPO, f), 'utf8');
-    assert.match(s, /import \* as terminal from '[./]+(js\/shell\/)?terminal\.js';/, f);
+    assert.match(s, /import \* as terminal from '[./]+((?:shell\/)?js\/shell\/)?terminal\.js';/, f);
     assert.match(s, /\n\s+terminal,\n/, f);
   }
 });

@@ -23,10 +23,10 @@ test('四站内联同一份 lang-boot.js（合站后子站直接用主站源文�
   assert.equal(existsSync(path.join(REPO, 'space/web/shared/shell')), false, '没有外壳副本目录');
   for (const s of SITES) assert.equal(existsSync(path.join(REPO, 'space/web/assets', s, 'js/sgx/shell')), false, s + ' 没有外壳 JS 副本');
   const base = rd('space/web/layouts/_default/baseof.html');
-  assert.match(base, /resources\.Get "js\/lib\/lang-boot\.js" \| js\.Build/);
+  assert.match(base, /resources\.Get "shell\/js\/lib\/lang-boot\.js" \| js\.Build/);
   assert.doesNotMatch(base, /localStorage\.getItem\('sgx-lang'\)/, '主站不再自己读 sgx-lang 跳转');
-  assert.match(rd('space/web/layouts/partials/blog/sgx-inherit.html'), /resources\.Get "js\/lib\/lang-boot\.js" \| js\.Build/);
-  for (const s of ['curio', 'daymark']) assert.match(rd(`space/web/layouts/${s}/baseof.html`), /resources\.Get "js\/lib\/lang-boot\.js" \| js\.Build/, s);
+  assert.match(rd('space/web/layouts/partials/blog/sgx-inherit.html'), /resources\.Get "shell\/js\/lib\/lang-boot\.js" \| js\.Build/);
+  for (const s of ['curio', 'daymark']) assert.match(rd(`space/web/layouts/${s}/baseof.html`), /resources\.Get "shell\/js\/lib\/lang-boot\.js" \| js\.Build/, s);
   /* 四站 <html> 都带语言列表（来自 hugo.yaml languages） */
   const LANGS_ATTR = 'data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}"';
   for (const f of ['space/web/layouts/_default/baseof.html', 'space/web/layouts/blog/baseof.html', 'space/web/layouts/curio/baseof.html', 'space/web/layouts/daymark/baseof.html']) {
