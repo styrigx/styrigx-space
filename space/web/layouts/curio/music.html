@@ -82,5 +82,7 @@
 
 {{ define "pagejs" }}
 <script src="{{ (resources.Get "curio/js/curio.js" | minify | fingerprint).RelPermalink }}"></script>
+{{/* 播放共用核（签令牌 / 续签 / 切曲 / 防同时响；弹出播放器同一份），要在 curio-music.js 之前 */}}
+<script src="{{ (resources.Get "curio/js/music-core.js" | minify | fingerprint).RelPermalink }}"></script>
 <script src="{{ (resources.Get "curio/js/curio-music.js" | minify | fingerprint).RelPermalink }}"></script>
 {{ end }}
