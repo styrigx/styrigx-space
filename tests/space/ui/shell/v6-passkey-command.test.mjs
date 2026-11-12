@@ -1,7 +1,7 @@
 /**
  * 割接 2e：终端 passkey 接 v6（定稿 v5.2 §八「普通用户用 passwd、passkey 改自己的凭据；通行密钥自带 WebAuthn 验证」；
  * v6-commands「自己的账号（普通用户与 root 各管各的）」passkey ls / add / rm <n>；§九 救援白名单含 passkey；§十 sudo 不能动 root 的通行密钥）——
- * - 有 v6 会话（普通用户 / su root / 救援）：账号层 { direct: true }，走 POST /api/identity passkey-*（user 档，管栈顶那个用户自己的），
+ * - 有 v6 会话（普通用户 / su root / 救援）：账号层直接走 POST /api/identity passkey-*（user 档，管栈顶那个用户自己的），
  *   不要 root、不跑旧 sudo root reauth、不查旧账号会话；401 → 先 su <用户>，身份重问
  * - 访客：先 su <用户>；旧会话（旧 root / 旧 styrigx / 账号 reset 层）照旧（P4 删）
  * - sudo passkey …（v6，定稿 §十）：rootCreds「sudo 不能改 root 的密码或通行密钥 · 先 su root」（同 sudo passwd）
@@ -16,7 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { createShell } from '../../../../space/web/assets/js/shell/terminal.js';
-import { mountV6Direct } from '../../../../space/web/assets/js/shell/account/cmd/v6-direct.js';
+import { mountAuthErr } from '../../../../space/web/assets/js/shell/account/cmd/auth-err.js';
 import { mountKeys } from '../../../../space/web/assets/js/shell/account/cmd/keys.js';
 import * as accountApi from '../../../../space/web/assets/js/shell/account/api.js';
 
@@ -36,11 +36,11 @@ function layers(inReset) {
 }
 const sh = (w) => createShell({ act, storage: mem(), who: fixedWho(w) });
 
-test('passkey：v6 普通用户 / root / 救援都直接管自己的（direct: true）；passkey 与 passkey ls 都列出', () => {
+test('passkey：v6 普通用户 / root / 救援都直接管自己的；passkey 与 passkey ls 都列出', () => {
   for (const w of ['u:styrigx', 'u:smoke2', 'u:root']) {
     const L = layers();
     for (const l of ['passkey', 'passkey ls', 'passkey add', 'passkey rm 2']) assert.equal(sh(w).exec(l, L.v).flow, true, w + ' ' + l);
-    assert.deepEqual(L.calls, [['passkeyList', { direct: true }], ['passkeyList', { direct: true }], ['cmdPasskeyAdd', true, { direct: true }], ['passkeyRm', 2, { direct: true }]], w);
+    assert.deepEqual(L.calls, [['passkeyList'], ['passkeyList'], ['cmdPasskeyAdd', true], ['passkeyRm', 2]], w);
   }
 });
 
@@ -84,7 +84,7 @@ test('man：passkey 给 v6 普通用户与 root6 都列；AUTH 行 = 已上线 g
   assert.match(pg, /passkey: \{ d: '[^']+', syn: \['passkey', 'passkey add', 'passkey rm <n>'\], auth: 'signed in' \}/, 'SYNOPSIS 同 main（passkey ls 进 SYNOPSIS 仍是待定项）');
 });
 
-/* ---------- 账号层（./cmd/keys.js）direct ---------- */
+/* ---------- 账号层（./cmd/keys.js） ---------- */
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 async function settle() { for (let i = 0; i < 6; i++) await tick(); }
@@ -113,11 +113,11 @@ function fakeCtx(v6reply) {
 }
 const KEYS = { s: 200, j: { ok: true, keys: [{ n: 1, credId: 'A', name: 'S25', provider: '', createdAt: 0, lastUsedAt: 0 }, { n: 2, credId: 'B', name: 'Pixel', provider: '', createdAt: 0, lastUsedAt: 0 }] } };
 
-test('账号层 passkey：列表走 v6keys、不跑旧 reauth（v6 P4 起不传 direct 也一样，旧路径删了）', async () => {
+test('账号层 passkey：列表走 v6keys、不跑旧 reauth', async () => {
   const a = fakeCtx(KEYS);
-  mountV6Direct(a.C, null);
+  mountAuthErr(a.C, null);
   mountKeys(a.C);
-  a.C.passkeyList({ direct: true });
+  a.C.passkeyList();
   await settle();
   assert.deepEqual(a.sent, [['v6.passkeyList']]);
   assert.ok(!a.log.some((l) => l[0] === 'withReauth'));
@@ -125,7 +125,7 @@ test('账号层 passkey：列表走 v6keys、不跑旧 reauth（v6 P4 起不传 
   assert.ok(a.log.some((l) => l[0] === 'out' && l[1].includes('Pixel')));
 
   const b = fakeCtx(KEYS);
-  mountV6Direct(b.C, null);
+  mountAuthErr(b.C, null);
   mountKeys(b.C);
   b.C.passkeyList();
   await settle();
@@ -133,11 +133,11 @@ test('账号层 passkey：列表走 v6keys、不跑旧 reauth（v6 P4 起不传 
   assert.deepEqual(b.sent, [['v6.passkeyList']]);
 });
 
-test('账号层 passkey rm（direct）：y 之后按服务端编号删（passkey-delete { n }），不碰 credId 旧接口', async () => {
+test('账号层 passkey rm：y 之后按服务端编号删（passkey-delete { n }），不碰 credId 旧接口', async () => {
   const a = fakeCtx((name) => (name === 'passkeyList' ? KEYS : { s: 200, j: { ok: true } }));
-  mountV6Direct(a.C, null);
+  mountAuthErr(a.C, null);
   mountKeys(a.C);
-  a.C.passkeyRm(2, { direct: true });
+  a.C.passkeyRm(2);
   await settle();
   a.pickY();
   await settle();
@@ -145,19 +145,19 @@ test('账号层 passkey rm（direct）：y 之后按服务端编号删（passkey
   assert.ok(a.log.some((l) => l[0] === 'out' && l[1].includes('keys.passkey.deleted')));
 });
 
-test('账号层 passkey（direct）：服务端 401 → 「没有登录 · 先 su <用户>」并让身份重问；不走旧 authErr', async () => {
+test('账号层 passkey：服务端 401 → 「没有登录 · 先 su <用户>」并让身份重问；不走旧 authErr', async () => {
   const a = fakeCtx({ s: 401, j: { ok: false, error: 'unauthorized' } });
   const refreshed = [];
-  mountV6Direct(a.C, { refresh: () => refreshed.push(1) });
+  mountAuthErr(a.C, { refresh: () => refreshed.push(1) });
   mountKeys(a.C);
-  a.C.passkeyList({ direct: true });
+  a.C.passkeyList();
   await settle();
   assert.deepEqual(a.log.find((l) => l[0] === 'err'), ['err', 'v6.notSignedIn', undefined]);
   assert.equal(refreshed.length, 1);
   assert.ok(!a.log.some((l) => l[0] === 'authErr'));
 });
 
-test('账号层 passkey add（direct）：challenge 的 user.id 随 passkey-add 带回；加完不问名字（v6 没有改名接口）', async () => {
+test('账号层 passkey add：challenge 的 user.id 随 passkey-add 带回；加完不问名字（v6 没有改名接口）', async () => {
   const g = /** @type {any} */ (globalThis);
   const had = { window: g.window, nav: Object.getOwnPropertyDescriptor(g, 'navigator') };
   const buf = (n) => new Uint8Array([n, n, n]).buffer;
@@ -168,9 +168,9 @@ test('账号层 passkey add（direct）：challenge 的 user.id 随 passkey-add 
     const a = fakeCtx((name) => (name === 'passkeyAddChallenge'
       ? { s: 200, j: { ok: true, cid: 'c1', challenge: 'AAAA', rpId: 'styrigx.com', rp: { id: 'styrigx.com', name: 'Styrigx' }, user: { id: 'SEFORExF', name: 'styrigx', displayName: 'styrigx' }, excludeCredentials: [] } }
       : { s: 200, j: { ok: true, credId: 'K' } }));
-    mountV6Direct(a.C, null);
+    mountAuthErr(a.C, null);
     mountKeys(a.C);
-    a.C.cmdPasskeyAdd(true, { direct: true });
+    a.C.cmdPasskeyAdd(true);
     await settle();
     assert.equal(a.sent[0][0], 'v6.passkeyAddChallenge');
     assert.equal(a.sent[1][0], 'v6.passkeyAdd');

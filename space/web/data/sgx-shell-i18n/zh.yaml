@@ -182,11 +182,6 @@ term:
   exitFirst: "已经以 {u} 登录 · 先 {x}"
   notHere: "{x}：请在终端里运行（Ctrl K）"
   # #404 未决项（Gray 11-11 15:37 定稿文案）：v6 身份输已移除的旧命令（第 3 项，P4 连命令一起删）
-  goneSudoV: "sudo -v 已移除 · v6 里每次 sudo 都会重新验证"
-  goneSudoReauth: "sudo root reauth 已移除 · 需要 root 权限时直接 su root"
-  goneLockPasswd: "lock passwd 已移除 · 改自己的密码用 passwd"
-  goneLockPasskey: "lock passkey 已移除 · 通行密钥用 passkey 管理"
-  goneLockAll: "lock --all 已移除 · 所有设备在账号页退出"
 # 站内终端 man 页的 NAME 说明（终端统一 T5；英文底在 assets/js/shell/term/man/pages.js，懒加载）。键 = 命令名，命令写法不翻译。
 man:
   man: "查看命令的手册页"
@@ -420,10 +415,6 @@ account:
     enabled: "启用"
     disabled: "停用"
     stale: "沿用上次"
-    lead:
-      key: "更换公钥要再验证"
-      show: "查看订阅地址要再验证"
-      token: "换下载令牌要再验证"
     keyPs: "age 公钥："
     keyHint: "粘贴 age1… 公钥（X25519）"
     keySaved: "公钥已保存 · {k}"

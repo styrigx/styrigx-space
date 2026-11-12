@@ -19,23 +19,23 @@ export function needSu(x) {
 
 /**
  * v6 的 root 档命令（v6-commands「授权与订阅（root，或 sudo）」；路由表 /api/account/proxy 是 root 档）：
- * v6 root → { direct: true }；v6 普通用户 → 一条「当前用户没有这个权限 · 先 su root」；访客 → 先 su <用户>。
- * @param {any} x @returns {{direct: true}|{out: any[]}}
+ * v6 root → null（放行）；v6 普通用户 → 一条「当前用户没有这个权限 · 先 su root」；访客 → 先 su <用户>。
+ * @param {any} x @returns {{out: any[]}|null}
  */
 export function v6RootGate(x) {
   const w = x.who();
   if (!isV6(w)) return { out: [needSu(x)] };
   if (!v6Root(w)) return { out: [line(x, 'needRoot6', 'su root')] };
-  return { direct: true };
+  return null;
 }
 
 /**
  * v6 的「自己的账号」命令（定稿 §八：普通用户用 passwd、passkey 改自己的凭据；v6-commands「自己的账号（普通用户与 root 各管各的）」）：
- * 有 v6 会话（普通用户 / root / 救援）→ { direct: true }；访客 → 先 su <用户>。
- * @param {any} x @returns {{direct: true}|{out: any[]}}
+ * 有 v6 会话（普通用户 / root / 救援）→ null（放行）；访客 → 先 su <用户>。
+ * @param {any} x @returns {{out: any[]}|null}
  */
 export function v6SelfGate(x) {
-  return isV6(x.who()) ? { direct: true } : { out: [needSu(x)] };
+  return isV6(x.who()) ? null : { out: [needSu(x)] };
 }
 
 /** 这一行得在终端窗口里跑（要输入 / 选择 / 验证；AI 窗口里的 $ 命令没有这些）：拿那一层，拿不到 → null @param {any} x @param {'acct'|'ident'} which */

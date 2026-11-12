@@ -1,6 +1,6 @@
 /**
  * 割接：终端 sub 接 v6（v6-commands「授权与订阅（root，或 sudo）」；路由表 /api/account/proxy = root 档，#401；app 随应用授权删除，定稿 v5.3 §十二）——
- * - v6 root：直接做（{ direct: true }；不查旧账号会话，show / key / token 不跑旧的 sudo root reauth）
+ * - v6 root：直接做（不查旧账号会话，show / key / token 不跑旧的 sudo root reauth）
  * - v6 普通用户：「当前用户没有这个权限 · 先 su root」（同 #402 share），不进流程
  * - 访客：「没有登录 · 先 su <用户>」（同身份层 notSignedIn；门槛 gate.js 对所有命令一样）
  * - v6 P4（定稿 v5.2 §十三 P4）：旧会话（root / styrigx 两种旧身份）、share 命令、sudo styrigx 删了；旧身份字符串一律按访客
@@ -14,7 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { createShell, TERM_EN } from '../../../../space/web/assets/js/shell/terminal.js';
-import { mountV6Direct } from '../../../../space/web/assets/js/shell/account/cmd/v6-direct.js';
+import { mountAuthErr } from '../../../../space/web/assets/js/shell/account/cmd/auth-err.js';
 import { mountProxy } from '../../../../space/web/assets/js/shell/account/proxy.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -32,13 +32,13 @@ function layers() {
 }
 const sh = (w) => createShell({ act, storage: mem(), who: fixedWho(w) });
 
-test('sub：v6 root 直接做（direct: true），原样的一行照传', () => {
+test('sub：v6 root 直接做，原样的一行照传', () => {
   const L = layers();
   const r = sh('u:root');
   for (const l of ['sub', 'sub show', 'sub token reset', 'sub key', 'sub mv Linkcube LinkCube2']) assert.equal(r.exec(l, L.v).flow, true, l);
   assert.deepEqual(L.calls, [
-    ['cmdSub', 'sub', { direct: true }], ['cmdSub', 'sub show', { direct: true }], ['cmdSub', 'sub token reset', { direct: true }], ['cmdSub', 'sub key', { direct: true }],
-    ['cmdSub', 'sub mv Linkcube LinkCube2', { direct: true }],
+    ['cmdSub', 'sub'], ['cmdSub', 'sub show'], ['cmdSub', 'sub token reset'], ['cmdSub', 'sub key'],
+    ['cmdSub', 'sub mv Linkcube LinkCube2'],
   ]);
 });
 
@@ -106,17 +106,17 @@ test('账号层 sub：不看旧账号会话、show 不跑旧 reauth（v6 P4 旧�
   const status = { s: 200, j: { ok: true, token: 'sealed', sources: [{ name: 'a' }] } };
   const a = fakeCtx((x) => (x === 'show' ? { s: 200, j: { ok: true, token: 'T', base: 'https://p/s/' } } : status));
   const refreshed = [];
-  mountV6Direct(a.C, { refresh: () => refreshed.push(1) });
+  mountAuthErr(a.C, { refresh: () => refreshed.push(1) });
   mountProxy(a.C);
-  a.C.cmdSub('sub show', { direct: true });
+  a.C.cmdSub('sub show');
   await tick(); await tick();
   assert.deepEqual(a.sent, ['status', 'show'], 'status → show，中间没有 reauth');
   assert.ok(!a.log.some((l) => l[0] === 'withReauth'));
   assert.ok(a.log.some((l) => l[0] === 'out' && String(l[1]).includes('https://p/s/T/a')));
 
-  /* v6 P4：旧路径（没有 direct 的旧账号会话 + sudo root reauth）删了——不带 direct 也直接做 */
+  /* v6 P4：旧路径（旧账号会话 + sudo root reauth）删了 */
   const b = fakeCtx(status);
-  mountV6Direct(b.C, null);
+  mountAuthErr(b.C, null);
   mountProxy(b.C);
   b.C.cmdSub('sub show');
   await tick(); await tick();
@@ -124,21 +124,21 @@ test('账号层 sub：不看旧账号会话、show 不跑旧 reauth（v6 P4 旧�
   assert.ok(!b.log.some((l) => l[0] === 'err' && l[2] === 'sudo root'), '不再提示 sudo root');
 });
 
-test('账号层 sub（direct）：服务端 401 → 先 su <用户>；403 forbidden → 先 su root；都让身份重问；不走旧 authErr', async () => {
+test('账号层 sub：服务端 401 → 先 su <用户>；403 forbidden → 先 su root；都让身份重问；不走旧 authErr', async () => {
   for (const [r, want] of [[{ s: 401, j: { ok: false, error: 'session' } }, ['err', 'v6.notSignedIn', undefined]], [{ s: 403, j: { ok: false, error: 'forbidden' } }, ['err', 'v6.forbidden', 'su root']]]) {
     const x = fakeCtx(r);
     const refreshed = [];
-    mountV6Direct(x.C, { refresh: () => refreshed.push(1) });
+    mountAuthErr(x.C, { refresh: () => refreshed.push(1) });
     mountProxy(x.C);
-    x.C.cmdSub('sub', { direct: true });
+    x.C.cmdSub('sub');
     await tick(); await tick();
     assert.deepEqual(x.log.find((l) => l[0] === 'err'), want, r.s);
     assert.equal(refreshed.length, 1);
     assert.ok(!x.log.some((l) => l[0] === 'authErr'));
   }
-  /* v6 P4：不带 direct 也一样（旧 C.authErr 路径删了，authErr = authErrFor） */
+
   const y = fakeCtx({ s: 401, j: { ok: false, error: 'session' } }, 'in');
-  mountV6Direct(y.C, null);
+  mountAuthErr(y.C, null);
   mountProxy(y.C);
   y.C.cmdSub('sub');
   await tick(); await tick();

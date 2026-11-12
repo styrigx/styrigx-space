@@ -111,8 +111,8 @@ test('后端名字只在 api.js：入口、action 名、请求字段、状态字
   /* S9：卡片只展示，窗口那一套（keys / devices / grants / profile 层）删了，只剩终端的账号层 cmd/ */
   assert.deepEqual(top.sort(), ['api.js', 'avatar-edit.js', 'commands.js', 'proxy.js', 'window.js']);
   const sub = readdirSync(path.join(REPO, DIR, 'cmd')).map((f) => 'cmd/' + f);
-  /* 割接：cmd/v6-direct.js = v6 root 直接做的 sub 的门（C.gated / C.authErrFor） */
-  assert.deepEqual(sub.sort(), ['cmd/devices.js', 'cmd/keys.js', 'cmd/layer.js', 'cmd/profile.js', 'cmd/v6-direct.js']);
+  /* cmd/auth-err.js = v6 的 401 / 403 提示（C.authErr） */
+  assert.deepEqual(sub.sort(), ['cmd/auth-err.js', 'cmd/devices.js', 'cmd/keys.js', 'cmd/layer.js', 'cmd/profile.js']);
   const files = top.concat(sub);
   const api = strip(rd(DIR + 'api.js'));
   /* NAMING-V2 P2：POST /api/account/<入口> { action }，入口和 action 都只在 api.js 里写；v6 P4 起旧会话的 session / reauth / reset / keys 入口删了 */

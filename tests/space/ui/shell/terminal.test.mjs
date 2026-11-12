@@ -327,10 +327,9 @@ test('要输入 / 验证的命令交给两层上下文（flow，输出和输入�
   flow('u:root', 'profile avatar');
   flow('u:root', 'sub mv Linkcube LinkCube2');
   flow('u:root', 'SUB show Linkcube');
-  const D = { direct: true };
-  assert.deepEqual(calls.splice(0), [['ident.cmdPasswd', ''], ['acct.passkeyList', D], ['acct.cmdPasskeyAdd', true, D], ['acct.passkeyRm', 2, D], ['acct.deviceList'], ['acct.deviceRm', 3], ['acct.deviceRmAll'],
+  assert.deepEqual(calls.splice(0), [['ident.cmdPasswd', ''], ['acct.passkeyList'], ['acct.cmdPasskeyAdd', true], ['acct.passkeyRm', 2], ['acct.deviceList'], ['acct.deviceRm', 3], ['acct.deviceRmAll'],
     ['acct.profileShow'], ['acct.profileSet', 'sign', 'Stay  Hungry'], ['acct.profileSet', 'nick', 'Styrigx'], ['acct.profileAvatar'],
-    ['acct.cmdSub', 'sub mv Linkcube LinkCube2', D], ['acct.cmdSub', 'SUB show Linkcube', D]], 'sub 传原样的一行（来源名大小写不变）；profile set 的值原样');
+    ['acct.cmdSub', 'sub mv Linkcube LinkCube2'], ['acct.cmdSub', 'SUB show Linkcube']], 'sub 传原样的一行（来源名大小写不变）；profile set 的值原样');
   assert.equal(text(sh('u:root').exec('device rm x', v).out[0]), TERM_EN.usageDevice);
   /* 应用授权删了（定稿 v5.3 §十二）：app 不再是命令 */
   assert.equal(TERM_EN.usageApp, undefined);
@@ -434,7 +433,7 @@ test('代理订阅：open ~/proxy = sub；ls ~/proxy 列来源 / 没登录提示
   const { v, calls } = fakeLayers();
   const sh = createShell({ act, storage: mem(), who: fixedWho('u:root') });
   assert.equal(sh.exec('open ~/proxy', v).flow, true);
-  assert.deepEqual(calls.at(-1), ['acct.cmdSub', 'sub', { direct: true }]);
+  assert.deepEqual(calls.at(-1), ['acct.cmdSub', 'sub']);
   const ls = await run(sh, 'ls ~/proxy');
   assert.deepEqual(ls.out.map(text), ['Linkcube  sub.example.com  3  enabled', 'Cloady  file  1  disabled']);
   act.proxyList = () => Promise.resolve(null);

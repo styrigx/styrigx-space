@@ -187,11 +187,6 @@ term:
   suUser: "<user>"
   exitFirst: "signed in as {u} · {x} first"
   notHere: "{x}: run it in the terminal (Ctrl K)"
-  goneSudoV: "sudo -v is gone · in v6 every sudo verifies again"
-  goneSudoReauth: "sudo root reauth is gone · to act as root, su root"
-  goneLockPasswd: "lock passwd is gone · change your own password with passwd"
-  goneLockPasskey: "lock passkey is gone · manage passkeys with passkey"
-  goneLockAll: "lock --all is gone · sign out all devices on the account page"
 # 站内终端 man 页的 NAME 说明（终端统一 T5；英文底在 assets/js/shell/term/man/pages.js，懒加载）。键 = 命令名，命令写法不翻译。
 man:
   man: "read a command’s manual page"
@@ -424,10 +419,6 @@ account:
     enabled: "enabled"
     disabled: "disabled"
     stale: "kept last good"
-    lead:
-      key: "changing the public key needs reauth"
-      show: "showing the urls needs reauth"
-      token: "a new download token needs reauth"
     keyPs: "age public key:"
     keyHint: "paste an age1… public key (X25519)"
     keySaved: "public key saved · {k}"

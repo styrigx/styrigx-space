@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { mountV6Direct } from '../../../../space/web/assets/js/shell/account/cmd/v6-direct.js';
+import { mountAuthErr } from '../../../../space/web/assets/js/shell/account/cmd/auth-err.js';
 import { mountKeys, mmdd } from '../../../../space/web/assets/js/shell/account/cmd/keys.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -36,7 +36,7 @@ function ctx(lang, keys) {
     setMode() {}, toCmd() {}, apiErr() {}, netErr() {}, echo() {}, echoPick() {}, ask() {}, pick() {}, reauthLeft: () => 0, afterResetChange() {},
     withReauth() { out.push('withReauth'); }, authErr: () => true,
   };
-  mountV6Direct(C, null);
+  mountAuthErr(C, null);
   mountKeys(C);
   return { C, out, sent };
 }
@@ -55,7 +55,7 @@ test('mmdd：MM-DD（本地时区）', () => {
 
 test('v6 passkey ls（中文）：[n] 名字 · 密码管理器 · 创建 MM-DD · 上次使用 MM-DD；provider 空不出那段；没用过 = 未使用', async () => {
   const a = ctx('zh', KEYS);
-  a.C.passkeyList({ direct: true });
+  a.C.passkeyList();
   await settle();
   assert.deepEqual(a.sent, ['v6.passkeyList']);
   assert.deepEqual(a.out, [
@@ -66,7 +66,7 @@ test('v6 passkey ls（中文）：[n] 名字 · 密码管理器 · 创建 MM-DD 
 
 test('v6 passkey ls（英文）：同一格式，用 en 的已有键', async () => {
   const a = ctx('en', KEYS);
-  a.C.passkeyList({ direct: true });
+  a.C.passkeyList();
   await settle();
   assert.deepEqual(a.out, [
     '[1] Samsung Galaxy S23U · Samsung Pass · created 11-10 · last used 11-11',
@@ -76,7 +76,7 @@ test('v6 passkey ls（英文）：同一格式，用 en 的已有键', async () 
 
 test('v6 passkey ls：没有通行密钥 → keys.passkey.none 一行', async () => {
   const a = ctx('zh', []);
-  a.C.passkeyList({ direct: true });
+  a.C.passkeyList();
   await settle();
   assert.deepEqual(a.out, ['note:keys.passkey.none']);
 });

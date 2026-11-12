@@ -3,7 +3,7 @@
  * v6-commands「自己的账号」passkey ls / add / rm <n>；§九 救援白名单含 passkey）。
  *
  * - passkey [ls]：列表（[n] 名字 · 保存在哪 · 创建日期 · 上次使用）· passkey add：系统窗口 → 注册（带预填名，不再问名字）· passkey rm <n>：[y/N]
- * 后端 POST /api/identity passkey-*（user 档，按服务端会话 uid 管栈顶那个用户自己的；api.v6keys）；401 / 403 走 C.authErrFor（./v6-direct.js）。
+ * 后端 POST /api/identity passkey-*（user 档，按服务端会话 uid 管栈顶那个用户自己的；api.v6keys）；401 / 403 走 C.authErr（./auth-err.js）。
  * v6 P4 起旧的账号钥匙（sudo root reauth / reset 票、/api/account/keys、账号 passwd）删除；改密码是身份层的 passwd。
  */
 import { registerPasskey, genPkPrefillName } from '../../../auth/passkey-register.js';
@@ -29,8 +29,8 @@ export function mountKeys(C) {
   /** @param {any} key */
   function keyName(key) { return key.name || provLabel(key.provider) || t('keys.passkey.unnamed'); }
 
-  /** 取列表（不打印） @param {(ok: boolean) => void} [then] @param {{direct?: boolean}} [o] */
-  C.loadKeys = function (then, o) {
+  /** 取列表（不打印） @param {(ok: boolean) => void} [then]*/
+  C.loadKeys = function (then) {
     C.setMode('busy');
     return api.v6keys.passkeyList().then(function (/** @type {any} */ res) {
       C.toCmd();
@@ -39,13 +39,13 @@ export function mountKeys(C) {
         if (then) then(true);
         return;
       }
-      if (!C.authErrFor(o, res)) C.apiErr(res);
+      if (!C.authErr(res)) C.apiErr(res);
       if (then) then(false);
     }, function () { C.netErr(); C.toCmd(); if (then) then(false); });
   };
 
-  /** passkey：列出 @param {{direct?: boolean}} [o] */
-  C.passkeyList = function (o) {
+  /** passkey：列出*/
+  C.passkeyList = function () {
     C.loadKeys(function (ok) {
       if (!ok) return;
       if (!C.keyList.length) { C.note('keys.passkey.none'); return; }
@@ -53,11 +53,11 @@ export function mountKeys(C) {
         const sub = [provLabel(key.provider), tf('keys.passkey.created', { d: mmdd(key.createdAt) }), key.lastUsedAt ? tf('keys.passkey.lastUsed', { d: mmdd(key.lastUsedAt) }) : t('keys.passkey.neverUsed')].filter(Boolean).join(' · ');
         C.out('<span class="sgx-at-p">[' + (i + 1) + ']</span> <span translate="no" data-sgx-personal>' + esc(keyName(key)) + '</span> <span class="sgx-at-dim">· ' + esc(sub) + '</span>');
       });
-    }, o);
+    });
   };
 
-  /** passkey add：系统窗口 → 注册（v6 没有改名接口，带预填名、不问名字） @param {boolean} [typed] @param {{direct?: boolean}} [o] */
-  C.cmdPasskeyAdd = function (typed, o) {
+  /** passkey add：系统窗口 → 注册（v6 没有改名接口，带预填名、不问名字） @param {boolean} [typed]*/
+  C.cmdPasskeyAdd = function (typed) {
     if (!typed) C.echo('passkey add');
     C.setMode('busy', { cc: true });
     const toRes = function (/** @type {any} */ r) { return { status: r.s, json: r.j }; };
@@ -79,7 +79,7 @@ export function mountKeys(C) {
       signal: ac ? ac.signal : undefined,
       challenge: function () { return x.passkeyAddChallenge().then(toRes); },
       register: function (/** @type {any} */ body) { return x.passkeyAdd(body).then(toRes); },
-      onAuthError: function (/** @type {any} */ res) { return C.authErrFor(o, { s: res.status, j: res.json }); },
+      onAuthError: function (/** @type {any} */ res) { return C.authErr({ s: res.status, j: res.json }); },
       onRegistered: function () {
         done = true;
         C.busyCancel = null;
@@ -95,8 +95,8 @@ export function mountKeys(C) {
       msg: { cancelled: t('common.cancelled'), already: t('keys.passkey.already'), noSupport: t('common.pkNoSupport'), failed: t('keys.passkey.failed'), network: t('common.errNetwork') },
     }).then(function () { if (!done && !stopped && C.mode === 'busy') C.toCmd(); });
   };
-  /** passkey rm <n>：编号对着现在的列表（先取一次），[y/N] @param {number} n @param {{direct?: boolean}} [o] */
-  C.passkeyRm = function (n, o) {
+  /** passkey rm <n>：编号对着现在的列表（先取一次），[y/N] @param {number} n*/
+  C.passkeyRm = function (n) {
     C.loadKeys(function (ok) {
       if (!ok) return;
       const key = C.keyList[n - 1];
@@ -113,13 +113,13 @@ export function mountKeys(C) {
               C.toCmd();
               return;
             }
-            if (C.authErrFor(o, res)) { C.toCmd(); return; }
+            if (C.authErr(res)) { C.toCmd(); return; }
             C.apiErr(res);
             C.toCmd();
           }, function () { C.netErr(); C.toCmd(); });
         },
         n: function () { C.echoPick('n'); C.toCmd(); },
       }, 'n', { ps: '[y/N]' });
-    }, o);
+    });
   };
 }

@@ -1735,7 +1735,7 @@ jobs:
           for need in '"core:0001_baseline.sql"' '"table:attempt_limit"' '"table:audit"' '"core:0002_drop_tempkey.sql"'; do
             if ! printf '%s' "$out" | grep -q "$need"; then echo "::error::D1 styrigx-space-core 里没有 $need"; ok=1; fi
           done
-          # share_link / share_fail 不再要求（v6 P4 分享短链删除；删表 SQL 在 docs/ops/v6-p4-drop-share.sql，Gray 批准后手动执行）
+          # share_link / share_fail 不再要求（v6 P4 分享短链删除；生产库已按 docs/ops/v6-p4-drop-share.sql drop）
           # v5 收尾 0002_drop_tempkey.sql：临时钥匙表应已删
           if printf '%s' "$out" | grep -q '"table:tempkey"'; then echo "::error::D1 styrigx-space-core 里还有 tempkey 表"; ok=1; fi
           exit $ok
