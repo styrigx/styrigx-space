@@ -1,18 +1,36 @@
 # space/：Platform 骨架契约
 
-> 依据：《space 目录架构规范 v1.8（定稿）》，Gray 2026-11-13 定。
+> 依据：《space 目录架构规范 v1.11（定稿）》，Gray 2026-11-13 定。
 > 本文件是 Platform（Space）内部目录与依赖的**唯一出处**。旧文档（`docs/architecture/overview.md` §6–7 的 L0–L6、`docs/architecture/repo-structure.md`）和旧规则（`scripts/check-layers.mjs`）与本文件冲突的，以本文件为准，旧的那边跟着改。
 > 能用脚本检查的规矩都由 `check-layers.mjs` 在 CI 里拦，不靠自觉。
 
-## 0. 三级命名
+## 0. 三级命名与架构关系
 
 ```
-Platform（平台，Space）
-  └─ Services（服务，Workers）        规范见 workers/README.md
-       └─ Products（产品，Curio、Daymark、Blog）
+Platform（平台，Space）          Services（服务，Workers）
+┌───────────────────────────┐    ┌───────────────────────────┐
+│ 所有产品共同依赖的平台基础   │    │ 独立服务体系，按需调用      │
+│ ┌───────────────────────┐ │    │ 不构成 Platform / Products │
+│ │ Products（产品）        │ │    │ 的必然依赖                 │
+│ │ Curio · Daymark · Blog │ │    └───────────────────────────┘
+│ └───────────────────────┘ │
+└───────────────────────────┘
 ```
 
-本文件只管 Platform 内部（`space/web` + `space/scripts`）。和 Services 的交界处（接口、路由、会话、版本）两边说法要一致，不一致以交界处那份为准。
+- **Platform 是 Products 的基础依赖**：Products 必须建立在 Platform 之上，不能独立于 Platform。
+- **Services 是可选的能力依赖**：可被 Platform 或 Products 调用，也可以独立存在。Products 可以独立于 Services。
+- **归属与依赖是两回事**：目录表达归属（组件是什么），不表达依赖（它为谁服务）。服务关系会变，目录不跟着变。
+
+目录映射：
+
+```
+/
+├── space/          Platform
+│   └── web/        Hugo 站；Products 住在这里：content/、layouts/、assets/、data/ 各按 blog/、curio/、daymark/ 分
+└── workers/        Services（放仓库根，表达它的独立性；规范见 workers/README.md）
+```
+
+本文件只管 Platform 内部（`space/web` + `space/scripts`）。和 Services 的交界处（接口、路由、会话、版本）两边说法要一致。
 
 **Platform 包括**：顶栏、终端、AI 窗、调色板、鉴权、锁屏、共用播放器，以及首页（`/`）和状态页。
 **Products 只有三个**：`blog`、`curio`、`daymark`。
