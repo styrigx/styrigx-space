@@ -1,7 +1,7 @@
 /**
  * 手动桌面 + 手机屏（2026-11-07 Gray 真机：X 应用内浏览器没有「桌面版网站」开关，快捷面板选「桌面」只有顶栏出了页名胶囊，正文还是手机版）。
  * 共享外壳 layout-mode.js：偏好 = 桌面且屏幕短边 < 600 时 viewport 改成 width=980（同三星 / Chrome 桌面版网站的布局视口），
- * 首帧就是桌面宽、整页缩小显示；快捷面板里切进 / 切出「桌面」原地改 viewport（不重载、不白闪），没生效才整页重载（重载前把页面底色交给下一页首帧）。自动 / 手机偏好、电脑不动。
+ * 首帧就是桌面宽、整页缩小显示；快捷面板里切进「桌面」整页重载（三星浏览器原地改偶发弹回 1 倍缩放，2026-11-13），切出「桌面」原地改 viewport（不重载、不白闪），没生效才整页重载；重载前都把页面底色交给下一页首帧。自动 / 手机偏好、电脑不动。
  * 首帧底色（同一个文件 __sgxFirstPaint）：color-scheme / theme-color 跟本站深浅色，<head> 最前面一条最低层的 html 底色——
  * 样式表没到时就是本站底色（不是浏览器白底），样式表到了照常按调色板。
  * 应用内浏览器（Android WebView）认不认 meta 宽度取决于宿主 App，这里只能验 Chromium 手机模式。
@@ -51,7 +51,7 @@ test.describe('手机（412 宽，手机 UA）', () => {
     }
   });
 
-  test('NAVIGATE 面板切「桌面」：原地改成 980 宽、不整页重载（不白闪），面板还开着；切回「自动」原地还原 viewport', async ({ page }) => {
+  test('NAVIGATE 面板切进「桌面」：整页重载一次，重载后 980 宽、整页缩小；再切回「自动」原地还原 viewport（不重载）', async ({ page }) => {
     await go(page);
     await page.evaluate(() => { /** @type {any} */ (window).__sgxNoReload = 1; });
     let loads = 0;
@@ -60,23 +60,28 @@ test.describe('手机（412 宽，手机 UA）', () => {
     await page.locator('.sgx-tb-grid').click();
     await expect(page.locator('#sgx-nav')).toBeVisible();
     await page.locator('#sgx-nav [data-qp-seg="layout"] [data-v="desktop"]').click();
+    await expect.poll(() => loads).toBe(1);
+    await page.waitForLoadState('load');
     await expect.poll(async () => (await state(page)).layout).toBe('desktop');
     const s = await state(page);
     expect(s.meta).toBe('width=980');
     expect(s.w).toBeGreaterThanOrEqual(980);
     expect(s.scale).toBeLessThan(0.5);
     expect(await page.evaluate(() => localStorage.getItem('sgx-layout'))).toBe('desktop');
-    /* 同一个文档（没重载）：标记还在，面板还开着、选中「桌面」 */
-    expect(await page.evaluate(() => /** @type {any} */ (window).__sgxNoReload)).toBe(1);
+    /* 新文档：标记没了，面板关着 */
+    expect(await page.evaluate(() => /** @type {any} */ (window).__sgxNoReload)).toBeUndefined();
+    await expect(page.locator('#sgx-nav')).toBeHidden();
+    /* 切回自动：原地，viewport 还原、手机布局，不再重载 */
+    await page.evaluate(() => { /** @type {any} */ (window).__sgxNoReload = 2; });
+    await page.locator('.sgx-tb-grid').click();
     await expect(page.locator('#sgx-nav')).toBeVisible();
-    await expect(page.locator('#sgx-nav [data-qp-seg="layout"] [data-v="desktop"]')).toHaveAttribute('aria-pressed', 'true');
-    /* 切回自动：同样原地，viewport 还原、手机布局 */
     await page.$eval('#sgx-nav [data-qp-seg="layout"] [data-v="auto"]', (b) => /** @type {HTMLElement} */ (b).click());
     await expect.poll(async () => (await state(page)).meta).toBe(ORIG);
     await expect.poll(async () => (await state(page)).layout).toBe('phone');
     expect(await state(page)).toEqual({ meta: ORIG, w: 412, layout: 'phone', scale: 1 });
-    expect(await page.evaluate(() => /** @type {any} */ (window).__sgxNoReload)).toBe(1);
-    expect(loads).toBe(0);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__sgxNoReload)).toBe(2);
+    await expect(page.locator('#sgx-nav')).toBeVisible();
+    expect(loads).toBe(1);
   });
 
   test('重载兜底不白闪：sessionStorage sgx-fp-bg 里是重载前的页面底色，样式表没到时首帧就用它，用一次就删', async ({ page }) => {
