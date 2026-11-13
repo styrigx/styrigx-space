@@ -13,7 +13,7 @@
 {{/* 标签页标题（Gray 2026-11-07 定，四站统一）：「页名 | 站名」，站名走字符串表 site.name（主站 Styrigx，品牌名不翻，只在英文表、各语言回退）；
    页名就是站名时只显示站名。主页（根路径）页名 = NAVIGATE 01「主页 / Home」（shell nav.home.title；状态页 /status/ 页名 = front matter title），所以是「主页 | Styrigx」。 */}}
 {{/* 404 的 .Title 是 Hugo 内置英文「404 Page not found」，不随语言：改用字符串表的页名（与页名胶囊同一个） */}}
-{{ $docTitle := .Title }}{{ if .IsHome }}{{ $docTitle = $tr.shell.nav.home.title }}{{ else if eq .Kind "404" }}{{ $docTitle = $tr.baseof.pageNotFound }}{{ end }}
+{{ $docTitle := .Title }}{{ if .IsHome }}{{ $docTitle = $tr.frame.nav.home.title }}{{ else if eq .Kind "404" }}{{ $docTitle = $tr.baseof.pageNotFound }}{{ end }}
 <title>{{ if eq $docTitle $tr.site.name }}{{ $docTitle }}{{ else }}{{ $docTitle }} | {{ $tr.site.name }}{{ end }}</title>
 {{ $desc := $tr.site.description }}{{ with .Description }}{{ $desc = . }}{{ end }}
 <meta name="description" content="{{ $desc }}">
@@ -157,7 +157,7 @@ __sgxLayoutWatch(__applyLayout);
    快捷面板四站同一套（深色 / 跟随系统 / 分享本页 / 立即锁定 + 语言 + 调色板 + 布局），不再按站给 tiles；头像在 AI 窗口头部（acct / avatar）。
    子页面没有大标题区：页名只在长条里，正文从顶栏下方 --sgx-content-top 开始（input.css，全站同一个值）。 */}}
 {{ $pageName := .Title }}
-{{ if .IsHome }}{{ $pageName = $tr.shell.nav.home.title }}
+{{ if .IsHome }}{{ $pageName = $tr.frame.nav.home.title }}
 {{ else if eq .Kind "404" }}{{ $pageName = $tr.baseof.pageNotFound }}
 {{ end }}
 {{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿）。主页 = 「主页 / Home」，其他页 = 页名；不再有顶栏标签（topbar-tabs 删除）。
@@ -180,7 +180,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ $otherLangHref := partial "common/lang-path.html" (dict "path" .RelPermalink "lang" $otherLang) }}
 {{ partial "common/frame/topbar.html" (dict
   "lang" $pageLang
-  "tr" (partialCached "common/tr.html" $pageLang $pageLang).shell
+  "tr" (partialCached "common/tr.html" $pageLang $pageLang).frame
   "langs" $tbLangs
   "home" (partial "common/lang-path.html" (dict "path" "/" "lang" $pageLang))
   "center" $center
@@ -224,7 +224,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ block "main" . }}{{ end }}</main>
 {{/* tmux 页脚（2026-11 UI 重设计 PR-1，四站同一个 partials/common/frame/footer.html；取代 2026-10-22 起只在「关于本站」显示的版权页脚） */}}
 {{ partial "common/frame/footer.html" (dict
-  "tr" (partialCached "common/tr.html" $pageLang $pageLang).shell
+  "tr" (partialCached "common/tr.html" $pageLang $pageLang).frame
   "lang" $pageLang
   "langs" $tbLangs
   "here" .RelPermalink

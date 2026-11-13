@@ -33,12 +33,12 @@ test('没有残留的抄写：flatStrings / normCmd / lev 只定义在 term/core
   for (const f of files) {
     const src = read('space/web/assets/common/js/' + (FE_AT[f] || f));
     assert.doesNotMatch(src, /function (flatStrings|normCmd|lev)\(/, f);
-    assert.doesNotMatch(src, /getElementById\('sgx-i18n-shell'\)/, f + ' 用 shellSection 读字符串表');
+    assert.doesNotMatch(src, /getElementById\('sgx-i18n-frame'\)/, f + ' 用 shellSection 读字符串表');
   }
 });
 
 test('shellSection：读一节；没有元素 / 坏 JSON / 不是对象 → {}', () => {
-  const doc = (txt) => ({ getElementById: (id) => (id === 'sgx-i18n-shell' && txt != null ? { textContent: txt } : null) });
+  const doc = (txt) => ({ getElementById: (id) => (id === 'sgx-i18n-frame' && txt != null ? { textContent: txt } : null) });
   assert.deepEqual(S.shellSection(doc('{"kh":{"ai":"x"}}'), 'kh'), { ai: 'x' });
   assert.deepEqual(S.shellSection(doc(null), 'kh'), {});
   assert.deepEqual(S.shellSection(doc('{oops'), 'kh'), {});

@@ -96,7 +96,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ end }}
 {{ partial "common/frame/topbar.html" (dict
   "lang" .Lang
-  "tr" (partialCached "common/tr.html" (dict "lang" .Lang "ns" "daymark") (printf "daymark-%s" .Lang)).shell
+  "tr" (partialCached "common/tr.html" (dict "lang" .Lang "ns" "daymark") (printf "daymark-%s" .Lang)).frame
   "langs" $tbLangs
   "home" (partial "common/lang-path.html" (dict "path" "/" "lang" .Lang))
   "center" $center
@@ -123,7 +123,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ end }}{{ block "main" . }}{{ end }}
 {{/* tmux 页脚（2026-11 UI 重设计 PR-1，四站同一个 partials/common/frame/footer.html；当前窗口 = daymark） */}}
 {{ partial "common/frame/footer.html" (dict
-  "tr" (partialCached "common/tr.html" (dict "lang" .Lang "ns" "daymark") (printf "daymark-%s" .Lang)).shell
+  "tr" (partialCached "common/tr.html" (dict "lang" .Lang "ns" "daymark") (printf "daymark-%s" .Lang)).frame
   "lang" .Lang
   "langs" $tbLangs
   "here" .RelPermalink

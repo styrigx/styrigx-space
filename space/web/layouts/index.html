@@ -109,7 +109,7 @@
     <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> cat daymark/today</p>
     {{ if ne (getenv "SGX_TEST_NO_WEATHER") "1" }}
     {{/* 取今日一句的时候一行输出式的提示「› fetching daymark…」（Gray 2026-11-09 细节 3），有结论（画上 / 没取到）就收起（apps/index.js） */}}
-    <p class="sgx-wait home-wait" data-dm-wait role="status"><span aria-hidden="true">› </span>{{ replace $tr.shell.term.fetching "{x}" "daymark" }}</p>
+    <p class="sgx-wait home-wait" data-dm-wait role="status"><span aria-hidden="true">› </span>{{ replace $tr.frame.term.fetching "{x}" "daymark" }}</p>
     <a id="w-daymark" href="{{ $dmHome }}" class="home-qt hidden">
       <span class="home-qt-body" data-dm="body">
         <span class="home-qt-text" data-dm="text"></span>

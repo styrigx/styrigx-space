@@ -35,7 +35,7 @@
 {{- end -}}
 {{- partial "common/frame/topbar.html" (dict
   "lang" $lang
-  "tr" (partialCached "common/tr.html" $lang $lang).shell
+  "tr" (partialCached "common/tr.html" $lang $lang).frame
   "langs" $langs
   "home" (partial "common/lang-path.html" (dict "path" "/" "lang" $lang))
   "center" $center

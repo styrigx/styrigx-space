@@ -31,10 +31,10 @@ export function deepMerge(a, b) {
   return out;
 }
 
-/** 页面实际拿到的表（同 tr.html）：站内表在根上，外壳表在 .shell */
+/** 页面实际拿到的表（同 tr.html）：站内表在根上，外壳表在 .frame */
 export function strings(site, lang) {
   const t = deepMerge(rawTable(site, 'en'), lang === 'en' ? {} : rawTable(site, lang));
-  t.shell = deepMerge(rawTable(site, 'en', 'frame/i18n'), lang === 'en' ? {} : rawTable(site, lang, 'frame/i18n'));
+  t.frame = deepMerge(rawTable(site, 'en', 'frame/i18n'), lang === 'en' ? {} : rawTable(site, lang, 'frame/i18n'));
   return t;
 }
 

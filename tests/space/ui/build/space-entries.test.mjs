@@ -1,7 +1,7 @@
 /**
  * P4-3 PR-4b §9–11（Gray 2026-11-07）：显示页删除 + 平铺入口组件；2026-11 对齐 PR-B：主页不再有分类入口；2026-11-12 旷野删除，状态单独成页 /status/。
  * - 数据（data/common/space-cats.yaml）：3 个门内子页，顺序、字段齐全、图标存在、配色在白名单里
- * - 模板：平铺入口组件 partials/sgx-entries.html 在对齐 PR-C2 退役（主页、博客、奇趣、日刻都不用，文件和 @shell entries 样式段都删了）；旷野独立布局；旧页删除
+ * - 模板：平铺入口组件 partials/sgx-entries.html 在对齐 PR-C2 退役（主页、博客、奇趣、日刻都不用，文件和 @frame entries 样式段都删了）；旷野独立布局；旧页删除
  * - 构建产物（有才跑）：中英主页三节、状态页一个窗；
  *   /display/ 页面不存在；任何产物（HTML / XML / JSON）里没有 /display/ 链接；搜索索引里没有 /display/
  * 运行：node --test tests/space/ui/build/space-entries.test.mjs
@@ -50,7 +50,7 @@ test('模板：平铺入口组件退役（主页 / 四站都不用，组件和�
     assert.doesNotMatch(rd('space/web/layouts/' + f), /partial "sgx-entries\.html"/, f + ' 不用入口组件');
   }
   assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials/sgx-entries.html')), 'sgx-entries.html 已删除');
-  assert.doesNotMatch(rd('space/web/assets/common/css/input.css'), /@shell:begin entries|\.sgx-ent-li \{/, '@shell entries 样式段已删除');
+  assert.doesNotMatch(rd('space/web/assets/common/css/input.css'), /@frame:begin entries|\.sgx-ent-li \{/, '@frame entries 样式段已删除');
   /* 状态页（2026-11-12 起，旷野删除）：独立布局 + 中英内容；旷野页的模板和内容删除 */
   assert.ok(existsSync(path.join(REPO, 'space/web/layouts/_default/status.html')), 'status.html');
   assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/_default/wild.html')), 'wild.html 已删');

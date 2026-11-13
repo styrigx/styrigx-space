@@ -52,7 +52,7 @@ const EMAIL_RE = /^[^\s@<>()",;:\\]+@[^\s@<>()",;:\\]+\.[^\s@<>()",;:\\.]{2,}$/;
 function askSudo(doc) {
   try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {}
 }
-/** 英文底（源文本，没有页面字符串表时用）；页面上以 #sgx-i18n-shell 的 ai 节为准——已是「英文 ← 页面语言」的合并，缺键回退英文（语言包化 2026-11-07） */
+/** 英文底（源文本，没有页面字符串表时用）；页面上以 #sgx-i18n-frame 的 ai 节为准——已是「英文 ← 页面语言」的合并，缺键回退英文（语言包化 2026-11-07） */
 const STR_EN = {
   greet: "Hi, I'm Gray's AI assistant. Ask about this site, or talk through whatever you're working on.",
   histEmpty: "No past chats yet",
@@ -462,7 +462,7 @@ export function mountAiChat(dlg, opts) {
   };
 
   /* 按键提示行（Gray 2026-11-09 细节 1；同 term/view/keyhint.js，这里只画几行，英文底用 term/core/strings.js 的 KH_EN）：桌面「enter 发送 · shift+enter 换行 · esc 关闭」，
-     触屏换成「‹ 返回」按钮 = 关窗口（每个终端状态都有出口）。文案 #sgx-i18n-shell 的 kh 节 */
+     触屏换成「‹ 返回」按钮 = 关窗口（每个终端状态都有出口）。文案 #sgx-i18n-frame 的 kh 节 */
   (function () {
     const el = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-kh]'));
     if (!el) return;

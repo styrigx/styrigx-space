@@ -6,7 +6,7 @@
  * - 磁贴 / 行 / 恢复默认 = 中性玻璃（--sgx-qp-glass，2026-10-23 PR-G 修订；不再铺 --m-secondary-container）。
  * - 2026-10-24 PR4：顶部「快捷面板」标题和齿轮（全部设置）删除；dialog 用 aria-label 保留读屏名字。
  * - 2026-11-04 P5-1：快捷面板标记搬进顶栏单一来源 partials/common/frame/topbar.html（四站共用），分两页（导航 / 快捷设置）；
- *   磁贴按 tiles 参数输出，主站 = dark / system / lang / lock（+ 调色板、布局两行），没有分享；样式进 @shell panel 段，只用 --sgx-* 角色。
+ *   磁贴按 tiles 参数输出，主站 = dark / system / lang / lock（+ 调色板、布局两行），没有分享；样式进 @frame panel 段，只用 --sgx-* 角色。
  * - 2026-11-07 P4-3 PR-4b（Gray 定稿）：快捷面板只有一页、四站同一套（没有 tiles 参数）：磁贴 深色 / 跟随系统 / 分享本页 / 立即锁定（两行 2×2），
  *   语言整行（行内展开单选），调色板、布局；导航搬到九宫格面板 #sgx-nav。
  * - 2026-11 UI 重设计 PR-1（顶栏 v3）：调色盘按钮打开外观面板 #sgx-qp = MODE（跟随系统 / 深 / 浅）+ PALETTE 列表 + 恢复默认；

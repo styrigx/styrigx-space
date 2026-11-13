@@ -24,7 +24,7 @@ html {
   display: grid;
   grid-template-columns: minmax(0, 780px) 252px;
   gap: 48px;
-  width: min(100%, var(--layout-shell-width));
+  width: min(100%, var(--layout-frame-width));
   max-width: none;
   margin: 0 auto;
   padding: var(--layout-page-top) var(--layout-page-gutter) var(--layout-page-bottom);
@@ -32,7 +32,7 @@ html {
 
 .blog-layout-centered {
   display: block;
-  width: min(100%, var(--layout-shell-width));
+  width: min(100%, var(--layout-frame-width));
 }
 
 .article-column {
@@ -184,7 +184,7 @@ html {
 
   .blog-layout-centered {
     display: block;
-    width: min(100%, var(--layout-shell-width));
+    width: min(100%, var(--layout-frame-width));
   }
 }
 

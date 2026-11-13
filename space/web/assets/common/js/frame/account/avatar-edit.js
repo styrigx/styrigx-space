@@ -26,7 +26,7 @@ let shellAv0 = /** @type {Record<string,string>|null} */ (null);
 function shellAv(/** @type {string} */ key) {
   if (!shellAv0) {
     try {
-      const el = document.getElementById('sgx-i18n-shell');
+      const el = document.getElementById('sgx-i18n-frame');
       const j = el && el.textContent ? JSON.parse(el.textContent) : null;
       shellAv0 = (j && j.account && j.account.profile && j.account.profile.avatar) || {};
     } catch (e) { shellAv0 = {}; }

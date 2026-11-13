@@ -4,7 +4,7 @@ import { shellSection } from '../../core/strings.js';
 /**
  * man [命令]：不带参数是索引（这个身份能用的命令；定稿 v5.5 §四按 root → 站长 → 普通用户 → 访客分段），带参数是那一页。结果交给终端窗口的全屏阅读页（S9，less 式：q / esc / ‹ 返回 退出，
  * 回到原来的命令行，滚动区不动）——不再打进滚动区。没有这一页才在滚动区打一行红字。
- * 页数据懒加载（../../man/pages.js，import()，不进首包）。文案：NAME 说明 = #sgx-i18n-shell 的 man 节，DESCRIPTION / AUTH / NOTES = manBody 节，缺了用 pages.js 的英文底。
+ * 页数据懒加载（../../man/pages.js，import()，不进首包）。文案：NAME 说明 = #sgx-i18n-frame 的 man 节，DESCRIPTION / AUTH / NOTES = manBody 节，缺了用 pages.js 的英文底。
  */
 export default {
   name: 'man',

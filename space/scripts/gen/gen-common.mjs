@@ -7,7 +7,7 @@
  * 只剩四个由源头算出来、没法直接引用的派生文件由本脚本生成（勿手改，改源头后重跑本脚本）：
  *   space/web/assets/common/css/tokens.css  25 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；space/web/data/common/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
  *                                          + 调色板派生 token（tag / chart）+ 组件别名层
- *   space/web/assets/common/css/frame.css   顶栏（全大椭圆）、快捷面板 + AI 窗口、页头 / 子页共用件、宽屏平铺：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
+ *   space/web/assets/common/css/frame.css   顶栏（全大椭圆）、快捷面板 + AI 窗口、页头 / 子页共用件、宽屏平铺：input.css 里 /* @frame:begin <名> *\/ … /* @frame:end <名> *\/ 之间的原文
  *                                          （子站样式表 @import 这两份：assets/blog/css/input.css、assets/curio/css/input.css、assets/daymark/css/input.css）
  *   space/web/data/common/frame/nav.json          快捷面板导航页的项（space/web/data/common/frame/nav-source.json）+ 用到的图标 SVG（space/web/layouts/partials/common/icon.html）
  *                                          + me.email：对外联系邮箱（space/web/data/common/profile.yaml 的 email；子站 AI 窗口「联系我」的默认值）
@@ -71,9 +71,9 @@ const sha = (s) => createHash('sha256').update(s).digest('hex');
 
 /** input.css 里抽出指定名字的标记段（不含标记行本身） */
 export function extractRegion(css, name) {
-  const re = new RegExp(`^/\\* @shell:begin ${name}(?:[（( ][^\\n]*)? \\*/\\n([\\s\\S]*?)^/\\* @shell:end ${name} \\*/$`, 'm');
+  const re = new RegExp(`^/\\* @frame:begin ${name}(?:[（( ][^\\n]*)? \\*/\\n([\\s\\S]*?)^/\\* @frame:end ${name} \\*/$`, 'm');
   const m = css.match(re);
-  if (!m) throw new Error(`input.css 里找不到 @shell:begin/end ${name}`);
+  if (!m) throw new Error(`input.css 里找不到 @frame:begin/end ${name}`);
   return m[1].replace(/\n$/, '');
 }
 
@@ -147,7 +147,7 @@ function renderShell() {
   const css = readFileSync(SRC.css, 'utf8');
   const parts = SHELL_REGIONS.map((n) => `/* ---- ${n} ---- */\n` + extractRegion(css, n));
   return (
-    HEAD('space/web/assets/common/css/input.css 的 @shell 标记段') +
+    HEAD('space/web/assets/common/css/input.css 的 @frame 标记段') +
     '/* 依赖 tokens.css 的 --sgx-* 角色；不进任何 @layer。 */\n' +
     parts.join('\n') +
     '\n'

@@ -167,8 +167,8 @@ test('标签页标题（Gray 2026-11-07）：四站「页名 | 站名」，站�
   const sp = { en: strings('space', 'en'), zh: strings('space', 'zh') };
   /* 主站：站名 Styrigx（品牌名不翻） */
   /* 对齐 PR-B：主页页名 = NAVIGATE 01「主页 / Home」（状态页 /status/ 页名 = front matter title） */
-  assert.equal(title('space/web/public/index.html'), `${sp.en.shell.nav.home.title} | Styrigx`);
-  assert.equal(title('space/web/public/zh/index.html'), `${sp.zh.shell.nav.home.title} | Styrigx`);
+  assert.equal(title('space/web/public/index.html'), `${sp.en.frame.nav.home.title} | Styrigx`);
+  assert.equal(title('space/web/public/zh/index.html'), `${sp.zh.frame.nav.home.title} | Styrigx`);
   assert.equal(title('space/web/public/status/index.html'), `${sp.en.spaceCats.status.title} | Styrigx`);
   assert.equal(title('space/web/public/zh/status/index.html'), `${sp.zh.spaceCats.status.title} | Styrigx`);
   /* 对齐 PR-C：风格页 /theme/ 退役（_redirects 301 到主页） */

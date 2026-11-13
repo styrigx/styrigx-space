@@ -58,7 +58,7 @@ test('没有搜索；快捷面板只来自共享外壳（本站不自己写）�
   assert.doesNotMatch(index, /id="dm-tags"/);
   assert.equal(existsSync(path.join(REPO, 'space/web/layouts/partials/daymark/sgx-qp.html')), false);
   assert.equal(existsSync(path.join(REPO, 'space/web/assets/daymark/js/sgx/shell/capsule-kb.js')), false);
-  /* 快捷面板样式只在 @sgx-shell 同步段里（共享外壳 frame.css），本站自己的段不写 */
+  /* 快捷面板样式只在 @sgx-frame 同步段里（共享外壳 frame.css），本站自己的段不写 */
   const own = css.slice(css.indexOf('@import "../../common/css/frame.css";'));
   assert.ok(css.indexOf('@import "../../common/css/frame.css";') > 0);
   assert.doesNotMatch(css, /\.bk-cap/);

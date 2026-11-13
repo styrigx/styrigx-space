@@ -36,7 +36,7 @@ test('input.css：锁屏界面开着时藏页面顶栏 + 去掉顶栏 view-trans
 });
 
 test('input.css：规则不在共享外壳段里（锁屏只在主站，不进 frame.css）', () => {
-  const re = /\/\* @shell:begin ([\w-]+)[\s\S]*?\/\* @shell:end \1 \*\//g;
+  const re = /\/\* @frame:begin ([\w-]+)[\s\S]*?\/\* @frame:end \1 \*\//g;
   let m;
   while ((m = re.exec(css))) {
     assert.ok(!m[0].includes('body.sgx-entry #site-nav'), '共享外壳段 ' + m[1] + ' 不应出现锁屏藏顶栏的规则');

@@ -157,7 +157,7 @@ html, body {
 /* 外壳框最宽（Mobile 640 / DeX 1440）由共享外壳按 <html data-sgx-layout> 定（四站同一条布局规则，baseof __sgxShellLayout）；
    本站自己的 layout-phone / layout-dex 类只管弹层样式，不再改 --sgx-content-max（P4-3 顶栏长度统一） */
 /* 页面外框 = 外壳框（不加横向内边距，左右边线和顶栏两侧圆外缘对齐，同主站 .home-wrap）；留言板 / 404 内容列在框里居中 */
-.cu-wrap { box-sizing: border-box; width: var(--sgx-shell-w); max-width: none; margin-left: auto; margin-right: auto; }
+.cu-wrap { box-sizing: border-box; width: var(--sgx-frame-w); max-width: none; margin-left: auto; margin-right: auto; }
 .cu-narrow > * { max-width: 860px; margin-left: auto; margin-right: auto; }
 
 /* ===== 页面骨架、壁纸、主题过渡（同主站 base 层）===== */
@@ -334,7 +334,7 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 /* 电影：编辑弹层里的海报缩略图 2:3（同 curio-items.js 的 CROP_RATIO.movie） */
 .it-photo-prev--poster { width: 60px; height: 90px; }
 
-/* 音乐（.mu-* 奇趣音乐页 / .mp-* 弹出播放器）：2026-11 第 7 步搬进共享外壳 @shell music（common/css/input.css → frame.css），本站经上面 @import frame.css 用同一份 */
+/* 音乐（.mu-* 奇趣音乐页 / .mp-* 弹出播放器）：2026-11 第 7 步搬进共享外壳 @frame music（common/css/input.css → frame.css），本站经上面 @import frame.css 用同一份 */
 
 /* ===== 页面外框 = 顶栏内容宽 --sgx-col-w（1080 居中，对齐字标 / 图标组），两种布局一样 ===== */
 :root .cu-wrap { width: var(--sgx-col-w); }
