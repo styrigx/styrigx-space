@@ -1,0 +1,69 @@
+# styrigx-atlas：内容层接口 Worker（Atlas 后端合并，2026-11-14 设计稿第一项）。
+# 奇趣（原 styrigx-curio-core）、日刻（原 styrigx-daymark-core）合成一个 Worker、一个 D1、一个 R2；公开路径 /curio/api/*、/daymark/api/* 不变。
+# PR1（本版）：只有代码，**不挂路由、不部署**；CI 只做 dry-run 打包和单测。
+#   D1 / KV 的 id 是占位，第 2 步建好资源后（Gray 点头）填真 id；第 5 步切换时再加 [[routes]]、CI 加 deploy-atlas。
+# 绑定名和旧 Worker 一字不差（D1_FINDS…D1_MUSIC、D1_QUOTES 全指同一个库，R2_PHOTOS / R2_MUSIC 同一个桶），业务代码不改。
+
+name = "styrigx-atlas"
+main = "src/index.js"
+compatibility_date = "2026-10-21"
+workers_dev = false
+preview_urls = false
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+# 奇趣
+[[d1_databases]]
+binding = "D1_FINDS"
+database_name = "styrigx-atlas"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[d1_databases]]
+binding = "D1_DEVICES"
+database_name = "styrigx-atlas"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[[d1_databases]]
+binding = "D1_GAMES"
+database_name = "styrigx-atlas"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[[d1_databases]]
+binding = "D1_MOVIES"
+database_name = "styrigx-atlas"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[[d1_databases]]
+binding = "D1_MUSIC"
+database_name = "styrigx-atlas"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+# 日刻
+[[d1_databases]]
+binding = "D1_QUOTES"
+database_name = "styrigx-atlas"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[[r2_buckets]]
+binding = "R2_PHOTOS"
+bucket_name = "styrigx-atlas"
+
+[[r2_buckets]]
+binding = "R2_MUSIC"
+bucket_name = "styrigx-atlas"
+
+[[services]]
+binding = "SPACE"
+service = "styrigx-space-core"
+entrypoint = "SpaceVerifier"
+
+# 全站搜索索引（和旧两个 Worker 同一个 KV；奇趣写 site:curio、日刻写 site:daymark，不变）
+[[kv_namespaces]]
+binding = "KV_SEARCH_INDEX"
+id = "4bcdb84f205541b9b6c8d230bc2b106f"
+
+[triggers]
+crons = []

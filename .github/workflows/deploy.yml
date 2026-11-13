@@ -140,6 +140,11 @@ jobs:
         working-directory: workers/daymark-core
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-daymark-core-dist
 
+      - name: Atlas Worker bundle check (styrigx-atlas, dry-run)
+        # Atlas 后端合并 PR1（2026-11-14）：奇趣 + 日刻合成一个 Worker；还不部署、不挂路由，只打包核对（D1 id 是占位，dry-run 不连 Cloudflare）
+        working-directory: workers/atlas
+        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-atlas-dist
+
       - name: Shared shell derived files in sync (palette-roles / input.css @frame / frame/nav-source)
         # 2026-11 合站：子站直接用主站的外壳源文件（没有副本、没有 sync-shell）；gen-common 只生成派生文件，改了源头忘了重新生成 → 红
         run: node space/scripts/gen/gen-common.mjs --check
@@ -211,7 +216,7 @@ jobs:
           node space/scripts/build/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-space.json"
           test -s "$RUNNER_TEMP/search-index/search-space.json"
 
-      - name: Subsite unit tests (blog / curio / daymark pages + curio-core / daymark-core)
+      - name: Subsite unit tests (blog / curio / daymark pages + curio-core / daymark-core / atlas)
         # 页面（网址、模板、锁屏同步、外观继承、共享外壳副本）+ 接口 Worker（node:sqlite 真跑 D1 的 SQL）+ 博客搜索索引
         run: npm run test:sites
 
