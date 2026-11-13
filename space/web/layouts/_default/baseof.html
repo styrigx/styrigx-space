@@ -52,7 +52,8 @@
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="apple-touch-icon" href="/avatar/192.webp">
-<link rel="stylesheet" href="{{ (resources.Get "css/main.css" | fingerprint).RelPermalink }}">
+{{/* 迁移第 3 步：源文件挪到 assets/shell/css/，产物网址仍是 /css/main.<指纹>.css（_headers 的 /css/* 长期缓存照旧） */ -}}
+<link rel="stylesheet" href="{{ (resources.Get "shell/css/main.css" | resources.Copy "css/main.css" | fingerprint).RelPermalink }}">
 {{/* 注意：main.css 已由 space/scripts/build-css.cjs 压缩，不再走 Hugo minify（tdewolff 不认 @view-transition） */}}
 {{/* 首帧语言跳转（语言清理 2026-11-07：四站同一份 lib/lang-boot.js，共享外壳同步给三个子站）：打成 IIFE 内联，挂 window.SgxLang。
    偏好 sgx-lang：明确语言 → 那种语言；'system' / 旧版的空 / 没有 → 浏览器语言；和本页不同就 replace 跳（不产生历史），跳前记 sgx-lang-hop */}}

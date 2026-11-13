@@ -50,7 +50,7 @@ test('模板：平铺入口组件退役（主页 / 四站都不用，组件和�
     assert.doesNotMatch(rd('space/web/layouts/' + f), /partial "sgx-entries\.html"/, f + ' 不用入口组件');
   }
   assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials/sgx-entries.html')), 'sgx-entries.html 已删除');
-  assert.doesNotMatch(rd('space/web/assets/css/input.css'), /@shell:begin entries|\.sgx-ent-li \{/, '@shell entries 样式段已删除');
+  assert.doesNotMatch(rd('space/web/assets/shell/css/input.css'), /@shell:begin entries|\.sgx-ent-li \{/, '@shell entries 样式段已删除');
   /* 状态页（2026-11-12 起，旷野删除）：独立布局 + 中英内容；旷野页的模板和内容删除 */
   assert.ok(existsSync(path.join(REPO, 'space/web/layouts/_default/status.html')), 'status.html');
   assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/_default/wild.html')), 'wild.html 已删');

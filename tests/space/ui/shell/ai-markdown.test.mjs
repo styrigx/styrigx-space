@@ -109,6 +109,6 @@ test('ai-panel.js：不用 innerHTML / insertAdjacentHTML；助手回答走 rend
     assert.match(y, /^ {2}sources: \S/m, lang);
     assert.match(y, /^ {2}newTab: \S/m, lang);
   }
-  const css = readFileSync(new URL('../../../../space/web/assets/css/input.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../../../space/web/assets/shell/css/input.css', import.meta.url), 'utf8');
   assert.match(css, /\.sgx-ai-link-text \{[^}]*underline dotted/);
 });

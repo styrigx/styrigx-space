@@ -11,8 +11,8 @@ import yaml from 'js-yaml';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
-const css = read('space/web/assets/css/input.css');
-const shell = read('space/web/assets/css/shell/shell.css');
+const css = read('space/web/assets/shell/css/input.css');
+const shell = read('space/web/assets/shell/css/shell.css');
 
 test('头像外圈：表面色实心环 + 环外沿细线 + 投影；弧压在环外沿（外径 = 环外径 36px，不另起一圈）；平时 2s、.is-busy 0.9s；减弱动效不转；在共享外壳里（四站同一套）', () => {
   for (const s of [css, shell]) {

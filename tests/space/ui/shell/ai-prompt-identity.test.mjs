@@ -25,7 +25,7 @@ function contentOf(s, sel) {
   return m[1].replace(/^var\(--sgx-ps-user, "([^"]*)"\) "([^"]*)"$/, '<$1>$2').replace(/^"([^"]*)"$/, '$1');
 }
 
-for (const f of ['space/web/assets/css/input.css', 'space/web/assets/css/shell/shell.css']) {
+for (const f of ['space/web/assets/shell/css/input.css', 'space/web/assets/shell/css/shell.css']) {
   test(`${f}：AI 窗口提问行谁登录显示谁（访客 nobody / <名> / root #），回答行始终 grayai@space:~$ --reply`, () => {
     const s = read(f);
     assert.equal(contentOf(s, '.sgx-ai-msg[data-role="user"]::before'), 'nobody@space:~$ --ask');

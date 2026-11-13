@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 调色板角色 token：把 25 套七色调色板（space/web/data/palette-roles.json，每套一个模式的角色 + 状态层 + 色调 token）
- * 生成进 space/web/assets/css/input.css 的 tokens 层（两行标记之间，见 BEGIN / END），值不手敲。
+ * 生成进 space/web/assets/shell/css/input.css 的 tokens 层（两行标记之间，见 BEGIN / END），值不手敲。
  *
  * 2026-11-12 调色板 v4：没有深浅模式了，每套只有一个模式（浅套 / 深套由底色决定，见 palette-scheme.js 的 paletteMode），
  * 每个预设生成一段 :root[data-palette="<id>"]。默认色板 terra（陶土）不写 data-palette，所以 terra 同时写在 :root 上（也兜住未知的 data-palette 值）。
@@ -20,7 +20,7 @@ import { roleDecls, toneDecls, presetRoles, PRESETS, DEFAULT_ID } from '../web/a
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const JSON_PATH = path.join(REPO, 'space/web/data/palette-roles.json');
-const CSS_PATH = path.join(REPO, 'space/web/assets/css/input.css');
+const CSS_PATH = path.join(REPO, 'space/web/assets/shell/css/input.css');
 const BEGIN = '/* @gen-palettes:begin（space/scripts/gen-palettes.mjs 由 space/web/data/palette-roles.json 生成，勿手改） */';
 const END = '/* @gen-palettes:end */';
 const ORDER = PRESETS.map((p) => p.id);

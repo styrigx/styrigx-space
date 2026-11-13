@@ -5,9 +5,9 @@
  * 和 JS（assets/shell/js/ 各组），没有副本、没有同步脚本、没有 lock。
  *
  * 只剩四个由源头算出来、没法直接引用的派生文件由本脚本生成（勿手改，改源头后重跑本脚本）：
- *   space/web/assets/css/shell/tokens.css  25 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；space/web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
+ *   space/web/assets/shell/css/tokens.css  25 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；space/web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
  *                                          + 调色板派生 token（tag / chart）+ 组件别名层
- *   space/web/assets/css/shell/shell.css   顶栏（全大椭圆）、快捷面板 + AI 窗口、页头 / 子页共用件、宽屏平铺：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
+ *   space/web/assets/shell/css/shell.css   顶栏（全大椭圆）、快捷面板 + AI 窗口、页头 / 子页共用件、宽屏平铺：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
  *                                          （子站样式表 @import 这两份：assets/blog/css/input.css、assets/curio/css/input.css、assets/daymark/css/input.css）
  *   space/web/data/shell/nav.json          快捷面板导航页的项（space/web/data/shell-nav.json）+ 用到的图标 SVG（space/web/layouts/partials/icon.html）
  *                                          + me.email：对外联系邮箱（space/web/data/profile.yaml 的 email；子站 AI 窗口「联系我」的默认值）
@@ -31,14 +31,14 @@ import { DEFAULT_ID, GROUPS } from '../web/assets/shell/js/ui/palette-scheme.js'
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 /** 派生文件 → 仓库里的位置（同一个 Hugo 站里，子站直接引用） */
 export const OUT = Object.freeze({
-  'tokens.css': 'space/web/assets/css/shell/tokens.css',
-  'shell.css': 'space/web/assets/css/shell/shell.css',
+  'tokens.css': 'space/web/assets/shell/css/tokens.css',
+  'shell.css': 'space/web/assets/shell/css/shell.css',
   'nav.json': 'space/web/data/shell/nav.json',
   'palettes.json': 'space/web/data/shell/palettes.json',
 });
 const SRC = {
   roles: path.join(REPO, 'space/web/data/palette-roles.json'),
-  css: path.join(REPO, 'space/web/assets/css/input.css'),
+  css: path.join(REPO, 'space/web/assets/shell/css/input.css'),
   nav: path.join(REPO, 'space/web/data/shell-nav.json'),
   profile: path.join(REPO, 'space/web/data/profile.yaml'),
   icons: path.join(REPO, 'space/web/layouts/partials/icon.html'),
@@ -147,7 +147,7 @@ function renderShell() {
   const css = readFileSync(SRC.css, 'utf8');
   const parts = SHELL_REGIONS.map((n) => `/* ---- ${n} ---- */\n` + extractRegion(css, n));
   return (
-    HEAD('space/web/assets/css/input.css 的 @shell 标记段') +
+    HEAD('space/web/assets/shell/css/input.css 的 @shell 标记段') +
     '/* 依赖 tokens.css 的 --sgx-* 角色；不进任何 @layer。 */\n' +
     parts.join('\n') +
     '\n'

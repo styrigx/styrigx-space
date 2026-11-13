@@ -4,16 +4,16 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
-const shell = rd('space/web/assets/css/shell/shell.css');
+const shell = rd('space/web/assets/shell/css/shell.css');
 
 test('§6.2 衬底变量在共享外壳里：导航选中色 45%', () => {
   assert.match(shell, /--sgx-tb-label-bg: color-mix\(in oklab, var\(--sgx-nav-selected\) 45%, transparent\);/);
 });
 
 test('PR-4b 定稿：页名胶囊只显示页名——主站没有顶栏标签，三个子站顶栏没有分段滑块（分区切换在首页正文：对齐 PR-C2 起奇趣是下划线 tab、日刻是窗标题链接）', () => {
-  const css = rd('space/web/assets/css/input.css');
+  const css = rd('space/web/assets/shell/css/input.css');
   assert.doesNotMatch(css, /\.sgx-tb-tabs? \{/);
-  for (const f of ['space/web/assets/blog/css/blog/components.css', 'space/web/assets/curio/css/input.css', 'space/web/assets/daymark/css/input.css', 'space/web/assets/css/shell/shell.css']) {
+  for (const f of ['space/web/assets/blog/css/blog/components.css', 'space/web/assets/curio/css/input.css', 'space/web/assets/daymark/css/input.css', 'space/web/assets/shell/css/shell.css']) {
     assert.doesNotMatch(rd(f).replace(/\/\*[\s\S]*?\*\//g, ''), /\.sgx-seg(?:-btn|-ind)?\b/, f);
   }
   for (const [f, attr] of [['space/web/layouts/partials/blog/topnav.html', 'data-sgx-seg'], ['space/web/layouts/curio/baseof.html', 'data-cu-seg'], ['space/web/layouts/daymark/baseof.html', 'data-dm-seg']]) {

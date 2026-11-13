@@ -1,8 +1,8 @@
 /* 博客样式入口：space/scripts/blog/build-css.mjs 按顺序展开这里的 @import，拼在 Tailwind 4 产物（tw-input.css）后面，输出 space/web/assets/blog/css/main.css（不进仓库）。
    博客的样式都是自己写的 class（没有 Tailwind 重置）；Hugo 负责压缩。颜色只用共享外壳的 --sgx-* 角色。
    顺序：共享外壳 → 基础排版 → One UI 外观 → 列表 / 文章版式 → 组件 → 宽屏平铺（桌面布局去卡片）→ 代码块 → 终端风子页（2026-11 UI 重设计 PR-3，最后压过前面）。 */
-@import '../../css/shell/tokens.css';
-@import '../../css/shell/shell.css';
+@import '../../shell/css/tokens.css';
+@import '../../shell/css/shell.css';
 @import './blog/base.css';
 @import './blog/one-ui.css';
 @import './blog/blog-post-list.css';

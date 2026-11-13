@@ -225,7 +225,7 @@ test('接线：头像 = whoami（访客 → su ；站长 / root → 账号页；
   assert.match(tp, /if \(who && who\.v6Hinted\(\)\) who\.refresh\(\);/);
   const qp = rd('space/web/assets/shell/js/topbar/quick-panel.js');
   assert.match(qp, /identityTerm: mountIdentityLayer,/);
-  assert.match(rd('space/web/assets/css/input.css'), /\.sgx-tb-av-mark \{/);
+  assert.match(rd('space/web/assets/shell/css/input.css'), /\.sgx-tb-av-mark \{/);
   /* 身份层只经 ./api.js 发请求；不写 Domain、不读密码之外的东西 */
   const layer = rd('space/web/assets/shell/js/identity/layer.js');
   assert.doesNotMatch(layer, /fetch\(/);

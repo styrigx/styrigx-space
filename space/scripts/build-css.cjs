@@ -15,15 +15,15 @@ const path = require('path');
 
 const root = path.join(__dirname, '..', 'web');
 const minify = process.argv.includes('--minify');
-const tmpTw = path.join(root, 'assets/css/.tw-out.css');
+const tmpTw = path.join(root, 'assets/shell/css/.tw-out.css');
 
 execSync(
-  `npx @tailwindcss/cli -i assets/css/tw-input.css -o "${tmpTw}"${minify ? ' --minify' : ''}`,
+  `npx @tailwindcss/cli -i assets/shell/css/tw-input.css -o "${tmpTw}"${minify ? ' --minify' : ''}`,
   { cwd: root, stdio: 'inherit' }
 );
 
 const tw = fs.readFileSync(tmpTw, 'utf8');
-const src = fs.readFileSync(path.join(root, 'assets/css/input.css'), 'utf8');
+const src = fs.readFileSync(path.join(root, 'assets/shell/css/input.css'), 'utf8');
 fs.unlinkSync(tmpTw);
 /* 2026-10-24 PR3：--minify 时自定义分层 CSS 也压缩（以前只压了 Tailwind 那段，input.css 的注释和缩进原样进 main.css）。
    只去注释、收空白（space/scripts/lib/css-min.cjs），不改任何选择器 / 属性 / 值 / 顺序；单测核对压缩前后逐条声明一致。 */
@@ -34,7 +34,7 @@ const out =
   '@layer tw{\n' + tw + '\n}\n' +
   custom;
 
-fs.writeFileSync(path.join(root, 'assets/css/main.css'), out);
+fs.writeFileSync(path.join(root, 'assets/shell/css/main.css'), out);
 console.log('CSS built:', out.length, 'bytes');
 
 /* Tailwind 实际安装版本 → data/tailwind.json（设置 › 关于 页显示）。

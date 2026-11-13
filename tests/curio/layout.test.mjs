@@ -51,7 +51,7 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 shell-topbar.
 test('没有版权页脚（© / Powered by），样式也删干净', () => {
   const css = read('space/web/assets/curio/css/input.css');
   assert.doesNotMatch(base, /<footer|©|Powered by/);
-  assert.doesNotMatch(css.slice(css.indexOf('@import "../../css/shell/shell.css";')), /(^|[\s,}])footer\b|sgx-powered|sgx-tb-me/);
+  assert.doesNotMatch(css.slice(css.indexOf('@import "../../shell/css/shell.css";')), /(^|[\s,}])footer\b|sgx-powered|sgx-tb-me/);
 });
 
 test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚本、Giscus 配置和样式', async () => {
@@ -61,7 +61,7 @@ test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚
   }
   assert.doesNotMatch(read('space/web/hugo.yaml'), /guestbook|giscus/i);
   const css = read('space/web/assets/curio/css/input.css');
-  assert.doesNotMatch(css.slice(css.indexOf('@import "../../css/shell/shell.css";')), /cu-gb-|giscus|guestbook/);
+  assert.doesNotMatch(css.slice(css.indexOf('@import "../../shell/css/shell.css";')), /cu-gb-|giscus|guestbook/);
 });
 
 test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主站共享外壳的 nav.json（顶栏 v3：主页 / 博客 / 奇趣 / 日刻；05 旷野 2026-11-12 删除），模板不写死项；奇趣是当前项；主站项走 https://styrigx.com', () => {
