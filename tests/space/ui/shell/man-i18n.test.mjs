@@ -15,7 +15,7 @@ import { PAGES } from '../../../../space/web/assets/shell/js/term/man/pages.js';
 import { createShell } from '../../../../space/web/assets/shell/js/term/terminal.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const TR = Object.fromEntries(['en', 'zh'].map((l) => [l, /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/sgx-shell-i18n/' + l + '.yaml'), 'utf8')))]));
+const TR = Object.fromEntries(['en', 'zh'].map((l) => [l, /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/shell/sgx-shell-i18n/' + l + '.yaml'), 'utf8')))]));
 const SECS = ['desc', 'auth', 'notes'];
 const CJK = /[\u4e00-\u9fff]/;
 /** @param {any} v @returns {string[]} */

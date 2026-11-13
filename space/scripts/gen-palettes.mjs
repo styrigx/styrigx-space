@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 调色板角色 token：把 25 套七色调色板（space/web/data/palette-roles.json，每套一个模式的角色 + 状态层 + 色调 token）
+ * 调色板角色 token：把 25 套七色调色板（space/web/data/shell/palette-roles.json，每套一个模式的角色 + 状态层 + 色调 token）
  * 生成进 space/web/assets/shell/css/input.css 的 tokens 层（两行标记之间，见 BEGIN / END），值不手敲。
  *
  * 2026-11-12 调色板 v4：没有深浅模式了，每套只有一个模式（浅套 / 深套由底色决定，见 palette-scheme.js 的 paletteMode），
@@ -19,9 +19,9 @@ import { fileURLToPath } from 'node:url';
 import { roleDecls, toneDecls, presetRoles, PRESETS, DEFAULT_ID } from '../web/assets/shell/js/ui/palette-scheme.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const JSON_PATH = path.join(REPO, 'space/web/data/palette-roles.json');
+const JSON_PATH = path.join(REPO, 'space/web/data/shell/palette-roles.json');
 const CSS_PATH = path.join(REPO, 'space/web/assets/shell/css/input.css');
-const BEGIN = '/* @gen-palettes:begin（space/scripts/gen-palettes.mjs 由 space/web/data/palette-roles.json 生成，勿手改） */';
+const BEGIN = '/* @gen-palettes:begin（space/scripts/gen-palettes.mjs 由 space/web/data/shell/palette-roles.json 生成，勿手改） */';
 const END = '/* @gen-palettes:end */';
 const ORDER = PRESETS.map((p) => p.id);
 
@@ -86,7 +86,7 @@ if (isMain) {
   const next = splice(css, renderBlock(data));
   if (process.argv.includes('--check')) {
     if (next !== css) {
-      console.error('input.css 的色板角色和 space/web/data/palette-roles.json 不一致：运行 node space/scripts/gen-palettes.mjs');
+      console.error('input.css 的色板角色和 space/web/data/shell/palette-roles.json 不一致：运行 node space/scripts/gen-palettes.mjs');
       process.exit(1);
     }
     console.log('palettes in sync');

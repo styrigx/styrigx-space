@@ -158,7 +158,7 @@ G.SgxCurio = pure;
 
 /* ================= 页面 ================= */
 var doc = G.document;
-/* 界面文案（语言包化第二部分 2026-11-07）：页面里的 #sgx-i18n-curio，模板从字符串表 data/i18n/<语言>.yaml 的 js.curio 输出，
+/* 界面文案（语言包化第二部分 2026-11-07）：页面里的 #sgx-i18n-curio，模板从字符串表 data/curio/i18n/<语言>.yaml 的 js.curio 输出，
    已经是「英文表 ← 页面语言表」的合并（缺键回退英文）；本文件不再认识任何语言。带数字的文案走 tr（复数按 Intl.PluralRules）。 */
 var lang = doc.documentElement.lang || 'en';
 var T = readDict(doc, 'curio');

@@ -49,7 +49,7 @@ test('站内终端：hsitory → did you mean history（同一份算法）；不
 
 test('文案：term 有 didYouMean（en / zh）；space 节只剩输入行五句（P4-2）；锁屏 / 盾牌接上（S9：账号卡片没有命令行，account.common.didYouMean 删了）', () => {
   for (const l of ['en', 'zh']) {
-    const y = yaml.load(read(`space/web/data/sgx-shell-i18n/${l}.yaml`));
+    const y = yaml.load(read(`space/web/data/shell/sgx-shell-i18n/${l}.yaml`));
     assert.match(y.term.didYouMean, /command not found: \{c\} — .*\{x\}/);
     assert.equal(y.space.common.didYouMean, undefined);
     assert.equal(y.account.common.didYouMean, undefined);

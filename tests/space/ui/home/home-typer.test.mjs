@@ -60,7 +60,7 @@ test('模板：$ 行标语轮播 + # 行个人资料签名（不写死），JS �
 
 test('字符串表：home.role / home.intro 已删（中英都没有）', () => {
   for (const l of ['zh', 'en']) {
-    const y = rd(`space/web/data/i18n/${l}.yaml`);
+    const y = rd(`space/web/data/shell/i18n/${l}.yaml`);
     const home = y.slice(y.indexOf('\nhome:'), y.indexOf('\n', y.indexOf('\nhome:') + 1) + 400);
     assert.doesNotMatch(home, /^\s{2}(role|intro):/m, l);
   }
@@ -77,6 +77,6 @@ test('构建产物：/ 与 /zh/ 的 hero 标语和签名一字不差；签名 = 
   assert.ok(en[0] && en[1]);
   assert.deepEqual(zh, en);
   assert.match(en[0], />A Personal Digital Space<\/span><span class="home-cur"/);
-  const motto = (rd('space/web/data/profile.yaml').match(/^motto: (.*)$/m) || [])[1] || '';
+  const motto = (rd('space/web/data/shell/profile.yaml').match(/^motto: (.*)$/m) || [])[1] || '';
   assert.ok(motto && en[1].includes(motto.replace(/'/g, '&#39;')), '签名首帧 = profile.yaml');
 });

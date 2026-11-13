@@ -105,7 +105,7 @@ test('ai-panel.js：不用 innerHTML / insertAdjacentHTML；助手回答走 rend
   assert.match(src, /renderMd\(doc, text,/);
   assert.match(src, /ev === 'sources'/);
   for (const lang of ['en', 'zh']) {
-    const y = readFileSync(new URL('../../../../space/web/data/sgx-shell-i18n/' + lang + '.yaml', import.meta.url), 'utf8');
+    const y = readFileSync(new URL('../../../../space/web/data/shell/sgx-shell-i18n/' + lang + '.yaml', import.meta.url), 'utf8');
     assert.match(y, /^ {2}sources: \S/m, lang);
     assert.match(y, /^ {2}newTab: \S/m, lang);
   }

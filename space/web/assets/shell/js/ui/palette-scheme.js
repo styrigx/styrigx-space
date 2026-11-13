@@ -1,7 +1,7 @@
 /**
  * @fileoverview 调色板引擎（构建期）：22 套七色调色板 → 每套一组色彩角色（单一模式，深浅由底色决定，见 SEVEN）。
  * 移植自色板设计稿的 scheme.js（OKLCH 色阶、角色构建、对比度审计 + 自动修正）；预设是七色调色板 22 套（见 THEMES），规格由 themeSpec() 算出。
- * 22 个预设算出来的结果就是 space/web/data/palette-roles.json（space/scripts/gen-palettes.mjs 把它生成进 input.css）；
+ * 22 个预设算出来的结果就是 space/web/data/shell/palette-roles.json（space/scripts/gen-palettes.mjs 把它生成进 input.css）；
  * 单测 tests/space/ui/theme/palette-scheme.test.mjs 逐项核对本文件重算出的预设与 JSON 一致。
  * 2026-11-12 调色板 v4：删除深浅模式和自定义主题色（rolesFor / rolesCss / deriveSpec 已删），语义四色固定（SEM）。
  */

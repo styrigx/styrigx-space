@@ -22,8 +22,8 @@
      music       音乐图标链接（音乐方案第一步，2026-11-13）：奇趣音乐页 /curio/music/（当前语言）；第二步改成弹出播放器
      status      NAVIGATE 底部「systemctl status」链接与 STATUS 区跳转按钮：主站状态页 /status/（当前语言）
      acct        头像链接（没 JS / 中键时的去处：/account/ → 301 首页 #acct；已进站普通点击打开账号窗口 #sgx-acct，没进站是死按钮，v5 S6）；avatar 头像图片地址（顶栏头像 + AI 窗口头部 + 账号下拉）
-     name / nick 账号下拉头部的姓名 / 昵称默认值（data/profile.yaml；运行时 topbar.js 再用本机缓存 sgx-profile 覆盖）
-     email       对外联系邮箱（AI 窗口底部「联系我」的 mailto；主站传 data/profile.yaml 的 email，子站传 nav.json 的 me.email；
+     name / nick 账号下拉头部的姓名 / 昵称默认值（data/shell/profile.yaml；运行时 topbar.js 再用本机缓存 sgx-profile 覆盖）
+     email       对外联系邮箱（AI 窗口底部「联系我」的 mailto；主站传 data/shell/profile.yaml 的 email，子站传 nav.json 的 me.email；
                  运行时 ai.js 再用本机缓存 sgx-profile 里改过的邮箱覆盖）
      langHref    另一种语言的同一页（选了另一种语言时去这里；主站不传时由 shell/topbar-panel.js 按路径算）
      pal         调色板色块：[{id style}]（style = --pt-* 变量串；名字在 tr.palette.<id>） */ -}}

@@ -19,8 +19,8 @@ import { PAGES } from '../../../../space/web/assets/shell/js/term/man/pages.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const Y = (p) => yaml.load(readFileSync(path.join(REPO, p), 'utf8'));
-const ZH = Y('space/web/data/sgx-shell-i18n/zh.yaml');
-const EN = Y('space/web/data/sgx-shell-i18n/en.yaml');
+const ZH = Y('space/web/data/shell/sgx-shell-i18n/zh.yaml');
+const EN = Y('space/web/data/shell/sgx-shell-i18n/en.yaml');
 
 function mem() { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; }
 function fixedWho(w) { return { get: () => w, on() {} }; }

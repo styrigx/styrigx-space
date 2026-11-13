@@ -1,5 +1,5 @@
 /**
- * PR3 主题色角色 token → 2026-10-23 PR-G 七色调色板：22 套（1 背景色 + 6 前景撞色；space/web/data/palette-roles.json）→ input.css（space/scripts/gen-palettes.mjs），
+ * PR3 主题色角色 token → 2026-10-23 PR-G 七色调色板：22 套（1 背景色 + 6 前景撞色；space/web/data/shell/palette-roles.json）→ input.css（space/scripts/gen-palettes.mjs），
  * 引擎 space/web/assets/shell/js/ui/palette-scheme.js（设计稿 scheme.js 的移植）。
  * 2026-11-12 调色板 v4：没有深浅模式和自定义主题色。每套只有一个模式（浅套 / 深套由底色决定），JSON 每套 { mode, roles, state, tones }；
  * 下面的 MODES(id) = [这套的模式]，DATA.presets[id][mode] / [mode + 'Tones'] / [mode + 'State'] 是测试里给 roles / tones / state 起的别名。
@@ -14,7 +14,7 @@ import { mixHex, presetRoles, contrast, hexToOklch, audit, bgTones, fgTones, pal
 import { renderBlock, splice } from '../../../../space/scripts/gen-palettes.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const RAW = readFileSync(path.join(REPO, 'space/web/data/palette-roles.json'), 'utf8');
+const RAW = readFileSync(path.join(REPO, 'space/web/data/shell/palette-roles.json'), 'utf8');
 const DATA = JSON.parse(RAW);
 /* 测试用别名（不可枚举，不影响和引擎结果的 deepEqual）：p[mode] = roles、p[mode + 'Tones'] = tones、p[mode + 'State'] = state */
 for (const p of Object.values(DATA.presets)) {
@@ -112,13 +112,13 @@ test('每个预设一段 :root[data-palette]（没有 .dark 段）；默认 terr
   assert.doesNotMatch(CSS, /data-palette="x[a-z]+"/);
   assert.doesNotMatch(CSS, /:root,\n {2}:root\[data-palette="lake"\]/);
 });
-test('色板列表（palettes.yaml）和角色 JSON 同一组 id / 背景色', () => {
-  const yaml = readFileSync(path.join(REPO, 'space/web/data/palettes.yaml'), 'utf8');
+test('色板列表（palette-source.yaml）和角色 JSON 同一组 id / 背景色', () => {
+  const yaml = readFileSync(path.join(REPO, 'space/web/data/shell/palette-source.yaml'), 'utf8');
   const items = [...yaml.matchAll(/- id: (\w+)\n\s+c: "(#[0-9a-f]{6})"/g)].map((m) => [m[1], m[2]]);
   assert.equal(items.length, 25);
   assert.deepEqual(items.map((x) => x[0]), Object.keys(DATA.presets));
   for (const [id, c] of items) assert.equal(DATA.presets[id].bg, c, id);
-  // 单一数据源：颜色只在 palette-scheme.js 的 THEMES / FG_POOL；palettes.yaml 的 c / 名字 / 分组和定稿夹具都只是被核对的副本
+  // 单一数据源：颜色只在 palette-scheme.js 的 THEMES / FG_POOL；palette-source.yaml 的 c / 名字 / 分组和定稿夹具都只是被核对的副本
   for (const x of PRESETS) {
     const blk = yaml.split(`- id: ${x.id}\n`)[1].split('\n  - id:')[0];
     assert.ok(blk.includes(`zh: ${x.zh}\n`), x.id + ' zh');

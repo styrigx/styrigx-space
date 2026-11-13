@@ -17,20 +17,6 @@
     "space/scripts/kv-budget.mjs",
     "space/scripts/retired-names.json",
     "space/scripts/verify-core-routes.mjs",
-    "space/web/assets/jsconfig.json",
-    "space/web/data/features.yaml",
-    "space/web/data/i18n/en.yaml",
-    "space/web/data/i18n/zh.yaml",
-    "space/web/data/palette-roles.json",
-    "space/web/data/palettes.yaml",
-    "space/web/data/profile.yaml",
-    "space/web/data/public-pages.yaml",
-    "space/web/data/sgx-shell-i18n/en.yaml",
-    "space/web/data/sgx-shell-i18n/zh.yaml",
-    "space/web/data/shell-nav.json",
-    "space/web/data/sites.yaml",
-    "space/web/data/space-cats.yaml",
-    "space/web/data/sync-items.yaml",
-    "space/web/data/version.yaml"
+    "space/web/assets/jsconfig.json"
   ]
 }

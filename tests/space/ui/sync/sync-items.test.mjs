@@ -1,6 +1,6 @@
 /**
  * 云同步的同步项清单（2026-10-24 PR4 起；2026-11-08 Gray 04:47 删了云同步子页 /account/sync/（301 → /account/）和账号页那一行，只留后台自动同步）：
- * - data/sync-items.yaml 列出的项 = lib/cloud-sync.js syncKeys() 实际同步的 key，一个不多一个不少、不重复（清单留作后台同步了什么的说明，加 key 要同步改它）；
+ * - data/shell/sync-items.yaml 列出的项 = lib/cloud-sync.js syncKeys() 实际同步的 key，一个不多一个不少、不重复（清单留作后台同步了什么的说明，加 key 要同步改它）；
  *   语言（sgx-lang）、布局（sgx-layout）不同步、不列；每项都有名字（features.yaml 的 name，或 extra 的 name）。
  * - P4-2d：AI 模型 sgx-ai-model（AI 窗口右上角切换）进云同步（EXTRA + sync-items.yaml extra），AI 窗口历史 sgx-ai-history 仍不进。
  * - 子页没了：模板 / 入口 / apps/account-sync.js / lib/sync-items.js 都删了，_redirects 有 301。
@@ -14,8 +14,8 @@ import { readFileSync } from 'node:fs';
 import yaml from 'js-yaml';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
-const feats = /** @type {any} */ (yaml.load(rd('space/web/data/features.yaml'))).features;
-const si = /** @type {any} */ (yaml.load(rd('space/web/data/sync-items.yaml')));
+const feats = /** @type {any} */ (yaml.load(rd('space/web/data/shell/features.yaml'))).features;
+const si = /** @type {any} */ (yaml.load(rd('space/web/data/shell/sync-items.yaml')));
 
 /* features.js 从页面里的 #sgx-features 读定义（baseof 由 features.yaml 生成：id / key / type / default / storage） */
 const featDefs = feats.map((f) => Object.assign({ id: f.id, key: f.key, type: f.type, default: f.default }, f.storage ? { storage: f.storage } : {}));

@@ -23,7 +23,7 @@
  */
 (function (g) {
   'use strict';
-  /* @ui-cookie-presets:begin（space/scripts/gen-shell.mjs 按 space/web/data/palette-roles.json + palette-scheme.js 生成，勿手改） */
+  /* @ui-cookie-presets:begin（space/scripts/gen-shell.mjs 按 space/web/data/shell/palette-roles.json + palette-scheme.js 生成，勿手改） */
   var PRESETS = {"cherry":"#86ad3f","tangerine":"#168f9c","terra":"#de7a58","amber":"#b54a88","matcha":"#c46a43","forest":"#f08a3c","teal":"#d6334a","lake":"#f17f72","indigo":"#f2559b","violet":"#d4628f","orchid":"#7a95ab","berry":"#e3a93b","rose":"#f2a86b","graphite":"#4f86b5","dustyrose":"#94a982","coral":"#168f9c","cream":"#168f9c","champagne":"#536dfa","mustard":"#7a95ab","lime":"#536dfa","sage":"#cf9494","aqua":"#f17f72","glacier":"#f17f72","dustyblue":"#d4a72c","lilac":"#168f9c"};
   /* 深套（底色 OKLCH L < 0.6）：dark 类只表示「当前是深套」 */
   var DARK = ["cherry","tangerine","terra","amber","matcha","forest","teal","lake","indigo","violet","orchid","berry","rose","graphite"];

@@ -27,8 +27,8 @@ test('状态 → 提示键：命令行由宿主给；选择 / 秘密 / 起名 / 
 });
 
 test('文案：外壳字符串表 en / zh 都有 kh 节，键和英文底一一对应；英文表 = 英文底；触屏出口是「‹ 返回」', () => {
-  const en = yaml.load(read('space/web/data/sgx-shell-i18n/en.yaml')).kh;
-  const zh = yaml.load(read('space/web/data/sgx-shell-i18n/zh.yaml')).kh;
+  const en = yaml.load(read('space/web/data/shell/sgx-shell-i18n/en.yaml')).kh;
+  const zh = yaml.load(read('space/web/data/shell/sgx-shell-i18n/zh.yaml')).kh;
   assert.deepEqual(Object.keys(en).sort(), Object.keys(KH_EN).sort());
   assert.deepEqual(Object.keys(zh).sort(), Object.keys(KH_EN).sort());
   for (const k of Object.keys(KH_EN)) assert.equal(en[k], KH_EN[k], 'en.' + k);

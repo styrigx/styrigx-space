@@ -5,14 +5,14 @@
  * 来源（都在 hugo 构建后的 space/web/public/ 里）：
  *   - files-index.json：我的站点、应用（type site / app）。博客文章不在这里：博客自己写 KV site:blog，
  *     主站不再顺带
- *   - 旷野页（/、en/）、旷野子页（data/space-cats.yaml 的每个分类：status/** …；进站 v3 L1 起 security/** 删了，英文加 en/；P4-3 PR-4b 起去掉 settings 一层）
+ *   - 旷野页（/、en/）、旷野子页（data/shell/space-cats.yaml 的每个分类：status/** …；进站 v3 L1 起 security/** 删了，英文加 en/；P4-3 PR-4b 起去掉 settings 一层）
  *     每个页面：标题取 <title> 去掉「 | Styrigx」，类型 setting（2026-11-08 账号整页删了，账号都在顶栏头像的账号终端里，不再收录 account/**）
  *     账号页（/account/…）标 private（只给账号已登录的人搜到）；状态页 /status/ 同原旷野页，不标（页面公开，数据要进站）
  *     副标题 = 完整面包屑：从地址逐级取上级页名，用「 › 」连起来，旷野子页最上一级是旷野页（锁屏凭证 → 「旷野 › 安全」；P4-3 PR-2 / PR-4b），
  *     AI 才说得出路径；账号页独立（/account/… 不挂在旷野下）
  *     text = 页面 <main> 里的分组标题、设置行标题和说明，加上上级页里指向本页那一行的说明（锁屏凭证 → 「解锁密码、通行密钥、会话 …」），
  *     截到 TEXT_MAX 字；只给 AI 读（召回里正文权重最低，rank.js / recall.js 不改）
- *   - data/features.yaml 里用户能改的开关（user: true、build: true、有 section 页）：名字 + 选项名（字符串表 features.<id>），跳到所在设置页
+ *   - data/shell/features.yaml 里用户能改的开关（user: true、build: true、有 section 页）：名字 + 选项名（字符串表 features.<id>），跳到所在设置页
  *   - 功能开关的副标题 = 所在旷野子页的面包屑 + 页名（「旷野 › 显示」）
  * 格式见 workers/ai/src/core/rank.js 顶部。deploy.yml 的 deploy-ai-worker 把它写进 KV。
  *
@@ -106,7 +106,7 @@ export function build(pub = PUB) {
   /** @type {Map<string, {heads: string[], rows: Array<{title: string, sub: string, href: string}>}>} */
   const pages = new Map();
   /* 主页本身（根路径 index.html）+ 各分类子页目录（2026-11-12 起只有状态页）+ 账号页目录 */
-  const cats = (/** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/space-cats.yaml'), 'utf8'))).cats || []).map((/** @type {any} */ c) => String(c.id));
+  const cats = (/** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/shell/space-cats.yaml'), 'utf8'))).cats || []).map((/** @type {any} */ c) => String(c.id));
   /** @type {Array<[string, string[]]>} */
   const sources = [];
   /* P4-3 PR-4c：英文在根（无前缀），中文在 zh/ */
@@ -156,9 +156,9 @@ export function build(pub = PUB) {
     const text = joinText([rowSub.get(x.url) || '', ...(pg ? pg.heads : []), ...(pg ? pg.rows.flatMap((r) => [r.title, r.sub]) : [])]);
     if (text) x.text = text;
   }
-  /* 功能开关：名字 / 选项文字读字符串表 data/i18n/<语言>.yaml 的 features.<id>（语言包化 2026-11-07；缺键回退英文，同 partials/shell/sgx-tr.html） */
-  const feats = /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/features.yaml'), 'utf8'))).features || [];
-  const i18nDir = path.join(REPO, 'space/web/data/i18n');
+  /* 功能开关：名字 / 选项文字读字符串表 data/shell/i18n/<语言>.yaml 的 features.<id>（语言包化 2026-11-07；缺键回退英文，同 partials/shell/sgx-tr.html） */
+  const feats = /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/shell/features.yaml'), 'utf8'))).features || [];
+  const i18nDir = path.join(REPO, 'space/web/data/shell/i18n');
   const langs = readdirSync(i18nDir).filter((f) => /^[a-z]{2,3}\.yaml$/.test(f)).map((f) => f.slice(0, -5));
   /** @param {string} lang */
   const featTable = (lang) => /** @type {any} */ (yaml.load(readFileSync(path.join(i18nDir, lang + '.yaml'), 'utf8')) || {}).features || {};

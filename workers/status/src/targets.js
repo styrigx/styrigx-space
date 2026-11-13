@@ -12,7 +12,7 @@
  * 绑定没配（本地 / 老配置）→ 这一次记 err = 'binding'。
  *
  * name：站名的英文原文（语言包化第二部分 2026-11-07：英文是源，接口只回英文）。页面按字符串表 js.status.site_<site> 显示当前语言，
- * 表里没有的站回退这里的英文名；加站时在 space/web/data/i18n/{en,zh}.yaml 的 js.status 补 site_<site>。
+ * 表里没有的站回退这里的英文名；加站时在 space/web/data/shell/i18n/{en,zh}.yaml 的 js.status 补 site_<site>。
  */
 export const TARGETS = [
   { site: 'space', name: 'Home', url: 'https://styrigx.com/', expect: [200] },

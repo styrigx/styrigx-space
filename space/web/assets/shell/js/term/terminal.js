@@ -10,7 +10,7 @@
  * - man 的结果在终端窗口里的全屏阅读页显示（S9，term/view/pager.js，less 式），不进滚动区。
  * - 每次打开终端窗口都是干净的新会话（S9）：滚动区回到欢迎行、提示符重画、进行中的输入 / 选择取消、cwd 回到本页；history 照旧（sessionStorage）。
  *   桌面是居中大窗（#sgx-term 抽屉），手机整块卡片；四站只有这一个（v5 S7 起主页首屏是 neofetch，不再嵌终端）。
- * - 文案：#sgx-i18n-shell 的 term 节（data/sgx-shell-i18n/<语言>.yaml，缺键回退下面的英文）。
+ * - 文案：#sgx-i18n-shell 的 term 节（data/shell/sgx-shell-i18n/<语言>.yaml，缺键回退下面的英文）。
  *
  * 共享外壳组件：只许 import term/**（终端统一 T1，gen-shell 核对）。
  */

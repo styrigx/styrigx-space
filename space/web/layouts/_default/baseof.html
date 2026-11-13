@@ -163,13 +163,13 @@ __sgxLayoutWatch(__applyLayout);
 {{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿）。主页 = 「主页 / Home」，其他页 = 页名；不再有顶栏标签（topbar-tabs 删除）。
    手机布局不显示（共享外壳 CSS 按 data-sgx-layout），桌面布局按整条顶栏居中。 */}}
 {{ $center := printf "<span class=\"sgx-tb-title\">%s</span>" (htmlEscape $pageName) }}
-{{ $shellNav := index site.Data "shell-nav" }}
+{{ $shellNav := index site.Data "shell" "shell-nav" }}
 {{ $tbIcons := dict }}
 {{ range (slice "tb-palette" "tb-shield" "tb-term" "tb-grid" "tb-music" "tb-chat" "lock" "tb-undo" "share" "tb-send" "tb-newchat" "tb-history") }}{{ $tbIcons = merge $tbIcons (dict . (partial "shell/icon.html" .)) }}{{ end }}
 {{ range $shellNav.items }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "shell/icon.html" .icon)) }}{{ end }}
 {{ range $shellNav.footer }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "shell/icon.html" .icon)) }}{{ end }}
 {{ $tbPal := slice }}
-{{ range site.Data.palettes.palettes }}{{ $tbPal = $tbPal | append (dict "id" .id "style" (partial "shell/palette-tile-vars.html" (dict "id" .id "full" false))) }}{{ end }}
+{{ range (index site.Data.shell "palette-source").palettes }}{{ $tbPal = $tbPal | append (dict "id" .id "style" (partial "shell/palette-tile-vars.html" (dict "id" .id "full" false))) }}{{ end }}
 {{/* 字符串表（语言包化）：当前页面语言叠在英文上；语言选择器选项来自 hugo.yaml languages（label = 语言自己的名字） */}}
 {{ $pageLang := partial "shell/sgx-page-lang.html" . }}
 {{/* 选项顺序 = languages.<语言>.params.pickerWeight（没写按 weight）：快捷面板沿用「跟随系统 / 中文 / English」，和 features.yaml lang 选项同序；hugo.Sites 总是默认语言（英文）在前，不能直接用 */}}
@@ -194,9 +194,9 @@ __sgxLayoutWatch(__applyLayout);
   "music" (partial "shell/sgx-lang-path.html" (dict "path" "/curio/music/" "lang" $pageLang))
   "langHref" $otherLangHref
   "avatar" "/avatar/192.webp"
-  "name" site.Data.profile.name
-  "nick" site.Data.profile.nickname
-  "email" site.Data.profile.email
+  "name" site.Data.shell.profile.name
+  "nick" site.Data.shell.profile.nickname
+  "email" site.Data.shell.profile.email
   "pal" $tbPal
 ) }}
 
@@ -231,10 +231,10 @@ __sgxLayoutWatch(__applyLayout);
   "langHref" $otherLangHref
   "nav" $shellNav
   "site" $navSite
-  "name" site.Data.profile.name
+  "name" site.Data.shell.profile.name
   "year" now.Year
   "sha" (partial "shell/sgx-build-sha.html" .)
-  "email" site.Data.profile.email
+  "email" site.Data.shell.profile.email
   "rss" (partial "shell/sgx-lang-path.html" (dict "path" "/blog/rss.xml" "lang" $pageLang))
 ) }}
 
@@ -247,9 +247,9 @@ __sgxLayoutWatch(__applyLayout);
    键：临时钥匙提示 / 通行密钥 / 快捷面板（2026-10-21 语音搜索已删除；P4-2c 快捷键帮助删除） */}}
 {{ $coreI18n := $tr.js.core }}
 <script id="sgx-i18n-core" type="application/json">{{ $coreI18n | jsonify | safeJS }}</script>
-{{/* 2.4.0-G：功能开关定义（data/features.yaml），运行时 features.js 读取 */}}
+{{/* 2.4.0-G：功能开关定义（data/shell/features.yaml），运行时 features.js 读取 */}}
 {{ $featDefs := slice }}
-{{ range site.Data.features.features }}
+{{ range site.Data.shell.features.features }}
   {{ $d := dict "id" .id "key" .key "type" .type "default" .default }}
   {{ if .storage }}{{ $d = merge $d (dict "storage" .storage) }}{{ end }}
   {{ $featDefs = $featDefs | append $d }}
@@ -262,7 +262,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ $entryName := .Scratch.Get "sgx-entry" | default "entry-core.js" }}
 {{/* 2.4.0-G：编译期功能开关 → esbuild define；build:false 的功能代码被摇掉 */}}
 {{ $featDefines := dict }}
-{{ range site.Data.features.features }}
+{{ range site.Data.shell.features.features }}
   {{ $cname := printf "SGX_FEAT_%s" (upper (replace .id "-" "_")) }}
   {{ $featDefines = merge $featDefines (dict $cname (cond .build "true" "false")) }}
 {{ end }}

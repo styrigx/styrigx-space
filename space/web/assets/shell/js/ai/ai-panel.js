@@ -12,7 +12,7 @@
  *   prefs/cloud-sync.js 的白名单不收这个键，不跨设备。发给服务端的 history 只带最近 6 条 {role, text}（服务端再截 2000 字）。
  * - 头部一行（2026-11 PR-5 按设计稿 ai-v1）：G 徽标 · Gray AI / 副标题 · 模型胶囊（data-ai-model）· 新对话（data-ai-clear）· 历史（data-ai-history：窗口内的列表视图）· ×（topbar.js 接）；
  *   头像（账号页）不在 AI 窗口里了（设计稿没有；账号入口是顶栏头像）。回答下是来源卡片（站内链接）和建议问题。联系挪到底部那行「仅公开内容 · 联系我」（data-ai-contact：mailto:<对外联系邮箱>）。
- *   邮箱（2026-11-07 个人资料）：模板按各站传入的默认值（data/profile.yaml 的 email）画 href；挂载和每次打开时再读本机缓存
+ *   邮箱（2026-11-07 个人资料）：模板按各站传入的默认值（data/shell/profile.yaml 的 email）画 href；挂载和每次打开时再读本机缓存
  *   localStorage sgx-profile（主站 prefs/profile.js 进门后从 GET /api/profile 写的；四站同源同一份），有改过的合法邮箱就换上。这里不发请求。
  *   底部小字的「仅公开内容 / 包含私密内容」在 data-ai-scope 上。空态显示开场白（助手气泡样式，不存历史）。
  * - 每条助手回答下（§3.4）：复制 / 重试（重问前面那条提问，替换这条回答）/ 👍 / 👎（只存本地，记在该条消息的 rate 上，再点取消）。

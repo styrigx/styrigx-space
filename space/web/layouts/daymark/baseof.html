@@ -107,8 +107,8 @@ __sgxLayoutWatch(__applyLayout);
   "mainOrigin" "https://styrigx.com"
   "acct" (partial "shell/sgx-lang-path.html" (dict "path" $shellNav.me.href "lang" .Lang))
   "avatar" $shellNav.me.avatar
-  "name" site.Data.profile.name
-  "nick" site.Data.profile.nickname
+  "name" site.Data.shell.profile.name
+  "nick" site.Data.shell.profile.nickname
   "email" $shellNav.me.email
   "langHref" $langHref
   "security" (printf "%s#sec" (partial "shell/sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" .Lang)))
@@ -131,7 +131,7 @@ __sgxLayoutWatch(__applyLayout);
   "nav" $shellNav
   "site" "daymark"
   "mainOrigin" "https://styrigx.com"
-  "name" site.Data.profile.name
+  "name" site.Data.shell.profile.name
   "year" now.Year
   "sha" (partial "shell/sgx-build-sha.html" .)
   "email" $shellNav.me.email

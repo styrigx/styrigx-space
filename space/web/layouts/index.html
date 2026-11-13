@@ -1,8 +1,8 @@
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-space.js" }}
 {{ $pageLang := partial "shell/sgx-page-lang.html" . }}{{ $tr := partialCached "shell/sgx-tr.html" $pageLang $pageLang }}
-{{ $profile := site.Data.profile }}
-{{ $ver := site.Data.version }}
+{{ $profile := site.Data.shell.profile }}
+{{ $ver := site.Data.shell.version }}
 
 {{/* 主页（2026-11 对齐计划 PR-B，设计稿 tb4.html 主页默认 / m=1；Gray 10:43 / 10:45：功能一个不少，形式照稿）：
    首屏 = 居中 hero（状态胶囊 · $ whoami · 名字 · $ 标语打字轮播 + 闪烁光标 · # 签名）+ neofetch about 卡（v5 S7；原嵌入终端，终端挪到顶栏 >_）。
@@ -30,13 +30,13 @@
 
     {{/* about（v5 S7，已批截图 home-nf；Gray 16:42 / 16:48）：主页首屏不再嵌终端（终端在顶栏 >_），这一位换成原旷野页的 neofetch about 卡，旷野页那张删除、只在这里。
        间距同原嵌入终端；提示符跟当前身份（shell/topbar-panel.js 按终端身份重画 [data-sgx-ps]：nobody@space:~$ / nobody@space:~# / styrigx@space:~# / root@account:~#），路径 ~。
-       版本号唯一来源 data/version.yaml；Uptime 构建时先写一份，apps/space.js 打开时按当天重算；旧地址 /about/ 301 到 /#about。 */}}
+       版本号唯一来源 data/shell/version.yaml；Uptime 构建时先写一份，apps/space.js 打开时按当天重算；旧地址 /about/ 301 到 /#about。 */}}
     {{ $W := $tr.about }}
-    {{ if not $ver.ui }}{{ errorf "data/version.yaml 缺少 ui 字段" }}{{ end }}
-    {{ if not $ver.sgx }}{{ errorf "data/version.yaml 缺少 sgx 字段" }}{{ end }}
+    {{ if not $ver.ui }}{{ errorf "data/shell/version.yaml 缺少 ui 字段" }}{{ end }}
+    {{ if not $ver.sgx }}{{ errorf "data/shell/version.yaml 缺少 sgx 字段" }}{{ end }}
     {{ $twVer := "4.x" }}
-    {{/* data/tailwind.json 由 space/scripts/build-css.cjs 从根目录 package-lock.json 生成（不进仓库） */}}
-    {{ with site.Data.tailwind }}{{ with .version }}{{ $twVer = . }}{{ end }}{{ end }}
+    {{/* data/shell/tailwind.json 由 space/scripts/build-css.cjs 从根目录 package-lock.json 生成（不进仓库） */}}
+    {{ with site.Data.shell.tailwind }}{{ with .version }}{{ $twVer = . }}{{ end }}{{ end }}
     {{ $commit := getenv "GITHUB_SHA" }}{{ $commitShort := "local" }}
     {{ if gt (len $commit) 7 }}{{ $commitShort = slicestr $commit 0 7 }}{{ else if ne $commit "" }}{{ $commitShort = $commit }}{{ end }}
     <div id="about" class="sgx-term sgx-term--static trm-win home-about" role="group" aria-labelledby="home-ab-h">

@@ -1,7 +1,7 @@
 /**
  * @fileoverview 账号云同步（设置 › 账号 › 云同步）：登录账号后，设置项跨设备同步。
  *
- * - 同步哪些：data/features.yaml 里有 localStorage key 的设置（外观 / Good Lock / 时区天气 / 搜索引擎 / 文件），
+ * - 同步哪些：data/shell/features.yaml 里有 localStorage key 的设置（外观 / Good Lock / 时区天气 / 搜索引擎 / 文件），
  *   加账号页选的 AI 模型 sgx-ai-model（P4-2d；自定义主题色 sgx-accent 随调色板 v4 删除，2026-11-12）；不同步语言（跟随各设备系统）、布局（每台屏幕不同）、
  *   精确定位、锁屏 / 凭证类（本来就不在 localStorage）。
  * - 每项记一个本机修改时间（localStorage sgx-sync-meta），和云端（/api/prefs）逐项比，新的赢。

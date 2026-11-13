@@ -1,7 +1,7 @@
 /**
  * 主页与门内子页（P4-3 PR-4b：主页和设置合成一页；2026-11 对齐 PR-B：主页回到「主页 / Home」；2026-11-12 旷野删除，主页三节，状态单独成页 /status/）。真实断言（不 mock 自家逻辑）：
  * - 2026-11-12 起：主页 = hero + [01] 博客 · [02] 奇趣 · [03] 日刻；没有分类入口；子页 /status/（/security/ 三页随进站 v3 L1 删除，301 到盾牌 /#sec…）；下面几行是沿革
- * - 旷野页 /zh/（英文 /，P4-3 PR-4c 起英文默认）：上面名片 / 日刻 / 屏幕时间，下面标题带 + 5 个平铺入口（共享组件 partials/sgx-entries.html，数据 data/space-cats.yaml）：
+ * - 旷野页 /zh/（英文 /，P4-3 PR-4c 起英文默认）：上面名片 / 日刻 / 屏幕时间，下面标题带 + 5 个平铺入口（共享组件 partials/sgx-entries.html，数据 data/shell/space-cats.yaml）：
  *   编号 01–05、圆底图标、名字 + 一行副标题、行间细线、无卡片底；≥ 760 两栏、≥ 1100 三栏（栏间细竖线）；没有账号卡、没有选项组、没有 DeX 双栏
  *   （分类沿革：2026-10-23 PR-E 常规管理 / 辅助功能删除；服务状态从账号页搬来；P4-2c 高级功能删除，「安全与隐私」改名「安全」；
  *    P4-3 PR-4b（Gray 2026-11-07）显示页 /display/ 整页删除，404，不做 301——功能都在快捷面板）
@@ -12,12 +12,12 @@
 const { test } = require('@playwright/test');
 const { blockExternalRequests, expect } = require('../helpers/helpers');
 
-/* 入口按数据文件渲染：顺序、名字、副标题都从 data/space-cats.yaml 读（加入口只加一行数据，测试跟着走） */
+/* 入口按数据文件渲染：顺序、名字、副标题都从 data/shell/space-cats.yaml 读（加入口只加一行数据，测试跟着走） */
 const yaml = require('js-yaml');
-const SPACE = yaml.load(require('fs').readFileSync(require('path').join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'space-cats.yaml'), 'utf8'));
+const SPACE = yaml.load(require('fs').readFileSync(require('path').join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'shell', 'space-cats.yaml'), 'utf8'));
 const CATS = SPACE.cats;
-/* 名字 / 副标题 / 标题带文字在字符串表 data/i18n/<语言>.yaml 的 spaceCats（语言包化 2026-11-07；英文为底，缺键回退英文） */
-const I18N_DIR = require('path').join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'i18n');
+/* 名字 / 副标题 / 标题带文字在字符串表 data/shell/i18n/<语言>.yaml 的 spaceCats（语言包化 2026-11-07；英文为底，缺键回退英文） */
+const I18N_DIR = require('path').join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'shell', 'i18n');
 const STR = Object.fromEntries(['en', 'zh'].map((l) => [l, yaml.load(require('fs').readFileSync(require('path').join(I18N_DIR, `${l}.yaml`), 'utf8')).spaceCats]));
 /** @param {'en'|'zh'} lang @param {string} id 分类 id 或 'band' @param {string} field title / sub / label */
 const sc = (lang, id, field) => ((STR[lang][id] || {})[field] != null ? STR[lang][id][field] : STR.en[id][field]);
@@ -202,10 +202,10 @@ test('home #about: neofetch rows (v5 S7 从旷野页挪到主页首屏；对齐 
   await gotoSettings(pg, '/zh/status/');
   await expect(pg.locator('#about, #sg-about, [data-about]')).toHaveCount(0);
   await gotoSettings(pg, '/zh/');
-  /* 2.8.0：版本号从 data/version.yaml（唯一来源）读取，不再硬编码，版本推进时测试自动跟随 */
+  /* 2.8.0：版本号从 data/shell/version.yaml（唯一来源）读取，不再硬编码，版本推进时测试自动跟随 */
   const fs = require('fs');
   const path = require('path');
-  const vy = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'version.yaml'), 'utf8');
+  const vy = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'shell', 'version.yaml'), 'utf8');
   const ui = (vy.match(/^ui:\s*"([^"]+)"/m) || [])[1];
   const sgx = (vy.match(/^sgx:\s*"([^"]+)"/m) || [])[1];
   const body = pg.locator('#home-hero #about');
@@ -250,7 +250,7 @@ test.describe('unlock methods entry relocation', () => {
   });
 });
 
-/* v1.3 #42 → B2-7 → 2026-10-23 PR-G 七色调色板：22 套一个列表（palettes.yaml 顺序），没有单色 / 撞色分页。
+/* v1.3 #42 → B2-7 → 2026-10-23 PR-G 七色调色板：22 套一个列表（palette-source.yaml 顺序），没有单色 / 撞色分页。
    对齐 PR-C：风格页 /theme/ 退役（301 到主页），色板网格 / 预览卡 / 恢复默认只在顶栏外观弹层 #sgx-qp——这里改走弹层，覆盖不减：
    顺序 + 默认 terra 选中 / 对勾 + 点选写 key 整页换色 + 刷新保持 + 键盘可选 + 恢复默认置灰 / 置灰不动。
    （弹层本身的开合、焦点、互斥见 tests/space/e2e/topbar/quick-panel.spec.js。） */
@@ -266,11 +266,11 @@ test('palette 8-color test state（外观弹层）', async ({ page: pg }) => {
   await expect(grid).toBeVisible();
   const fs = require('fs');
   const path = require('path');
-  const yml = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'palettes.yaml'), 'utf8');
+  const yml = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'shell', 'palette-source.yaml'), 'utf8');
   const items = [...yml.matchAll(/^\s*- id: ([a-z]+)\n(?:\s+\w+: .*\n)*?\s+group: ([a-z]+)$/gm)].map((m) => m[1]);
   expect(items.length).toBe(25);
   await expect(pg.locator('[data-pal-tab], #palette-dots-clash, .swatch-clash')).toHaveCount(0);
-  /* 顺序 = palettes.yaml；每块 6 色点 */
+  /* 顺序 = palette-source.yaml；每块 6 色点 */
   expect(await grid.locator('[data-qp-palette]').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp-palette')))).toEqual(items);
   await expect(grid.locator('[data-qp-palette]').first().locator('.sgx-th-sw u')).toHaveCount(6);
   /* 默认 terra 初始选中、有对勾；其他都没选 */

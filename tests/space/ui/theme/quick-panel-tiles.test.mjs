@@ -26,7 +26,7 @@ import { existsSync } from 'node:fs';
 const qpJs = rd('space/web/assets/shell/js/topbar/quick-panel.js');
 const setJs = rd('space/web/assets/shell/js/apps/space.js');
 const css = rd('space/web/assets/shell/css/input.css');
-const feats = rd('space/web/data/features.yaml');
+const feats = rd('space/web/data/shell/features.yaml');
 
 test('顶栏 v3 控件（四站同一套）：外观面板 = PALETTE（2026-11-12 调色板 v4 删 MODE 三段）；NAVIGATE = lang / layout 分段 + terminal（v5 S6 去掉 lock；v6 P4 拿掉 share）；没有按站开关、没有减弱动效和字体大小', () => {
   assert.doesNotMatch(qpHtml, /data-qp-mode|data-qp-seg="mode"|sgx-th-mode|sgx-th-seg/, 'v4：没有 MODE 段');
@@ -52,11 +52,11 @@ test('顶栏 v3 控件（四站同一套）：外观面板 = PALETTE（2026-11-1
 
 test('七色调色板（PR-G）：外观面板 22 行色板 / 设置页 22 个 .pal-tile、不分单色 / 撞色；都有「恢复默认」，初始 aria-disabled，点了 setPalette(DEFAULT_PALETTE = terra)', () => {
   assert.match(qpHtml, /\{\{- range \.pal \}\}<button type="button" class="sgx-th-pal" data-qp-palette="\{\{ \.id \}\}"/);
-  assert.match(base, /\{\{ range site\.Data\.palettes\.palettes \}\}\{\{ \$tbPal = \$tbPal \| append/, '主站色块来自 palettes.yaml（22 个）');
+  assert.match(base, /\{\{ range \(index site\.Data\.shell "palette-source"\)\.palettes \}\}\{\{ \$tbPal = \$tbPal \| append/, '主站色块来自 data/shell/palette-source.yaml（22 个）');
   assert.doesNotMatch(qpHtml, /swatch-clash|"group" "mono"|"group" "clash"/);
   /* 外观面板（2026-11 PR-A 照稿）：PALETTE 标题行右侧一行小字命令 reset，读屏念「恢复默认」 */
   assert.match(qpHtml, /<button type="button" class="sgx-th-reset" data-qp-reset aria-disabled="true" aria-label="\{\{ \$t\.topbar\.reset \}\}"/);
-  assert.match(rd('space/web/data/sgx-shell-i18n/zh.yaml'), /\n  reset: 恢复默认\n/);
+  assert.match(rd('space/web/data/shell/sgx-shell-i18n/zh.yaml'), /\n  reset: 恢复默认\n/);
   /* 对齐 PR-C：风格页 /theme/ 退役——色板 / 恢复默认只在外观弹层，旷野页模块不再管调色板网格 */
   assert.ok(!existsSync(new URL('../../../../space/web/layouts/partials/setcat-theme.html', import.meta.url)), 'setcat-theme.html 已删');
   assert.doesNotMatch(setJs, /palette-reset|pal-tile|setPalette/);

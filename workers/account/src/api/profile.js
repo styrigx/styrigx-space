@@ -4,7 +4,7 @@
  * GET（公开，v6 P2c，定稿 v5 §五：谁都能读，不要进站会话、不要账号会话、不要 v6 会话；只读）
  * - 回 { ok:true, profile:{ name, nickname, motto, email }, avatar:<版本号|''>, updatedAt }。
  *   只回字段表 PROFILE_FIELD_IDS 里的四项（名片本来就是对外展示的：姓名、昵称、签名、对外联系邮箱）+ 头像版本号 + 改动时间；
- *   KV 里别的键（头像二进制、元数据）一概不读不回。没改过的字段是 null，前端回退构建期默认值（space/web/data/profile.yaml）。
+ *   KV 里别的键（头像二进制、元数据）一概不读不回。没改过的字段是 null，前端回退构建期默认值（space/web/data/shell/profile.yaml）。
  *   KV 没绑 / 读不到 / 坏 JSON → 全是 null（照样 200），页面显示默认值。
  * - 网关访问表（workers/space-core/src/gate.js ROUTE_ACCESS）与本 Worker 的 PUBLIC_API 都把 GET /api/profile 列为 public。
  *   前端（lib/profile.js）仍只在已进站的页面请求（锁屏头像替代文字用构建期默认值 + 本机缓存），接口本身不再挡。

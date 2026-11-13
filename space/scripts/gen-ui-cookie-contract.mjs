@@ -19,7 +19,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const FIXTURE = path.join(REPO, 'tests/fixtures/ui-cookie-contract.json');
 const WRITER = path.join(REPO, 'space/web/assets/shell/js/prefs/ui-cookie.js');
-const ROLES = path.join(REPO, 'space/web/data/palette-roles.json');
+const ROLES = path.join(REPO, 'space/web/data/shell/palette-roles.json');
 /** 夹具生成时写端看到的固定时间（v4 起写端不再写 mat，留着只为把 Date.now 钉住） */
 export const NOW = 1761062400000;
 

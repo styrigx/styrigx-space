@@ -14,8 +14,8 @@ Sloan Gray（styrigx）的个人数字空间：一个终端风格的个人网站
 
 ![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?branch=main&style=flat-square&label=Deploy&color=2563eb)
 ![Hugo](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/.github/actions/setup-hugo/action.yml&query=%24..HUGO_VERSION&label=Hugo&style=flat-square&color=2563eb&logo=hugo)
-![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
-![SGX](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/version.yaml&query=%24.sgx&label=SGX&style=flat-square&color=2563eb)
+![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/shell/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
+![SGX](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/shell/version.yaml&query=%24.sgx&label=SGX&style=flat-square&color=2563eb)
 ![License](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)
 
 </div>

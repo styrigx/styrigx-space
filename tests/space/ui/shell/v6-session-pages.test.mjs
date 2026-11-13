@@ -64,10 +64,10 @@ test('403 forbidden 文案：AI 窗口有自己的一句，不再落到「会话
   assert.equal(AI.errKey(403, { error: 'forbidden' }), 'forbidden');
   assert.equal(AI.errKey(401, {}), 'unauthorized');
   for (const lang of ['en', 'zh']) {
-    const t = yaml.load(rd('space/web/data/sgx-shell-i18n/' + lang + '.yaml'));
+    const t = yaml.load(rd('space/web/data/shell/sgx-shell-i18n/' + lang + '.yaml'));
     assert.ok(t.ai.forbidden && t.term.needRoot6, lang);
     assert.equal(t.share, undefined, lang + ' 分享磁贴的文案整节删了');
-    const st = yaml.load(rd('space/web/data/i18n/' + lang + '.yaml'));
+    const st = yaml.load(rd('space/web/data/shell/i18n/' + lang + '.yaml'));
     assert.ok(JSON.stringify(st).includes('auditErrPerm'), lang + ' 服务状态页 auditErrPerm');
   }
   const status = rd('space/web/assets/shell/js/apps/space-status.js');
