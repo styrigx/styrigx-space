@@ -37,12 +37,12 @@
     <div class="sgx-tb-pill{{ with .pillClass }} {{ . }}{{ end }}">{{ .center | safeHTML }}</div>
     <div class="sgx-tb-acts">
       {{- /* 顶栏 v6（Gray 2026-11-13 定稿）：外观 · 四格（NAVIGATE）· 音乐 · 盾牌 | >_ 终端 · 头像（原 v5 S6 顶栏 E：盾牌 · 外观 · 四格 | >_ · 头像）。
-         音乐：链接到播放器页；普通点击由 topbar/panel.js mountMusic 弹出 / 切到播放器小窗（音乐方案 2c）；小遥控层是下一步。
+         音乐：链接到播放器页；普通点击由 topbar/panel.js mountMusic 弹出 / 切到播放器小窗（音乐方案 2c）；播放器开着且有一首在播 / 暂停着，改开下面的小遥控层 #sgx-mu。
          盾牌：仍是链接（没 JS / 中键去首页 #sec）；不开任何窗口，是吉祥物兼状态标志：普通点击由 topbar/panel.js 接——打开终端、按身份预填（v6 P4-3 起盾牌 = 身份徽章四档，定稿 v5.5 §七；旧的「退出进站会话 [y/N]」随旧会话删除）。
          >_：打开全站终端 #sgx-term（同 Ctrl / ⌘ K）。头像：仍是链接（没 JS 去 /account/）；已进站点了开账号窗口 #sgx-acct，没进站是死按钮（aria-disabled，纯吉祥物，Gray 17:23） */}}
       <button type="button" class="sgx-tb-btn sgx-tb-quick" aria-label="{{ $t.topbar.theme }}" title="{{ $t.topbar.theme }}" aria-haspopup="dialog" aria-controls="sgx-qp" aria-expanded="false">{{ index $i "tb-palette" | safeHTML }}</button>
       <button type="button" class="sgx-tb-btn sgx-tb-grid" aria-label="{{ $t.topbar.sites }}" title="{{ $t.topbar.sites }}" aria-haspopup="dialog" aria-controls="sgx-nav" aria-expanded="false">{{ index $i "tb-grid" | safeHTML }}</button>
-      <a class="sgx-tb-btn sgx-tb-music" href="{{ .music }}" aria-label="{{ $t.topbar.music }}" title="{{ $t.topbar.music }}">{{ index $i "tb-music" | safeHTML }}</a>
+      <a class="sgx-tb-btn sgx-tb-music" href="{{ .music }}" aria-controls="sgx-mu" aria-label="{{ $t.topbar.music }}" title="{{ $t.topbar.music }}">{{ index $i "tb-music" | safeHTML }}</a>
       <a class="sgx-tb-btn sgx-tb-shield" href="{{ .security }}" aria-label="{{ $t.topbar.security }}" title="{{ $t.topbar.security }}" aria-haspopup="dialog" aria-controls="sgx-term">{{ index $i "tb-shield" | safeHTML }}</a>
       <span class="sgx-tb-sep" aria-hidden="true"></span>
       <button type="button" class="sgx-tb-btn sgx-tb-term" aria-label="{{ $t.topbar.terminal }}" title="{{ $t.topbar.terminal }}" aria-haspopup="dialog" aria-controls="sgx-term" aria-expanded="false" aria-keyshortcuts="Control+K Meta+K">{{ index $i "tb-term" | safeHTML }}</button>
@@ -105,6 +105,20 @@
     {{- /* 色板行（设计稿 tb4.html pop=1）：6 色色块（体系保留）· 本语言名（tr.palette：中文页 zh、英文页 en；2026-11-12 Gray 改设计，推翻 #318 的等宽小写英文名 tr.paletteTerm）· 当前 ✓ */}}
     <div class="sgx-th-pals" role="group" aria-labelledby="sgx-th-pal">
       {{- range .pal }}<button type="button" class="sgx-th-pal" data-qp-palette="{{ .id }}" style="{{ .style | safeCSS }}" aria-pressed="false" aria-label="{{ index $t.palette .id }}"><span class="sgx-th-sw" aria-hidden="true"><u></u><u></u><u></u><u></u><u></u><u></u></span><span class="sgx-th-name" aria-hidden="true">{{ index $t.palette .id | default .id }}</span><em aria-hidden="true">✓</em></button>{{ end }}
+    </div>
+  </div>
+</dialog>
+<dialog id="sgx-mu" class="sgx-qp sgx-mu" aria-label="{{ $t.topbar.music }}">
+  {{- /* 小遥控层（音乐方案 v1.13 §九）：歌名 · 歌手 · 上一曲 · 播放/暂停 · 下一曲 · 切到播放器；字由 topbar/panel.js mountMusic 按播放器答的状态填，按钮发 BroadcastChannel 命令 */}}
+  <div class="sgx-qp-sheet" tabindex="-1" autofocus>
+    <p class="sgx-mu-k">{{ $t.topbar.musicNow }}</p>
+    <p class="sgx-mu-t" data-mu-title></p>
+    <p class="sgx-mu-a" data-mu-artist hidden></p>
+    <div class="sgx-mu-ctl">
+      <button type="button" class="sgx-mu-btn" data-mu="prev" aria-label="{{ $t.topbar.musicPrev }}" title="{{ $t.topbar.musicPrev }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6l-8.5 6L18 18zM7 6v12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button type="button" class="sgx-mu-btn sgx-mu-tg" data-mu="toggle" data-l-play="{{ $t.topbar.musicPlay }}" data-l-pause="{{ $t.topbar.musicPause }}" aria-label="{{ $t.topbar.musicPlay }}" title="{{ $t.topbar.musicPlay }}"><svg class="sgx-mu-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg><svg class="sgx-mu-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5.5h3v13h-3zM13.5 5.5h3v13h-3z" fill="currentColor"/></svg></button>
+      <button type="button" class="sgx-mu-btn" data-mu="next" aria-label="{{ $t.topbar.musicNext }}" title="{{ $t.topbar.musicNext }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l8.5 6L6 18zM17 6v12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button type="button" class="sgx-mu-open" data-mu="open">{{ $t.topbar.musicOpen }} <span aria-hidden="true">↗</span></button>
     </div>
   </div>
 </dialog>

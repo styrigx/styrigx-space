@@ -31,6 +31,12 @@ topbar:
   # v5 S6 顶栏 E：终端按钮（盾牌 · 外观 · 四格 | >_ · 头像）
   terminal: 终端
   music: 音乐
+  musicNow: 正在播放
+  musicPlay: 播放
+  musicPause: 暂停
+  musicPrev: 上一曲
+  musicNext: 下一曲
+  musicOpen: 播放器
   langKey: lang
   langAuto: 跟随系统语言
   layoutKey: layout

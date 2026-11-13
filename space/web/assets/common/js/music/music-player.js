@@ -44,7 +44,19 @@ function makeTr(dict, lang){
   };
 }
 
-var pure = { albumOf: albumOf, failKind: failKind, artworkOf: artworkOf };
+/**
+ * 小遥控层要的「现在在播什么」（方案 v1.13 §三 / §九：顶栏图标下的遥控，BroadcastChannel「sgx-music」）。
+ * on = 有一首在播或暂停着（没开播 / 放完停了是 false，遥控只显示入口）；title / artist 给遥控层画字。
+ * @param {{ album: number, list: any[], i: number }} st 共用核的 state @param {boolean} playing @param {any[]} albums
+ */
+function remoteState(st, playing, albums){
+  var t = st && st.i >= 0 ? st.list[st.i] : null;
+  var a = null;
+  for (var k = 0; albums && k < albums.length; k++) if (albums[k].id === st.album) { a = albums[k]; break; }
+  return { type: 'player-state', on: !!t, playing: !!t && !!playing, title: t ? String(t.title || '') : '', artist: t ? String((a && a.artist) || '') : '' };
+}
+
+var pure = { albumOf: albumOf, failKind: failKind, artworkOf: artworkOf, remoteState: remoteState };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxMusicPlayer = pure;
 
@@ -152,7 +164,27 @@ function syncState(){
   var ms = G.navigator && G.navigator.mediaSession;
   if (ms) { try { ms.playbackState = P.state.i < 0 ? 'none' : on ? 'playing' : 'paused'; } catch (e) {} }
   var sh = $('#mp-shuffle'); sh.setAttribute('aria-pressed', String(P.state.shuffle)); sh.title = tr(P.state.shuffle ? 'shuffleOn' : 'shuffleOff');
+  tell();
 }
+
+/* ---------- 小遥控层（顶栏图标下，方案 v1.13 §九）：同源各页的遥控走 BroadcastChannel「sgx-music」 ----------
+   遥控每页加载先问 player-hello，这边答 player-state；播放状态 / 曲目一变也广播；遥控发 remote-cmd（prev / toggle / next）；关窗广播 player-bye。
+   单开一个频道对象：共用核那个的 onmessage 管防同时响，两边互不干扰（同一页的两个频道对象也互相收得到，核只认 type=playing） */
+var rc = null;
+try { if (typeof G.BroadcastChannel === 'function') rc = new G.BroadcastChannel(CORE.CHANNEL); } catch (e) { rc = null; }
+function tell(){ if (rc) { try { rc.postMessage(remoteState(P.state, P.playing(), albums)); } catch (e) {} } }
+if (rc) rc.onmessage = function(ev){
+  var m = ev && ev.data;
+  if (!m) return;
+  if (m.type === 'player-hello') tell();
+  else if (m.type === 'remote-cmd') {
+    if (m.cmd === 'toggle') { if (viewOnly) { note('locked'); return; } if (!P.toggle()) playFrom(0); }
+    else if (m.cmd === 'prev') P.prev();
+    else if (m.cmd === 'next') P.next();
+  }
+};
+G.addEventListener('pagehide', function(){ if (rc) { try { rc.postMessage({ type: 'player-bye' }); } catch (e) {} } });
+G.addEventListener('pageshow', function(e){ if (e && e.persisted) tell(); });
 
 /* ---------- 歌词：当前一句；点一下展开全部，再点收起 ---------- */
 function setLyrics(src){

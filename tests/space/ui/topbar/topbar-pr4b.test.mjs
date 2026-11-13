@@ -30,7 +30,7 @@ test('NAVIGATE #sgx-nav（顶栏 v3；v5 S6 顶栏 E）：四格按钮（类名�
   assert.match(js, /tg\.closest\('\[data-qp-lang\]'\)/);
   assert.match(js, /tg\.closest\('\[data-qp-seg="layout"\] button'\)/);
   /* v5 S5：盾牌下拉删了（sec / openShield 没了），终端视图 termView、身份 who 交出去 */
-  assert.match(js, /return \{ nav: nav && nav\.ms, qp: qp && qp\.ms, ai: ai && ai\.ms, acct: acct && acct\.ms, openAccount: function \(\) \{ openAcct\(\); \}, term: termSheet, termShell: term, termView: view, who: who, paint: paint, paintNav: paintNav \};/);
+  assert.match(js, /return \{ nav: nav && nav\.ms, qp: qp && qp\.ms, ai: ai && ai\.ms, acct: acct && acct\.ms, mu: mu && mu\.ms, openAccount: function \(\) \{ openAcct\(\); \}, term: termSheet, termShell: term, termView: view, who: who, paint: paint, paintNav: paintNav \};/);
   /* 2026-11 PR-2：NAVIGATE「$ terminal」→ 关面板后打开终端 */
   assert.match(js, /if \(id === 'term'\) \{ ms\.close\(function \(\) \{ window\.setTimeout\(openTerm, 0\); \}\); return; \}/);
 });

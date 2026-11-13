@@ -225,3 +225,14 @@ test('播放器页纯函数：?album= 取专辑；签令牌失败分 登录过�
   assert.deepEqual(MP.artworkOf({ id: 4, cover: false }), []);
   assert.deepEqual(MP.artworkOf(null), []);
 });
+
+test('播放器给小遥控层的状态：有一首 = on，歌名 + 本专辑歌手；没开播 = 空', () => {
+  const MP = require('../../space/web/assets/common/js/music/music-player.js');
+  const albums = [{ id: 3, artist: 'Singer' }];
+  assert.deepEqual(MP.remoteState({ album: 3, list: [{ title: 'A' }, { title: 'B' }], i: 1 }, true, albums),
+    { type: 'player-state', on: true, playing: true, title: 'B', artist: 'Singer' });
+  assert.deepEqual(MP.remoteState({ album: 3, list: [{ title: 'A' }], i: 0 }, false, []),
+    { type: 'player-state', on: true, playing: false, title: 'A', artist: '' });
+  assert.deepEqual(MP.remoteState({ album: 0, list: [], i: -1 }, true, albums),
+    { type: 'player-state', on: false, playing: false, title: '', artist: '' });
+});

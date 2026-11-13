@@ -982,6 +982,15 @@ export function mountTopbar(o) {
   mountFootLift(doc);
   mountClock(doc);
   mountMusic(doc);
+  /* 小遥控层：mountMusic 先注册的点击处理放行时才轮到这里开 #sgx-mu（互斥 / 点外面关 / 返回键同其他顶栏窗口） */
+  const muBtn = /** @type {HTMLElement|null} */ (doc.querySelector('.sgx-tb-music'));
+  const muDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-mu'));
+  const mu = muBtn && muDlg ? wire(muBtn, muDlg, 'sgxMu', function () {}) : null;
+  if (mu && muDlg) muDlg.addEventListener('click', function (e) {
+    const b = /** @type {Element|null} */ (e.target);
+    if (b && b.closest && b.closest('[data-mu="open"]')) mu.ms.close();
+  });
+  if (mu) doc.addEventListener('sgx-music-off', function () { if (mu.ms.isShown()) mu.ms.close(); });
   const status = mountStatus(doc);
   if (status && navBtn) navBtn.addEventListener('click', function () { status(); });
   /* 2c：v6 命令（su / exit / lock / 空闲弹回）之后页面标记就地切；登录了顺手重取 NAVIGATE STATUS（之前 401 是灰的） */
@@ -990,7 +999,7 @@ export function mountTopbar(o) {
       if (switchPageSession(doc, st) && st === 'valid' && status) status();
     });
   }
-  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, openAccount: function () { openAcct(); }, term: termSheet, termShell: term, termView: view, who: who, paint: paint, paintNav: paintNav };
+  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, mu: mu && mu.ms, openAccount: function () { openAcct(); }, term: termSheet, termShell: term, termView: view, who: who, paint: paint, paintNav: paintNav };
 }
 
 /** 弹出播放器的窗口名（音乐分层方案 v1.13 §7.1「只开一个」：入口固定这个名字，播放器页自己也把 window.name 设成它） */
@@ -1007,8 +1016,11 @@ export const MUSIC_PATH = /\/music\/player\/?$/;
  * - 拿到的是新开的空白窗（about:blank）或同名窗口已走到别的页 → 让它去播放器页；拿到的是已开的播放器 → 只 focus 切过去（单窗口）；
  *   拿到的是本页自己（本标签页曾跳到过播放器、名字没清掉）且不是播放器 → 本页跳过去；
  * - window.open 回 null（弹窗被拦）→ 本页直接跳到播放器页（方案 §7.1 退路）。
- * 小遥控层（图标下弹层、BroadcastChannel 问「在播什么」）是下一步，不在这里。
- * @param {Document} [d] @param {{ open?: (url: string, name: string, features: string) => any, navigate?: (url: string) => void }} [o] 测试注入
+ * 小遥控层（方案 v1.13 §三 / §九）：BroadcastChannel「sgx-music」，本页加载先发 player-hello 问「现在在播什么」，播放器答 player-state
+ * （on / playing / title / artist），之后播放状态一变它也广播，关窗发 player-bye。播放器答过、而且有一首在播或暂停着（on）→ 普通点击不再开窗，
+ * 交给 mountTopbar 接的 #sgx-mu 弹层（歌名、歌手、上一曲、播放/暂停、下一曲、切到播放器）；没答 / 没在播 → 照旧开播放器（只显示入口）。
+ * 图标上的小点（.is-playing）= 正在出声，不占宽度。播放器页自己的顶栏不弹遥控，点了只切过去。
+ * @param {Document} [d] @param {{ open?: (url: string, name: string, features: string) => any, navigate?: (url: string) => void, channel?: any, path?: string }} [o] 测试注入
  */
 export function mountMusic(d, o) {
   const doc = d || document;
@@ -1035,11 +1047,66 @@ export function mountMusic(d, o) {
     try { w.focus(); } catch (e) {}
     return at === 'player' ? 'focused' : 'opened';
   };
+  /** 播放器最近一次答的状态；null = 没答 / 已关 @type {{ on: boolean, playing: boolean, title: string, artist: string }|null} */
+  let state = null;
+  const onPlayer = MUSIC_PATH.test(opt.path != null ? opt.path : ((doc.defaultView && doc.defaultView.location && doc.defaultView.location.pathname) || ''));
+  const dlg = typeof doc.getElementById === 'function' ? doc.getElementById('sgx-mu') : null;
+  let ch = opt.channel || null;
+  if (!ch && typeof window !== 'undefined' && typeof BroadcastChannel === 'function') { try { ch = new BroadcastChannel('sgx-music'); } catch (e) { ch = null; } }
+  /** 遥控层能不能用：播放器答了、有一首在播 / 暂停着、本页不是播放器 */
+  const remoteOn = function () { return !!(state && state.on && !onPlayer && dlg); };
+  const paint = function () {
+    if (btn.classList) btn.classList.toggle('is-playing', !!(state && state.playing));
+    if (!dlg) return;
+    const q = function (/** @type {string} */ s) { return /** @type {HTMLElement|null} */ (dlg.querySelector(s)); };
+    const t = q('[data-mu-title]'); const a = q('[data-mu-artist]'); const tg = q('[data-mu="toggle"]');
+    if (t) t.textContent = state ? state.title : '';
+    if (a) { a.textContent = state ? state.artist : ''; a.hidden = !(state && state.artist); }
+    if (tg) {
+      const on = !!(state && state.playing);
+      tg.classList.toggle('is-playing', on);
+      const l = tg.getAttribute(on ? 'data-l-pause' : 'data-l-play') || '';
+      tg.setAttribute('aria-label', l); tg.title = l;
+    }
+    dlg.setAttribute('data-mu-on', remoteOn() ? '1' : '');
+    /* 播放器关了 / 放完停了：开着的遥控层没东西可控，让 mountTopbar 收起 */
+    if (!remoteOn()) { try { doc.dispatchEvent(new CustomEvent('sgx-music-off')); } catch (e) {} }
+  };
+  /** @param {any} m */
+  const post = function (m) { if (ch) { try { ch.postMessage(m); } catch (e) {} } };
+  const prevMsg = ch && ch.onmessage;
+  if (ch) ch.onmessage = function (/** @type {any} */ ev) {
+    if (typeof prevMsg === 'function') { try { prevMsg.call(ch, ev); } catch (e) {} }
+    const m = ev && ev.data;
+    if (!m) return;
+    if (m.type === 'player-state') state = { on: !!m.on, playing: !!m.playing, title: String(m.title || ''), artist: String(m.artist || '') };
+    else if (m.type === 'player-bye') state = null;
+    else return;
+    paint();
+  };
+  post({ type: 'player-hello' });
+  if (doc.defaultView) doc.defaultView.addEventListener('pageshow', function (e) { if (/** @type {PageTransitionEvent} */ (e).persisted) { state = null; paint(); post({ type: 'player-hello' }); } });
+  /* 先于 mountTopbar 的 wire 注册：遥控层能用就放行（wire 开 #sgx-mu），不能用就开 / 切播放器并拦住 wire */
   btn.addEventListener('click', function (e) {
     if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    if (remoteOn()) return;
     e.preventDefault();
+    e.stopImmediatePropagation();
     go(btn.href);
   });
+  if (dlg) dlg.addEventListener('click', function (e) {
+    const b = /** @type {HTMLElement|null} */ (e.target && /** @type {Element} */ (e.target).closest ? /** @type {Element} */ (e.target).closest('[data-mu]') : null);
+    if (!b) return;
+    const k = b.getAttribute('data-mu');
+    if (k === 'open') { go(btn.href); return; }
+    post({ type: 'remote-cmd', cmd: k });
+    /* 等播放器回新状态再画；先把按钮翻过去，别让人以为没点上 */
+    if (k === 'toggle' && state) { state.playing = !state.playing; paint(); }
+  });
+  paint();
+  const api = /** @type {any} */ (go);
+  api.state = function () { return state; };
+  api.remoteOn = remoteOn;
   return go;
 }
 
