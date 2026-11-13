@@ -41,14 +41,14 @@ test('lock.js：会话有效时分发 sgx:session 事件', () => {
 });
 
 test('v6 P4：旧的立即锁屏（shell/space/lock-now.js → POST /api/lock-now）删了；lock = v6 身份层清栈（POST /api/identity lock）', () => {
-  for (const f of ['shell/space/lock-now.js', 'shell/space/api.js', 'shell/space/paths.js', 'auth/lock-now.js', 'apps/security.js']) {
+  for (const f of ['shell/space/lock-now.js', 'shell/space/api.js', 'shell/space/paths.js', 'auth/lock-now.js', 'frame/apps/security.js']) {
     let gone = false;
     try { readFileSync(join(root, 'space/web/assets/common/js', f), 'utf8'); } catch (e) { gone = true; }
     assert.ok(gone, f + ' 已删');
   }
   const code = lockJs.replace(/\/\*[\s\S]*?\*\//g, '');
   assert.ok(!code.includes('/api/lock-session-check') && !code.includes('/api/lock-now'), '守卫不再问旧接口');
-  const lockCmd = readFileSync(join(root, 'space/web/assets/common/js/term/cmds/keys/lock.js'), 'utf8');
+  const lockCmd = readFileSync(join(root, 'space/web/assets/common/js/frame/term/cmds/keys/lock.js'), 'utf8');
   assert.ok(lockCmd.includes('I.cmdLock()'), 'lock 走身份层');
 });
 
@@ -58,7 +58,7 @@ test('2026-11-08 账号 UI 改版：账号卡 sgx-account-card.html 和账号页
   assert.ok(gone, 'sgx-account-card.html 应已删除');
   const setHtml = readFileSync(join(root, 'space/web/layouts/index.html'), 'utf8') + readFileSync(join(root, 'space/web/layouts/_default/status.html'), 'utf8');
   assert.ok(!setHtml.includes('sgx-account-card'), '主页 / 状态页不放账号卡');
-  const setEntry = readFileSync(join(root, 'space/web/assets/common/js/apps/entries/entry-space.js'), 'utf8') + readFileSync(join(root, 'space/web/assets/common/js/apps/entries/entry-space-status.js'), 'utf8');
+  const setEntry = readFileSync(join(root, 'space/web/assets/common/js/frame/apps/entries/entry-space.js'), 'utf8') + readFileSync(join(root, 'space/web/assets/common/js/frame/apps/entries/entry-space-status.js'), 'utf8');
   assert.ok(!setEntry.includes('initAvatarEdit'), '主站页面入口不加载换头像');
 });
 

@@ -11,6 +11,8 @@
  *    基础层 core/ i18n/ prefs/ ui/ features/ status/（原 lib/）
  *    功能层 auth/ 与 term/ account/ identity/ nav/ ai/ topbar/ music/（原 auth/、shell/）
  *    应用层 apps/（apps/entries/ 是页面入口）
+ *  改名定稿 v1.6 起：topbar/ nav/ term/ ai/ apps/ status/ account/（identity 并进 account/identity/）放在 frame/ 下，
+ *  层名仍按 frame/ 下一级目录判（frame/account/identity/ 算 account）；common 不许依赖 frame 见规则 28。
  *  1. 基础层只能 import 基础层
  *  2. auth/ 只能 import 基础层和 auth/（鉴权与凭证流程；不得 import 其它功能组、apps/）
  *  3. 功能组（auth/ 以外）不得 import apps/
@@ -48,7 +50,7 @@
  *
  * 账号命名 v2（2026-11-08）：
  * 22. 退役名单（space/scripts/check/retired-names.json 的 account）里的旧名字不许出现在账号 Worker（workers/account/src/）
- *     和账号前端（space/web/assets/common/js/account/）——注释也算，旧名字只留在退役名单这一处
+ *     和账号前端（space/web/assets/common/js/frame/account/）——注释也算，旧名字只留在退役名单这一处
  *     （19–21 的 Worker 目录 = workers/ 下有 wrangler.toml 的子目录；workers/ 下每个子目录都得有 wrangler.toml，
  *     tests/space/ui/build/check-layers.test.mjs 核对。只管这四条，依赖方向不在这里查）
  *
@@ -59,9 +61,13 @@
  *     （规则 5 的扩展：规则 5 只管 assets/js/，迁移完 assets/js/ 后两条合一）
  * 26. 落点：space/web/{assets,layouts,data}、space/scripts 下每个文件必须在 ALLOWED_PLACES 里，
  *     或者在待迁移表 space/scripts/check/layers-pending.json 里（只许删不许加：表里的文件必须还在、且还不在目标位置）
- * 27. 例外：space/scripts/check/layers-exceptions.json，只对 23–26 生效，每条必须有 reason；用不上的例外报错
+ * 27. 例外：space/scripts/check/layers-exceptions.json，只对 23–26、28 生效，每条必须有 reason；用不上的例外报错
  *     （规范 v1.8：例外要写下来、说清楚原因，不悄悄绕过）
- *     23–27 只在仓库根有 space/README.md 时查（单测的临时小仓库没有）；命令行直接跑时缺 README 就报错。
+ *     23–28 只在仓库根有 space/README.md 时查（单测的临时小仓库没有）；命令行直接跑时缺 README 就报错。
+ *
+ * common 分层（目录改名定稿 v1.6 §3，2026-11-13）：
+ * 28. common 的库（space/web/assets/common/js/ 下 frame/ 以外的文件）不许 import 外壳 frame/（common/js/frame/**）；
+ *     common 是底座，frame 是建在底座上的外壳。允许例外（写进例外表与 space/README.md §5）。
  *
  * 用法：node space/scripts/check/check-layers.mjs [--root <仓库根>]
  * 规则函数导出给 tests/space/ui/build/check-layers.test.mjs 用。
@@ -149,8 +155,10 @@ export function stripComments(src) {
  */
 export function layerOf(root, abs) {
   const rel = relative(root, abs).split(sep).join('/');
-  if (rel.startsWith('space/web/assets/common/js/apps/entries/')) return { area: 'frontend', layer: 'entries', rel };
-  let m = rel.match(/^space\/web\/assets\/common\/js\/([^/]+)\//);
+  if (rel.startsWith('space/web/assets/common/js/frame/apps/entries/')) return { area: 'frontend', layer: 'entries', rel, frame: true };
+  let m = rel.match(/^space\/web\/assets\/common\/js\/frame\/([^/]+)\//);
+  if (m) return { area: 'frontend', layer: m[1], rel, frame: true };
+  m = rel.match(/^space\/web\/assets\/common\/js\/([^/]+)\//);
   if (m) return { area: 'frontend', layer: m[1], rel };
   if (rel.startsWith('space/web/assets/common/js/')) return { area: 'frontend', layer: '(root)', rel };
   const g = gatewayLayer(rel);
@@ -290,7 +298,7 @@ export function checkGatewayAccountAuth(rel, src, kind = 'js') {
 }
 
 /* 规则 22：退役名单的检查范围（账号 Worker 源码、账号前端） */
-export const RETIRED_SCOPE_RE = /^(?:workers\/account\/src\/|space\/web\/assets\/common\/js\/account\/)/;
+export const RETIRED_SCOPE_RE = /^(?:workers\/account\/src\/|space\/web\/assets\/common\/js\/frame\/account\/)/;
 /** @type {string[]|null} */
 let retiredCache = null;
 /** 退役名单（space/scripts/check/retired-names.json 的 account） */
@@ -481,14 +489,15 @@ export function checkWorkerSkeleton(root) {
 }
 
 
-/* ───────────── space 骨架契约（规则 23–27，space/README.md） ───────────── */
+/* ───────────── space 骨架契约（规则 23–28，space/README.md） ───────────── */
 
 export const PRODUCTS = Object.freeze(['blog', 'curio', 'daymark']);
 
 /** 规则 26：允许的落点（和 space/README.md §1–§2 一致；改骨架两边同一个 PR 改） */
 export const ALLOWED_PLACES = Object.freeze([
   /^space\/web\/assets\/common\/css\/.+/,
-  /^space\/web\/assets\/common\/js\/(?:core|i18n|prefs|ui|features|status|auth|term|account|identity|nav|ai|topbar|music|apps)\/.+/,
+  /^space\/web\/assets\/common\/js\/(?:core|i18n|prefs|ui|features|auth|music)\/.+/,
+  /^space\/web\/assets\/common\/js\/frame\/(?:topbar|nav|term|ai|apps|status|account)\/.+/,
   /^space\/web\/assets\/common\/js\/tsconfig\.json$/,
   /^space\/web\/assets\/(?:blog|curio|daymark)\/(?:css|js)\/.+/,
   /^space\/web\/layouts\/[^/]+$/,
@@ -501,6 +510,10 @@ export const ALLOWED_PLACES = Object.freeze([
 const PLACE_SCOPE_RE = /^space\/(?:web\/(?:assets|layouts|data)|scripts)\//;
 
 export const PENDING_FILE = 'space/scripts/check/layers-pending.json';
+
+/** 规则 28：common 的库（common/js/ 下 frame/ 以外）与外壳（common/js/frame/） */
+export const FRAME_RE = /^space\/web\/assets\/common\/js\/frame\//;
+export const COMMON_LIB_RE = /^space\/web\/assets\/common\/js\/(?!frame\/)/;
 export const EXCEPTIONS_FILE = 'space/scripts/check/layers-exceptions.json';
 
 /**
@@ -575,8 +588,8 @@ export function loadExceptions(root) {
   try { list = JSON.parse(readFileSync(p, 'utf8')).exceptions; } catch (e) { return { list: [], errors: [`${EXCEPTIONS_FILE}: 不是合法 JSON（${e.message}）`] }; }
   if (!Array.isArray(list)) return { list: [], errors: [`${EXCEPTIONS_FILE}: exceptions 必须是数组`] };
   list.forEach((x, i) => {
-    if (!x || !['23', '24', '25', '26'].includes(String(x.rule)) || typeof x.file !== 'string' || !x.file) {
-      errors.push(`${EXCEPTIONS_FILE}: 第 ${i + 1} 条要有 rule（23–26）和 file`);
+    if (!x || !['23', '24', '25', '26', '28'].includes(String(x.rule)) || typeof x.file !== 'string' || !x.file) {
+      errors.push(`${EXCEPTIONS_FILE}: 第 ${i + 1} 条要有 rule（23–26、28）和 file`);
     }
     if (!x || typeof x.reason !== 'string' || !x.reason.trim()) {
       errors.push(`${EXCEPTIONS_FILE}: 第 ${i + 1} 条（${x && x.file}）没写 reason（规则 27：例外要写下来、说清楚原因）`);
@@ -629,6 +642,9 @@ export function checkSpace(root, opts = {}) {
       }
       const rule = crossRule(ownerOf(rel), ownerOf(tRel));
       if (rule) raw.push({ rule, file: rel, ref: tRel, msg: crossMsg(rule, rel, ownerOf(rel), ownerOf(tRel), tRel) });
+      if (COMMON_LIB_RE.test(rel) && FRAME_RE.test(tRel)) {
+        raw.push({ rule: '28', file: rel, ref: tRel, msg: `${rel}: common 的库不许依赖外壳 frame/（规则 28），发现 ${tRel}` });
+      }
     }
   }
 

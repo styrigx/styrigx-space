@@ -13,9 +13,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { createShell, TERM_EN } from '../../../../space/web/assets/common/js/term/terminal.js';
-import { mountAuthErr } from '../../../../space/web/assets/common/js/account/cmd/auth-err.js';
-import { mountProxy } from '../../../../space/web/assets/common/js/account/proxy.js';
+import { createShell, TERM_EN } from '../../../../space/web/assets/common/js/frame/term/terminal.js';
+import { mountAuthErr } from '../../../../space/web/assets/common/js/frame/account/cmd/auth-err.js';
+import { mountProxy } from '../../../../space/web/assets/common/js/frame/account/proxy.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -146,7 +146,7 @@ test('账号层 sub：服务端 401 → 先 su <用户>；403 forbidden → 先 
 });
 
 test('子站 / 博客终端挂 v6 身份层（全站一个终端：su / su root / exit / lock 在奇趣、日刻、博客也能用）', () => {
-  for (const f of ['space/web/assets/curio/js/sgx/topbar-host.js', 'space/web/assets/daymark/js/sgx/topbar-host.js', 'space/web/assets/blog/js/entries/topnav.ts', 'space/web/assets/common/js/topbar/quick-panel.js']) {
+  for (const f of ['space/web/assets/curio/js/sgx/topbar-host.js', 'space/web/assets/daymark/js/sgx/topbar-host.js', 'space/web/assets/blog/js/entries/topnav.ts', 'space/web/assets/common/js/frame/topbar/quick-panel.js']) {
     const s = rd(f);
     assert.match(s, /\n\s+identityTerm: mountIdentityLayer,\n/, f);
     assert.match(s, /\n\s+identityWhoami: identityWhoami,\n/, f);
@@ -172,7 +172,7 @@ test('冒烟 smoke2（已登录、无组、非 root）：sub show / sub 不再�
 });
 
 test('旷野状态卡 403（已登录不在 status 组）留着凭据记录区（展开回已上线的 auditErrPerm）；401 访客照旧藏起来', () => {
-  const src = rd('space/web/assets/common/js/apps/space-status.js');
+  const src = rd('space/web/assets/common/js/frame/apps/space-status.js');
   assert.match(src, /root\.toggleAttribute\('data-lock-perm', status === 403\)/);
   assert.match(src, /setState\('locked'\);\n\s+root\.removeAttribute\('data-lock-perm'\);/, 'exit / lock 回访客清掉');
   const css = rd('space/web/assets/common/css/input.css');

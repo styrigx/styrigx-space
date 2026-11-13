@@ -38,7 +38,7 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 shell-topbar.
   assert.doesNotMatch(base, /"tiles" /);
   const host = read('space/web/assets/daymark/js/sgx/topbar-host.js');
   /* 合站：直接引主站的共享外壳源文件（没有 js/sgx/shell/ 副本） */
-  for (const m of ['../../../common/js/topbar/topbar-panel.js', '../../../common/js/ui/modal-sheet.js', '../../../common/js/ai/ai-panel.js', '../../../common/js/ui/vk.js', '../../../common/js/prefs/prefs-write.js']) {
+  for (const m of ['../../../common/js/frame/topbar/topbar-panel.js', '../../../common/js/ui/modal-sheet.js', '../../../common/js/frame/ai/ai-panel.js', '../../../common/js/ui/vk.js', '../../../common/js/prefs/prefs-write.js']) {
     assert.match(host, new RegExp("from '" + m.replace(/[.\/]/g, '\\$&') + "'"), m);
   }
   assert.doesNotMatch(host, /share-button|mountShare/, 'v6 P4：分享本页磁贴拿掉');

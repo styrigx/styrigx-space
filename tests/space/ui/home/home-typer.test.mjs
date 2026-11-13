@@ -13,7 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-const { typerStep, TYPER_MS } = await import('../../../../space/web/assets/common/js/apps/home-typer.js');
+const { typerStep, TYPER_MS } = await import('../../../../space/web/assets/common/js/frame/apps/home-typer.js');
 const rd = (/** @type {string} */ f) => readFileSync(path.join(REPO, f), 'utf8');
 
 test('typerStep：从整句停顿开始，删到空 → 空白 → 打满 → 停顿，一整圈回到起点', () => {
@@ -53,7 +53,7 @@ test('模板：$ 行标语轮播 + # 行个人资料签名（不写死），JS �
   assert.match(t, /data-home-motto-line\{\{ if not \$profile\.motto \}\} hidden\{\{ end \}\}/, '空签名首帧就藏行');
   assert.doesNotMatch(t, /\$h\.(role|intro)\b/);
   assert.equal(rd('space/web/hugo.yaml').match(/^\s+tagline: '(.*)'$/m)?.[1], 'A Personal Digital Space');
-  const idx = rd('space/web/assets/common/js/apps/index.js');
+  const idx = rd('space/web/assets/common/js/frame/apps/index.js');
   assert.match(idx, /import \{ mountTyper \} from '\.\/home-typer\.js'/);
   assert.match(idx, /addEventListener\(PROFILE_EVENT, syncMotto\)/);
 });

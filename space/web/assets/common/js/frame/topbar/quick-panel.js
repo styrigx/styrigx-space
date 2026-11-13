@@ -8,8 +8,8 @@
  * - 布局行（手机 / 自动 / 桌面，P4-3 PR-4b；模式规则见 ui/layout-mode.js）；
  * - AI 窗口内容 ai/ai-panel.js（共享外壳 ai.js），键盘高度订阅 ui/vk.js（共享外壳 vk.js，P4-3 PR-3）。
  */
-import { on as featOn } from '../features/features.js';
-import { sgxNavigate, sgxReplace } from '../status/diag-jumptrace.js';
+import { on as featOn } from '../../features/features.js';
+import { sgxNavigate, sgxReplace } from '../../core/diag-jumptrace.js';
 import {
   isDark,
   palette,
@@ -18,17 +18,17 @@ import {
   layoutPref,
   setLayout,
   setLang,
-} from '../prefs/prefs.js';
-import { isLang } from '../i18n/lang-path.js';
-import { modalSheet } from '../ui/modal-sheet.js';
+} from '../../prefs/prefs.js';
+import { isLang } from '../../i18n/lang-path.js';
+import { modalSheet } from '../../ui/modal-sheet.js';
 import { mountTopbar } from './topbar-panel.js';
 import { mountAiChat } from '../ai/ai-panel.js';
 import { mountAccountWindow, layerFromPath } from '../account/window.js';
 import { mountAccountLayer } from '../account/cmd/layer.js';
-import { mountIdentityLayer } from '../identity/layer.js';
-import { whoami as identityWhoami, hasMarker as identityMarker } from '../identity/api.js';
-import { KEY_SPACE_PASSWORD } from '../core/key-names.js';
-import { onKeyboardHeight } from '../ui/vk.js';
+import { mountIdentityLayer } from '../account/identity/layer.js';
+import { whoami as identityWhoami, hasMarker as identityMarker } from '../account/identity/api.js';
+import { KEY_SPACE_PASSWORD } from '../../core/key-names.js';
+import { onKeyboardHeight } from '../../ui/vk.js';
 import * as terminal from '../term/terminal.js';
 
 /** 语言偏好（sgx-lang：配置里的语言；'system' / 旧版没存 = 跟随系统） @returns {string} */

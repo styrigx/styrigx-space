@@ -7,8 +7,8 @@
  * mountHome() 由 apps/entries/entry-space.js 在加载时调一次（先于 initCore，事件监听在外壳取数之前挂好）。
  */
 import { mountDaymarkToday } from './daymark-today.js';
-import { i18nTable } from '../i18n/i18n.js';
-import { PROFILE_EVENT } from '../prefs/profile.js';
+import { i18nTable } from '../../i18n/i18n.js';
+import { PROFILE_EVENT } from '../../prefs/profile.js';
 import { mountTyper } from './home-typer.js';
 
 /** 界面文案：页面字符串表 #sgx-i18n-space */

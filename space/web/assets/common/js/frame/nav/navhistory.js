@@ -4,10 +4,10 @@
  * 只为 ‹ 服务的上一级表（parentOf）、一级 App 回主页、头像来源页回跳（#142）随之删除；
  * 保留系统返回需要的「直接打开子页插入一条主页历史」和 healRoot()（桌面版 / 移动版切换修复）。
  */
-import { on } from '../core/events.js';
-import { sgxReplace } from '../status/diag-jumptrace.js';
-import { langPath } from '../i18n/lang-path.js';
-import { i18nTable, pageLang } from '../i18n/i18n.js';
+import { on } from '../../core/events.js';
+import { sgxReplace } from '../../core/diag-jumptrace.js';
+import { langPath } from '../../i18n/lang-path.js';
+import { i18nTable, pageLang } from '../../i18n/i18n.js';
 /** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上） */
 const tx = i18nTable('core');
 

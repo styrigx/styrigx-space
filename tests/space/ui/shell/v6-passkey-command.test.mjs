@@ -15,10 +15,10 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { createShell } from '../../../../space/web/assets/common/js/term/terminal.js';
-import { mountAuthErr } from '../../../../space/web/assets/common/js/account/cmd/auth-err.js';
-import { mountKeys } from '../../../../space/web/assets/common/js/account/cmd/keys.js';
-import * as accountApi from '../../../../space/web/assets/common/js/account/api.js';
+import { createShell } from '../../../../space/web/assets/common/js/frame/term/terminal.js';
+import { mountAuthErr } from '../../../../space/web/assets/common/js/frame/account/cmd/auth-err.js';
+import { mountKeys } from '../../../../space/web/assets/common/js/frame/account/cmd/keys.js';
+import * as accountApi from '../../../../space/web/assets/common/js/frame/account/api.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -61,7 +61,7 @@ test('sudo passkey（v6）交给身份层，身份层先回 rootCreds（定稿 �
   const L = layers();
   assert.equal(sh('u:styrigx').exec('sudo passkey add', L.v).flow, true);
   assert.deepEqual(L.calls, [['ident.cmdSudo', ['passkey', 'add']]]);
-  const layer = rd('space/web/assets/common/js/identity/layer.js');
+  const layer = rd('space/web/assets/common/js/frame/account/identity/layer.js');
   assert.match(layer, /if \(argv\[0\] === 'passkey'\) \{ C\.err\(t\('rootCreds'\)\); return; \}\n\s+const cmd = sudoCommand\(argv\);/);
   const old = layers();
   assert.equal(text(sh('nobody').exec('sudo passkey add', old.v).out[0]), 'usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who', '访客：同 main 不进身份层，给用法');
@@ -80,7 +80,7 @@ test('man：passkey 给 v6 普通用户与 root6 都列；AUTH 行 = 已上线 g
   const en = yaml.load(rd('space/web/data/common/sgx-shell-i18n/en.yaml'));
   assert.equal(zh.manBody.passkey.auth, zh.manBody.groups.auth.split('；')[0]);
   assert.equal(en.manBody.passkey.auth, en.manBody.groups.auth.split(';')[0]);
-  const pg = rd('space/web/assets/common/js/term/man/pages.js');
+  const pg = rd('space/web/assets/common/js/frame/term/man/pages.js');
   assert.match(pg, /passkey: \{ d: '[^']+', syn: \['passkey', 'passkey add', 'passkey rm <n>'\], auth: 'signed in' \}/, 'SYNOPSIS 同 main（passkey ls 进 SYNOPSIS 仍是待定项）');
 });
 

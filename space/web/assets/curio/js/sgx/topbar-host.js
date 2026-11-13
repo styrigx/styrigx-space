@@ -7,17 +7,17 @@
  * - AI 窗口内容 ai.js（v6 P4 起「分享本页」磁贴随分享短链删除）。
  * 取代原来的 topbar.js（导航抽屉）、share-host.js（右圆分享）。
  */
-import { mountTopbar } from '../../../common/js/topbar/topbar-panel.js';
+import { mountTopbar } from '../../../common/js/frame/topbar/topbar-panel.js';
 import { modalSheet } from '../../../common/js/ui/modal-sheet.js';
-import { mountAiChat } from '../../../common/js/ai/ai-panel.js';
-import { mountAccountWindow, layerFromPath } from '../../../common/js/account/window.js';
-import { mountAccountLayer } from '../../../common/js/account/cmd/layer.js';
-import { mountIdentityLayer } from '../../../common/js/identity/layer.js';
-import { whoami as identityWhoami, hasMarker as identityMarker } from '../../../common/js/identity/api.js';
+import { mountAiChat } from '../../../common/js/frame/ai/ai-panel.js';
+import { mountAccountWindow, layerFromPath } from '../../../common/js/frame/account/window.js';
+import { mountAccountLayer } from '../../../common/js/frame/account/cmd/layer.js';
+import { mountIdentityLayer } from '../../../common/js/frame/account/identity/layer.js';
+import { whoami as identityWhoami, hasMarker as identityMarker } from '../../../common/js/frame/account/identity/api.js';
 import { KEY_SPACE_PASSWORD } from '../../../common/js/core/key-names.js';
 import { onKeyboardHeight } from '../../../common/js/ui/vk.js';
 import * as prefs from '../../../common/js/prefs/prefs-write.js';
-import * as terminal from '../../../common/js/term/terminal.js';
+import * as terminal from '../../../common/js/frame/term/terminal.js';
 
 function boot() {
   mountTopbar({

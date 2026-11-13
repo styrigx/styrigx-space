@@ -12,8 +12,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { pageStateFor, createWho } from '../../../../space/web/assets/common/js/term/core/who.js';
-import { switchPageSession, SESSION_EVENT } from '../../../../space/web/assets/common/js/topbar/topbar-panel.js';
+import { pageStateFor, createWho } from '../../../../space/web/assets/common/js/frame/term/core/who.js';
+import { switchPageSession, SESSION_EVENT } from '../../../../space/web/assets/common/js/frame/topbar/topbar-panel.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -74,16 +74,16 @@ test('switchPageSession：locked → valid 就地切并发 live 事件；没变�
 });
 
 test('源码约定：顶栏订阅 who.onV6 → switchPageSession（登录了重取 NAVIGATE STATUS）；守卫 / AI 窗口 / 服务状态页 / 云同步接 live 事件', () => {
-  const tp = rd('space/web/assets/common/js/topbar/topbar-panel.js');
+  const tp = rd('space/web/assets/common/js/frame/topbar/topbar-panel.js');
   assert.match(tp, /who\.onV6\(function \(\/\*\* @type \{'valid'\|'locked'\} \*\/ st\) \{\s*if \(switchPageSession\(doc, st\) && st === 'valid' && status\) status\(\);/);
   const g = rd('space/web/assets/common/js/auth/guard.js');
   assert.match(g, /addEventListener\(SESSION_EVENT, function \(\/\*\* @type \{any\} \*\/ e\) \{ if \(e && e\.detail && e\.detail\.live && e\.detail\.ok\) bindAutoLock\(\); \}\)/);
   assert.match(g, /function checkSessionForAutoLock\(\) \{[\s\S]{0,120}if \(pageState\(\) !== 'valid'\) return;/);
-  const ai = rd('space/web/assets/common/js/ai/ai-panel.js');
+  const ai = rd('space/web/assets/common/js/frame/ai/ai-panel.js');
   assert.match(ai, /if \(d\.ok\) \{ setLocked\(false\); loadModels\(\); \} else setLocked\(true\);/);
-  const st = rd('space/web/assets/common/js/apps/space-status.js');
+  const st = rd('space/web/assets/common/js/frame/apps/space-status.js');
   assert.match(st, /window\.addEventListener\('sgx:session'[\s\S]{0,260}if \(d\.ok\) \{ load\(\); return; \}\s*dropCache\(\);\s*data = null;\s*setState\('locked'\);/);
-  const core = rd('space/web/assets/common/js/apps/core.js');
+  const core = rd('space/web/assets/common/js/frame/apps/core.js');
   assert.match(core, /bindSessionSync\(\);/);
 });
 

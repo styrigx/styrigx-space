@@ -19,7 +19,7 @@
 
 ### 2.1 一个终端
 
-2.1.1 tty1 / tty2 / tty3 / tty5 合成一个终端：一个会话、一份历史（sessionStorage）、一张命令表（`space/web/assets/common/js/term/cmds/`）。AI 窗口（tty4）不动，`$` 开头的输入照旧走同一张命令表、自己的历史。
+2.1.1 tty1 / tty2 / tty3 / tty5 合成一个终端：一个会话、一份历史（sessionStorage）、一张命令表（`space/web/assets/common/js/frame/term/cmds/`）。AI 窗口（tty4）不动，`$` 开头的输入照旧走同一张命令表、自己的历史。
 
 2.1.2 窗口形态：桌面是居中大窗（宽 `min(1040px, 86vw)`、高 `72vh`，与顶栏留空）；手机是整块卡片。下拉式（Quake）否决。
 

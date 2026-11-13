@@ -8,13 +8,13 @@
  *
  * 只 import lib/、auth/、shell/（check-layers 规则 3）。文案在外壳字符串表 identity 节（sgx-shell-i18n），四个站同一份。
  */
-import { esc } from '../core/util.js';
-import { flatStrings, shellSection } from '../term/core/strings.js';
-import { layerCtx } from '../term/view/layer-ctx.js';
+import { esc } from '../../../core/util.js';
+import { flatStrings, shellSection } from '../../term/core/strings.js';
+import { layerCtx } from '../../term/view/layer-ctx.js';
 import * as api from './api.js';
-import { USER_NAME_RE, sudoCommand } from '../term/core/ident-args.js';
+import { USER_NAME_RE, sudoCommand } from '../../term/core/ident-args.js';
 
-export { USER_NAME_RE, SUDO_CMDS, parseUseradd, parseUsermod, sudoCommand } from '../term/core/ident-args.js';
+export { USER_NAME_RE, SUDO_CMDS, parseUseradd, parseUsermod, sudoCommand } from '../../term/core/ident-args.js';
 
 /** 前台空闲多久弹回（毫秒；服务端 whoami 的 idleMs 为准，这里是缺省） */
 export const ROOT_IDLE_MS = 15 * 60 * 1000;

@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHistory } from '../../../../space/web/assets/common/js/term/core/history.js';
+import { createHistory } from '../../../../space/web/assets/common/js/frame/term/core/history.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const SHELL = path.join(REPO, 'space/web/assets/common/js');
@@ -38,13 +38,13 @@ test('宿主：只剩全站终端（一份历史 sgx-term-hist）；tty1 / tty3 
     'space/layer.js', 'space/commands.js', 'space/reset.js', 'space/unlock.js']) {
     assert.ok(!existsSync(path.join(SHELL, f)), f + ' 删了');
   }
-  assert.match(rd('term/terminal.js'), /const HIST_KEY = 'sgx-term-hist';/);
-  assert.doesNotMatch(rd('account/window.js'), /histKey|createInputLine/);
-  assert.doesNotMatch(rd('account/cmd/layer.js'), /histKey|createInputLine/, '终端里的账号层没有自己的输入行 / 历史');
+  assert.match(rd('frame/term/terminal.js'), /const HIST_KEY = 'sgx-term-hist';/);
+  assert.doesNotMatch(rd('frame/account/window.js'), /histKey|createInputLine/);
+  assert.doesNotMatch(rd('frame/account/cmd/layer.js'), /histKey|createInputLine/, '终端里的账号层没有自己的输入行 / 历史');
 });
 
 test('两层上下文共用终端的输入行（layer-ctx.js）：输入行状态落在原型上，其余各管各', async () => {
-  const { layerCtx } = await import('../../../../space/web/assets/common/js/term/view/layer-ctx.js');
+  const { layerCtx } = await import('../../../../space/web/assets/common/js/frame/term/view/layer-ctx.js');
   const line = { mode: 'cmd', onSecret: null, out: () => 'out' };
   const a = layerCtx(line, { t: 'a' });
   const b = layerCtx(line, { t: 'b' });

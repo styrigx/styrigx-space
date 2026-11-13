@@ -8,7 +8,7 @@
  * 文案来自页面内 sgx-i18n-space JSON（中英双语），JS 与语言无关。
  * mountSpace() 在加载时挂一次（入口 entry-space.js / entry-space-status.js），返回 destroy()：拆掉本次挂的全部监听。
  */
-import { on as evOn } from '../core/events.js';
+import { on as evOn } from '../../core/events.js';
 import { uptimeDays, uptimeText } from '../status/uptime.js';
 
 /**

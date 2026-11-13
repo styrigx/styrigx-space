@@ -10,9 +10,9 @@
  *
  * 有没有自定义头像：看 /avatar/32.webp 的 ETag，默认图是 "d-32"。
  */
-import { on } from '../core/events.js';
-import { toast } from '../ui/toast.js';
-import { i18nTable } from '../i18n/i18n.js';
+import { on } from '../../core/events.js';
+import { toast } from '../../ui/toast.js';
+import { i18nTable } from '../../i18n/i18n.js';
 /** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上，缺键回退英文） */
 const ct = i18nTable('core');
 

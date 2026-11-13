@@ -183,7 +183,7 @@ term:
   exitFirst: "已经以 {u} 登录 · 先 {x}"
   notHere: "{x}：请在终端里运行（Ctrl K）"
   # #404 未决项（Gray 11-11 15:37 定稿文案）：v6 身份输已移除的旧命令（第 3 项，P4 连命令一起删）
-# 站内终端 man 页的 NAME 说明（终端统一 T5；英文底在 assets/common/js/term/man/pages.js，懒加载）。键 = 命令名，命令写法不翻译。
+# 站内终端 man 页的 NAME 说明（终端统一 T5；英文底在 assets/common/js/frame/term/man/pages.js，懒加载）。键 = 命令名，命令写法不翻译。
 man:
   man: "查看命令的手册页"
   cd: "切换当前目录（要过去用 open）"
@@ -212,7 +212,7 @@ man:
   userdel: "删除用户，连同会话、钥匙和组"
   usermod: "把用户加进组或移出组"
   rescue: "输恢复钥匙 → 15 分钟 root 救援会话"
-# 站内终端 man 页的正文（S9：DESCRIPTION / AUTH / NOTES；英文底在 assets/common/js/term/man/pages.js，行数一一对应）。命令写法、提示符不翻译。
+# 站内终端 man 页的正文（S9：DESCRIPTION / AUTH / NOTES；英文底在 assets/common/js/frame/term/man/pages.js，行数一一对应）。命令写法、提示符不翻译。
 # 中文页每一页都要有（tests/space/ui/shell/man-i18n.test.mjs 查）。
 manBody:
   ask:

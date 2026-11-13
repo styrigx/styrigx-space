@@ -1,5 +1,5 @@
 /**
- * 账号（2026-11-08 账号 UI 改版，space/web/assets/common/js/account/*；S9 起账号卡片只展示，操作都在全站终端的账号层 cmd/*）：
+ * 账号（2026-11-08 账号 UI 改版，space/web/assets/common/js/frame/account/*；S9 起账号卡片只展示，操作都在全站终端的账号层 cmd/*）：
  * - commands.js：命令字、入口名 → 终端里怎么开、密码 / 恢复密钥提示
  * - 纯函数：agoText、mmdd、verifyKinds、三选一
  * - 字符串表：sgx-shell-i18n 的 account.* 中英键一致；代码里写死的每个键两种语言都有
@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const DIR = 'space/web/assets/common/js/account/';
+const DIR = 'space/web/assets/common/js/frame/account/';
 const rd = (/** @type {string} */ p) => readFileSync(path.join(REPO, p), 'utf8');
 const strip = (/** @type {string} */ s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
@@ -24,7 +24,7 @@ const C = await import('../../../../' + DIR + 'commands.js');
 const D = await import('../../../../' + DIR + 'cmd/devices.js');
 const K = await import('../../../../' + DIR + 'cmd/keys.js');
 const W = await import('../../../../' + DIR + 'window.js');
-const ACM = await import('../../../../space/web/assets/common/js/term/cmds/acct/index.js');
+const ACM = await import('../../../../space/web/assets/common/js/frame/term/cmds/acct/index.js');
 
 test('v6 P4：旧账号会话的命令字（sudo root / reauth / reset）和输密码 / 恢复密钥那一行删了；卡片没有命令行', () => {
   for (const gone of ['ROOT_COMMAND', 'CMD', 'PS_PASSWORD', 'PS_RECOVERY_KEY', 'TRY_AGAIN', 'TRIES_OVER', 'MAX_TRIES', 'parseCmd', 'WINDOW_TABLE', 'LAYERS', 'LAYER_PATH', 'PS_GUEST', 'PS_ROOT', 'PS_RESET']) assert.equal(/** @type {any} */ (C)[gone], undefined, gone);
@@ -136,8 +136,8 @@ test('后端名字只在 api.js：入口、action 名、请求字段、状态字
 
 test('旧账号整页删干净；/account/*（reset 除外）都 301 到本语言首页 #acct=<层>；奇趣 / 日刻入口指向 su（2c）', () => {
   for (const p of ['layouts/_default/account.html', 'layouts/_default/account-security.html', 'layouts/_default/account-devices.html', 'layouts/_default/account-apps.html',
-    'layouts/_default/account-profile.html', 'layouts/_default/account-reset.html', 'content/account.md', 'content/zh/account.md', 'assets/common/js/apps/account.js',
-    'assets/common/js/apps/account-security.js', 'assets/common/js/apps/entries/entry-account.js', 'assets/common/js/shell/account-term.js', 'layouts/partials/sgx-account-card.html']) {
+    'layouts/_default/account-profile.html', 'layouts/_default/account-reset.html', 'content/account.md', 'content/zh/account.md', 'assets/common/js/frame/apps/account.js',
+    'assets/common/js/frame/apps/account-security.js', 'assets/common/js/frame/apps/entries/entry-account.js', 'assets/common/js/shell/account-term.js', 'layouts/partials/sgx-account-card.html']) {
     assert.equal(existsSync(path.join(REPO, 'space/web', p)), false, p);
   }
   const red = rd('space/web/static/_redirects');
@@ -149,7 +149,7 @@ test('旧账号整页删干净；/account/*（reset 除外）都 301 到本语�
   assert.doesNotMatch(red, /^(?:\/zh)?\/account\/apps\//m, '/account/apps/ 不再 301');
   /* v6 P4（定稿 §十三，Gray 11-11 17:47）：旧地址 /account/reset/ 直接删——不跳转、不预填，同任何不存在的路径 404 */
   assert.doesNotMatch(red, /^(?:\/zh)?\/account\/reset\//m, '/account/reset/ 不再 301');
-  const tp = rd('space/web/assets/common/js/topbar/topbar-panel.js');
+  const tp = rd('space/web/assets/common/js/frame/topbar/topbar-panel.js');
   assert.match(tp, /\/\^#acct\(\?:=\(\[a-z\]\*\)\)\?\$\//, '#acct=<层>（&app= 随应用授权删除，v6 P4）');
   assert.doesNotMatch(tp, /&app=\(/);
   assert.match(tp, /closest\('\[data-acct-open\]'\)/);

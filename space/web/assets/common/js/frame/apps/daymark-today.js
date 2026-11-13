@@ -10,8 +10,8 @@
  * 不读、不显示任何私密内容（随手一笔 note 等）：即使响应里带了别的字段也不用。
  * 本文件在 lib/ 层：不 import shell/ 或 apps/。
  */
-import { getJSON, setJSON } from '../prefs/storage.js';
-import { i18nTable, pageLang } from '../i18n/i18n.js';
+import { getJSON, setJSON } from '../../prefs/storage.js';
+import { i18nTable, pageLang } from '../../i18n/i18n.js';
 /** 界面文案：页面字符串表 #sgx-i18n-space（语言包化 2026-11-07；当前语言已叠在英文上） */
 const tx = i18nTable('space');
 

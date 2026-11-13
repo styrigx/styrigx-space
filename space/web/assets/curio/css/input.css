@@ -8,7 +8,7 @@
 @source "../js/**/*.js";
 /* 共享外壳（合站前是本站的副本，现在直接用主站的源文件）：顶栏等 partial + 外壳 JS */
 @source "../../../layouts/partials/common/{shell-topbar,sgx-ph,sgx-tr,sgx-lang-path}.html";
-@source "../../../assets/common/js/{topbar/topbar-panel,ui/modal-sheet,ai/ai-panel,ui/vk}.js";
+@source "../../../assets/common/js/{frame/topbar/topbar-panel,ui/modal-sheet,frame/ai/ai-panel,ui/vk}.js";
 @source "../../../assets/common/js/{ui/palette-scheme,prefs/prefs-write,prefs/ui-cookie-read,ui/layout-mode,i18n/lang-path,i18n/lang-boot}.js";
 
 /* 原 darkMode: 'class' */

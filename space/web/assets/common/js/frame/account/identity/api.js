@@ -4,8 +4,8 @@
  *
  * 只 import auth/、lib/（check-layers 规则 3）。
  */
-import { postJSON } from '../auth/post-json.js';
-import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel } from '../auth/passkey-assert.js';
+import { postJSON } from '../../../auth/post-json.js';
+import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel } from '../../../auth/passkey-assert.js';
 
 /** 接口地址 */
 export const IDENTITY_API = '/api/identity';

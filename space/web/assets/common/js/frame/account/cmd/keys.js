@@ -6,7 +6,7 @@
  * 后端 POST /api/identity passkey-*（user 档，按服务端会话 uid 管栈顶那个用户自己的；api.v6keys）；401 / 403 走 C.authErr（./auth-err.js）。
  * v6 P4 起旧的账号钥匙（sudo root reauth / reset 票、/api/account/keys、账号 passwd）删除；改密码是身份层的 passwd。
  */
-import { registerPasskey, genPkPrefillName } from '../../auth/passkey-register.js';
+import { registerPasskey, genPkPrefillName } from '../../../auth/passkey-register.js';
 
 /** MM-DD @param {number} ts */
 export function mmdd(ts) {

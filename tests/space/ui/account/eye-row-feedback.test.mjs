@@ -126,7 +126,7 @@ test('眼睛：EYE_OFF_SVG 带斜线、EYE_SVG 不带；icon.html 有 eye/eye-of
 });
 
 test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案为显示密码/隐藏密码', () => {
-    const files = ['space/web/assets/common/js/account/window.js', 'space/web/assets/common/js/account/cmd/keys.js']
+    const files = ['space/web/assets/common/js/frame/account/window.js', 'space/web/assets/common/js/frame/account/cmd/keys.js']
     .concat(['space/web/assets/common/js/auth/guard.js']);
   for (const f of files) {
     const src = read(f);
@@ -134,7 +134,7 @@ test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案�
     assert.ok(!src.includes('M2 12s3.5-7'), f + ' 不应再内联眼睛 SVG（统一走 bindEyeButton）');
   }
   /* 进站 v3 L1：安全页（security.js / security-lock.js）和锁屏 lock.js、cred-rows.js 都删了，进站凭证在盾牌终端里 */
-  for (const f of ['apps/security.js', 'apps/security-lock.js', 'shell/lock.js', 'auth/cred-rows.js']) {
+  for (const f of ['frame/apps/security.js', 'frame/apps/security-lock.js', 'shell/lock.js', 'auth/cred-rows.js']) {
     assert.ok(!existsSync(join(ROOT, 'space/web/assets/common/js', f)), f + ' 已删');
   }
   /* v6 P4 收尾：旧账号页文案表 js.account 没有页面输出、没有脚本读，整节删了 */

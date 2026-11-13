@@ -7,7 +7,7 @@
  *
  * 每个调用都回 Promise<{ s: number, j: any }>（同 auth/post-json.js postJSON；网络失败 reject）。
  */
-import { postJSON, errText as apiErrText } from '../auth/post-json.js';
+import { postJSON, errText as apiErrText } from '../../auth/post-json.js';
 
 /** 账号接口：POST 到 /api/account/<入口> */
 const ACCOUNT_API = '/api/account';

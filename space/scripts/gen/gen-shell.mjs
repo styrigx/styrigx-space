@@ -46,10 +46,10 @@ const SRC = {
   topbar: path.join(REPO, 'space/web/layouts/partials/common/shell-topbar.html'),
   pageHeader: path.join(REPO, 'space/web/layouts/partials/common/sgx-ph.html'),
   footer: path.join(REPO, 'space/web/layouts/partials/common/sgx-footer.html'),
-  topbarJs: path.join(REPO, 'space/web/assets/common/js/topbar/topbar-panel.js'),
-  terminal: path.join(REPO, 'space/web/assets/common/js/term/terminal.js'),
+  topbarJs: path.join(REPO, 'space/web/assets/common/js/frame/topbar/topbar-panel.js'),
+  terminal: path.join(REPO, 'space/web/assets/common/js/frame/term/terminal.js'),
   modalSheet: path.join(REPO, 'space/web/assets/common/js/ui/modal-sheet.js'),
-  ai: path.join(REPO, 'space/web/assets/common/js/ai/ai-panel.js'),
+  ai: path.join(REPO, 'space/web/assets/common/js/frame/ai/ai-panel.js'),
   vk: path.join(REPO, 'space/web/assets/common/js/ui/vk.js'),
   prefsWrite: path.join(REPO, 'space/web/assets/common/js/prefs/prefs-write.js'),
   reader: path.join(REPO, 'space/web/assets/common/js/prefs/ui-cookie-read.js'),
@@ -172,7 +172,7 @@ function renderNav() {
 }
 
 /** 终端公共件目录（终端统一 T1）：terminal.js、ai-panel.js 只许 import 这里面的文件 */
-export const TERM_DIR = path.join(REPO, 'space/web/assets/common/js/term');
+export const TERM_DIR = path.join(REPO, 'space/web/assets/common/js/frame/term');
 
 /**
  * 一份源码的 import 路径（去掉注释后）：静态 import + 字面量路径的 import()（终端统一 T5：man 页懒加载）；import() 的参数不是字符串字面量就报错
@@ -354,10 +354,10 @@ export const SHELL_FILES = Object.freeze({
   'topbar.html': 'space/web/layouts/partials/common/shell-topbar.html',
   'page-header.html': 'space/web/layouts/partials/common/sgx-ph.html',
   'footer.html': 'space/web/layouts/partials/common/sgx-footer.html',
-  'topbar.js': 'space/web/assets/common/js/topbar/topbar-panel.js',
-  'terminal.js': 'space/web/assets/common/js/term/terminal.js',
+  'topbar.js': 'space/web/assets/common/js/frame/topbar/topbar-panel.js',
+  'terminal.js': 'space/web/assets/common/js/frame/term/terminal.js',
   'modal-sheet.js': 'space/web/assets/common/js/ui/modal-sheet.js',
-  'ai.js': 'space/web/assets/common/js/ai/ai-panel.js',
+  'ai.js': 'space/web/assets/common/js/frame/ai/ai-panel.js',
   'vk.js': 'space/web/assets/common/js/ui/vk.js',
   'prefs-write.js': 'space/web/assets/common/js/prefs/prefs-write.js',
   'ui-cookie-read.js': 'space/web/assets/common/js/prefs/ui-cookie-read.js',

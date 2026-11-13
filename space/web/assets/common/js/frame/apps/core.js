@@ -4,23 +4,23 @@
  * 滚动边缘效果、布局钩子（本机到访计时与数字健康 v6 P4 删除，定稿 v5.5 §四）。
  * 必须跨脚本共享的最小 API 挂到 window.SGX（见 sgx.js）。
  */
-import { SGX } from '../core/sgx.js';
-import { getScheduler, visibleInterval } from '../ui/scheduler.js';
+import { SGX } from '../../core/sgx.js';
+import { getScheduler, visibleInterval } from '../../ui/scheduler.js';
 import { initNavHistory } from '../nav/navhistory.js';
 import { initHeadButtons } from '../topbar/head-buttons.js';
 import { initNav } from '../nav/nav.js';
-import { initScrollFx } from '../ui/scrollfx.js';
+import { initScrollFx } from '../../ui/scrollfx.js';
 /* 锁屏 / 升级只放守卫进 core；界面在 space/guard.js 里按需 import()（frontend-js #6） */
-import { initLock } from '../auth/guard.js';
-import { on as featOn } from '../features/features.js';
-import { normPalette } from '../prefs/prefs.js';
-import { paintPalette } from '../prefs/prefs-write.js';
-import { toast } from '../ui/toast.js';
-import { syncUiCookie } from '../prefs/ui-cookie.js';
-import { initCloudSync, bindSessionSync } from '../prefs/cloud-sync.js';
-import { openSheet, closeSheet } from '../ui/sheet.js';
-import { initFavicon } from '../ui/favicon.js';
-import { initProfile } from '../prefs/profile.js';
+import { initLock } from '../../auth/guard.js';
+import { on as featOn } from '../../features/features.js';
+import { normPalette } from '../../prefs/prefs.js';
+import { paintPalette } from '../../prefs/prefs-write.js';
+import { toast } from '../../ui/toast.js';
+import { syncUiCookie } from '../../prefs/ui-cookie.js';
+import { initCloudSync, bindSessionSync } from '../../prefs/cloud-sync.js';
+import { openSheet, closeSheet } from '../../ui/sheet.js';
+import { initFavicon } from '../../ui/favicon.js';
+import { initProfile } from '../../prefs/profile.js';
 
 let inited = false;
 

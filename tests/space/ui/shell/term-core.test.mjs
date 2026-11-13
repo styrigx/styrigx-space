@@ -8,16 +8,16 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkTermImports } from '../../../../space/scripts/gen/gen-shell.mjs';
-import * as S from '../../../../space/web/assets/common/js/term/core/strings.js';
-import * as P from '../../../../space/web/assets/common/js/term/core/parse.js';
-import * as KH from '../../../../space/web/assets/common/js/term/view/keyhint.js';
-import * as AC from '../../../../space/web/assets/common/js/account/commands.js';
-import * as T from '../../../../space/web/assets/common/js/term/terminal.js';
+import * as S from '../../../../space/web/assets/common/js/frame/term/core/strings.js';
+import * as P from '../../../../space/web/assets/common/js/frame/term/core/parse.js';
+import * as KH from '../../../../space/web/assets/common/js/frame/term/view/keyhint.js';
+import * as AC from '../../../../space/web/assets/common/js/frame/account/commands.js';
+import * as T from '../../../../space/web/assets/common/js/frame/term/terminal.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const read = (f) => readFileSync(path.join(REPO, f), 'utf8');
 
-const FE_AT = { 'terminal.js': 'term/terminal.js', 'ai-panel.js': 'ai/ai-panel.js', 'suggest.js': 'term/suggest.js' };
+const FE_AT = { 'terminal.js': 'frame/term/terminal.js', 'ai-panel.js': 'frame/ai/ai-panel.js', 'suggest.js': 'frame/term/suggest.js' };
 test('宿主转出的是同一份（同一个引用）', async () => {
   assert.equal(KH.KH_EN, S.KH_EN);
   assert.equal(AC.normCmd, P.normCmd);
@@ -29,7 +29,7 @@ test('宿主转出的是同一份（同一个引用）', async () => {
 });
 
 test('没有残留的抄写：flatStrings / normCmd / lev 只定义在 term/core', () => {
-  const files = ['terminal.js', 'ai-panel.js', 'term/view/keyhint.js', 'suggest.js', 'account/window.js', 'account/cmd/layer.js', 'account/commands.js'];
+  const files = ['terminal.js', 'ai-panel.js', 'frame/term/view/keyhint.js', 'suggest.js', 'frame/account/window.js', 'frame/account/cmd/layer.js', 'frame/account/commands.js'];
   for (const f of files) {
     const src = read('space/web/assets/common/js/' + (FE_AT[f] || f));
     assert.doesNotMatch(src, /function (flatStrings|normCmd|lev)\(/, f);
@@ -49,8 +49,8 @@ test('shellSection：读一节；没有元素 / 坏 JSON / 不是对象 → {}',
 });
 
 test('gen-shell：terminal.js / ai-panel.js 过检；term/** 之外的 import（含 import()）、非字面量 import()、term/** 里再往外 import 都拒', () => {
-  checkTermImports(path.join(REPO, 'space/web/assets/common/js/term/terminal.js'), 'terminal.js');
-  checkTermImports(path.join(REPO, 'space/web/assets/common/js/ai/ai-panel.js'), 'ai-panel.js');
+  checkTermImports(path.join(REPO, 'space/web/assets/common/js/frame/term/terminal.js'), 'terminal.js');
+  checkTermImports(path.join(REPO, 'space/web/assets/common/js/frame/ai/ai-panel.js'), 'ai-panel.js');
   const root = mkdtempSync(path.join(tmpdir(), 'sgx-t1-'));
   const term = path.join(root, 'term');
   mkdirSync(path.join(term, 'core'), { recursive: true });

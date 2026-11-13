@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { installI18nDom } from '../../../fixtures/i18n-dom.mjs';
 
 installI18nDom('zh');
-const { curioSummary, statusSummary } = await import('../../../../space/web/assets/common/js/apps/index.js');
+const { curioSummary, statusSummary } = await import('../../../../space/web/assets/common/js/frame/apps/index.js');
 
 test('curioSummary：finds = 全部链接数 + id 最大的那条（按语言取名，缺了回退 / 域名）；devices 在用 = 第一台没退役；games 在玩 = 第一个 playing', () => {
   const links = { ok: true, cats: [

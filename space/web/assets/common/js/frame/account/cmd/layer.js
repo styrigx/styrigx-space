@@ -8,9 +8,9 @@
  *
  * 只 import lib/、auth/、shell/（check-layers 规则 3）。文案在外壳字符串表 account.*（sgx-shell-i18n），四个站同一份。
  */
-import { esc } from '../../core/util.js';
-import { toast } from '../../ui/toast.js';
-import { readCache, effectiveProfile, profileDefaults } from '../../prefs/profile.js';
+import { esc } from '../../../core/util.js';
+import { toast } from '../../../ui/toast.js';
+import { readCache, effectiveProfile, profileDefaults } from '../../../prefs/profile.js';
 import { flatStrings } from '../../term/core/strings.js';
 import { layerCtx } from '../../term/view/layer-ctx.js';
 import * as api from '../api.js';

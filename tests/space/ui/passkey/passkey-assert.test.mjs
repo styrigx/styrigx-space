@@ -63,7 +63,7 @@ test('全站的通行密钥断言都经 getPasskeyAssertion + assertionToJSON：
     const src = readFileSync(join(dir, f), 'utf8');
     assert.ok(!src.includes('navigator.credentials.get'), f + ' 不直接调 credentials.get');
   }
-  const files = ['space/web/assets/common/js/identity/api.js'];
+  const files = ['space/web/assets/common/js/frame/account/identity/api.js'];
   let flows = 0;
   for (const f of files) {
     const src = readFileSync(join(ROOT, f), 'utf8');

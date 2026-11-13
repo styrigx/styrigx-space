@@ -13,8 +13,8 @@
  *
  * 只 import lib/、shell/（check-layers 规则 3）。文案在外壳字符串表 account.*（sgx-shell-i18n），四个站同一份。
  */
-import { esc } from '../core/util.js';
-import { readCache, effectiveProfile, profileDefaults, PROFILE_EVENT } from '../prefs/profile.js';
+import { esc } from '../../core/util.js';
+import { readCache, effectiveProfile, profileDefaults, PROFILE_EVENT } from '../../prefs/profile.js';
 import { flatStrings } from '../term/core/strings.js';
 import { layerFromPath } from './commands.js';
 

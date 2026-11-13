@@ -12,7 +12,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { createShell, TERM_EN } from '../../../../space/web/assets/common/js/term/terminal.js';
+import { createShell, TERM_EN } from '../../../../space/web/assets/common/js/frame/term/terminal.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -60,7 +60,7 @@ test('v6 P4：终端 share 命令删了（定稿 §二 分享短链整套删除�
 
 test('403 forbidden 文案：AI 窗口有自己的一句，不再落到「会话过期」或「服务不可用」（v6 P4：分享磁贴不再生成短链、钥匙层删了）', async () => {
   assert.equal(existsSync(path.join(REPO, 'space/web/assets/common/js/shell/share-button.js')), false, 'v6 P4：分享磁贴拿掉（Gray 11-11 17:47）');
-  const AI = await import('../../../../space/web/assets/common/js/ai/ai-panel.js');
+  const AI = await import('../../../../space/web/assets/common/js/frame/ai/ai-panel.js');
   assert.equal(AI.errKey(403, { error: 'forbidden' }), 'forbidden');
   assert.equal(AI.errKey(401, {}), 'unauthorized');
   for (const lang of ['en', 'zh']) {
@@ -70,7 +70,7 @@ test('403 forbidden 文案：AI 窗口有自己的一句，不再落到「会话
     const st = yaml.load(rd('space/web/data/common/i18n/' + lang + '.yaml'));
     assert.ok(JSON.stringify(st).includes('auditErrPerm'), lang + ' 服务状态页 auditErrPerm');
   }
-  const status = rd('space/web/assets/common/js/apps/space-status.js');
+  const status = rd('space/web/assets/common/js/frame/apps/space-status.js');
   assert.match(status, /status === 401 \|\| status === 403/, '状态卡 403 → 锁卡（不是错误卡）');
   assert.match(status, /perm \? 'auditErrPerm'/);
 });

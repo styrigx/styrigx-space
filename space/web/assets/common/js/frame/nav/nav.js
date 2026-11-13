@@ -6,7 +6,7 @@
 import { applyLayout } from './layout.js';
 
 /**
- * @param {import('../shell/scheduler.js').Scheduler} S
+ * @param {import('../../shell/scheduler.js').Scheduler} S
  */
 export function initNav(S) {
   /* resize 时重算布局（防抖） */

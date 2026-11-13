@@ -13,7 +13,7 @@
  *
  * 文案：t(key) / fmt(key, vars) 来自页面里的 #sgx-i18n-status（partials/common/status-i18n.html，i18n/i18n.js loadI18n）。
  */
-import { esc } from '../core/util.js';
+import { esc } from '../../core/util.js';
 
 export { esc };
 

@@ -6,7 +6,7 @@
  * - profile avatar：没有自定义头像 → 收起终端、打开系统选照片 → 原来的全屏裁剪（avatar-edit.js）；有 → [1] 选择照片 [2] 移除照片
  * 头像的裁剪层在页面上（不在终端的模态窗口里），所以先收起终端再选照片。
  */
-import { PROFILE_FIELDS, checkValue, readCache, saveProfile } from '../../prefs/profile.js';
+import { PROFILE_FIELDS, checkValue, readCache, saveProfile } from '../../../prefs/profile.js';
 import { chooseAvatarPhoto, removeAvatar, avatarIsCustom } from '../avatar-edit.js';
 import { PROFILE_KEYS } from '../commands.js';
 

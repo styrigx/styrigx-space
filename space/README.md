@@ -50,23 +50,23 @@ space/
 ├─ README.md                    本文件
 ├─ web/                         唯一的 Hugo 站
 │  ├─ assets/
-│  │  ├─ shell/                 Platform
-│  │  │  ├─ css/                入口 CSS 与 shell 样式（shell.css、tokens.css、input.css、tw-input.css）
-│  │  │  └─ js/                 按功能分组（见 §1.1），含共用播放器 music-core.js、music-player.js
+│  │  ├─ common/                Platform
+│  │  │  ├─ css/                入口 CSS 与外壳样式（shell.css、tokens.css、input.css、tw-input.css）
+│  │  │  └─ js/                 库按功能分组，外壳在 frame/ 下（见 §1.1），含共用播放器 music-core.js、music-player.js
 │  │  ├─ blog/   css/  js/      博客
 │  │  ├─ curio/  css/  js/      奇趣（音乐浏览界面在这，播放器不在）
 │  │  └─ daymark/ css/ js/      日刻
 │  ├─ layouts/
 │  │  ├─ _default/              默认模板
 │  │  ├─ partials/
-│  │  │  ├─ shell/              Platform 的 partials
+│  │  │  ├─ common/             Platform 的 partials
 │  │  │  └─ blog/  curio/  daymark/
 │  │  ├─ blog/  curio/  daymark/   各产品页面模板
 │  │  ├─ shell/                 Platform 的页面模板（共用播放器页）
 │  │  └─ index.html  404.html  alias.html  …   根模板（归 Platform）
 │  ├─ content/                  按产品分
 │  ├─ data/
-│  │  ├─ shell/                 Platform 数据（i18n、sgx-shell-i18n、调色板、功能开关、站点、导航、版本号……）
+│  │  ├─ common/                Platform 数据（i18n、sgx-shell-i18n、调色板、功能开关、站点、导航、版本号……）
 │  │  └─ blog/  curio/  daymark/
 │  ├─ i18n/  static/  archetypes/  hugo.yaml
 └─ scripts/
@@ -82,28 +82,26 @@ space/
 
 ### 1.1 `assets/common/js/` 分组
 
-一个概念一个文件，文件名就是它干的事；同类放一个目录。目标分组（`lib/` 27 个文件按功能拆）：
+一个概念一个文件，文件名就是它干的事；同类放一个目录。分两类（目录改名定稿 v1.6 §3）：**外壳**（套在每个页面外面、自己会画界面）放 `frame/` 下；**库和数据**（不自己画外壳，谁都能用）直接放 `js/` 下。
 
-| 组 | 放什么 |
-|---|---|
-| `core/` | 无依赖的小工具：util、b64、events、sgx、key-names |
-| `i18n/` | i18n、lang-boot、lang-path |
-| `prefs/` | prefs、prefs-write、storage、cloud-sync、profile、ui-cookie、ui-cookie-read |
-| `ui/` | toast、dialog-behavior、layout-mode、palette-scheme、scheduler；外壳的 modal-sheet、sheet、vk、scrollfx、favicon |
-| `features/` | features、feat-flags.d.ts |
-| `status/` | uptime、status-view、diag-jumptrace |
-| `auth/` | 现 `js/auth/` 三个文件 + sudo + 进站守卫 guard（原 `shell/space/guard.js`） |
-| `term/` | 终端：原 `shell/term/` 整个子目录 + terminal、suggest |
-| `account/`、`identity/` | 原 `shell/account/`、`shell/identity/` 整个子目录 |
-| `nav/` | nav、navhistory、layout |
-| `topbar/` | 顶栏：topbar-panel、head-buttons、quick-panel |
-| `ai/` | ai-panel |
-| `apps/` | 首页、状态页（现 `js/apps/`；daymark-today 是首页卡片，跟首页走）；全站公共启动 core（原 `shell/core.js`，只有页面入口用它）；页面入口在 `apps/entries/`（原 `js/entries/`） |
-| `music/` | 共用播放器：music-core、music-player |
+| 组 | 落点 | 放什么 |
+|---|---|---|
+| `core/` | `js/core/` | 无依赖的小工具：util、b64、events、sgx、key-names；页面跳转的统一入口 diag-jumptrace |
+| `i18n/` | `js/i18n/` | i18n、lang-boot、lang-path |
+| `prefs/` | `js/prefs/` | prefs、prefs-write、storage、cloud-sync、profile、ui-cookie、ui-cookie-read |
+| `ui/` | `js/ui/` | toast、dialog-behavior、layout-mode、palette-scheme、scheduler；外壳的 modal-sheet、sheet、vk、scrollfx、favicon |
+| `features/` | `js/features/` | features、feat-flags.d.ts |
+| `auth/` | `js/auth/` | 原 `js/auth/` 三个文件 + sudo + 进站守卫 guard（原 `shell/space/guard.js`） |
+| `music/` | `js/music/` | 共用播放器：music-core、music-player（第 7 步定） |
+| `topbar/` | `js/frame/topbar/` | 顶栏：topbar-panel、head-buttons、quick-panel |
+| `nav/` | `js/frame/nav/` | nav、navhistory、layout |
+| `term/` | `js/frame/term/` | 终端：原 `shell/term/` 整个子目录 + terminal、suggest |
+| `ai/` | `js/frame/ai/` | ai-panel |
+| `apps/` | `js/frame/apps/` | 首页、状态页（daymark-today 是首页卡片，跟首页走）；全站公共启动 core（只有页面入口用它）；页面入口在 `apps/entries/` |
+| `status/` | `js/frame/status/` | uptime、status-view |
+| `account/` | `js/frame/account/` | 账号卡片、账号命令层；identity 并进 `account/identity/` |
 
-精确的文件 → 组对照见第 2 步 PR 正文（与上表一致）。
-
-**分层**（check-layers 规则 1–4、6，下层不许 import 上层）：基础层 `core/ i18n/ prefs/ ui/ features/ status/` 只引基础层，且不许有鉴权接口；`auth/` 只引基础层和自己；功能组 `term/ account/ identity/ nav/ ai/ topbar/ music/` 可引基础层、`auth/` 和彼此，不许引 `apps/`；`apps/` 不许引 `apps/entries/`。`assets/common/js/` 下只允许上表这些组（规则 26），另加根目录的 `tsconfig.json`。
+**分层**（check-layers 规则 1–4、6，下层不许 import 上层；层名按组名，`frame/` 下按 `frame/` 下一级目录，`account/identity/` 算 `account`）：基础层 `core/ i18n/ prefs/ ui/ features/ status/` 只引基础层，且不许有鉴权接口；`auth/` 只引基础层和自己；功能组 `term/ account/ nav/ ai/ topbar/ music/` 可引基础层、`auth/` 和彼此，不许引 `apps/`；`apps/` 不许引 `apps/entries/`。**common 的库不许依赖外壳**（规则 28）：`js/` 下 `frame/` 以外的文件不许 import `frame/` 下的文件。`assets/common/js/` 下只允许上表这些落点（规则 26），另加根目录的 `tsconfig.json`。
 
 ## 2. 落点：新文件放哪
 
@@ -111,11 +109,11 @@ space/
 
 | 是谁的 | JS | CSS | 页面模板 | partial | 数据 | 脚本 |
 |---|---|---|---|---|---|---|
-| Platform | `assets/common/js/<组>/` | `assets/common/css/` | 根模板或 `layouts/shell/` | `layouts/partials/common/` | `data/common/` | `scripts/{build,check,gen,deploy}/` |
+| Platform | `assets/common/js/<库>/`、`assets/common/js/frame/<外壳组>/` | `assets/common/css/` | 根模板或 `layouts/shell/` | `layouts/partials/common/` | `data/common/` | `scripts/{build,check,gen,deploy}/` |
 | 产品 X | `assets/X/js/` | `assets/X/css/` | `layouts/X/` | `layouts/partials/X/` | `data/X/` | `scripts/X/` |
 
 - 不许在同一层混用两种分法：`assets/`、`layouts/partials/`、`data/`、`scripts/` 的顶层只能是上表里的目录（加 §1 列出的根文件）。
-- 产品接 Platform 的适配代码留在产品里（`assets/curio/js/sgx/`、`assets/daymark/js/sgx/`），不搬进 `shell/`。
+- 产品接 Platform 的适配代码留在产品里（`assets/curio/js/sgx/`、`assets/daymark/js/sgx/`），不搬进 `common/`。
 - 跨层功能按性质拆：共用能力进 Platform，数据与接口进 Services，浏览界面进产品（音乐就是这么拆的）。
 
 ## 3. 依赖规矩（红线）
@@ -137,6 +135,7 @@ space/
 | 25 | 前端引用 `space/web/assets/` 以外的文件，或引用不存在的文件（§3 第 4 条） |
 | 26 | 落点：文件不在 §1 / §2 允许的目录里 |
 | 27 | 例外表：没写原因、或已经用不上的例外 |
+| 28 | common 的库（`assets/common/js/` 下 `frame/` 以外）依赖外壳 `frame/`（§1.1） |
 | 1–9 | 旧的前端分层与安全规则（§3 第 5 条），拆 lib 那个 PR 换成新分组的说法 |
 
 - 23–25 扫 `assets/**` 的 JS（import、export from、动态 import()）和 CSS（@import），以及 `layouts/**` 模板里的 `partial` / `partialCached` / `template`、`resources.Get` / `GetMatch` / `Match`、`site.Data.<键>` / `index site.Data "<键>"`。只认字符串字面量，变量拼出来的路径查不到，靠评审。
@@ -147,7 +146,7 @@ space/
 
 严格执行是默认。规范实在处理不了的情况允许灵活处理，但**例外要写下来、说清楚原因，不悄悄绕过**：
 
-- 每条例外同时写两处：本节的例外表，和 `scripts/check/layers-exceptions.json`（每条 `{rule, file, ref?, reason, since}`；没写 `reason` 的例外不放行，用不上的例外也报错，规则 27）。只对 23–26 生效，旧规则 1–22 不开例外口子。
+- 每条例外同时写两处：本节的例外表，和 `scripts/check/layers-exceptions.json`（每条 `{rule, file, ref?, reason, since}`；没写 `reason` 的例外不放行，用不上的例外也报错，规则 27）。只对 23–26、28 生效，旧规则 1–22 不开例外口子。
 - 例外只针对具体文件或具体一条引用，不开整目录的口子。
 - 加例外和改代码同一个 PR，PR 正文里写明，由 Gray 合并即认可。
 
@@ -167,7 +166,8 @@ space/
 | 3 | `assets/css/` → `assets/common/css/` | 已合（#447） |
 | 4 | `layouts/partials/` 的 Platform 部分 → `partials/common/` | 已合（#448） |
 | 5 | `data/` 的 Platform 部分 → `data/common/`；`palettes.yaml` 改名 `data/common/palette-source.yaml`，避开和 `data/common/palettes.json` 撞键 | 已合（#449） |
-| 6 | `scripts/` 根目录 → `build/`、`check/`、`gen/`、`deploy/`；`space/` 外面（`package.json`、`.github/workflows/`、workers 的 README / wrangler.toml 注释 / `csp-hashes.js` 文件头）只改路径字符串、不改逻辑，PR 里逐个列出 | 进行中 |
+| 6 | `scripts/` 根目录 → `build/`、`check/`、`gen/`、`deploy/`；`space/` 外面（`package.json`、`.github/workflows/`、workers 的 README / wrangler.toml 注释 / `csp-hashes.js` 文件头）只改路径字符串、不改逻辑，PR 里逐个列出 | 已合（#450） |
+| 6.5 | 目录改名（目录改名定稿 v1.6）：`shell/` → `common/`（assets、partials、data 三处）；common 分库与外壳 `frame/`，加规则 28；common 三处文件名审查 | 进行中（#451） |
 | 7 | 共用播放器进 Platform，路由 `/curio/music/player/` 不变：播放器文案和 `.mp-*` 样式一起进 Platform，页面外壳改用 Platform 的 partial，外观不变，截图逐像素对照；脚本网址从 `/curio/js/…` 变成 `/shell/js/…` | 未开始 |
 | 8 | 旧文档对齐：overview.md §6–7、repo-structure.md 改为指向本文件 | 未开始 |
 

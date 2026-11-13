@@ -21,10 +21,10 @@ const base = rd('space/web/layouts/_default/baseof.html');
 const tb = rd('space/web/layouts/partials/common/shell-topbar.html');
 const qpHtml = tb.slice(tb.indexOf('<dialog id="sgx-qp"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-qp"')));
 const navHtml = tb.slice(tb.indexOf('<dialog id="sgx-nav"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-nav"')));
-const tbJs = rd('space/web/assets/common/js/topbar/topbar-panel.js');
+const tbJs = rd('space/web/assets/common/js/frame/topbar/topbar-panel.js');
 import { existsSync } from 'node:fs';
-const qpJs = rd('space/web/assets/common/js/topbar/quick-panel.js');
-const setJs = rd('space/web/assets/common/js/apps/space.js');
+const qpJs = rd('space/web/assets/common/js/frame/topbar/quick-panel.js');
+const setJs = rd('space/web/assets/common/js/frame/apps/space.js');
 const css = rd('space/web/assets/common/css/input.css');
 const feats = rd('space/web/data/common/features.yaml');
 

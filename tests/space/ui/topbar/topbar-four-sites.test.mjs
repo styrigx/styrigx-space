@@ -43,8 +43,8 @@ test('标记单一来源：四站都用主站 shell-topbar.html 和 shell/topbar
     assert.ok(!existsSync(path.join(REPO, 'space/web/assets', s, 'js/sgx/shell/topbar.js')), s + ' 没有顶栏 JS 副本');
   }
   /* 子站顶栏入口直接 import 主站的 topbar-panel.js */
-  assert.match(rd('space/web/assets/blog/js/entries/topnav.ts'), /from '\.\.\/\.\.\/..\/common\/js\/topbar\/topbar-panel\.js'/);
-  for (const s of ['curio', 'daymark']) assert.match(rd(`space/web/assets/${s}/js/sgx/topbar-host.js`), /from '\.\.\/\.\.\/..\/common\/js\/topbar\/topbar-panel\.js'/, s);
+  assert.match(rd('space/web/assets/blog/js/entries/topnav.ts'), /from '\.\.\/\.\.\/..\/common\/js\/frame\/topbar\/topbar-panel\.js'/);
+  for (const s of ['curio', 'daymark']) assert.match(rd(`space/web/assets/${s}/js/sgx/topbar-host.js`), /from '\.\.\/\.\.\/..\/common\/js\/frame\/topbar\/topbar-panel\.js'/, s);
 });
 
 test('四个调用点：必需参数都传；site 是本站；PR-4b 起快捷面板四站同一套，谁都不传 tiles / layout', () => {

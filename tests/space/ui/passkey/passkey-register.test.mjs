@@ -153,8 +153,8 @@ test('creationOptions：服务端没给用户名时用页面兜底；预填名�
 test('账号 / 进站都只经 passkey-register.js 注册：不再手写 credentials.create / 命名弹层', () => {
   /* 2026-11-08：账号安全页删了，账号通行密钥在终端的账号层 shell/account/cmd/keys.js 里注册（命名在终端里问，不用命名弹层） */
   {
-    const src = rd('space/web/assets/common/js/account/cmd/keys.js');
-    assert.ok(src.includes("from '../../auth/passkey-register.js'"));
+    const src = rd('space/web/assets/common/js/frame/account/cmd/keys.js');
+    assert.ok(src.includes("from '../../../auth/passkey-register.js'"));
     assert.ok(src.includes('registerPasskey({'));
     assert.ok(!src.includes('navigator.credentials.create'), 'keys.js 不手写注册');
     assert.ok(src.includes("genPkPrefillName('')"), 'keys.js 预填名不拿界面文案兜底');
@@ -163,14 +163,14 @@ test('账号 / 进站都只经 passkey-register.js 注册：不再手写 credent
   for (const f of ['space/web/assets/common/js/shell/space/keys.js', 'space/web/assets/common/js/shell/space/reset.js']) assert.ok(!existsSync(join(root, f)), f + ' 已删（v6 P4）');
   for (const f of []) {
     const src = rd(f);
-    assert.ok(src.includes("from '../../auth/passkey-register.js'"), f);
+    assert.ok(src.includes("from '../../../auth/passkey-register.js'"), f);
     assert.ok(src.includes('registerPasskey({') && !src.includes('createPkNameDialog'), f + ' 终端里问名字，不用命名弹层');
     assert.ok(!src.includes('navigator.credentials.create'), f + ' 不手写注册');
     assert.ok(!/function (openPkNameDlg|closePkNameDlg|genPkPrefillName)\b/.test(src), f + ' 不再各留一份命名弹层');
     assert.ok(src.includes("genPkPrefillName('')"), f + ' 预填名不拿界面文案兜底');
     assert.ok(!src.includes("genPkPrefillName(t("), f);
   }
-  assert.ok(!existsSync(join(root, 'space/web/assets/common/js/apps/security-lock.js')), 'security-lock.js 已删');
+  assert.ok(!existsSync(join(root, 'space/web/assets/common/js/frame/apps/security-lock.js')), 'security-lock.js 已删');
   /* 全站只有这一处 credentials.create */
   const lib = rd('space/web/assets/common/js/auth/passkey-register.js');
   assert.ok(lib.includes('navigator.credentials.create'));

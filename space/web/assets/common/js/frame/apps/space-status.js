@@ -20,10 +20,10 @@
  *   页面不做角色判断（进门二值，没有角色）；接口照样由服务端判断。
  * 渲染全在 status/status-view.js（纯函数，单测覆盖）；这里只管 DOM 和请求。
  */
-import { on } from '../core/events.js';
-import { askSudo } from '../auth/sudo.js';
-import { loadI18n, pageLang } from '../i18n/i18n.js';
-import { visibleInterval } from '../ui/scheduler.js';
+import { on } from '../../core/events.js';
+import { askSudo } from '../../auth/sudo.js';
+import { loadI18n, pageLang } from '../../i18n/i18n.js';
+import { visibleInterval } from '../../ui/scheduler.js';
 import { bannerInfo, bjDay, buildSlots, esc, fmtBjTime, isEmptySummary, renderAudit, renderIncidents, renderQuota, renderSite, renderUnits, renderUsage, slotText, unitList } from '../status/status-view.js';
 
 export const STATUS_API = '/api/status';
