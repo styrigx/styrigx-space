@@ -3804,3 +3804,45 @@
   --sgx-credential-btn-secondary-bg: var(--sgx-btn-secondary-bg);
   --sgx-credential-btn-secondary-fg: var(--sgx-btn-secondary-fg);
 }
+/* 旧 --m-* 别名：只引用上面的角色 */
+:root {
+  --m-primary: var(--sgx-primary);
+  --m-on-primary: var(--sgx-on-primary);
+  --m-primary-container: var(--sgx-primary-container);
+  --m-on-primary-container: var(--sgx-on-primary-container);
+  /* 2026-10-23 PR-G 修订：填充档（按钮 / 开关 / 进度 / 选中分段 = 前景 1 本色 + 自动挑的 on 色）；--m-primary 仍是 ink（文字 / 图标 / 焦点环） */
+  --m-primary-fill: var(--sgx-primary-fill);
+  --m-on-primary-fill: var(--sgx-on-primary-fill);
+  --m-secondary: var(--sgx-secondary);
+  --m-on-secondary: var(--sgx-on-secondary);
+  --m-secondary-container: var(--sgx-secondary-container);
+  --m-on-secondary-container: var(--sgx-on-secondary-container);
+  --m-tertiary: var(--sgx-tertiary);
+  --m-on-tertiary: var(--sgx-on-tertiary);
+  --m-tertiary-container: var(--sgx-tertiary-container);
+  --m-on-tertiary-container: var(--sgx-on-tertiary-container);
+  --m-surface: var(--sgx-background);
+  --m-on-surface: var(--sgx-text-primary);
+  --m-on-surface-variant: var(--sgx-text-secondary);
+  --m-container-lowest: var(--sgx-surface-container-lowest);
+  --m-container-low: var(--sgx-surface-container-low);
+  --m-container: var(--sgx-surface-container);
+  --m-container-high: var(--sgx-surface-container-high);
+  --m-container-highest: var(--sgx-surface-container-highest);
+  --m-outline: var(--sgx-outline-variant);
+  /* PR-G：页面底 = 背景色第 1 档（光晕铺在上面）；旧的三团光壁纸串 --sgx-background-css 仍生成，但不再当页面底 */
+  --m-wallpaper: var(--sgx-bg-1);
+  /* 2.9.2：snackbar 用 inverse token（Material You 规范） */
+  --m-inverse-surface: var(--sgx-inverse-surface);
+  --m-inverse-on-surface: var(--sgx-inverse-on-surface);
+  --m-inverse-primary: var(--sgx-inverse-primary);
+}
+/* 布局变量（与主题无关）：顶栏高度、正文顶部偏移 */
+:root {
+  --nav-h: var(--sgx-tb-h);
+  /* 通版顶栏（2026-10-20；2026-11 顶栏 v3 起贴顶通栏）：正文顶部偏移，全站同一个值 = 顶栏下沿（--nav-h = 顶栏高 --sgx-tb-h 64）+ 间距 + 安全区。
+     子页面没有大标题区了，所有页面（主页、设置、账号、书签、搜索…）的第一块内容都从这里开始；
+     不要按页面单独调。 */
+  --sgx-content-gap: 16px;
+  --sgx-content-top: calc(var(--nav-h) + var(--sgx-content-gap) + env(safe-area-inset-top, 0px));
+}

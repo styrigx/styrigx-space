@@ -125,6 +125,18 @@ function renderTokens(data) {
     .split('\n')
     .map((l) => l.replace(/^ {2}/, ''))
     .join('\n');
+  /* 2026-11 奇趣 CSS 瘦身：旧 --m-* 别名、布局变量（--nav-h / --sgx-content-*）也是子站共用的最小公约数（只定义变量、不选元素，
+     子站引不引都不改外观），一并抽进 tokens.css；源头仍是主站 tokens 层这两块 */
+  const pickRoot = (re, label) => {
+    const m = css.match(re);
+    if (!m) throw new Error(`input.css 里找不到${label}`);
+    return m[1]
+      .split('\n')
+      .map((l) => l.replace(/^ {2}/, ''))
+      .join('\n');
+  };
+  const legacyCss = pickRoot(/\/\* 旧 --m-\* 色板名[\s\S]*?\*\/\n\s*(:root \{[\s\S]*?\n\s*\})/, '旧 --m-* 色板名别名');
+  const layoutCss = pickRoot(/\/\* 布局变量（与主题无关[^*]*\*\/\n\s*(:root \{[\s\S]*?\n\s*\})/, '布局变量（与主题无关）');
   const derived = css.match(/\/\* 调色板派生 token（tag \/ chart[^*]*\*\/\n\s*(:root \{[\s\S]*?\n\s*\})/);
   if (!derived) throw new Error('input.css 里找不到调色板派生 token（tag / chart）');
   const derivedCss = derived[1]
@@ -139,6 +151,10 @@ function renderTokens(data) {
     derivedCss +
     '\n/* 组件角色（别名层）：只引用上面的角色 */\n' +
     aliasCss +
+    '\n/* 旧 --m-* 别名：只引用上面的角色 */\n' +
+    legacyCss +
+    '\n/* 布局变量（与主题无关）：顶栏高度、正文顶部偏移 */\n' +
+    layoutCss +
     '\n'
   );
 }

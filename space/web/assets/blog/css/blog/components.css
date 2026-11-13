@@ -1,8 +1,8 @@
-/* 博客组件样式（atlas/web/blog/layouts 里各模板 / partial 的样式）。颜色只用共享外壳的 --sgx-* 角色。
+/* 博客组件样式（space/web/layouts/blog 里各模板 / partial 的样式）。颜色只用共享外壳的 --sgx-* 角色。
    裸元素选择器（main / h1 / h2）前面带组件根 class；和 one-ui.css 抢同一属性的规则带父级 class，决定谁赢谁输。 */
 /* ===== 顶栏（partials/topnav.html） ===== */
 /* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个，标记是共享外壳 partials/common/frame/topbar.html）：胶囊、logo、右边三个按钮、快捷面板 / AI 窗口、
-   「分享本页」磁贴的生成中样式都在主站共享外壳 atlas/web/blog/assets/css/sgx-frame.css（atlas/scripts/blog/sync-shell.mjs 同步）。这里只有博客自己的：
+   「分享本页」磁贴的生成中样式都在主站共享外壳 space/web/assets/common/css/frame.css（gen-common 生成，博客 input.css 直接 @import）。这里只有博客自己的：
    阅读进度细线（文章页，按整条顶栏底边）。长条里只有页名胶囊（共享外壳 .sgx-tb-title；首页 = 站名 / 当前分区名，P4-3 PR-4b 起没有分段滑块）。颜色只用 --sgx-* 角色。 */
 .sgx-topbar {
   view-transition-name: sgx-topbar;
