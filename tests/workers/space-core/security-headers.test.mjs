@@ -440,7 +440,7 @@ test('模板：会执行的内联脚本只在 baseof（6 段：P4-3 PR-4c 加了
     assert.doesNotMatch(body, /\{\{/, f);
   }
   /* PR-4b：设置首页删了，旧分类 hash 跳转（legacyHashRedirect）随之删除 */
-  const spaceJs = readFileSync(REPO + '/space/web/assets/shell/js/apps/space.js', 'utf8');
+  const spaceJs = readFileSync(REPO + '/space/web/assets/common/js/apps/space.js', 'utf8');
   assert.doesNotMatch(spaceJs, /legacyHashRedirect/);
 });
 

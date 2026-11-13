@@ -68,7 +68,7 @@ if want build; then
   step build "合站单测" bash -c 'node --test tests/space/ui/build/one-site.test.mjs >/dev/null'
   step build "check-worker-routes" bash -c 'node space/scripts/check/check-worker-routes.mjs >/dev/null'
   step build "子站生成物同步" bash -c 'node space/scripts/curio/gen-seed-sql.mjs --check >/dev/null && node space/scripts/blog/gen-code-tokens.mjs --check >/dev/null'
-  step build "stylelint" npx stylelint --config tests/config/stylelintrc.json "space/web/assets/shell/css/input.css"
+  step build "stylelint" npx stylelint --config tests/config/stylelintrc.json "space/web/assets/common/css/input.css"
 fi
 
 PW="npx playwright test --config=tests/config/playwright.config.js"

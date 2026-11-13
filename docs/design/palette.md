@@ -11,17 +11,17 @@
 
 ## 0. 数据源与生成链
 
-0.1 颜色值的**唯一来源**是 `space/web/assets/shell/js/ui/palette-scheme.js` 的 `THEMES` + `FG_POOL`。`space/web/data/shell/palette-source.yaml`（id / 名字 / 分组）与定稿夹具 `tests/fixtures/palette-v0.3.json` 只是被单测逐项核对的副本。
+0.1 颜色值的**唯一来源**是 `space/web/assets/common/js/ui/palette-scheme.js` 的 `THEMES` + `FG_POOL`。`space/web/data/common/palette-source.yaml`（id / 名字 / 分组）与定稿夹具 `tests/fixtures/palette-v0.3.json` 只是被单测逐项核对的副本。
 
 0.2 生成链（CI 对两个脚本都跑 `--check`）：
 
 ```
 palette-scheme.js
-  → node space/scripts/gen/gen-palettes.mjs --roles → space/web/data/shell/palette-roles.json + input.css 的 @gen-palettes 段
-  → node space/scripts/gen/gen-shell.mjs           → space/web/assets/shell/css/tokens.css + space/web/data/shell/palettes.json
+  → node space/scripts/gen/gen-palettes.mjs --roles → space/web/data/common/palette-roles.json + input.css 的 @gen-palettes 段
+  → node space/scripts/gen/gen-shell.mjs           → space/web/assets/common/css/tokens.css + space/web/data/common/palettes.json
 ```
 
-0.3 快捷面板的色块与预览从 `palette-roles.json` 取值（`layouts/partials/shell/palette-tile-vars.html`），与页面角色同一份数据。四站直接使用同一份生成物，没有副本。
+0.3 快捷面板的色块与预览从 `palette-roles.json` 取值（`layouts/partials/common/palette-tile-vars.html`），与页面角色同一份数据。四站直接使用同一份生成物，没有副本。
 
 ## 1. 一套调色板是什么
 
@@ -163,7 +163,7 @@ palette-scheme.js
 
 合成底审计（单测 `tests/space/ui/theme/palette-scheme.test.mjs`）：玻璃卡、顶栏、抽屉 = 材质（surface 88%）叠在 `bg-1..7` 任一档（最浅、最深都算）上核对对比度。
 
-## 6. 导出 token 全目录（`space/web/data/shell/palettes.json` / `space/web/assets/shell/css/tokens.css`）
+## 6. 导出 token 全目录（`space/web/data/common/palettes.json` / `space/web/assets/common/css/tokens.css`）
 
 主站组件只引用 Shell + Semantic；共享外壳**完整导出**下面这些（25 套，每套一段 `:root[data-palette]`，值与 `tokens.css` 同名 `--sgx-*` 变量一致），子站按需索取。
 `palettes.json` 每套 `{ mode, tokens }`，顶层带 **`rulesVersion: "palette-rules-2"`**（本文这套用法规则的版本；3.0 起删 `schemeVersion`）。
@@ -185,11 +185,11 @@ palette-scheme.js
 
 ## 7. 子站
 
-子站与主站是同一个 Hugo 站：样式表 `@import` 主站的 `assets/shell/css/tokens.css` / `shell.css`，模板读 `site.Data.shell.palettes`，MUST NOT 自己定义主题色。当前色板由 `sgx-ui` cookie 带到子站首帧，深浅随调色板（SGX-SPEC-003）；子站不再加载自定义色引擎。子站按 `rulesVersion` 判断用法规则是否更新。
+子站与主站是同一个 Hugo 站：样式表 `@import` 主站的 `assets/common/css/tokens.css` / `shell.css`，模板读 `site.Data.common.palettes`，MUST NOT 自己定义主题色。当前色板由 `sgx-ui` cookie 带到子站首帧，深浅随调色板（SGX-SPEC-003）；子站不再加载自定义色引擎。子站按 `rulesVersion` 判断用法规则是否更新。
 
 ## 8. 改调色板
 
-1. `palette-scheme.js` 的 `THEMES` 加 / 改一行（6 个前景从 `FG_POOL` 挑），`space/web/data/shell/palette-source.yaml`、`space/web/data/shell/features.yaml` 的 palette 选项同步。
+1. `palette-scheme.js` 的 `THEMES` 加 / 改一行（6 个前景从 `FG_POOL` 挑），`space/web/data/common/palette-source.yaml`、`space/web/data/common/features.yaml` 的 palette 选项同步。
 2. `node space/scripts/gen/gen-palettes.mjs --roles`、`node space/scripts/gen/gen-shell.mjs`，再各跑一次 `--check`。
 3. 单测 `tests/space/ui/theme/palette-scheme.test.mjs` 会核对：对比度审计全过、中性彩度 ≤ 0.012、danger / success 不变、前景 ink 在 tint 上 ≥4.5:1、
    填充档 on 色 ≥4.5:1、`SEM` / `PINS` 不被改写、22 套没有手调值、palette-source.yaml / 定稿夹具和 THEMES 一致。

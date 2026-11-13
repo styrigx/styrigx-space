@@ -22,7 +22,7 @@ const parts = ['common', 'item-page', 'signin', 'page-head', 'list'].map(part).j
 const hasId = (src, id) => new RegExp('id="' + id + '"|"id" "' + id + '"').test(src) || (/^(cu|dv|gm|mv)-(chips|list|empty)$/.test(id) && new RegExp('"pre" "' + id.split('-')[0] + '"').test(src));
 
 test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 shell-topbar.html；中间 = 页名胶囊（首页 = 站名）；右边九宫格 · 快捷设置 · AI（PR-4b，头像在 AI 窗口头部）；没有抽屉、右圆分享', () => {
-  assert.match(base, /\{\{ partial "shell\/shell-topbar\.html" \(dict\n/);
+  assert.match(base, /\{\{ partial "common\/shell-topbar\.html" \(dict\n/);
   assert.match(base, /"site" "curio"/);
   /* P4-3 奇趣拆页：页名胶囊只显示页名——首页 = 站名，子页 = 子页名（内容文件的 title），404 = 页名；不再有 data-sgx-titles（没有页内分区） */
   assert.match(base, /\{\{ if \$isHome \}\}\{\{ \$pageName = \$tr\.site\.name \}\}\{\{ end \}\}/); /* 合站：本站首页是分区页，用 $isHome 判断 */
@@ -42,7 +42,7 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 shell-topbar.
   assert.doesNotMatch(base, /"tiles" /);
   const host = read('space/web/assets/curio/js/sgx/topbar-host.js');
   /* 合站：直接引主站的共享外壳源文件（没有 js/sgx/shell/ 副本） */
-  for (const m of ['../../../shell/js/topbar/topbar-panel.js', '../../../shell/js/ui/modal-sheet.js', '../../../shell/js/ai/ai-panel.js', '../../../shell/js/ui/vk.js', '../../../shell/js/prefs/prefs-write.js']) {
+  for (const m of ['../../../common/js/topbar/topbar-panel.js', '../../../common/js/ui/modal-sheet.js', '../../../common/js/ai/ai-panel.js', '../../../common/js/ui/vk.js', '../../../common/js/prefs/prefs-write.js']) {
     assert.match(host, new RegExp("from '" + m.replace(/[.\/]/g, '\\$&') + "'"), m);
   }
   assert.doesNotMatch(host, /share-button|mountShare/, 'v6 P4：分享本页磁贴拿掉');
@@ -51,7 +51,7 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 shell-topbar.
 test('没有版权页脚（© / Powered by），样式也删干净', () => {
   const css = read('space/web/assets/curio/css/input.css');
   assert.doesNotMatch(base, /<footer|©|Powered by/);
-  assert.doesNotMatch(css.slice(css.indexOf('@import "../../shell/css/shell.css";')), /(^|[\s,}])footer\b|sgx-powered|sgx-tb-me/);
+  assert.doesNotMatch(css.slice(css.indexOf('@import "../../common/css/shell.css";')), /(^|[\s,}])footer\b|sgx-powered|sgx-tb-me/);
 });
 
 test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚本、Giscus 配置和样式', async () => {
@@ -61,24 +61,24 @@ test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚
   }
   assert.doesNotMatch(read('space/web/hugo.yaml'), /guestbook|giscus/i);
   const css = read('space/web/assets/curio/css/input.css');
-  assert.doesNotMatch(css.slice(css.indexOf('@import "../../shell/css/shell.css";')), /cu-gb-|giscus|guestbook/);
+  assert.doesNotMatch(css.slice(css.indexOf('@import "../../common/css/shell.css";')), /cu-gb-|giscus|guestbook/);
 });
 
 test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主站共享外壳的 nav.json（顶栏 v3：主页 / 博客 / 奇趣 / 日刻；05 旷野 2026-11-12 删除），模板不写死项；奇趣是当前项；主站项走 https://styrigx.com', () => {
-  const nav = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/shell/nav.json'), 'utf8'));
-  /* 语言包化（2026-11-07）：nav.json 只有 id / 图标 / 地址，站名在外壳字符串表（sync-shell 同步到 data/shell/sgx-shell-i18n/<语言>.yaml） */
-  const trZh = /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/shell/sgx-shell-i18n/zh.yaml'), 'utf8')));
+  const nav = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/common/nav.json'), 'utf8'));
+  /* 语言包化（2026-11-07）：nav.json 只有 id / 图标 / 地址，站名在外壳字符串表（sync-shell 同步到 data/common/sgx-shell-i18n/<语言>.yaml） */
+  const trZh = /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/sgx-shell-i18n/zh.yaml'), 'utf8')));
   assert.deepEqual(nav.items.map((i) => trZh.nav[i.id].title), ['主页', '博客', '奇趣', '日刻']); /* 顶栏 v3 NAVIGATE 01–04 */
   assert.deepEqual(nav.footer, []);
   assert.equal(nav.me.href, 'https://styrigx.com/account/');
-  assert.match(base, /\{\{ \$shellNav := site\.Data\.shell\.nav \}\}/); /* 合站：直接读主站 data/shell/nav.json，没有副本 */
+  assert.match(base, /\{\{ \$shellNav := site\.Data\.common\.nav \}\}/); /* 合站：直接读主站 data/common/nav.json，没有副本 */
   assert.match(base, /"nav" \$shellNav\n/);
   assert.match(base, /"mainOrigin" "https:\/\/styrigx\.com"/);
   /* 2026-11-12：logo 四站统一回主站首页（同主站 sgx-lang-path，英文 /、中文 /zh/），不再回本站首页 */
-  assert.match(base, /"home" \(partial "shell\/sgx-lang-path\.html" \(dict "path" "\/" "lang" \.Lang\)\)/);
+  assert.match(base, /"home" \(partial "common\/sgx-lang-path\.html" \(dict "path" "\/" "lang" \.Lang\)\)/);
   assert.doesNotMatch(base, /"home" \(site\.GetPage/);
   /* 项、页脚、当前项高亮都在共享外壳 partial 里（range .nav.items / with .nav.footer / eq .id $.site） */
-  const tb = read('space/web/layouts/partials/shell/shell-topbar.html');
+  const tb = read('space/web/layouts/partials/common/shell-topbar.html');
   assert.match(tb, /range \.nav\.items/);
   assert.match(tb, /if eq \.id \$\.site \}\} aria-current="page"/);
   /* 导航页不放搜索框（定案第 2 条） */
@@ -96,7 +96,7 @@ test('首页（2026-11 对齐 PR-C2，设计稿 pg=curio）：就是「发现」
   const head = part('page-head');
   assert.match(head, /cond \(\.home \| default false\) "ls curio\/" \(printf "ls curio\/%s\/" \$cur\)/, '首页命令 ls curio/，子页 ls curio/<分区>/');
   assert.match(head, /range \(slice "finds" "devices" "games" "movies" "music"\)/, '五个 tab，音乐最后');
-  assert.match(head, /href="\{\{ partial "shell\/sgx-lang-path\.html" \(dict "path" \(printf "\/curio\/%s\/" \.\) "lang" \$lang\) \}\}"/, 'tab 地址走 sgx-lang-path');
+  assert.match(head, /href="\{\{ partial "common\/sgx-lang-path\.html" \(dict "path" \(printf "\/curio\/%s\/" \.\) "lang" \$lang\) \}\}"/, 'tab 地址走 sgx-lang-path');
   const css = read('space/web/assets/curio/css/input.css');
   assert.doesNotMatch(css, /cu-music-ok|mu-denied/, 'v5 S3：音乐歌单公开，tab 不按权限藏，没有「仅本人可见」卡');
   assert.doesNotMatch(css, /\.cu-fab|\.it-view|\.cu-tile|\.it-card|\.sgx-ent|#cu-segs/, '旧浮动按钮 / 详情弹层 / 格子 / 旧卡片 / 入口 / 段式标签样式删除');
@@ -220,12 +220,12 @@ test('head 内联脚本不打包整份 palettes.json（预设表 / 深套表在�
   const head = base.slice(0, base.indexOf('</head>'));
   assert.doesNotMatch(head, /palettes\.json/);
   const uses = [...base.matchAll(/[^\n]*palettes\.json[^\n]*/g)].map((m) => m[0]).filter((l) => !/^\{\{\/\*/.test(l));
-  /* 合站：色块直接读主站 data/shell/palettes.json（site.Data），模板里不再 resources.Get 副本 */
+  /* 合站：色块直接读主站 data/common/palettes.json（site.Data），模板里不再 resources.Get 副本 */
   assert.deepEqual(uses, []);
   /* 调色板 v4：<head> 里的 color-scheme / theme-color 默认值取默认调色板 terra 的 mode / 底色（只读两项，不整份输出） */
-  assert.deepEqual([...base.matchAll(/[^\n]*site\.Data\.shell\.palettes[^\n]*/g)].map((m) => m[0]), ['{{- range site.Data.shell.palettes.presets }}{{ if eq .id "terra" }}', '{{ range site.Data.shell.palettes.presets }}']);
+  assert.deepEqual([...base.matchAll(/[^\n]*site\.Data\.common\.palettes[^\n]*/g)].map((m) => m[0]), ['{{- range site.Data.common.palettes.presets }}{{ if eq .id "terra" }}', '{{ range site.Data.common.palettes.presets }}']);
   assert.doesNotMatch(base, /palettes\.json[^\n]*jsonify/);
-  assert.match(base, /<script>\{\{ \(resources\.Get "shell\/js\/prefs\/ui-cookie-read\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
+  assert.match(base, /<script>\{\{ \(resources\.Get "common\/js\/prefs\/ui-cookie-read\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
   assert.match(base, /js\/sgx\/ui-inherit-run\.js" \| js\.Build \(dict "format" "iife" "minify" true "target" "es2018"\)\)/);
 });
 

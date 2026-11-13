@@ -87,7 +87,7 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 
 ## 6. 前端分层
 
-前端代码在 `space/web/assets/shell/js/`，四站共用。
+前端代码在 `space/web/assets/common/js/`，四站共用。
 
 | 层 | 目录 | 允许 import |
 |---|---|---|
@@ -97,7 +97,7 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 | apps | `apps/` | 以上全部，`apps/` |
 | entries | `entries/` | 以上全部 |
 
-6.1 只能向左 import；前端 MUST NOT import `space/web/assets/shell/js/` 以外的文件（`check-layers.mjs` 规则 1–5）。
+6.1 只能向左 import；前端 MUST NOT import `space/web/assets/common/js/` 以外的文件（`check-layers.mjs` 规则 1–5）。
 
 6.2 `lib/` MUST NOT 含鉴权逻辑：不得出现 `/api/lock-*`、`/api/space-*`、`/api/account` 与 `navigator.credentials`（规则 6）。
 
@@ -105,7 +105,7 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 
 6.4 进站与账号的接口调用各只有一处：`shell/space/api.js`（地址表 `shell/space/paths.js`）、`account/api.js`。
 
-6.5 打包：所有入口在 `layouts/partials/shell/sgx-js-batch.html` 里一次 `js.Batch`（esbuild ESM + 代码分割）；首帧前必须执行的主题、语言、布局、提示符脚本是 `<head>` 里的同步内联脚本，其 sha256 进 CSP（`space/scripts/gen/gen-csp.mjs`）。
+6.5 打包：所有入口在 `layouts/partials/common/sgx-js-batch.html` 里一次 `js.Batch`（esbuild ESM + 代码分割）；首帧前必须执行的主题、语言、布局、提示符脚本是 `<head>` 里的同步内联脚本，其 sha256 进 CSP（`space/scripts/gen/gen-csp.mjs`）。
 
 ## 7. Worker 边界（`space/scripts/check/check-layers.mjs`，CI 必过）
 

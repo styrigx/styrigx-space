@@ -133,7 +133,7 @@ markup:
 params:
   # 主页 hero 的 $ 行标语（打字轮播，中英页面相同、不翻译；Gray 2026-11-09）
   tagline: 'A Personal Digital Space'
-  # 站点描述在字符串表 data/shell/i18n/<语言>.yaml 的 site.description（语言包化 2026-11-07）
+  # 站点描述在字符串表 data/common/i18n/<语言>.yaml 的 site.description（语言包化 2026-11-07）
   since: 2020
   # 子站各自的版本号（合站前在各站 hugo.yaml 的 params）
   blog:
@@ -143,7 +143,7 @@ params:
     version: '0.2.0'
   daymark:
     version: '1.1.0'
-  # 版本号唯一来源：data/shell/version.yaml（ui + sgx），此处不硬编码
+  # 版本号唯一来源：data/common/version.yaml（ui + sgx），此处不硬编码
 
 # 2.3.12：tdewolff HTML 压缩器与内联 JS 中的 < 冲突，禁用 HTML 压缩（CSS 已由 Tailwind 压缩）
 minify:

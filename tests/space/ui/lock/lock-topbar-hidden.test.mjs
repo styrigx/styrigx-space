@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-const css = readFileSync(path.join(REPO, 'space/web/assets/shell/css/input.css'), 'utf8');
+const css = readFileSync(path.join(REPO, 'space/web/assets/common/css/input.css'), 'utf8');
 
 const HIDE = 'body.sgx-entry #site-nav { visibility: hidden; }';
 const NO_VT = 'body.sgx-entry #site-nav .sgx-topbar { view-transition-name: none; }';

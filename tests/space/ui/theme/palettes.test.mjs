@@ -1,5 +1,5 @@
 /**
- * 调色板一致性（v1.4）：data/shell/palette-source.yaml、data/shell/features.yaml 的 palette 选项、
+ * 调色板一致性（v1.4）：data/common/palette-source.yaml、data/common/features.yaml 的 palette 选项、
  * input.css 的 --sgx-* 预设段必须一一对应；旧的按色板手写 --m-* 块已收口成别名（2026-10-21 撞色）。
  * 2026-10-23 PR-G 七色调色板：22 套、默认 dustyblue、按 group 分组（冷调 / 自然 / 暖调 / 花色 / 中性），c = 背景色。
  */
@@ -7,9 +7,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const yaml = readFileSync(new URL('../../../../space/web/data/shell/palette-source.yaml', import.meta.url), 'utf8');
-const feats = readFileSync(new URL('../../../../space/web/data/shell/features.yaml', import.meta.url), 'utf8');
-const css = readFileSync(new URL('../../../../space/web/assets/shell/css/input.css', import.meta.url), 'utf8');
+const yaml = readFileSync(new URL('../../../../space/web/data/common/palette-source.yaml', import.meta.url), 'utf8');
+const feats = readFileSync(new URL('../../../../space/web/data/common/features.yaml', import.meta.url), 'utf8');
+const css = readFileSync(new URL('../../../../space/web/assets/common/css/input.css', import.meta.url), 'utf8');
 
 const ids = [...yaml.matchAll(/^\s*- id: ([a-z]+)$/gm)].map((m) => m[1]);
 const custom = ids.filter((id) => id !== 'dustyblue');
@@ -56,7 +56,7 @@ test('旧 --m-* 色板块已收口：input.css 不再按色板手写 --m-*，色
 });
 
 test('每个色板都有 --sgx-* 角色（gen-palettes 生成的一段，v4 起每套只有一个模式、没有 .dark 段），色块 c = 角色 JSON 的背景色', () => {
-  const roles = JSON.parse(readFileSync(new URL('../../../../space/web/data/shell/palette-roles.json', import.meta.url), 'utf8')).presets;
+  const roles = JSON.parse(readFileSync(new URL('../../../../space/web/data/common/palette-roles.json', import.meta.url), 'utf8')).presets;
   for (const id of custom) {
     assert.ok(css.includes(`:root[data-palette="${id}"] {`), id);
     assert.ok(!css.includes(`:root.dark[data-palette="${id}"] {`), id + ' 没有深色段');

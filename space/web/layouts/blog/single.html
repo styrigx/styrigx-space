@@ -18,7 +18,7 @@
 {{- $mins := $rd.mins -}}
 {{- $toc := partial "blog/toc-items.html" .Fragments.Headings -}}
 {{- $hasToc := gt (len $toc) 0 -}}
-{{- $all := partial "shell/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) -}}
+{{- $all := partial "common/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) -}}
 {{- $series := "" -}}
 {{- with .Params.series }}{{ with index . 0 }}{{ $series = . }}{{ end }}{{ end -}}
 {{- $sc := dict -}}

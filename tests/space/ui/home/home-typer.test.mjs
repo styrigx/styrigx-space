@@ -13,7 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-const { typerStep, TYPER_MS } = await import('../../../../space/web/assets/shell/js/apps/home-typer.js');
+const { typerStep, TYPER_MS } = await import('../../../../space/web/assets/common/js/apps/home-typer.js');
 const rd = (/** @type {string} */ f) => readFileSync(path.join(REPO, f), 'utf8');
 
 test('typerStep：从整句停顿开始，删到空 → 空白 → 打满 → 停顿，一整圈回到起点', () => {
@@ -53,14 +53,14 @@ test('模板：$ 行标语轮播 + # 行个人资料签名（不写死），JS �
   assert.match(t, /data-home-motto-line\{\{ if not \$profile\.motto \}\} hidden\{\{ end \}\}/, '空签名首帧就藏行');
   assert.doesNotMatch(t, /\$h\.(role|intro)\b/);
   assert.equal(rd('space/web/hugo.yaml').match(/^\s+tagline: '(.*)'$/m)?.[1], 'A Personal Digital Space');
-  const idx = rd('space/web/assets/shell/js/apps/index.js');
+  const idx = rd('space/web/assets/common/js/apps/index.js');
   assert.match(idx, /import \{ mountTyper \} from '\.\/home-typer\.js'/);
   assert.match(idx, /addEventListener\(PROFILE_EVENT, syncMotto\)/);
 });
 
 test('字符串表：home.role / home.intro 已删（中英都没有）', () => {
   for (const l of ['zh', 'en']) {
-    const y = rd(`space/web/data/shell/i18n/${l}.yaml`);
+    const y = rd(`space/web/data/common/i18n/${l}.yaml`);
     const home = y.slice(y.indexOf('\nhome:'), y.indexOf('\n', y.indexOf('\nhome:') + 1) + 400);
     assert.doesNotMatch(home, /^\s{2}(role|intro):/m, l);
   }
@@ -77,6 +77,6 @@ test('构建产物：/ 与 /zh/ 的 hero 标语和签名一字不差；签名 = 
   assert.ok(en[0] && en[1]);
   assert.deepEqual(zh, en);
   assert.match(en[0], />A Personal Digital Space<\/span><span class="home-cur"/);
-  const motto = (rd('space/web/data/shell/profile.yaml').match(/^motto: (.*)$/m) || [])[1] || '';
+  const motto = (rd('space/web/data/common/profile.yaml').match(/^motto: (.*)$/m) || [])[1] || '';
   assert.ok(motto && en[1].includes(motto.replace(/'/g, '&#39;')), '签名首帧 = profile.yaml');
 });

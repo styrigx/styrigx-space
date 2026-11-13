@@ -1,6 +1,6 @@
 /**
  * P4-3 PR-4b §9–11（Gray 2026-11-07）：显示页删除 + 平铺入口组件；2026-11 对齐 PR-B：主页不再有分类入口；2026-11-12 旷野删除，状态单独成页 /status/。
- * - 数据（data/shell/space-cats.yaml）：3 个门内子页，顺序、字段齐全、图标存在、配色在白名单里
+ * - 数据（data/common/space-cats.yaml）：3 个门内子页，顺序、字段齐全、图标存在、配色在白名单里
  * - 模板：平铺入口组件 partials/sgx-entries.html 在对齐 PR-C2 退役（主页、博客、奇趣、日刻都不用，文件和 @shell entries 样式段都删了）；旷野独立布局；旧页删除
  * - 构建产物（有才跑）：中英主页三节、状态页一个窗；
  *   /display/ 页面不存在；任何产物（HTML / XML / JSON）里没有 /display/ 链接；搜索索引里没有 /display/
@@ -16,7 +16,7 @@ import { strings } from '../../../fixtures/strings.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const rd = (/** @type {string} */ p) => readFileSync(path.join(REPO, p), 'utf8');
-const data = /** @type {any} */ (yaml.load(rd('space/web/data/shell/space-cats.yaml')));
+const data = /** @type {any} */ (yaml.load(rd('space/web/data/common/space-cats.yaml')));
 const cats = /** @type {any[]} */ (data.cats);
 const TR = { en: strings('space', 'en'), zh: strings('space', 'zh') };
 const TONES = ['primary', 'secondary', 'tertiary', 'info'];
@@ -26,7 +26,7 @@ test('数据：主站门内子页 1 个（状态页，2026-11-12 起；原旷野
   /* 语言包化（2026-11-07）：名字 / 副标题在字符串表 spaceCats（数据文件只留 id / icon / tone） */
   assert.deepEqual(cats.map((c) => TR.zh.spaceCats[c.id].title), ['状态']);
   assert.deepEqual(cats.map((c) => TR.en.spaceCats[c.id].title), ['Status']);
-  const icons = rd('space/web/layouts/partials/shell/icon.html');
+  const icons = rd('space/web/layouts/partials/common/icon.html');
   for (const c of cats) {
     for (const k of ['icon', 'tone']) assert.ok(typeof c[k] === 'string' && c[k].trim(), `${c.id}.${k}`);
     for (const k of ['zh', 'en', 'sub_zh', 'sub_en']) assert.equal(c[k], undefined, `${c.id}.${k} 不该在数据文件里`);
@@ -50,7 +50,7 @@ test('模板：平铺入口组件退役（主页 / 四站都不用，组件和�
     assert.doesNotMatch(rd('space/web/layouts/' + f), /partial "sgx-entries\.html"/, f + ' 不用入口组件');
   }
   assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials/sgx-entries.html')), 'sgx-entries.html 已删除');
-  assert.doesNotMatch(rd('space/web/assets/shell/css/input.css'), /@shell:begin entries|\.sgx-ent-li \{/, '@shell entries 样式段已删除');
+  assert.doesNotMatch(rd('space/web/assets/common/css/input.css'), /@shell:begin entries|\.sgx-ent-li \{/, '@shell entries 样式段已删除');
   /* 状态页（2026-11-12 起，旷野删除）：独立布局 + 中英内容；旷野页的模板和内容删除 */
   assert.ok(existsSync(path.join(REPO, 'space/web/layouts/_default/status.html')), 'status.html');
   assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/_default/wild.html')), 'wild.html 已删');
@@ -67,7 +67,7 @@ test('模板：平铺入口组件退役（主页 / 四站都不用，组件和�
   /* 不做 301：_redirects 里没有 /display/ */
   assert.ok(!/\/display\//.test(rd('space/web/static/_redirects')), '_redirects 不跳 /display/');
   /* 功能开关不再指向显示页 */
-  const feats = /** @type {any} */ (yaml.load(rd('space/web/data/shell/features.yaml'))).features;
+  const feats = /** @type {any} */ (yaml.load(rd('space/web/data/common/features.yaml'))).features;
   assert.ok(!feats.some((/** @type {any} */ f) => f.section === 'display'), 'features.yaml 没有 section: display');
 });
 

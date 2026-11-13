@@ -10,11 +10,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { jsDict, strings } from '../../../fixtures/strings.mjs';
 import { existsSync, readFileSync } from 'node:fs';
-import { renderAudit, AUDIT_MAX } from '../../../../space/web/assets/shell/js/status/status-view.js';
+import { renderAudit, AUDIT_MAX } from '../../../../space/web/assets/common/js/status/status-view.js';
 import { AUDIT_SHOW } from '../../../../workers/space-core/src/api/space-audit.js';
 
 const read = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
-/* 文案读主站字符串表 js.status（语言包化 2026-11-07：partials/shell/status-i18n.html 输出 $tr.js.status），和页面上一致 */
+/* 文案读主站字符串表 js.status（语言包化 2026-11-07：partials/common/status-i18n.html 输出 $tr.js.status），和页面上一致 */
 const DICT = jsDict('status');
 
 /* 2026-10-09 12:00 北京时间 */
@@ -100,7 +100,7 @@ test('模板：默认收起的 <details id="st-audit">，标题 / 摘要中英�
 });
 
 test('apps/space-status.js：只在折叠区展开时请求 /api/space-audit；加载和 60 秒刷新不碰它；成功后不重复取', () => {
-  const js = read('space/web/assets/shell/js/apps/space-status.js');
+  const js = read('space/web/assets/common/js/apps/space-status.js');
   assert.match(js, /export const AUDIT_API = '\/api\/space-audit';/);
   assert.equal((js.match(/fetch\(AUDIT_API/g) || []).length, 1, '只有一处请求');
   const code = js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');

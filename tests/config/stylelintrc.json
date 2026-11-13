@@ -1,1 +1,1 @@
-{"customSyntax":"postcss-scss","ignoreFiles":["**/assets/shell/css/main.css"],"rules":{"color-named":"never","color-no-hex":true}}
+{"customSyntax":"postcss-scss","ignoreFiles":["**/assets/common/css/main.css"],"rules":{"color-named":"never","color-no-hex":true}}

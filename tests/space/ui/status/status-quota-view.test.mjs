@@ -1,5 +1,5 @@
 /**
- * 服务状态「免费额度」区块（2026-10-27，space/web/assets/shell/js/status/status-view.js quotaItems / renderQuota）：
+ * 服务状态「免费额度」区块（2026-10-27，space/web/assets/common/js/status/status-view.js quotaItems / renderQuota）：
  * 条目顺序、值 / 上限 / 百分比、等级（≥ 80% 琥珀、≥ 95% 红）、某项拿不到、Pages 拿不到、quota = null 的提示、
  * 「更新于 N 分钟前」+ stale、中英文案齐全且一致、用量卡 skipWorkers、转义。假数据：tests/fixtures/status-summary.cjs quota()。
  * 运行：node --test tests/space/ui/status/status-quota-view.test.mjs
@@ -10,10 +10,10 @@ import { jsDict } from '../../../fixtures/strings.mjs';
 import { readFileSync } from 'node:fs';
 import {
   quotaItems, quotaLevel, renderQuota, renderUsage, usageItems, QUOTA_WARN, QUOTA_CRIT,
-} from '../../../../space/web/assets/shell/js/status/status-view.js';
+} from '../../../../space/web/assets/common/js/status/status-view.js';
 import fx from '../../../fixtures/status-summary.cjs';
 
-/* 文案读主站字符串表 js.status（语言包化 2026-11-07：partials/shell/status-i18n.html 输出 $tr.js.status），和页面上一致 */
+/* 文案读主站字符串表 js.status（语言包化 2026-11-07：partials/common/status-i18n.html 输出 $tr.js.status），和页面上一致 */
 const DICT = jsDict('status');
 
 function mk(en) {

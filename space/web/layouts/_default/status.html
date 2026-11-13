@@ -7,11 +7,11 @@
    不在 NAVIGATE 01–04 里（没有当前项，终端 cwd 为 ~）。noindex（门内页，见 baseof）。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-space-status.js" }}
-{{ $pageLang := partial "shell/sgx-page-lang.html" . }}{{ $tr := partialCached "shell/sgx-tr.html" $pageLang $pageLang }}
-{{ $ps := partial "shell/sgx-envps.html" "~" }}
+{{ $pageLang := partial "common/sgx-page-lang.html" . }}{{ $tr := partialCached "common/sgx-tr.html" $pageLang $pageLang }}
+{{ $ps := partial "common/sgx-envps.html" "~" }}
 
 <div class="status-wrap">
-{{ partial "shell/sgx-ph.html" (dict "cmd" "systemctl status" "title" .Title "desc" .Description "path" .File.Path) }}
+{{ partial "common/sgx-ph.html" (dict "cmd" "systemctl status" "title" .Title "desc" .Description "path" .File.Path) }}
 
   {{/* status：systemctl status space.target。#st-root 及其子节点 id 不变（apps/space-status.js、tests/space/e2e/space/space-status.spec.js 按 id 找）；
      状态 data-state：loading 骨架 · ready 有数据 · empty 还没有任何检查结果 · error 第一次就失败（之后刷新失败只在末行提示，保留旧数据）
@@ -102,6 +102,6 @@
   <p class="sgx-eof status-eof-end" data-status-eof aria-hidden="true" translate="no">-- EOF --</p>
 </div>
 
-{{ partial "shell/space-i18n.html" (dict "tr" $tr) }}
-{{ partial "shell/status-i18n.html" . }}
+{{ partial "common/space-i18n.html" (dict "tr" $tr) }}
+{{ partial "common/status-i18n.html" . }}
 {{ end }}

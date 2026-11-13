@@ -4,5 +4,5 @@
    → 能编辑时一条命令「vim … · 编辑」→ 底部两卡 cd ../prev │ 相关文章（博客里提到它的那篇，没有就 cd ../next）。参数：tr */ -}}
 <section id="cu-item" class="cu-item" hidden aria-live="polite"></section>
 {{- /* 「相关文章」的候选：本语言博客文章（新→旧）的标题 / 地址 / 标签；脚本按条目名字找提到它的那篇（curio-items.js relatedPost）。库里没有关联字段，按名字匹配 */ -}}
-{{- $posts := slice }}{{ range partial "shell/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) }}{{ $posts = $posts | append (dict "t" .Title "u" .RelPermalink "g" (.Params.tags | default slice)) }}{{ end }}
+{{- $posts := slice }}{{ range partial "common/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) }}{{ $posts = $posts | append (dict "t" .Title "u" .RelPermalink "g" (.Params.tags | default slice)) }}{{ end }}
 <script id="cu-posts" type="application/json">{{ $posts | jsonify | safeJS }}</script>

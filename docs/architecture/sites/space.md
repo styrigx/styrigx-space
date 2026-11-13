@@ -21,19 +21,19 @@
 | `/status/`、`/zh/status/` | `layouts/_default/status.html` | `apps/entries/entry-space-status.js` | 状态页：`#status`（服务状态，读 `/api/status`，要进站；页底进站凭证使用记录读 `/api/space-audit`）。不在导航 01–04 里，入口是导航面板 STATUS 区的按钮和面板页脚 `systemctl status ›`。about 卡 v5 S7 起只在首页 |
 | `/404.html` | `layouts/404.html` | — | 404 |
 
-2.1 首页 `$` 行只打字轮播英文标语 `hugo.yaml` 的 `params.tagline`（中英页面相同，不翻译；`apps/home-typer.js`，减弱动效时静止）。`#` 行显示账号个人资料的签名 motto：首帧用 `data/shell/profile.yaml` 的默认值，随后 `prefs/profile.js` 以 `/api/profile` 覆盖；空值时整行隐藏，不截断、不翻译。
+2.1 首页 `$` 行只打字轮播英文标语 `hugo.yaml` 的 `params.tagline`（中英页面相同，不翻译；`apps/home-typer.js`，减弱动效时静止）。`#` 行显示账号个人资料的签名 motto：首帧用 `data/common/profile.yaml` 的默认值，随后 `prefs/profile.js` 以 `/api/profile` 覆盖；空值时整行隐藏，不截断、不翻译。
 
 2.2 v5 S3 起页面两态内容相同，站点核心不再剥掉任何内容（`SGX-DESKTOP` 标记已从模板删除）。
 
 2.3 已退役的页面由 `static/_redirects` 301：`/wild/` → `/status/`（2026-11-12 旷野删除）；`/about/` → `/#about`（`/wellbeing/` v6 P4 删除）；`/theme/` → `/`；`/account/*` → `/#acct=<层>`；`/security/*` → `/#sec…`；`/owner/` → `/#sec=keys`；`/chat/`、`/search/`、`/browser/*`、`/files/*` → `/`。
 
-2.4 版本号唯一来源 `space/web/data/shell/version.yaml`（`ui`、`sgx` 两个字段），模板缺字段即构建失败。
+2.4 版本号唯一来源 `space/web/data/common/version.yaml`（`ui`、`sgx` 两个字段），模板缺字段即构建失败。
 
 ## 3. 外壳组件
 
 | 组件 | 代码 | 说明 |
 |---|---|---|
-| 顶栏 | `layouts/partials/shell/shell-topbar.html`、`assets/shell/css/` | 顶栏 E（v5 S6）：盾牌 · 调色 · 导航四格 │ `>_` 终端 · 头像；底边滑页进度条 |
+| 顶栏 | `layouts/partials/common/shell-topbar.html`、`assets/common/css/` | 顶栏 E（v5 S6）：盾牌 · 调色 · 导航四格 │ `>_` 终端 · 头像；底边滑页进度条 |
 | 导航面板 | `#sgx-nav`，`topbar/topbar-panel.js` | 顶栏四格打开；站点导航、语言与布局两行 Auto 控件、分享本页（v5 S6 去掉 lock 按钮） |
 | 快捷面板 | `#sgx-qp`，`topbar/quick-panel.js` | 调色打开；深浅色、调色板 |
 | 终端 | `#sgx-term`，`term/terminal.js` + `term/` | 全站唯一终端（v5 S5）：顶栏 `>_`、`Ctrl / ⌘ K`、盾牌、上锁部件打开；桌面居中大窗、手机整块卡片；钥匙层 `shell/space/layer.js`、账号层 `account/cmd/layer.js` 共用输入行（ADR-0005） |
@@ -41,7 +41,7 @@
 | 盾牌 | `.sgx-tb-shield` | 不开窗口：访客点 → 终端预填 `sudo styrigx`；已进站点 → 终端问「退出进站会话 [y/N]」 |
 | 账号卡片 | `#sgx-acct`，`account/window.js` | 头像打开（只在已进站时；访客态头像是死按钮）；S9 起只展示，点一行 = 终端预填命令 |
 | 进站守卫 | `auth/guard.js` | 已进站页面的自动回锁 |
-| 页脚 | `layouts/partials/shell/sgx-footer.html` | rss / github / x 与构建号 |
+| 页脚 | `layouts/partials/common/sgx-footer.html` | rss / github / x 与构建号 |
 
 3.1 子站直接使用主站的这些 partial 与 JS（`space/web/layouts/<站>/baseof.html` 引用），MUST NOT 复制。
 

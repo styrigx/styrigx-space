@@ -1,6 +1,6 @@
 /**
- * PR3 主题色角色 token → 2026-10-23 PR-G 七色调色板：22 套（1 背景色 + 6 前景撞色；space/web/data/shell/palette-roles.json）→ input.css（space/scripts/gen/gen-palettes.mjs），
- * 引擎 space/web/assets/shell/js/ui/palette-scheme.js（设计稿 scheme.js 的移植）。
+ * PR3 主题色角色 token → 2026-10-23 PR-G 七色调色板：22 套（1 背景色 + 6 前景撞色；space/web/data/common/palette-roles.json）→ input.css（space/scripts/gen/gen-palettes.mjs），
+ * 引擎 space/web/assets/common/js/ui/palette-scheme.js（设计稿 scheme.js 的移植）。
  * 2026-11-12 调色板 v4：没有深浅模式和自定义主题色。每套只有一个模式（浅套 / 深套由底色决定），JSON 每套 { mode, roles, state, tones }；
  * 下面的 MODES(id) = [这套的模式]，DATA.presets[id][mode] / [mode + 'Tones'] / [mode + 'State'] 是测试里给 roles / tones / state 起的别名。
  * 定稿设计稿的数据在 tests/fixtures/palette-v0.3.json（id / 名字 / 背景色 / 6 前景 / 前景色池）。
@@ -10,11 +10,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mixHex, presetRoles, contrast, hexToOklch, audit, bgTones, fgTones, paletteMode, PRESETS, PINS, DEFAULT_ID, FG_POOL, SEM } from '../../../../space/web/assets/shell/js/ui/palette-scheme.js';
+import { mixHex, presetRoles, contrast, hexToOklch, audit, bgTones, fgTones, paletteMode, PRESETS, PINS, DEFAULT_ID, FG_POOL, SEM } from '../../../../space/web/assets/common/js/ui/palette-scheme.js';
 import { renderBlock, splice } from '../../../../space/scripts/gen/gen-palettes.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const RAW = readFileSync(path.join(REPO, 'space/web/data/shell/palette-roles.json'), 'utf8');
+const RAW = readFileSync(path.join(REPO, 'space/web/data/common/palette-roles.json'), 'utf8');
 const DATA = JSON.parse(RAW);
 /* 测试用别名（不可枚举，不影响和引擎结果的 deepEqual）：p[mode] = roles、p[mode + 'Tones'] = tones、p[mode + 'State'] = state */
 for (const p of Object.values(DATA.presets)) {
@@ -25,7 +25,7 @@ for (const p of Object.values(DATA.presets)) {
 const MODES = (id) => [DATA.presets[id].mode];
 /** 同模式的参照套（语义色、danger 等固定色比较用）：浅套 = dustyblue，深套 = terra */
 const REF = (m) => DATA.presets[m === 'light' ? 'dustyblue' : 'terra'][m];
-const CSS = readFileSync(path.join(REPO, 'space/web/assets/shell/css/input.css'), 'utf8');
+const CSS = readFileSync(path.join(REPO, 'space/web/assets/common/css/input.css'), 'utf8');
 const V3 = JSON.parse(readFileSync(path.join(REPO, 'tests/fixtures/palette-v0.3.json'), 'utf8'));
 const hueDist = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
 const hue = (h) => hexToOklch(h).h;
@@ -113,7 +113,7 @@ test('每个预设一段 :root[data-palette]（没有 .dark 段）；默认 terr
   assert.doesNotMatch(CSS, /:root,\n {2}:root\[data-palette="lake"\]/);
 });
 test('色板列表（palette-source.yaml）和角色 JSON 同一组 id / 背景色', () => {
-  const yaml = readFileSync(path.join(REPO, 'space/web/data/shell/palette-source.yaml'), 'utf8');
+  const yaml = readFileSync(path.join(REPO, 'space/web/data/common/palette-source.yaml'), 'utf8');
   const items = [...yaml.matchAll(/- id: (\w+)\n\s+c: "(#[0-9a-f]{6})"/g)].map((m) => [m[1], m[2]]);
   assert.equal(items.length, 25);
   assert.deepEqual(items.map((x) => x[0]), Object.keys(DATA.presets));

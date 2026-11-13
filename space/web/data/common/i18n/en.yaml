@@ -1,0 +1,258 @@
+# 本站字符串表（语言包化 2026-11-07）：英文是源文本；其他语言的表缺键时回退英文（partials/common/sgx-tr.html）。
+# 键按模板分组（<模板名>.<键>）；js.<表> 是页面 JS 读的文案表（<script id="sgx-i18n-<表>">）。
+# 不放进来的：品牌名（Gray AI、Styrigx）、个人信息类（partials/common/sgx-personal.html）、语言自己的名字（hugo.yaml label）。
+notFound:
+  pageNotFound: Page not found
+  theLinkYouFollowed: The link you followed may be broken, or the page has moved.
+  backHome: Back home
+  curio: Curio
+home:
+  # 主页首屏终端（2026-11 UI 重设计 PR-2；对齐 PR-B 按设计稿 tb4.html：博客 / 奇趣 / 日刻；[04] 旷野 2026-11-12 删除）。status 是首帧文字，外壳取到 /api/status 后换成 js.space.homeStatusUp / Down
+  status: "STATUS: ONLINE · 6/6 ACTIVE"
+  blog: Blog
+  minutes: "{n} min"
+  blogLabel: "[01] Blog · latest 3"
+  curioLabel: "[02] Curio"
+  curio:
+    title: Curio
+    finds: { name: Finds, latest: Latest find }
+    devices: { name: Devices, latest: In use }
+    games: { name: Games, latest: Playing }
+  daymark: Daymark
+  daymarkLabel: "[03] Daymark · line of the day"
+index:
+  noLineForToday: No line for today yet
+  tapToKeepOne: Tap to keep one in Daymark
+js:
+  core:
+    pkCancelled: Cancelled
+    pkTimeout: Timed out, please retry
+    pkNoKey: No matching key on this device
+    pkFailed: Passkey verification failed
+    qpOn: 'On'
+    qpOff: 'Off'
+    qpLangTo: 'Language: English. Tap to switch to 中文'
+    qpLargeOnly: Large screens only
+    lockWelcomeBack: Welcome back
+    lockCantSignIn: Can’t sign in?
+    lockReload: Reload
+    avTitle: "Profile photo"
+    avPick: "Choose photo…"
+    avRemove: "Remove photo"
+    avCrop: "Move and scale"
+    avCancel: "Cancel"
+    avDone: "Done"
+    avSaved: "Photo updated"
+    avRemoved: "Photo removed"
+    avFailed: "Couldn’t save the photo. Try again."
+    avBadFile: "This file can’t be opened as an image."
+  space:
+    homeStatusUp: "STATUS: ONLINE · {up}/{n} ACTIVE"
+    homeStatusDown: "STATUS: DEGRADED · {up}/{n} ACTIVE"
+    dmSourceWrap: '{s}'
+  status:
+    activeUp: active (running)
+    activeDown: degraded
+    unitActive: active
+    unitFailed: failed
+    unitFlaky: flaky
+    unitPending: pending
+    checkedAt: checked {time}
+    loading: Loading…
+    allUp: All systems operational
+    allUpSub: '{n} services are up'
+    someDown1: '{n} service down'
+    someDown: '{n} services down'
+    someDownSub: '{names} unreachable right now'
+    stUp: Up
+    stDown: Down
+    stFlaky: Unstable
+    stPending: Pending
+    latency: '{ms} ms'
+    checkedAgo: checked {ago}
+    notChecked: Not checked yet
+    justNow: just now
+    minAgo: '{n} min ago'
+    hourAgo: '{n} h ago'
+    dayAgo: '{n} d ago'
+    causeTimeout: Timed out
+    causeNetwork: Connection failed
+    causeBinding: Monitor isn't bound to this service
+    causeUnknown: Unknown cause
+    daysAgo90: 90 days ago
+    today: Today
+    uptime: '{pct} uptime'
+    barLabel: '{name}: {pct} uptime over the last 90 days'
+    dayNoData: '{day} · No data'
+    dayDetail: '{day} · {pct} uptime · {total} checks'
+    dayAvg: ' · avg {ms} ms'
+    incOngoing: Ongoing
+    incResolved: Resolved
+    incStart: Started {time}
+    incEnd: Resolved {time}
+    incDur: Lasted {dur}
+    incDurOngoing: Ongoing for {dur}
+    incNone: No incidents recorded
+    durLt1: under 1 min
+    durMin: '{n} min'
+    durH: '{h} h'
+    durHM: '{h} h {m} min'
+    durD: '{d} d'
+    durDH: '{d} d {h} h'
+    updated: Updated {time} (Beijing time), refreshes every minute
+    stale: Couldn't refresh; showing data from {time}
+    errTitle: Status unavailable
+    errSub: The monitor didn't respond. Try again shortly.
+    retry: Retry
+    uWorkers: Workers requests (today)
+    uWorkersSub: Resets at 00:00 UTC (08:00 Beijing time)
+    uD1: D1 databases (total)
+    uD1Sub: '{n} databases, {per} max each'
+    uR2: R2 storage
+    uR2Sub: '{buckets} buckets · {objects} objects'
+    uKV: KV storage
+    uKVSub: '{n} namespaces · {keys} keys'
+    uKVSubNoBytes: '{n} namespaces (size unavailable)'
+    uUnavailable: Unavailable right now
+    uOf: '{value} / {limit}'
+    uBarLabel: '{name}: {pct} of the free tier used'
+    uUpdated: Updated {ago} ({time} Beijing time), hourly
+    uStale: ; last refresh failed
+    uNotConfigured: Usage not configured
+    uNotConfiguredSub: Add a read-only Cloudflare API token to the monitor to see free-tier usage here, updated hourly.
+    uNotCollected: No usage data yet
+    uNotCollectedSub: Collected at :41 every hour; it shows up after the next run.
+    uError: Usage unavailable
+    qWorkers: Workers requests (today)
+    qWorkersSub: Workers {w} · Pages Functions {p}, counted together
+    qWorkersSubNoPages: Workers {w} (Pages Functions unavailable, not included)
+    qKv: KV operations (today)
+    qKvRead: KV reads (today)
+    qKvWrite: KV writes (today)
+    qKvDelete: KV deletes (today)
+    qKvList: KV lists (today)
+    qD1: D1 rows (today)
+    qD1Read: D1 rows read (today)
+    qD1Write: D1 rows written (today)
+    qR2: R2 operations (this month)
+    qR2A: R2 Class A operations (this month)
+    qR2ASub: Writes, lists, etc.; monthly (estimated by UTC calendar month)
+    qR2B: R2 Class B operations (this month)
+    qR2BSub: Reads, HEADs, etc.; monthly (estimated by UTC calendar month)
+    qUpdated: Updated {ago} ({time} Beijing time), at most every 5 min; daily limits reset at 00:00 UTC (08:00 Beijing time)
+    qNotConfigured: Quota not configured
+    qNotConfiguredSub: Add a read-only Cloudflare API token with Account Analytics Read to the monitor to see today's free-tier usage here.
+    qError: Quota unavailable
+    qErrorSub: Couldn't read Cloudflare analytics; it retries in 5 minutes.
+    auditLoading: Loading…
+    auditNone: No activity in the last 7 days
+    auditCount: '{n} records, {fail} failed (Beijing time)'
+    auditCap: ; showing the latest 50
+    auditOk: Succeeded
+    auditFail: Failed
+    auditIpUnknown: Unknown IP
+    auditErr: Couldn't load the records. Try again shortly.
+    auditErrAuth: Session expired. Sign in with su to see the records.
+    auditErrPerm: Only root can see these records. Run su root first.
+    uErrorSub: Couldn't read Cloudflare usage; it retries at :41 next hour.
+    site_space: "Space"
+    site_proxy-rules: "Proxy rules"
+    site_ai: "AI"
+    nameSep: ", "
+filesIndex:
+  app:
+    settings:
+      title: Settings
+      sub: Theme, language, wallpaper
+site:
+  name: Styrigx
+  description: Sloan Gray’s personal space
+baseof:
+  close: Close
+  space: Space
+  pageNotFound: Page not found
+status:
+  lockedHint: visible after su
+  lockedSub: "Service status, uptime and usage are only visible once you’re signed in."
+  lockedPermHint: "Your user doesn’t have this permission"
+  lockedPermSub: "Service status, uptime and usage need the status group. Run su root first."
+  loading: Loading…
+  noDataYet: No data yet
+  resultsShowUpAfter: Results show up after the first round of checks, in about a minute.
+  freeTierQuota: Free-tier quota
+  usage: Usage
+  recentIncidents: Recent incidents
+  spaceCredentialActivity: Space credential activity
+  last7DaysTime: 'Last 7 days: time, IP prefix and result'
+about:
+  # 主页首屏 neofetch about 卡各行的本语言说明（鼠标悬停 title；2026-11-12 旷野删除时由 wild 改名 about）
+  version: Version
+  kernel: Kernel
+  build: Build
+  builtAt: Built at
+  uptime: Up since 2026-10-07
+sgxAccountCard:
+  signedIn: Signed in
+  changePhoto: Change photo
+features:
+  palette:
+    name: Color palette
+    opt:
+      dustyblue: Dusty Blue
+      lake: Lake
+      glacier: Glacier
+      indigo: Indigo
+      teal: Teal
+      violet: Violet
+      forest: Forest
+      matcha: Matcha
+      sage: Sage
+      cherry: Cherry
+      tangerine: Tangerine
+      coral: Coral
+      terra: Terracotta
+      amber: Amber
+      mustard: Mustard
+      champagne: Champagne
+      rose: Rose
+      berry: Berry
+      orchid: Orchid
+      dustyrose: Dusty Rose
+      graphite: Graphite
+      cream: Cream
+  layout:
+    name: Layout
+    desc: Manual choice overrides the automatic viewport detection.
+    opt:
+      mobile: Mobile
+      auto: Auto
+      dex: DeX
+  lang:
+    name: Language
+    opt:
+      system: Follow system
+      zh: Chinese
+      en: English
+  files-view:
+    name: Files default view
+  files-home:
+    name: Files home sections
+  lock-gate:
+    name: Lock gate
+spaceCats:
+  status:
+    title: Status
+    sub: Services, uptime and usage
+sites:
+  space:
+    title: Home
+    sub: Personal homepage
+  blog:
+    title: Blog
+    sub: Personal blog
+syncItems:
+  group:
+    look: Appearance
+    more: More
+  extra:
+    sgx-ai-model: AI model

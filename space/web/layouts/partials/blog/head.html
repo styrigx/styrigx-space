@@ -10,14 +10,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 {{- /* 调色板 v4（2026-11-12）：深浅和浏览器底色只由调色板决定。这里写默认 terra，下面的共享读端 SgxUI.apply 按 cookie 里的调色板改（所以要在它前面） */}}
-{{- range site.Data.shell.palettes.presets }}{{ if eq .id "terra" }}
+{{- range site.Data.common.palettes.presets }}{{ if eq .id "terra" }}
 <meta name="color-scheme" content="{{ .mode }}">
 <meta name="theme-color" content="{{ .tokens.background }}">
 {{- end }}{{ end }}
 {{ partial "blog/sgx-inherit.html" (dict "alt" .alt) }}
 {{- /* 布局模式：共享外壳 layout-mode.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，四站同一条规则 __sgxLayout()（手机 / 桌面，P4-3 PR-4b）；
    结果写 <html data-sgx-layout>（外壳按它定顶栏宽）和 layout-mobile / layout-dex 类（博客没有自己的布局开关，快捷面板布局行改了偏好就调 __applyLayout） */}}
-<script>{{ (resources.Get "shell/js/ui/layout-mode.js" | minify).Content | safeJS }}</script>
+<script>{{ (resources.Get "common/js/ui/layout-mode.js" | minify).Content | safeJS }}</script>
 <script>
 function __layoutMode(){
   return __sgxLayout()==='desktop'?'dex':'mobile';

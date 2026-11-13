@@ -64,7 +64,7 @@ space/web/
 
 3.1 地址规则：主站与子站英文为默认语言；中文主站在 `/zh/`，子站中文在 `/<站>/zh/…`，由各页 front matter 的 `url` 给出，模板里有守卫，写错直接构建失败。
 
-3.2 生成物，MUST NOT 手改（CI 跑 `--check`）：`assets/shell/css/main.css`、`assets/<站>/css/main.css`、`data/shell/tailwind.json`（`build-css.cjs`）；`assets/shell/css/tokens.css`、`shell.css`、`data/shell/*.json`（`gen-shell.mjs`）；`data/shell/palette-roles.json` 与 `input.css` 的 `@gen-palettes` 段（`gen-palettes.mjs`）；`static/_headers` 与 `workers/*/src/lib/csp-hashes.js`（`gen-csp.mjs`）。
+3.2 生成物，MUST NOT 手改（CI 跑 `--check`）：`assets/common/css/main.css`、`assets/<站>/css/main.css`、`data/common/tailwind.json`（`build-css.cjs`）；`assets/common/css/tokens.css`、`shell.css`、`data/common/*.json`（`gen-shell.mjs`）；`data/common/palette-roles.json` 与 `input.css` 的 `@gen-palettes` 段（`gen-palettes.mjs`）；`static/_headers` 与 `workers/*/src/lib/csp-hashes.js`（`gen-csp.mjs`）。
 
 3.3 `static/_worker.js` 只把 `*.pages.dev` 301 回 `styrigx.com`。旧地址的 301 写在 `static/_redirects`。
 

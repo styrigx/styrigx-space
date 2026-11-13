@@ -9,7 +9,7 @@
 {{ partial "blog/head.html" (dict "page" . "title" (i18n "blogTitle") "description" (i18n "siteDescription") "alt" $alt) }}
 {{ end }}
 {{ define "body" }}
-{{- $posts := partial "shell/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) -}}
+{{- $posts := partial "common/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) -}}
 {{- $cf := partial "blog/cat-field.html" $posts -}}
 {{- $cats := partial "blog/groups.html" (dict "posts" $posts "field" $cf) -}}
 {{- $tree := (site.GetPage "/blog/tree").RelPermalink -}}
@@ -21,7 +21,7 @@
 <body class="page-home">
 {{ partial "blog/topnav.html" (dict "page" . "mode" "links" "title" (i18n "blogTitle")) }}
 <main class="oui-archive-wrap blog-list" data-blog-list data-cat-field="{{ $cf }}" data-page-size="6" data-tree="{{ $tree }}" data-names="{{ $names | jsonify }}">
-  {{ partial "shell/sgx-ph.html" (dict "cmd" "ls -lt blog/" "title" (i18n "blogTitle") "desc" $desc "path" "blog/_index") }}
+  {{ partial "common/sgx-ph.html" (dict "cmd" "ls -lt blog/" "title" (i18n "blogTitle") "desc" $desc "path" "blog/_index") }}
   <nav class="sgx-chips blog-chips" aria-label="{{ i18n "categories" }}">
     <a class="sgx-chip" href="{{ .RelPermalink }}" data-chip="" aria-current="true">{{ i18n "chipAll" }} <i>{{ len $posts }}</i></a>
     {{- range first 6 $cats }}

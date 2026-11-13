@@ -179,7 +179,7 @@ var toastTimer = null;
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
 }
-/** 请人进站：顶栏终端预填 su （topbar/topbar-panel.js 接 sgx:sudo，= shell/js/auth/sudo.js SUDO_EVENT）；子页经 SgxCurioUI.sudo 用同一个 */
+/** 请人进站：顶栏终端预填 su （topbar/topbar-panel.js 接 sgx:sudo，= common/js/auth/sudo.js SUDO_EVENT）；子页经 SgxCurioUI.sudo 用同一个 */
 function askSudo(){ try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {} }
 function getJSON(url){
   return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){

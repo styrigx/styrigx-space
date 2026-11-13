@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="{{ partial "shell/sgx-page-lang.html" . }}" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}" data-sgx-build="{{ partial "shell/sgx-build-sha.html" . }}">
+<html lang="{{ partial "common/sgx-page-lang.html" . }}" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}" data-sgx-build="{{ partial "common/sgx-build-sha.html" . }}">
 <head>
-{{ $pageLang := partial "shell/sgx-page-lang.html" . }}{{ $tr := partialCached "shell/sgx-tr.html" $pageLang $pageLang }}
+{{ $pageLang := partial "common/sgx-page-lang.html" . }}{{ $tr := partialCached "common/sgx-tr.html" $pageLang $pageLang }}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {{/* 切页时等 <main> 解析完再出第一帧，避免过渡里露出还没排好版的新页面（标准写法，Chromium 124+；不支持的浏览器忽略） */}}
 <link rel="expect" href="#sgx-main" blocking="render">
 {{/* 调色板 v4（2026-11-12）：没有深浅模式，深浅和浏览器底色只由调色板决定。这里写默认 terra（深套），首帧脚本按 sgx-palette 改成本套的（PAL 表） */}}
-{{- $palMeta := dict -}}{{- range site.Data.shell.palettes.presets -}}{{- $palMeta = merge $palMeta (dict .id (slice (cond (eq .mode "dark") 1 0) .tokens.background)) -}}{{- end }}
+{{- $palMeta := dict -}}{{- range site.Data.common.palettes.presets -}}{{- $palMeta = merge $palMeta (dict .id (slice (cond (eq .mode "dark") 1 0) .tokens.background)) -}}{{- end }}
 <meta name="color-scheme" content="{{ if eq (index (index $palMeta "terra") 0) 1 }}dark{{ else }}light{{ end }}">
 <meta name="theme-color" content="{{ index (index $palMeta "terra") 1 }}">
 {{/* 标签页标题（Gray 2026-11-07 定，四站统一）：「页名 | 站名」，站名走字符串表 site.name（主站 Styrigx，品牌名不翻，只在英文表、各语言回退）；
@@ -26,9 +26,9 @@
 {{/* P4-3 PR-4c：canonical + hreflang（英文无前缀是 x-default，中文 /zh/；地址由 sgx-lang-path.html 拼）。404 不给 */}}
 {{ if ne .Kind "404" }}{{ $origin := strings.TrimSuffix "/" site.BaseURL }}
 <link rel="canonical" href="{{ $origin }}{{ .RelPermalink }}">
-<link rel="alternate" hreflang="en" href="{{ $origin }}{{ partial "shell/sgx-lang-path.html" (dict "path" .RelPermalink "lang" "en") }}">
-<link rel="alternate" hreflang="zh" href="{{ $origin }}{{ partial "shell/sgx-lang-path.html" (dict "path" .RelPermalink "lang" "zh") }}">
-<link rel="alternate" hreflang="x-default" href="{{ $origin }}{{ partial "shell/sgx-lang-path.html" (dict "path" .RelPermalink "lang" "en") }}">
+<link rel="alternate" hreflang="en" href="{{ $origin }}{{ partial "common/sgx-lang-path.html" (dict "path" .RelPermalink "lang" "en") }}">
+<link rel="alternate" hreflang="zh" href="{{ $origin }}{{ partial "common/sgx-lang-path.html" (dict "path" .RelPermalink "lang" "zh") }}">
+<link rel="alternate" hreflang="x-default" href="{{ $origin }}{{ partial "common/sgx-lang-path.html" (dict "path" .RelPermalink "lang" "en") }}">
 {{ end }}
 {{/* og:locale：hugo.yaml languages.<语言>.params.ogLocale（语言配置，不是文案） */}}
 <meta property="og:locale" content="{{ range hugo.Sites }}{{ if eq .Language.Lang $pageLang }}{{ .Language.Params.ogLocale }}{{ end }}{{ end }}">
@@ -52,12 +52,12 @@
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="apple-touch-icon" href="/avatar/192.webp">
-{{/* 迁移第 3 步：源文件挪到 assets/shell/css/，产物网址仍是 /css/main.<指纹>.css（_headers 的 /css/* 长期缓存照旧） */ -}}
-<link rel="stylesheet" href="{{ (resources.Get "shell/css/main.css" | resources.Copy "css/main.css" | fingerprint).RelPermalink }}">
+{{/* 迁移第 3 步：源文件挪到 assets/common/css/，产物网址仍是 /css/main.<指纹>.css（_headers 的 /css/* 长期缓存照旧） */ -}}
+<link rel="stylesheet" href="{{ (resources.Get "common/css/main.css" | resources.Copy "css/main.css" | fingerprint).RelPermalink }}">
 {{/* 注意：main.css 已由 space/scripts/build/build-css.cjs 压缩，不再走 Hugo minify（tdewolff 不认 @view-transition） */}}
 {{/* 首帧语言跳转（语言清理 2026-11-07：四站同一份 lib/lang-boot.js，共享外壳同步给三个子站）：打成 IIFE 内联，挂 window.SgxLang。
    偏好 sgx-lang：明确语言 → 那种语言；'system' / 旧版的空 / 没有 → 浏览器语言；和本页不同就 replace 跳（不产生历史），跳前记 sgx-lang-hop */}}
-<script>{{ (resources.Get "shell/js/i18n/lang-boot.js" | js.Build (dict "format" "iife" "minify" true "target" "es2017")).Content | safeJS }}</script>
+<script>{{ (resources.Get "common/js/i18n/lang-boot.js" | js.Build (dict "format" "iife" "minify" true "target" "es2017")).Content | safeJS }}</script>
 <script>
 /* 记下这次切页的 view transition（页面脚本可等它结束再做大动作，如浏览器页带 #focus 进来时打开搜索层） */
 addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition||null;window.__sgxRevealed=1;},{once:true});
@@ -111,13 +111,13 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
   }catch(e){}
 })();
 </script>
-{{/* 2.4.0-C：旧 __sgxGet/__sgxSet/__sgxFmtTz 已移入 ES Module（assets/shell/js/prefs/storage.js、util.js），此处不再定义 */}}
+{{/* 2.4.0-C：旧 __sgxGet/__sgxSet/__sgxFmtTz 已移入 ES Module（assets/common/js/prefs/storage.js、util.js），此处不再定义 */}}
 {{/* 布局模式：共享外壳 layout-mode.js 的源头（四站同一条规则：手机 / 桌面，按 UA 是不是手机版网站 + 快捷面板手动偏好；P4-3 PR-4b Gray 2026-11-07）原样内联 */}}
-<script>{{ (resources.Get "shell/js/ui/layout-mode.js" | minify).Content | safeJS }}</script>
+<script>{{ (resources.Get "common/js/ui/layout-mode.js" | minify).Content | safeJS }}</script>
 <script>
 /* 布局：__sgxLayout()（layout-mode.js）给出 phone / desktop → <html data-sgx-layout> + 主站版面类 layout-mobile / layout-dex（类名照旧，版面 CSS 不动）。
    主站另做偏好迁移：存的旧值 mobile → phone、dex / pc → desktop，未知值 → auto；?layout=auto 把偏好改回 auto（逃生口）。
-   与 assets/shell/js/prefs/prefs.js resolveLayout() 同一规则。 */
+   与 assets/common/js/prefs/prefs.js resolveLayout() 同一规则。 */
 function __layoutMode(){
   try{
     if(new URLSearchParams(location.search).get('layout')==='auto')localStorage.setItem('sgx-layout','auto');
@@ -147,12 +147,12 @@ __sgxLayoutWatch(__applyLayout);
    启用的也是旧状态的页面。所有页面都要按会话出不同内容，不能预渲染。 */}}
 </head>
 <body class="text-m-on-surface min-h-screen antialiased{{ if not .IsHome }} subpage{{ end }}">
-{{ partial "shell/sgx-icon-sprite.html" . }}
-{{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/shell/js/ui/、nav/），此处不再内联定义 */}}
-{{ $acctUrl := (partial "shell/sgx-lang-path.html" (dict "path" "/account/" "lang" $pageLang)) }}
+{{ partial "common/sgx-icon-sprite.html" . }}
+{{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/common/js/ui/、nav/），此处不再内联定义 */}}
+{{ $acctUrl := (partial "common/sgx-lang-path.html" (dict "path" "/account/" "lang" $pageLang)) }}
 
 {{/* 顶栏（2026-11-04 P5-1，全站同一个：方案 6.2–6.5；P4-3 PR-4b Gray 2026-11-07 定稿）：一整条胶囊 [字标] [页名胶囊] [九宫格 · 快捷设置 · AI]，
-   连同导航面板、快捷面板、AI 窗口，标记都在 partials/shell/shell-topbar.html（共享外壳单一来源，gen-shell 生成 topbar.html 给三个子站）。
+   连同导航面板、快捷面板、AI 窗口，标记都在 partials/common/shell-topbar.html（共享外壳单一来源，gen-shell 生成 topbar.html 给三个子站）。
    这里只准备参数：中间 = 页名（状态页是「状态」）；图标、调色板色块按主站数据算好传进去。
    快捷面板四站同一套（深色 / 跟随系统 / 分享本页 / 立即锁定 + 语言 + 调色板 + 布局），不再按站给 tiles；头像在 AI 窗口头部（acct / avatar）。
    子页面没有大标题区：页名只在长条里，正文从顶栏下方 --sgx-content-top 开始（input.css，全站同一个值）。 */}}
@@ -163,40 +163,40 @@ __sgxLayoutWatch(__applyLayout);
 {{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿）。主页 = 「主页 / Home」，其他页 = 页名；不再有顶栏标签（topbar-tabs 删除）。
    手机布局不显示（共享外壳 CSS 按 data-sgx-layout），桌面布局按整条顶栏居中。 */}}
 {{ $center := printf "<span class=\"sgx-tb-title\">%s</span>" (htmlEscape $pageName) }}
-{{ $shellNav := index site.Data "shell" "shell-nav" }}
+{{ $shellNav := index site.Data "common" "shell-nav" }}
 {{ $tbIcons := dict }}
-{{ range (slice "tb-palette" "tb-shield" "tb-term" "tb-grid" "tb-music" "tb-chat" "lock" "tb-undo" "share" "tb-send" "tb-newchat" "tb-history") }}{{ $tbIcons = merge $tbIcons (dict . (partial "shell/icon.html" .)) }}{{ end }}
-{{ range $shellNav.items }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "shell/icon.html" .icon)) }}{{ end }}
-{{ range $shellNav.footer }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "shell/icon.html" .icon)) }}{{ end }}
+{{ range (slice "tb-palette" "tb-shield" "tb-term" "tb-grid" "tb-music" "tb-chat" "lock" "tb-undo" "share" "tb-send" "tb-newchat" "tb-history") }}{{ $tbIcons = merge $tbIcons (dict . (partial "common/icon.html" .)) }}{{ end }}
+{{ range $shellNav.items }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "common/icon.html" .icon)) }}{{ end }}
+{{ range $shellNav.footer }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "common/icon.html" .icon)) }}{{ end }}
 {{ $tbPal := slice }}
-{{ range (index site.Data.shell "palette-source").palettes }}{{ $tbPal = $tbPal | append (dict "id" .id "style" (partial "shell/palette-tile-vars.html" (dict "id" .id "full" false))) }}{{ end }}
+{{ range (index site.Data.common "palette-source").palettes }}{{ $tbPal = $tbPal | append (dict "id" .id "style" (partial "common/palette-tile-vars.html" (dict "id" .id "full" false))) }}{{ end }}
 {{/* 字符串表（语言包化）：当前页面语言叠在英文上；语言选择器选项来自 hugo.yaml languages（label = 语言自己的名字） */}}
-{{ $pageLang := partial "shell/sgx-page-lang.html" . }}
+{{ $pageLang := partial "common/sgx-page-lang.html" . }}
 {{/* 选项顺序 = languages.<语言>.params.pickerWeight（没写按 weight）：快捷面板沿用「跟随系统 / 中文 / English」，和 features.yaml lang 选项同序；hugo.Sites 总是默认语言（英文）在前，不能直接用 */}}
 {{ $tbLangs := slice }}{{ range hugo.Sites }}{{ $tbLangs = $tbLangs | append (dict "code" .Language.Lang "name" .Language.Label "short" .Language.Params.pickerShort "w" (.Language.Params.pickerWeight | default .Language.Weight)) }}{{ end }}{{ $tbLangs = sort $tbLangs "w" }}
 {{/* 顶栏 v3（2026-11 UI 重设计 PR-1）：NAVIGATE / 页脚的「当前」项：首页 = 01 主页；其余（状态页 /status/、账号）没有当前项（05 旷野 2026-11-12 删除） */}}
 {{ $navSite := "" }}{{ if .IsHome }}{{ $navSite = "home" }}{{ end }}
 {{ $otherLang := cond (eq $pageLang "en") "zh" "en" }}
-{{ $otherLangHref := partial "shell/sgx-lang-path.html" (dict "path" .RelPermalink "lang" $otherLang) }}
-{{ partial "shell/shell-topbar.html" (dict
+{{ $otherLangHref := partial "common/sgx-lang-path.html" (dict "path" .RelPermalink "lang" $otherLang) }}
+{{ partial "common/shell-topbar.html" (dict
   "lang" $pageLang
-  "tr" (partialCached "shell/sgx-tr.html" $pageLang $pageLang).shell
+  "tr" (partialCached "common/sgx-tr.html" $pageLang $pageLang).shell
   "langs" $tbLangs
-  "home" (partial "shell/sgx-lang-path.html" (dict "path" "/" "lang" $pageLang))
+  "home" (partial "common/sgx-lang-path.html" (dict "path" "/" "lang" $pageLang))
   "center" $center
   "nav" $shellNav
   "site" $navSite
   "icons" $tbIcons
-  "wordmark" (partial "shell/shell-wordmark.html" .)
+  "wordmark" (partial "common/shell-wordmark.html" .)
   "acct" $acctUrl
-  "security" (printf "%s#sec" (partial "shell/sgx-lang-path.html" (dict "path" "/" "lang" $pageLang)))
-  "status" (partial "shell/sgx-lang-path.html" (dict "path" "/status/" "lang" $pageLang))
-  "music" (partial "shell/sgx-lang-path.html" (dict "path" "/curio/music/" "lang" $pageLang))
+  "security" (printf "%s#sec" (partial "common/sgx-lang-path.html" (dict "path" "/" "lang" $pageLang)))
+  "status" (partial "common/sgx-lang-path.html" (dict "path" "/status/" "lang" $pageLang))
+  "music" (partial "common/sgx-lang-path.html" (dict "path" "/curio/music/" "lang" $pageLang))
   "langHref" $otherLangHref
   "avatar" "/avatar/192.webp"
-  "name" site.Data.shell.profile.name
-  "nick" site.Data.shell.profile.nickname
-  "email" site.Data.shell.profile.email
+  "name" site.Data.common.profile.name
+  "nick" site.Data.common.profile.nickname
+  "email" site.Data.common.profile.email
   "pal" $tbPal
 ) }}
 
@@ -222,20 +222,20 @@ __sgxLayoutWatch(__applyLayout);
 
 <main id="sgx-main">
 {{ block "main" . }}{{ end }}</main>
-{{/* tmux 页脚（2026-11 UI 重设计 PR-1，四站同一个 partials/shell/sgx-footer.html；取代 2026-10-22 起只在「关于本站」显示的版权页脚） */}}
-{{ partial "shell/sgx-footer.html" (dict
-  "tr" (partialCached "shell/sgx-tr.html" $pageLang $pageLang).shell
+{{/* tmux 页脚（2026-11 UI 重设计 PR-1，四站同一个 partials/common/sgx-footer.html；取代 2026-10-22 起只在「关于本站」显示的版权页脚） */}}
+{{ partial "common/sgx-footer.html" (dict
+  "tr" (partialCached "common/sgx-tr.html" $pageLang $pageLang).shell
   "lang" $pageLang
   "langs" $tbLangs
   "here" .RelPermalink
   "langHref" $otherLangHref
   "nav" $shellNav
   "site" $navSite
-  "name" site.Data.shell.profile.name
+  "name" site.Data.common.profile.name
   "year" now.Year
-  "sha" (partial "shell/sgx-build-sha.html" .)
-  "email" site.Data.shell.profile.email
-  "rss" (partial "shell/sgx-lang-path.html" (dict "path" "/blog/rss.xml" "lang" $pageLang))
+  "sha" (partial "common/sgx-build-sha.html" .)
+  "email" site.Data.common.profile.email
+  "rss" (partial "common/sgx-lang-path.html" (dict "path" "/blog/rss.xml" "lang" $pageLang))
 ) }}
 
 <!-- 上下边缘柔和模糊渐隐 -->
@@ -247,22 +247,22 @@ __sgxLayoutWatch(__applyLayout);
    键：临时钥匙提示 / 通行密钥 / 快捷面板（2026-10-21 语音搜索已删除；P4-2c 快捷键帮助删除） */}}
 {{ $coreI18n := $tr.js.core }}
 <script id="sgx-i18n-core" type="application/json">{{ $coreI18n | jsonify | safeJS }}</script>
-{{/* 2.4.0-G：功能开关定义（data/shell/features.yaml），运行时 features.js 读取 */}}
+{{/* 2.4.0-G：功能开关定义（data/common/features.yaml），运行时 features.js 读取 */}}
 {{ $featDefs := slice }}
-{{ range site.Data.shell.features.features }}
+{{ range site.Data.common.features.features }}
   {{ $d := dict "id" .id "key" .key "type" .type "default" .default }}
   {{ if .storage }}{{ $d = merge $d (dict "storage" .storage) }}{{ end }}
   {{ $featDefs = $featDefs | append $d }}
 {{ end }}
 <script id="sgx-features" type="application/json">{{ $featDefs | jsonify | safeJS }}</script>
 {{/* 2026-11-07 个人资料的构建期默认值（四站同一个片段） */}}
-{{ partial "shell/sgx-profile-default.html" . }}
+{{ partial "common/sgx-profile-default.html" . }}
 {{/* 2.4.0-C：ES Modules 入口（js.Build 打包 + minify + fingerprint，type="module" 引入）。
    各页模板用 .Scratch.Set "sgx-entry" 指定入口（默认 entry-core.js，即只有公共 core）。 */}}
 {{ $entryName := .Scratch.Get "sgx-entry" | default "entry-core.js" }}
 {{/* 2.4.0-G：编译期功能开关 → esbuild define；build:false 的功能代码被摇掉 */}}
 {{ $featDefines := dict }}
-{{ range site.Data.shell.features.features }}
+{{ range site.Data.common.features.features }}
   {{ $cname := printf "SGX_FEAT_%s" (upper (replace .id "-" "_")) }}
   {{ $featDefines = merge $featDefines (dict $cname (cond .build "true" "false")) }}
 {{ end }}
@@ -275,11 +275,11 @@ __sgxLayoutWatch(__applyLayout);
 {{/* B2-7：测试构建（SGX_TEST_NO_WEATHER=1；名字沿用天气时代，P4-2c 天气删了，开关只管这里和首页日刻卡；静态 http-server，没有 /api）里不自动问 /api/*（奇趣计数、状态；数字健康 v6 P4 删除），
    否则 404 会触发 Lighthouse errors-in-console；生产构建为 false */}}
 {{ $featDefines = merge $featDefines (dict "SGX_TEST_NO_WB" (cond (eq (getenv "SGX_TEST_NO_WEATHER") "1") "true" "false")) }}
-{{/* 2026-10-24 JS 拆分：所有入口一次 js.Batch 构建，共享代码拆成可缓存的 chunk（见 partials/shell/sgx-js-batch.html）。
+{{/* 2026-10-24 JS 拆分：所有入口一次 js.Batch 构建，共享代码拆成可缓存的 chunk（见 partials/common/sgx-js-batch.html）。
    主页 entry-space.js、各子页各自的入口（PR-4b 起没有页内切换，原 entry-tab-* / lazy-* 删除；2026-11 对齐 PR-C 风格页 /theme/ 退役，entry-space-sub 删除）。
    modulepreload 让入口静态依赖的 chunk 和入口并行下载（不等入口解析完再发现）；放在入口 <script> 前，预加载扫描器同时看到。
    主题 / 锁屏判定 / 防闪的首帧脚本仍在 <head> 内联同步执行，跟这里无关。 */}}
-{{ $sgxJs := partialCached "shell/sgx-js-batch.html" (dict "defines" $featDefines "entries" (slice "entry-core" "entry-space" "entry-space-status")) "sgx-js" }}
+{{ $sgxJs := partialCached "common/sgx-js-batch.html" (dict "defines" $featDefines "entries" (slice "entry-core" "entry-space" "entry-space-status")) "sgx-js" }}
 {{ $js := index $sgxJs (strings.TrimSuffix ".js" $entryName) }}
 {{ range $js.preload }}<link rel="modulepreload" href="{{ . }}">
 {{ end }}

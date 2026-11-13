@@ -1,5 +1,5 @@
 /**
- * 终端 find / ask 按进站状态（v5 S4，space/web/assets/shell/js/term/cmds/ui/find.js、ask.js、term/core/registry.js listedFor）：
+ * 终端 find / ask 按进站状态（v5 S4，space/web/assets/common/js/term/cmds/ui/find.js、ask.js、term/core/registry.js listedFor）：
  * - 访客（nobody）：man 索引列 find、不列 ask；敲 ask 不开 AI，提示「AI 已上锁，先 su；搜关键词用 find」（句子照 Gray 定的，割接起命令是 su）
  * - 进站后：man 列 ask、不列 find；ask 照常开 AI 代发；find 仍然能跑
  * - find 输出：每条一行 标题 · 站 · 路径（链接，href = 结果地址）；没结果 / 降级 / 429 / 网络错各一行；没参数给用法
@@ -13,12 +13,12 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { createShell, createWho, complete, COMMANDS, TERM_EN } from '../../../../space/web/assets/shell/js/term/terminal.js';
-import { listedFor } from '../../../../space/web/assets/shell/js/term/core/registry.js';
-import { pathOf } from '../../../../space/web/assets/shell/js/term/cmds/ui/find.js';
+import { createShell, createWho, complete, COMMANDS, TERM_EN } from '../../../../space/web/assets/common/js/term/terminal.js';
+import { listedFor } from '../../../../space/web/assets/common/js/term/core/registry.js';
+import { pathOf } from '../../../../space/web/assets/common/js/term/cmds/ui/find.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-const ZH = yaml.load(readFileSync(path.join(REPO, 'space/web/data/shell/sgx-shell-i18n/zh.yaml'), 'utf8')).term;
+const ZH = yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/sgx-shell-i18n/zh.yaml'), 'utf8')).term;
 
 function mem() {
   const m = new Map();
@@ -134,7 +134,7 @@ test('访客判断只看服务端（core/who.js，v6 P4 起只问 whoami）：�
 });
 
 test('文案：en / zh 都有 find / ask 提示的键', () => {
-  const en = yaml.load(readFileSync(path.join(REPO, 'space/web/data/shell/sgx-shell-i18n/en.yaml'), 'utf8')).term;
+  const en = yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/sgx-shell-i18n/en.yaml'), 'utf8')).term;
   for (const k of ['usageFind', 'findNone', 'findDown', 'findLimited', 'askLocked']) {
     assert.equal(en[k], TERM_EN[k], 'en.' + k);
     assert.ok(typeof ZH[k] === 'string' && ZH[k] && ZH[k] !== TERM_EN[k], 'zh.' + k);

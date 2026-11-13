@@ -9,9 +9,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createShell, createWho, ps1 } from '../../../../space/web/assets/shell/js/term/terminal.js';
-import { kindOf, isV6, title } from '../../../../space/web/assets/shell/js/term/core/who.js';
-import { parseUseradd, parseUsermod, sudoCommand, USER_NAME_RE } from '../../../../space/web/assets/shell/js/term/core/ident-args.js';
+import { createShell, createWho, ps1 } from '../../../../space/web/assets/common/js/term/terminal.js';
+import { kindOf, isV6, title } from '../../../../space/web/assets/common/js/term/core/who.js';
+import { parseUseradd, parseUsermod, sudoCommand, USER_NAME_RE } from '../../../../space/web/assets/common/js/term/core/ident-args.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -168,7 +168,7 @@ test('P3 rescue（定稿 v5.2 §九）：访客敲 rescue → 身份层（输恢
     assert.ok(!n.includes('rescue'), w + ' 索引不列 rescue');
   }
   /* 身份层：已登录先 exit；成功后提示 15 分钟、去 Cloudflare 换新值（文案只取 v6 命令手册「救援」节） */
-  const src = rd('space/web/assets/shell/js/identity/layer.js');
+  const src = rd('space/web/assets/common/js/identity/layer.js');
   assert.match(src, /C\.cmdRescue = function \(\) \{\n\s+if \(me\(\)\) \{ C\.err\(t\('exitFirst'/);
   assert.match(src, /api\.post\('rescue', \{ key: key \}\)/);
   assert.match(src, /C\.ok\(t\('rootOn'\), t\('rescueLimit'\)\); C\.note\(t\('rescueRotate'\)\)/);
@@ -191,7 +191,7 @@ test('参数解析（ident-args，与服务端同写法）', () => {
 
 test('前台空闲计时（Page Visibility）：可见时累计、隐藏不计、有操作清零、到 15 分钟只触发一次', async () => {
   globalThis.window = globalThis.window || globalThis;
-  const { createIdleClock, ROOT_IDLE_MS } = await import('../../../../space/web/assets/shell/js/identity/layer.js');
+  const { createIdleClock, ROOT_IDLE_MS } = await import('../../../../space/web/assets/common/js/identity/layer.js');
   assert.equal(ROOT_IDLE_MS, 15 * 60 * 1000);
   let vis = true;
   let fired = 0;
@@ -214,7 +214,7 @@ test('前台空闲计时（Page Visibility）：可见时累计、隐藏不计�
 });
 
 test('接线：头像 = whoami（访客 → su ；站长 / root → 账号页；普通用户只作装饰，定稿 v5.5 §七；root 叠 #、站长叠 $ 角标）；身份层进终端的 layers；登录标记首帧问 whoami', () => {
-  const tp = rd('space/web/assets/shell/js/topbar/topbar-panel.js');
+  const tp = rd('space/web/assets/common/js/topbar/topbar-panel.js');
   assert.match(tp, /if \(!u\) return avGuest\(\) \? GUEST_LINE : '';\n\s*return '';/);
   assert.doesNotMatch(tp, /return u\.wheel \? 'su root' : 'profile'/);
   assert.doesNotMatch(tp, /'\/avatar\/u' \+ u\.uid/, 'P4-3：头像一份，归站长（定稿 v5.5 §七），不再按 uid 取');
@@ -223,11 +223,11 @@ test('接线：头像 = whoami（访客 → su ；站长 / root → 账号页；
   assert.match(tp, /const ch = u \? \(u\.root \? '#' : u\.webmaster === true \? '\$' : ''\) : '';/, '角标：root #、站长 $、其余不加');
   assert.match(tp, /return \{ acct: acctTerm, ident: ident \};/);
   assert.match(tp, /if \(who && who\.v6Hinted\(\)\) who\.refresh\(\);/);
-  const qp = rd('space/web/assets/shell/js/topbar/quick-panel.js');
+  const qp = rd('space/web/assets/common/js/topbar/quick-panel.js');
   assert.match(qp, /identityTerm: mountIdentityLayer,/);
-  assert.match(rd('space/web/assets/shell/css/input.css'), /\.sgx-tb-av-mark \{/);
+  assert.match(rd('space/web/assets/common/css/input.css'), /\.sgx-tb-av-mark \{/);
   /* 身份层只经 ./api.js 发请求；不写 Domain、不读密码之外的东西 */
-  const layer = rd('space/web/assets/shell/js/identity/layer.js');
+  const layer = rd('space/web/assets/common/js/identity/layer.js');
   assert.doesNotMatch(layer, /fetch\(/);
-  assert.match(rd('space/web/assets/shell/js/identity/api.js'), /export const IDENTITY_API = '\/api\/identity';/);
+  assert.match(rd('space/web/assets/common/js/identity/api.js'), /export const IDENTITY_API = '\/api\/identity';/);
 });

@@ -1,13 +1,13 @@
-// 字符串表测试工具（语言包化 2026-11-07）：读各站 data/shell/i18n/<语言>.yaml（主站；2026-11 合站后奇趣 / 日刻在 data/<站>/i18n/）和共享外壳表（data/shell/sgx-shell-i18n/，四站同一份），
-// 和 partials/shell/sgx-tr.html 同一规则：英文表打底，页面语言表覆盖（深合并），缺键回退英文。
+// 字符串表测试工具（语言包化 2026-11-07）：读各站 data/common/i18n/<语言>.yaml（主站；2026-11 合站后奇趣 / 日刻在 data/<站>/i18n/）和共享外壳表（data/common/sgx-shell-i18n/，四站同一份），
+// 和 partials/common/sgx-tr.html 同一规则：英文表打底，页面语言表覆盖（深合并），缺键回退英文。
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-/** 2026-11 合站：一个 Hugo 站 space/web/；站内表 = data/i18n（主站）或 data/<站>/i18n（子站），外壳表只有 data/shell/sgx-shell-i18n 一份 */
-const tableDir = (site, kind) => path.join(REPO, 'space/web/data', kind === 'i18n' && site !== 'space' ? site + '/i18n' : 'shell/' + kind);
+/** 2026-11 合站：一个 Hugo 站 space/web/；站内表 = data/i18n（主站）或 data/<站>/i18n（子站），外壳表只有 data/common/sgx-shell-i18n 一份 */
+const tableDir = (site, kind) => path.join(REPO, 'space/web/data', kind === 'i18n' && site !== 'space' ? site + '/i18n' : 'common/' + kind);
 
 /** @param {string} p */
 const load = (p) => (existsSync(p) ? /** @type {any} */ (yaml.load(readFileSync(p, 'utf8'))) || {} : {});

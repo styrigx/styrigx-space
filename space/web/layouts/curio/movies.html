@@ -1,5 +1,5 @@
 {{ define "main" }}
-{{ $lang := .Lang }}{{ $tr := partialCached "shell/sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
+{{ $lang := .Lang }}{{ $tr := partialCached "common/sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
 {{/* 奇趣 › 电影（/curio/movies/，中文 /curio/zh/movies/；P4-3 奇趣拆页新增）：喜欢的电影，curio-movies.js 画。
    只能进站看：页面和 /curio/api/movies 都在锁屏会话后面（网关 + 接口 Worker）；noindex（baseof），不进站点地图 / 全站搜索 / AI 召回。
    卡片 = 海报（2:3）+ 片名 + 年份 · 导演 + 评分；点开看详情（原名、观看日期、短评）。

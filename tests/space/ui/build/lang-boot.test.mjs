@@ -11,8 +11,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readLangPref, langBootTarget, bootLang, cookieLangRaw } from '../../../../space/web/assets/shell/js/i18n/lang-boot.js';
-import { setLangs, langPath, systemLang, langs, isHomePath } from '../../../../space/web/assets/shell/js/i18n/lang-path.js';
+import { readLangPref, langBootTarget, bootLang, cookieLangRaw } from '../../../../space/web/assets/common/js/i18n/lang-boot.js';
+import { setLangs, langPath, systemLang, langs, isHomePath } from '../../../../space/web/assets/common/js/i18n/lang-path.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const rd = (/** @type {string} */ p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -23,10 +23,10 @@ test('四站内联同一份 lang-boot.js（合站后子站直接用主站源文�
   assert.equal(existsSync(path.join(REPO, 'space/web/shared/shell')), false, '没有外壳副本目录');
   for (const s of SITES) assert.equal(existsSync(path.join(REPO, 'space/web/assets', s, 'js/sgx/shell')), false, s + ' 没有外壳 JS 副本');
   const base = rd('space/web/layouts/_default/baseof.html');
-  assert.match(base, /resources\.Get "shell\/js\/i18n\/lang-boot\.js" \| js\.Build/);
+  assert.match(base, /resources\.Get "common\/js\/i18n\/lang-boot\.js" \| js\.Build/);
   assert.doesNotMatch(base, /localStorage\.getItem\('sgx-lang'\)/, '主站不再自己读 sgx-lang 跳转');
-  assert.match(rd('space/web/layouts/partials/blog/sgx-inherit.html'), /resources\.Get "shell\/js\/i18n\/lang-boot\.js" \| js\.Build/);
-  for (const s of ['curio', 'daymark']) assert.match(rd(`space/web/layouts/${s}/baseof.html`), /resources\.Get "shell\/js\/i18n\/lang-boot\.js" \| js\.Build/, s);
+  assert.match(rd('space/web/layouts/partials/blog/sgx-inherit.html'), /resources\.Get "common\/js\/i18n\/lang-boot\.js" \| js\.Build/);
+  for (const s of ['curio', 'daymark']) assert.match(rd(`space/web/layouts/${s}/baseof.html`), /resources\.Get "common\/js\/i18n\/lang-boot\.js" \| js\.Build/, s);
   /* 四站 <html> 都带语言列表（来自 hugo.yaml languages） */
   const LANGS_ATTR = 'data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}"';
   for (const f of ['space/web/layouts/_default/baseof.html', 'space/web/layouts/blog/baseof.html', 'space/web/layouts/curio/baseof.html', 'space/web/layouts/daymark/baseof.html']) {
@@ -40,10 +40,10 @@ test('偏好：明确存 system；旧版的空 / 没有 = 跟随系统（兼容�
   assert.equal(readLangPref('', ''), 'system');
   assert.equal(readLangPref(null, 'system'), 'system');
   assert.equal(readLangPref('zh', ''), 'zh');
-  const prefs = rd('space/web/assets/shell/js/prefs/prefs.js');
+  const prefs = rd('space/web/assets/common/js/prefs/prefs.js');
   assert.match(prefs, /sset\('sgx-lang', pick\)/, 'prefs.js 明确写 system');
   assert.doesNotMatch(prefs, /sremove\('sgx-lang'\)/);
-  const pw = rd('space/web/assets/shell/js/prefs/prefs-write.js');
+  const pw = rd('space/web/assets/common/js/prefs/prefs-write.js');
   assert.match(pw, /lsSet\('sgx-lang', configuredLangs\(\)\.indexOf\(v\) >= 0 \? v : 'system'\)/);
   assert.equal(cookieLangRaw('sgx-ui=' + b64({ v: 2, lang: 'system' })), 'system');
 });

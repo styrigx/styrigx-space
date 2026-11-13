@@ -80,7 +80,7 @@ space/
 
 > `scripts/build/` 是本文件对规范 §4 的补充：build-css、build-search-index 既不是检查、生成，也不是部署，硬塞进三类之一反而找不到（见 §5 例外的同一原则）。脚本逐个归类在挪 scripts/ 那个 PR 里定，PR 里列清单。
 
-### 1.1 `assets/shell/js/` 分组
+### 1.1 `assets/common/js/` 分组
 
 一个概念一个文件，文件名就是它干的事；同类放一个目录。目标分组（`lib/` 27 个文件按功能拆）：
 
@@ -103,7 +103,7 @@ space/
 
 精确的文件 → 组对照见第 2 步 PR 正文（与上表一致）。
 
-**分层**（check-layers 规则 1–4、6，下层不许 import 上层）：基础层 `core/ i18n/ prefs/ ui/ features/ status/` 只引基础层，且不许有鉴权接口；`auth/` 只引基础层和自己；功能组 `term/ account/ identity/ nav/ ai/ topbar/ music/` 可引基础层、`auth/` 和彼此，不许引 `apps/`；`apps/` 不许引 `apps/entries/`。`assets/shell/js/` 下只允许上表这些组（规则 26），另加根目录的 `tsconfig.json`。
+**分层**（check-layers 规则 1–4、6，下层不许 import 上层）：基础层 `core/ i18n/ prefs/ ui/ features/ status/` 只引基础层，且不许有鉴权接口；`auth/` 只引基础层和自己；功能组 `term/ account/ identity/ nav/ ai/ topbar/ music/` 可引基础层、`auth/` 和彼此，不许引 `apps/`；`apps/` 不许引 `apps/entries/`。`assets/common/js/` 下只允许上表这些组（规则 26），另加根目录的 `tsconfig.json`。
 
 ## 2. 落点：新文件放哪
 
@@ -111,7 +111,7 @@ space/
 
 | 是谁的 | JS | CSS | 页面模板 | partial | 数据 | 脚本 |
 |---|---|---|---|---|---|---|
-| Platform | `assets/shell/js/<组>/` | `assets/shell/css/` | 根模板或 `layouts/shell/` | `layouts/partials/shell/` | `data/shell/` | `scripts/{build,check,gen,deploy}/` |
+| Platform | `assets/common/js/<组>/` | `assets/common/css/` | 根模板或 `layouts/shell/` | `layouts/partials/common/` | `data/common/` | `scripts/{build,check,gen,deploy}/` |
 | 产品 X | `assets/X/js/` | `assets/X/css/` | `layouts/X/` | `layouts/partials/X/` | `data/X/` | `scripts/X/` |
 
 - 不许在同一层混用两种分法：`assets/`、`layouts/partials/`、`data/`、`scripts/` 的顶层只能是上表里的目录（加 §1 列出的根文件）。
@@ -120,7 +120,7 @@ space/
 
 ## 3. 依赖规矩（红线）
 
-1. **Platform 不依赖 Products**：`assets/shell/`、`layouts/partials/shell/`、`layouts/shell/`、根模板、`data/shell/` 不 import、不 `partial`、不 `resources.Get`、不读 `site.Data.<产品>` 任何产品的东西。Platform 调 Services 的接口（如首页读 `/daymark/api/today`）不算依赖产品。
+1. **Platform 不依赖 Products**：`assets/common/`、`layouts/partials/common/`、`layouts/shell/`、根模板、`data/common/` 不 import、不 `partial`、不 `resources.Get`、不读 `site.Data.<产品>` 任何产品的东西。Platform 调 Services 的接口（如首页读 `/daymark/api/today`）不算依赖产品。
 2. **Products 之间不互相引用**：产品 X 的 JS / 模板不 import、不 `partial`、不 `resources.Get` 产品 Y 的东西。判的是被引用的对象属于哪个产品，不是目录名里有没有 `sgx/`。
 3. **产品可以用 Platform**。
 4. 前端不得 import `space/web/assets/` 以外的文件（前后端隔离）。
@@ -153,7 +153,7 @@ space/
 
 | 文件 / 引用 | 违反哪条 | 原因 | 加入日期 / PR |
 |---|---|---|---|
-| `web/assets/jsconfig.json` | 26（落点） | 横跨整个 `assets/` 的 JS 路径配置：`baseUrl` 为 `.`（即 `assets/` 本身），覆盖 Platform 的 `shell/js/` 和 curio、daymark、blog 的 `js/`；放进任一层都会断掉其它层的路径解析 | 2026-11-13 #450 |
+| `web/assets/jsconfig.json` | 26（落点） | 横跨整个 `assets/` 的 JS 路径配置：`baseUrl` 为 `.`（即 `assets/` 本身），覆盖 Platform 的 `common/js/` 和 curio、daymark、blog 的 `js/`；放进任一层都会断掉其它层的路径解析 | 2026-11-13 #450 |
 
 ## 6. 迁移（进行中）
 
@@ -161,12 +161,12 @@ space/
 
 | 顺序 | 一处 | 状态 |
 |---|---|---|
-| 0 | 本文件 + check-layers 加 23–27（红线 + 落点 + 待迁移表 + 例外表）；顺手修掉现有的两处红线：文章排序 `partials/blog/posts-sorted.html` 首页和奇趣都在用，挪进 `partials/shell/` | 已合（#444） |
-| 1 | `assets/js/` → `assets/shell/js/`（整体挪，不拆） | 已合（#445） |
+| 0 | 本文件 + check-layers 加 23–27（红线 + 落点 + 待迁移表 + 例外表）；顺手修掉现有的两处红线：文章排序 `partials/blog/posts-sorted.html` 首页和奇趣都在用，挪进 `partials/common/` | 已合（#444） |
+| 1 | `assets/js/` → `assets/common/js/`（整体挪，不拆） | 已合（#445） |
 | 2 | 拆 `lib/` 和 shell 平铺文件，按 §1.1 分组 | 已合（#446） |
-| 3 | `assets/css/` → `assets/shell/css/` | 已合（#447） |
-| 4 | `layouts/partials/` 的 Platform 部分 → `partials/shell/` | 已合（#448） |
-| 5 | `data/` 的 Platform 部分 → `data/shell/`；`palettes.yaml` 改名 `data/shell/palette-source.yaml`，避开和 `data/shell/palettes.json` 撞键 | 已合（#449） |
+| 3 | `assets/css/` → `assets/common/css/` | 已合（#447） |
+| 4 | `layouts/partials/` 的 Platform 部分 → `partials/common/` | 已合（#448） |
+| 5 | `data/` 的 Platform 部分 → `data/common/`；`palettes.yaml` 改名 `data/common/palette-source.yaml`，避开和 `data/common/palettes.json` 撞键 | 已合（#449） |
 | 6 | `scripts/` 根目录 → `build/`、`check/`、`gen/`、`deploy/`；`space/` 外面（`package.json`、`.github/workflows/`、workers 的 README / wrangler.toml 注释 / `csp-hashes.js` 文件头）只改路径字符串、不改逻辑，PR 里逐个列出 | 进行中 |
 | 7 | 共用播放器进 Platform，路由 `/curio/music/player/` 不变：播放器文案和 `.mp-*` 样式一起进 Platform，页面外壳改用 Platform 的 partial，外观不变，截图逐像素对照；脚本网址从 `/curio/js/…` 变成 `/shell/js/…` | 未开始 |
 | 8 | 旧文档对齐：overview.md §6–7、repo-structure.md 改为指向本文件 | 未开始 |

@@ -1,6 +1,6 @@
 /**
  * 四站顶栏一致（2026-11-04 P5-1，方案 6.2–6.5）：主站 / 博客 / 奇趣 / 日刻同一个顶栏。
- * - 标记单一来源：主站 partials/shell/shell-topbar.html → 共享外壳 topbar.html → 三个子站 layouts/partials/shell/shell-topbar.html，一字不差；
+ * - 标记单一来源：主站 partials/common/shell-topbar.html → 共享外壳 topbar.html → 三个子站 layouts/partials/common/shell-topbar.html，一字不差；
  * - 四个调用点都传齐必需参数；磁贴按定案（调色板 v4 起没有深浅 MODE）：主站 lang + 调色板 + 布局、没有分享；子站 lang + 调色板；
  * - 子站的主站项 / 账号 / 头像用 https://styrigx.com 绝对地址（子站单独起服务时也能到主站），子站之间同源相对；
  * - 真实构建（有 public/ 时）：四站首页（中英）的顶栏骨架一样 —— P4-3 PR-4b 定稿胶囊 [字标][页名胶囊][九宫格 · 快捷设置 · AI]，头像在 AI 窗口头部；
@@ -16,7 +16,7 @@ import { shellFiles } from '../../../../space/scripts/gen/gen-shell.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
-const SRC = rd('space/web/layouts/partials/shell/shell-topbar.html');
+const SRC = rd('space/web/layouts/partials/common/shell-topbar.html');
 const SUBS = ['blog', 'curio', 'daymark'];
 /** 每站调用 shell-topbar 的模板 */
 const CALLERS = {
@@ -30,7 +30,7 @@ const REQUIRED = ['lang', 'tr', 'langs', 'home', 'center', 'nav', 'site', 'icons
 /** 取 `partial "...topbar.html" (dict ... )` 的参数段 */
 function callArgs(site) {
   const t = rd(CALLERS[site]);
-  const name = 'shell/shell-topbar.html'; // 2026-11 合站：四站都调主站这一份
+  const name = 'common/shell-topbar.html'; // 2026-11 合站：四站都调主站这一份
   const i = t.indexOf(`partial "${name}" (dict`);
   assert.ok(i >= 0, `${site}: 调 ${name}`);
   return t.slice(i, t.indexOf('\n)', i) + 2);
@@ -43,8 +43,8 @@ test('标记单一来源：四站都用主站 shell-topbar.html 和 shell/topbar
     assert.ok(!existsSync(path.join(REPO, 'space/web/assets', s, 'js/sgx/shell/topbar.js')), s + ' 没有顶栏 JS 副本');
   }
   /* 子站顶栏入口直接 import 主站的 topbar-panel.js */
-  assert.match(rd('space/web/assets/blog/js/entries/topnav.ts'), /from '\.\.\/\.\.\/..\/shell\/js\/topbar\/topbar-panel\.js'/);
-  for (const s of ['curio', 'daymark']) assert.match(rd(`space/web/assets/${s}/js/sgx/topbar-host.js`), /from '\.\.\/\.\.\/..\/shell\/js\/topbar\/topbar-panel\.js'/, s);
+  assert.match(rd('space/web/assets/blog/js/entries/topnav.ts'), /from '\.\.\/\.\.\/..\/common\/js\/topbar\/topbar-panel\.js'/);
+  for (const s of ['curio', 'daymark']) assert.match(rd(`space/web/assets/${s}/js/sgx/topbar-host.js`), /from '\.\.\/\.\.\/..\/common\/js\/topbar\/topbar-panel\.js'/, s);
 });
 
 test('四个调用点：必需参数都传；site 是本站；PR-4b 起快捷面板四站同一套，谁都不传 tiles / layout', () => {
@@ -63,7 +63,7 @@ test('子站地址：主站项 / 账号 / 头像走 https://styrigx.com，中文
   for (const s of SUBS) {
     const a = callArgs(s);
     assert.match(a, /"mainOrigin" "https:\/\/styrigx\.com"/, s);
-    assert.match(a, /"acct" \(partial "shell\/sgx-lang-path\.html" \(dict "path" \$\w+\.me\.href "lang" (\.Lang|\$lang)\)\)/, s);
+    assert.match(a, /"acct" \(partial "common\/sgx-lang-path\.html" \(dict "path" \$\w+\.me\.href "lang" (\.Lang|\$lang)\)\)/, s);
     assert.match(a, /"avatar" \$\w+\.me\.avatar/, s);
     assert.match(a, /"langHref" \$langHref/, s + '：语言磁贴去另一种语言的同一页');
   }

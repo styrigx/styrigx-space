@@ -1,7 +1,7 @@
 /**
  * 个人资料的默认值回退（2026-11-08 修，Gray 截图：子站上账号下拉头部大字是写死的 Styrigx、个人资料层四项「未填写」）：
- * - lib/profile.js cleanProfile / effectiveProfile：空串（含只有空白）当没设置，回退站点默认值（data/shell/profile.yaml）
- * - 四站都输出 #sgx-profile-default（以前只有主站 baseof）：主站 / 奇趣 / 日刻 baseof、博客 topnav 都用 partials/shell/sgx-profile-default.html
+ * - lib/profile.js cleanProfile / effectiveProfile：空串（含只有空白）当没设置，回退站点默认值（data/common/profile.yaml）
+ * - 四站都输出 #sgx-profile-default（以前只有主站 baseof）：主站 / 奇趣 / 日刻 baseof、博客 topnav 都用 partials/common/sgx-profile-default.html
  * - shell/account/window.js 头部不再写死 'Styrigx' 回退
  * 运行：node --test tests/space/ui/account/profile-defaults.test.mjs
  */
@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
-const P = await import('../../../../space/web/assets/shell/js/prefs/profile.js');
+const P = await import('../../../../space/web/assets/common/js/prefs/profile.js');
 
 const DEF = { name: 'Sloan Gray', nickname: 'Styrigx', motto: 'To understand the world', email: 'me@styrigx.com' };
 
@@ -26,18 +26,18 @@ test('null / 缺字段 → 默认值；改过的值盖住默认值', () => {
   assert.deepEqual(P.effectiveProfile({ name: 'Test Name', motto: 'hi' }, DEF), Object.assign({}, DEF, { name: 'Test Name', motto: 'hi' }));
 });
 
-test('四站都输出 #sgx-profile-default（同一个片段，读 data/shell/profile.yaml）', () => {
-  const part = rd('space/web/layouts/partials/shell/sgx-profile-default.html');
+test('四站都输出 #sgx-profile-default（同一个片段，读 data/common/profile.yaml）', () => {
+  const part = rd('space/web/layouts/partials/common/sgx-profile-default.html');
   assert.match(part, /id="sgx-profile-default"/);
-  assert.match(part, /site\.Data\.shell\.profile/);
+  assert.match(part, /site\.Data\.common\.profile/);
   for (const f of ['space/web/layouts/_default/baseof.html', 'space/web/layouts/curio/baseof.html', 'space/web/layouts/daymark/baseof.html', 'space/web/layouts/partials/blog/topnav.html']) {
-    assert.match(rd(f), /partial "shell\/sgx-profile-default\.html"/, f);
+    assert.match(rd(f), /partial "common\/sgx-profile-default\.html"/, f);
     assert.doesNotMatch(rd(f), /<script id="sgx-profile-default"/, f + '：不再各写一份');
   }
 });
 
 test('账号下拉头部：姓名 / 昵称只取 effectiveProfile 的结果，不写死 Styrigx 回退', () => {
-  const term = rd('space/web/assets/shell/js/account/window.js');
+  const term = rd('space/web/assets/common/js/account/window.js');
   assert.doesNotMatch(term, /p\.name \|\| 'Styrigx'|p\.nickname \|\| 'Styrigx'/);
   assert.match(term, /esc\(p\.name\)/);
 });
@@ -49,7 +49,7 @@ test('签名不限长度（Gray 2026-11-09 18:11）：前端 checkValue 不拦�
   assert.equal(P.checkValue('name', '甲'.repeat(41)), 'too-long');
   assert.equal(P.checkValue('nickname', 'x'.repeat(33)), 'too-long');
   assert.equal(P.PROFILE_FIELDS.find((f) => f.id === 'motto').max, null);
-  const ed = rd('space/web/assets/shell/js/account/cmd/profile.js');
+  const ed = rd('space/web/assets/common/js/account/cmd/profile.js');
   assert.match(ed, /checkValue\(id, v\)/, 'profile set 只经 lib/profile.js checkValue 检查');
   assert.doesNotMatch(ed, /maxlength/);
 });

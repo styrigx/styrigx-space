@@ -11,10 +11,10 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHistory } from '../../../../space/web/assets/shell/js/term/core/history.js';
+import { createHistory } from '../../../../space/web/assets/common/js/term/core/history.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const SHELL = path.join(REPO, 'space/web/assets/shell/js');
+const SHELL = path.join(REPO, 'space/web/assets/common/js');
 const rd = (f) => readFileSync(path.join(SHELL, f), 'utf8');
 
 test('历史：落盘键、草稿、只在内存', () => {
@@ -44,7 +44,7 @@ test('宿主：只剩全站终端（一份历史 sgx-term-hist）；tty1 / tty3 
 });
 
 test('两层上下文共用终端的输入行（layer-ctx.js）：输入行状态落在原型上，其余各管各', async () => {
-  const { layerCtx } = await import('../../../../space/web/assets/shell/js/term/view/layer-ctx.js');
+  const { layerCtx } = await import('../../../../space/web/assets/common/js/term/view/layer-ctx.js');
   const line = { mode: 'cmd', onSecret: null, out: () => 'out' };
   const a = layerCtx(line, { t: 'a' });
   const b = layerCtx(line, { t: 'b' });

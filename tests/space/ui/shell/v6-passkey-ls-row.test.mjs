@@ -11,11 +11,11 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { mountAuthErr } from '../../../../space/web/assets/shell/js/account/cmd/auth-err.js';
-import { mountKeys, mmdd } from '../../../../space/web/assets/shell/js/account/cmd/keys.js';
+import { mountAuthErr } from '../../../../space/web/assets/common/js/account/cmd/auth-err.js';
+import { mountKeys, mmdd } from '../../../../space/web/assets/common/js/account/cmd/keys.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const acct = (lang) => yaml.load(readFileSync(path.join(REPO, 'space/web/data/shell/sgx-shell-i18n/' + lang + '.yaml'), 'utf8')).account;
+const acct = (lang) => yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/sgx-shell-i18n/' + lang + '.yaml'), 'utf8')).account;
 const settle = () => new Promise((r) => setTimeout(r, 0));
 const strip = (s) => s.replace(/<[^>]+>/g, '');
 

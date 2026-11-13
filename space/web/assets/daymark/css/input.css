@@ -7,9 +7,9 @@
 @source "../../../content/daymark/**/*.md";
 @source "../js/**/*.js";
 /* 共享外壳（合站前是本站的副本，现在直接用主站的源文件）：顶栏等 partial + 外壳 JS */
-@source "../../../layouts/partials/shell/{shell-topbar,sgx-ph,sgx-tr,sgx-lang-path}.html";
-@source "../../../assets/shell/js/{topbar/topbar-panel,ui/modal-sheet,ai/ai-panel,ui/vk}.js";
-@source "../../../assets/shell/js/{ui/palette-scheme,prefs/prefs-write,prefs/ui-cookie-read,ui/layout-mode,i18n/lang-path,i18n/lang-boot}.js";
+@source "../../../layouts/partials/common/{shell-topbar,sgx-ph,sgx-tr,sgx-lang-path}.html";
+@source "../../../assets/common/js/{topbar/topbar-panel,ui/modal-sheet,ai/ai-panel,ui/vk}.js";
+@source "../../../assets/common/js/{ui/palette-scheme,prefs/prefs-write,prefs/ui-cookie-read,ui/layout-mode,i18n/lang-path,i18n/lang-boot}.js";
 
 /* 原 darkMode: 'class' */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -116,8 +116,8 @@ html, body {
 @supports (overflow-x: clip) {
   html, body { overflow-x: clip; }
 }
-@import "../../shell/css/tokens.css";
-@import "../../shell/css/shell.css";
+@import "../../common/css/tokens.css";
+@import "../../common/css/shell.css";
 
 /* ===== 日刻本站样式（2026-10-24 跟进主站 PR-G 主题）=====
    三层规则同主站 docs/design/palette.md：

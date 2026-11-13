@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const P = await import('../../../../space/web/assets/shell/js/account/proxy.js');
+const P = await import('../../../../space/web/assets/common/js/account/proxy.js');
 
 test('parseSub：一条 sub + 子命令；子命令不分大小写，名字原样（来源名大小写敏感）；别的 → null', () => {
   assert.deepEqual([...P.SUB_ARGS], ['show', 'add', 'upload', 'mv', 'rm', 'enable', 'disable', 'key', 'token']);

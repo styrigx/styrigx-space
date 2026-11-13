@@ -297,7 +297,7 @@ jobs:
           node space/scripts/blog/gen-code-tokens.mjs --check
 
       - name: stylelint（禁止硬编码颜色）
-        run: npx stylelint --config tests/config/stylelintrc.json "space/web/assets/shell/css/input.css"
+        run: npx stylelint --config tests/config/stylelintrc.json "space/web/assets/common/css/input.css"
 
   e2e-lock:
     # 锁屏、边缘、锁屏基线截图、lock-gate 关（凭证接口 e2e 随 v6 P4 后端删旧删除）。测 build 上传的主站生产构建。
@@ -598,12 +598,12 @@ jobs:
         id: scope
         # 路径过滤做在步骤层，不用 workflow 级 paths：这个 job 照样启动、以成功结束，分支保护的必需检查不会一直挂着。
         # 反着写（denylist）：只有本次改动的文件「全部」属于下面几类才跳过，其余任何改动都照跑——
-        #   *.md（文档、README；space/web/content 另算，见下）、*.css（space/web/assets/shell/css/ 样式源等）、
+        #   *.md（文档、README；space/web/content 另算，见下）、*.css（space/web/assets/common/css/ 样式源等）、
         #   tests/**/*-snapshots/*.png（视觉基线）、图片（png / jpg / jpeg / webp / gif / avif / svg / ico）、
         #   space/web/content/*.md 只改 title / linkTitle / description / summary / keywords（这里的页面只有 front matter，
         #   url / layout 决定路由，E2E 正好走这些页面，改了就照跑；新增页面也照跑）。
         # 照跑名单优先于上面的跳过规则：.github/**（workflow 本身）、package.json、package-lock.json、space/web/shared/**、
-        #   space/web/assets/shell/js/**（含 shell/）、网关内核 workers/space-core/src/core/**、src/lib/**（原 _kernel/**）。删除、类型变化也一律照跑。
+        #   space/web/assets/common/js/**（含 shell/）、网关内核 workers/space-core/src/core/**、src/lib/**（原 _kernel/**）。删除、类型变化也一律照跑。
         # PR 比 base...head（合并基点起 PR 自己的改动）；push 直接比 before 和 after 两棵树（快进时等同 before...after，
         # 强推时把被覆盖掉的改动也算进来）；before 全零（新分支）、workflow_dispatch、拿不到 SHA、fetch / diff 出错、空 diff 都照跑。
         # 本步意外报错也不拦：continue-on-error，拿不到 docs_only=true 就照跑。
@@ -653,7 +653,7 @@ jobs:
             n=$((n + 1))
             case "$f" in
               # 照跑名单优先于下面的跳过规则（workflow 自身、依赖、共享外壳、前端 JS、网关内核 src/core/、src/lib/）
-              .github/* | package.json | package-lock.json | space/web/shared/* | space/web/assets/shell/js/* | workers/space-core/src/core/* | workers/space-core/src/lib/*)
+              .github/* | package.json | package-lock.json | space/web/shared/* | space/web/assets/common/js/* | workers/space-core/src/core/* | workers/space-core/src/lib/*)
                 verdict false "$f: always run" ;;
             esac
             [ "$st" = M ] || [ "$st" = A ] || verdict false "$st $f (deleted / type change): run"

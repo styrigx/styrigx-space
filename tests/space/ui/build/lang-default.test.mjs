@@ -1,6 +1,6 @@
 /**
  * P4-3 PR-4c（§6.8，§8 第 7 条）：四站英文是默认语言（无前缀），中文在 /zh/；旧 /en/… 删除不 301。
- * - 语言路径唯一函数 space/web/assets/shell/js/i18n/lang-path.js：对表（主站、子站、/zh 边界、旧 /en/ 不是前缀）
+ * - 语言路径唯一函数 space/web/assets/common/js/i18n/lang-path.js：对表（主站、子站、/zh 边界、旧 /en/ 不是前缀）
  * - 共享外壳原样复制了 lang-path.js / lang-path.html；子站的 sgx-lang-path.html 和主站一字不差
  * - 四站 Hugo 配置：defaultContentLanguage en、不生成 /en/ 跳转页；主站内容英文在 content/、中文在 content/zh/（url 带 /zh/）
  * - 构建产物（有才跑；CI 在拼树之后补跑）：任何文件路径都只有 ASCII；没有 en/ 目录；中文页 html lang=zh；
@@ -13,7 +13,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { langPath, pathLang, stripLang, langSwitch, systemLang } from '../../../../space/web/assets/shell/js/i18n/lang-path.js';
+import { langPath, pathLang, stripLang, langSwitch, systemLang } from '../../../../space/web/assets/common/js/i18n/lang-path.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const rd = (/** @type {string} */ p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -67,8 +67,8 @@ test('systemLang：zh 开头 = 中文，其余（含取不到）= 英文', () =>
 });
 
 test('共享外壳：lang-path.js / lang-path.html 只有主站一份（2026-11 合站后子站直接用，没有副本）', () => {
-  assert.match(rd('space/web/assets/shell/js/i18n/lang-path.js'), /export function langPath\(/);
-  assert.ok(existsSync(path.join(REPO, 'space/web/layouts/partials/shell/sgx-lang-path.html')));
+  assert.match(rd('space/web/assets/common/js/i18n/lang-path.js'), /export function langPath\(/);
+  assert.ok(existsSync(path.join(REPO, 'space/web/layouts/partials/common/sgx-lang-path.html')));
   for (const s of SITES) {
     assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials', s, 'sgx-lang-path.html')), s + ' 没有 sgx-lang-path.html 副本');
     assert.ok(!existsSync(path.join(REPO, 'space/web/assets', s, 'js/lib/lang-path.js')), s + ' 没有 lang-path.js 副本');
@@ -76,7 +76,7 @@ test('共享外壳：lang-path.js / lang-path.html 只有主站一份（2026-11 
 });
 
 test('外壳顶栏的导航前缀和 langPath 同一规则（外壳 partial 不能调别的 partial，只能展开）', () => {
-  const tpl = rd('space/web/layouts/partials/shell/shell-topbar.html');
+  const tpl = rd('space/web/layouts/partials/common/shell-topbar.html');
   assert.doesNotMatch(tpl, /printf "\/en%s"|printf "%sen\/"/, '顶栏不许再拼 /en');
   // 语言包化（2026-11-07）：前缀不写死 zh，按页面语言代码展开（英文无前缀，其他语言 /<语言>/…、子站 /<站>/<语言>/）
   assert.match(tpl, /if ne \$lang "en"/);
@@ -164,7 +164,7 @@ test('主站产物：中文页 lang=zh、英文页 lang=en；hreflang = langPath
 });
 
 test('主站产物：快捷面板导航 / 账号入口在中文页都带 /zh/（同 langPath）', { skip: !hasMain && '没有主站构建' }, () => {
-  const nav = JSON.parse(rd('space/web/data/shell/shell-nav.json'));
+  const nav = JSON.parse(rd('space/web/data/common/shell-nav.json'));
   for (const [rel, lang] of [['/', 'en'], ['/zh/', 'zh'], ['/status/', 'en'], ['/zh/status/', 'zh']]) {
     const html = readFileSync(path.join(MAIN, rel.slice(1), 'index.html'), 'utf8');
     for (const it of nav.items) {

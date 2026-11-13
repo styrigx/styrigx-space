@@ -11,7 +11,7 @@ import { sandbox } from './ui-cookie-sandbox.mjs';
 
 const read = (p) => readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
 const fx = JSON.parse(read('tests/fixtures/ui-cookie-contract.json'));
-const palettes = JSON.parse(read('space/web/data/shell/palettes.json'));
+const palettes = JSON.parse(read('space/web/data/common/palettes.json'));
 
 /** <html> 状态，和夹具 root 同形 */
 function rootState(html) {

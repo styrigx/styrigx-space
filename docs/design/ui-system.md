@@ -28,7 +28,7 @@
 
 ## 3. 布局模式
 
-3.1 只有两种布局：`phone` / `desktop`（界面叫 Mobile / DeX），写在 `<html data-sgx-layout>`；规则在 `assets/shell/js/ui/layout-mode.js`（首帧前内联），与 `prefs/prefs.js` `resolveLayout()` 同一条规则（单测对表）。
+3.1 只有两种布局：`phone` / `desktop`（界面叫 Mobile / DeX），写在 `<html data-sgx-layout>`；规则在 `assets/common/js/ui/layout-mode.js`（首帧前内联），与 `prefs/prefs.js` `resolveLayout()` 同一条规则（单测对表）。
 
 3.2 偏好存 localStorage `sgx-layout` = `phone` / `auto` / `desktop`（旧值 `mobile` → `phone`，`dex` / `pc` → `desktop`）。
 
@@ -103,7 +103,7 @@
 
 7.4 AI 回答行的身份恒为 `grayai`，主机与符号跟随 §7.2：`grayai@space:~$ --reply` / `grayai@account:~# --reply`。
 
-7.5 实现：`term/core/who.js`（`PS_USER`、`PS_RESET`、`ps1`）、`shell/space/commands.js`（`PS_RESET`、`ENV_GUEST`、`ENV_ROOT`、`envPrompt`）、`account/commands.js`（`PS_GUEST`、`PS_ROOT`、`PS_RESET`）、`layouts/partials/shell/sgx-envps.html`、`input.css` 的 `.sgx-ai-msg::before`。
+7.5 实现：`term/core/who.js`（`PS_USER`、`PS_RESET`、`ps1`）、`shell/space/commands.js`（`PS_RESET`、`ENV_GUEST`、`ENV_ROOT`、`envPrompt`）、`account/commands.js`（`PS_GUEST`、`PS_ROOT`、`PS_RESET`）、`layouts/partials/common/sgx-envps.html`、`input.css` 的 `.sgx-ai-msg::before`。
 
 ## 8. 细节约定
 

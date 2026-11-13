@@ -13,11 +13,11 @@ test.use({ viewport: { width: 412, height: 915 } });
 /* 2026-11 合站：没有 shared/shell 副本目录了，按外壳文件名读仓库里的原位置（同 space/scripts/gen/gen-shell.mjs 的 SHELL_FILES） */
 const REPO = path.join(__dirname, '../../../..');
 const SHELL_FILES = {
-  'nav.json': 'space/web/data/shell/nav.json',
-  'tokens.css': 'space/web/assets/shell/css/tokens.css',
-  'shell.css': 'space/web/assets/shell/css/shell.css',
-  'ui-cookie-read.js': 'space/web/assets/shell/js/prefs/ui-cookie-read.js',
-  'favicon.js': 'space/web/assets/shell/js/ui/favicon.js',
+  'nav.json': 'space/web/data/common/nav.json',
+  'tokens.css': 'space/web/assets/common/css/tokens.css',
+  'shell.css': 'space/web/assets/common/css/shell.css',
+  'ui-cookie-read.js': 'space/web/assets/common/js/prefs/ui-cookie-read.js',
+  'favicon.js': 'space/web/assets/common/js/ui/favicon.js',
 };
 const shell = (f) => fs.readFileSync(path.join(REPO, SHELL_FILES[f]), 'utf8');
 const SUB = '/__ui-cookie-subsite/';

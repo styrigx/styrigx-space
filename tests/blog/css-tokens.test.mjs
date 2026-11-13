@@ -1,6 +1,6 @@
 /**
  * 样式只用共享外壳的色彩角色（--sgx-*）：博客自己的样式里不能再出现旧主题的别名令牌
- * --paper-* / --m-* / --glass-*（别名层已删除）。共享外壳样式（2026-11 合站后直接 @import 主站的 assets/shell/css/tokens.css、shell.css）不在这里管；
+ * --paper-* / --m-* / --glass-*（别名层已删除）。共享外壳样式（2026-11 合站后直接 @import 主站的 assets/common/css/tokens.css、shell.css）不在这里管；
  * main.css 是 space/scripts/blog/build-css.mjs 的生成物（不进仓库，里面拼了外壳副本），也跳过。
  */
 import { test } from 'node:test';
