@@ -587,7 +587,7 @@ test('check-layers 26：落点白名单 + 待迁移表（只许删不许加）',
   const root = spaceFixture({}, { pending: [W + 'assets/js/old.js', W + 'assets/js/gone.js', W + 'assets/common/js/core/moved.js'] });
   try {
     const files = [
-      W + 'assets/common/js/core/moved.js', W + 'assets/curio/js/ok.js', W + 'layouts/index.html', W + 'layouts/shell/player.html',
+      W + 'assets/common/js/core/moved.js', W + 'assets/curio/js/ok.js', W + 'layouts/index.html', W + 'layouts/common/player.html',
       W + 'layouts/partials/common/p.html', W + 'data/common/frame/nav.json', 'space/scripts/build/build-css.cjs', 'space/README.md',
       W + 'assets/js/old.js',
       W + 'assets/js/new.js', W + 'assets/curio/x.js', W + 'layouts/partials/loose.html', W + 'data/loose.yaml', 'space/scripts/loose.mjs',

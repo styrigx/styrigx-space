@@ -1,4 +1,4 @@
-/* assets/curio/js/music-core.js —— 音乐播放共用核（音乐分层方案 v1.13 第二步 2a；浏览器 IIFE → window.SgxMusicCore；node 测试时 module.exports）。
+/* assets/common/js/music/music-core.js —— 音乐播放共用核（音乐分层方案 v1.13 第二步 2a；浏览器 IIFE → window.SgxMusicCore；node 测试时 module.exports）。
  *
  * 奇趣音乐页（curio-music.js）和弹出播放器（2b）各自引用这一份，免得两份签令牌 / 续签逻辑：
  *   - 签令牌：POST /curio/api/music-play {album} 由调用方传 sign(albumId) 发（各页自己的 req 管 401 / 只看模式），

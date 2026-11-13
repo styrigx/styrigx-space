@@ -109,7 +109,7 @@ space/
 
 | 是谁的 | JS | CSS | 页面模板 | partial | 数据 | 脚本 |
 |---|---|---|---|---|---|---|
-| Platform | `assets/common/js/<库>/`、`assets/common/js/frame/<外壳组>/` | `assets/common/css/` | 根模板或 `layouts/shell/` | `layouts/partials/common/` | `data/common/` | `scripts/{build,check,gen,deploy}/` |
+| Platform | `assets/common/js/<库>/`、`assets/common/js/frame/<外壳组>/` | `assets/common/css/` | 根模板或 `layouts/common/` | `layouts/partials/common/` | `data/common/` | `scripts/{build,check,gen,deploy}/` |
 | 产品 X | `assets/X/js/` | `assets/X/css/` | `layouts/X/` | `layouts/partials/X/` | `data/X/` | `scripts/X/` |
 
 - 不许在同一层混用两种分法：`assets/`、`layouts/partials/`、`data/`、`scripts/` 的顶层只能是上表里的目录（加 §1 列出的根文件）。
@@ -118,7 +118,7 @@ space/
 
 ## 3. 依赖规矩（红线）
 
-1. **Platform 不依赖 Products**：`assets/common/`、`layouts/partials/common/`、`layouts/shell/`、根模板、`data/common/` 不 import、不 `partial`、不 `resources.Get`、不读 `site.Data.<产品>` 任何产品的东西。Platform 调 Services 的接口（如首页读 `/daymark/api/today`）不算依赖产品。
+1. **Platform 不依赖 Products**：`assets/common/`、`layouts/partials/common/`、`layouts/common/`、根模板、`data/common/` 不 import、不 `partial`、不 `resources.Get`、不读 `site.Data.<产品>` 任何产品的东西。Platform 调 Services 的接口（如首页读 `/daymark/api/today`）不算依赖产品。
 2. **Products 之间不互相引用**：产品 X 的 JS / 模板不 import、不 `partial`、不 `resources.Get` 产品 Y 的东西。判的是被引用的对象属于哪个产品，不是目录名里有没有 `sgx/`。
 3. **产品可以用 Platform**。
 4. 前端不得 import `space/web/assets/` 以外的文件（前后端隔离）。
@@ -168,7 +168,7 @@ space/
 | 5 | `data/` 的 Platform 部分 → `data/common/`；`palettes.yaml` 改名 `data/common/palette-source.yaml`，避开和 `data/common/palette-list.json` 撞键 | 已合（#449） |
 | 6 | `scripts/` 根目录 → `build/`、`check/`、`gen/`、`deploy/`；`space/` 外面（`package.json`、`.github/workflows/`、workers 的 README / wrangler.toml 注释 / `csp-hashes.js` 文件头）只改路径字符串、不改逻辑，PR 里逐个列出 | 已合（#450） |
 | 6.5 | 目录改名（目录改名定稿 v1.6）：`shell/` → `common/`（assets、partials、data 三处）；common 分库与外壳 `frame/`，加规则 28；common 三处文件名审查 | 进行中（#451） |
-| 7 | 共用播放器进 Platform，路由 `/curio/music/player/` 不变：播放器文案和 `.mp-*` 样式一起进 Platform，页面外壳改用 Platform 的 partial，外观不变，截图逐像素对照；脚本网址从 `/curio/js/…` 变成 `/shell/js/…` | 未开始 |
+| 7 | 共用播放器进 Platform，路由 `/curio/music/player/` 不变：模板 `layouts/common/player.html` 套主站 baseof、直接用主站 `main.css`（页脚仍亮 curio）；`.mu-*`/`.mp-*` 样式进共享外壳 `@shell music`（奇趣音乐页经 frame.css 用同一份）；文案进 `data/common/i18n`；脚本进 `assets/common/js/music/`，网址从 `/curio/js/…` 变成 `/js/music/…`；截图逐像素对照（只差时钟；手机页脚多了主站底部渐隐，按平台对齐保留） | 已完成 |
 | 8 | 旧文档对齐：overview.md §6–7、repo-structure.md 改为指向本文件 | 未开始 |
 
 > D1–D4（palettes 撞键、播放器怎么进 Platform、scripts 碰到 space/ 外的路径、落点怎么拦）Gray 2026-11-13 按默认方案定，已写进 §4、§6。

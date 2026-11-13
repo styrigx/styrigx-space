@@ -1,4 +1,4 @@
-/* assets/curio/js/music-player.js —— 弹出播放器页（/curio/music/player/；音乐分层方案 v1.13 第二步 2b；浏览器 IIFE；node 测试时导出纯函数）。
+/* assets/common/js/music/music-player.js —— 弹出播放器页（/curio/music/player/；音乐分层方案 v1.13 第二步 2b；浏览器 IIFE；node 测试时导出纯函数）。
  *
  * 只播放，不管理（上传 / 删除留在奇趣音乐页 curio-music.js）。功能按方案 §7.1 播放层：
  *   - 正在播：封面小图 + 歌名 + 歌手 + 专辑名；标签页标题跟着歌名。
@@ -11,7 +11,7 @@
  *   - 曲目列表：当前专辑，点一首直接播，正在播的高亮。专辑列表可收起，点一张换专辑（换的是列表，点曲目 / 播放才开播）。
  *   - Media Session：锁屏 / 耳机键 播放、暂停、上一首、下一首、拖进度；显示歌名、歌手、专辑、封面。
  *   - 防同时响：共用核的 BroadcastChannel「sgx-music」，奇趣页开播这边自动停，反过来一样。
- *   - 登录过期提示：签令牌 401（没进站 / 进站过期，listen 档拒）→ 一句提示 +「登录」（SgxCurioUI.sudo → sgx:sudo，顶栏终端预填 su ），
+ *   - 登录过期提示：签令牌 401（没进站 / 进站过期，listen 档拒）→ 一句提示 +「登录」（发 sgx:sudo，顶栏终端预填 su ；第 7 步进 Platform 前是借 curio.js 的 SgxCurioUI.sudo，同一个事件），
  *     403 → 没有权限；都不静默卡住。页面带网关标记 data-sgx-lock-session="locked" 时一打开就提示。
  * 地址可带 ?album=<编号> 先显示那张专辑（入口 2c 用得上），没有就第一张。
  */
@@ -49,7 +49,8 @@ G.SgxMusicPlayer = pure;
 
 var doc = G.document;
 if (!doc.getElementById('mp-app')) return;
-var UI = G.SgxCurioUI;
+/* 叫顶栏终端进站（同 curio.js askSudo：只发 sgx:sudo）；第 7 步进 Platform 后不再借产品的 SgxCurioUI */
+function sudo(){ try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {} }
 var $ = function(s){ return doc.querySelector(s); };
 var lang = doc.documentElement.lang || 'en';
 var T = readDict(doc, 'curioPlayer'), tr = makeTr(T, lang);
@@ -96,7 +97,7 @@ function note(kind){
   $('#mp-signin').classList.toggle('hidden', !sign);
   if (sign) { doc.documentElement.classList.add('mu-view-only'); P.reset(); }
 }
-$('#mp-signin').addEventListener('click', function(){ if (UI && UI.sudo) UI.sudo(); });
+$('#mp-signin').addEventListener('click', function(){ sudo(); });
 
 /* ---------- 画 ---------- */
 function renderAlbums(){
@@ -179,7 +180,7 @@ function playFrom(i){
 }
 $('#mp-tracks').addEventListener('click', function(e){ var b = e.target.closest('[data-t]'); if (b) playFrom(Number(b.dataset.t)); });
 $('#mp-toggle').addEventListener('click', function(){
-  if (viewOnly) { note('locked'); if (UI && UI.sudo) UI.sudo(); return; }
+  if (viewOnly) { note('locked'); sudo(); return; }
   if (!P.toggle()) playFrom(0);
 });
 $('#mp-prev').addEventListener('click', function(){ P.prev(); });

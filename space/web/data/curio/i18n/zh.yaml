@@ -151,24 +151,6 @@ music:
   lyricsLrcOptionalMatched: 歌词 .lrc（可选，按文件名对上曲目）
   trackOrderFollowsThe: 曲序按文件名开头的数字（01、02……）。单个音频文件不超过 95 MB，支持 mp3、m4a、aac、flac、ogg、opus、wav。封面会缩到 1600 像素。
   upload: 上传
-player:
-  title: 播放器
-  nowPlaying: 正在播放
-  nothing: 选一张专辑开始播放
-  lyrics: 歌词
-  position: 进度
-  previous: 上一首
-  play: 播放
-  pause: 暂停
-  next: 下一首
-  shuffle: 随机播放
-  speed: 倍速
-  volume: 音量
-  mute: 静音
-  albums: 专辑
-  tracks: 曲目
-  signIn: 登录
-  loading: 加载中…
 curioCommon:
   cancel: 取消
 curioItemView:
@@ -341,23 +323,6 @@ js:
     stars: '{n} 星'
     title: 电影
     editCmd: 编辑
-  curioPlayer:
-    tracks: '{n} 首'
-    failed: 出了点问题，请再试一次。
-    loadFail: "error: 列表没能加载  # 刷新重试"
-    expired: 登录已过期，重新登录后才能继续听。
-    locked: 登录后可听。
-    noPermission: 当前用户没有听歌的权限。
-    empty: 还没有专辑。
-    play: 播放
-    pause: 暂停
-    mute: 静音
-    unmute: 取消静音
-    shuffleOn: 随机播放：开
-    shuffleOff: 随机播放：关
-    speed: 倍速 {s}×
-    showLyrics: 展开全部歌词
-    hideLyrics: 收起歌词
   curioMusic:
     viewOnly: 未登录，仅可浏览
     locked: 登录后可听

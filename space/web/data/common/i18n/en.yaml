@@ -23,7 +23,45 @@ home:
 index:
   noLineForToday: No line for today yet
   tapToKeepOne: Tap to keep one in Daymark
+# 共用播放器页（layouts/common/player.html；2026-11 第 7 步从 data/curio/i18n 搬来）
+player:
+  title: Player
+  nowPlaying: Now playing
+  nothing: Pick an album to start
+  lyrics: Lyrics
+  position: Position
+  previous: Previous
+  play: Play
+  pause: Pause
+  next: Next
+  shuffle: Shuffle
+  speed: Playback speed
+  volume: Volume
+  mute: Mute
+  albums: Albums
+  tracks: Tracks
+  signIn: Sign in
+  loading: Loading…
 js:
+  # 共用播放器（/curio/music/player/，music-player.js 读 #sgx-i18n-curioPlayer；2026-11 第 7 步从 data/curio/i18n 搬来，表名不改）
+  curioPlayer:
+    tracks: '{n} tracks'
+    tracks_one: '{n} track'
+    failed: Something went wrong. Please try again.
+    loadFail: "error: couldn't load the list  # refresh to retry"
+    expired: Your sign-in has expired. Sign in again to keep listening.
+    locked: Sign in to listen.
+    noPermission: Your current user doesn’t have permission to listen.
+    empty: No albums yet.
+    play: Play
+    pause: Pause
+    mute: Mute
+    unmute: Unmute
+    shuffleOn: 'Shuffle: on'
+    shuffleOff: 'Shuffle: off'
+    speed: Speed {s}×
+    showLyrics: Show all lyrics
+    hideLyrics: Show one line
   core:
     pkCancelled: Cancelled
     pkTimeout: Timed out, please retry

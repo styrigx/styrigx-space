@@ -40,7 +40,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://styrigx.com/og.png">
 {{/* 私密页（安全、锁屏凭证、账号区、设置子页、聊天）不被搜索引擎收录 */}}
-{{ if or (eq .Layout "status") (eq .Layout "chat") }}<meta name="robots" content="noindex,nofollow">{{ end }}
+{{ if or (eq .Layout "status") (eq .Layout "chat") }}<meta name="robots" content="noindex,nofollow">{{ else if eq .Layout "player" }}{{/* 2026-11 第 7 步：共用播放器原来在奇趣 baseof 下（奇趣整站 noindex），进 Platform 后照旧 */}}<meta name="robots" content="noindex">{{ end }}
 <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>
 @font-face{font-family:'Inter';font-style:normal;font-weight:400 800;font-display:optional;src:url('/fonts/inter-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
@@ -175,7 +175,7 @@ __sgxLayoutWatch(__applyLayout);
 {{/* 选项顺序 = languages.<语言>.params.pickerWeight（没写按 weight）：快捷面板沿用「跟随系统 / 中文 / English」，和 features.yaml lang 选项同序；hugo.Sites 总是默认语言（英文）在前，不能直接用 */}}
 {{ $tbLangs := slice }}{{ range hugo.Sites }}{{ $tbLangs = $tbLangs | append (dict "code" .Language.Lang "name" .Language.Label "short" .Language.Params.pickerShort "w" (.Language.Params.pickerWeight | default .Language.Weight)) }}{{ end }}{{ $tbLangs = sort $tbLangs "w" }}
 {{/* 顶栏 v3（2026-11 UI 重设计 PR-1）：NAVIGATE / 页脚的「当前」项：首页 = 01 主页；其余（状态页 /status/、账号）没有当前项（05 旷野 2026-11-12 删除） */}}
-{{ $navSite := "" }}{{ if .IsHome }}{{ $navSite = "home" }}{{ end }}
+{{ $navSite := "" }}{{ if .IsHome }}{{ $navSite = "home" }}{{ end }}{{/* 2026-11 第 7 步：Platform 页挂在产品地址下时（共用播放器 /curio/music/player/）由内容页 navSite 指定当前项 */}}{{ with .Params.navSite }}{{ $navSite = . }}{{ end }}
 {{ $otherLang := cond (eq $pageLang "en") "zh" "en" }}
 {{ $otherLangHref := partial "common/lang-path.html" (dict "path" .RelPermalink "lang" $otherLang) }}
 {{ partial "common/frame/topbar.html" (dict

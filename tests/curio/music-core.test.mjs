@@ -1,4 +1,4 @@
-/* 音乐播放共用核（space/web/assets/curio/js/music-core.js；音乐分层方案 v1.13 第二步 2a）：
+/* 音乐播放共用核（space/web/assets/common/js/music/music-core.js；音乐分层方案 v1.13 第二步 2a）：
    签令牌 / 续签、切曲、放完停、令牌过期续签一次接着放、倍速保持、防同时响（BroadcastChannel「sgx-music」）。 */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
-const CORE = require('../../space/web/assets/curio/js/music-core.js');
+const CORE = require('../../space/web/assets/common/js/music/music-core.js');
 const MU = require('../../space/web/assets/curio/js/curio-music.js');
 
 class FakeAudio {
@@ -132,7 +132,7 @@ test('curio-music.js 不再自己签令牌 / 续签（只走共用核）', () =>
   assert.doesNotMatch(src, /function (session|startTrack|step)\(/, '旧的签令牌 / 切曲函数已搬走');
   assert.match(src, /CORE\.createPlayer\(/);
   assert.doesNotMatch(src, /addEventListener\('(error|ended)'/, '续签 / 接下一首在共用核');
-  const core = readFileSync(new URL('../../space/web/assets/curio/js/music-core.js', import.meta.url), 'utf8');
+  const core = readFileSync(new URL('../../space/web/assets/common/js/music/music-core.js', import.meta.url), 'utf8');
   assert.doesNotMatch(core, /document|querySelector/, '共用核不碰界面');
 });
 
@@ -212,7 +212,7 @@ test('切回顺序：从正在播的这首按曲序往下，不跳回第一首�
 });
 
 test('播放器页纯函数：?album= 取专辑；签令牌失败分 登录过期（401）/ 没权限（403）/ 出错；Media Session 封面只在有封面时给', () => {
-  const MP = require('../../space/web/assets/curio/js/music-player.js');
+  const MP = require('../../space/web/assets/common/js/music/music-player.js');
   assert.equal(MP.albumOf('?album=12'), 12);
   assert.equal(MP.albumOf('?x=1&album=3'), 3);
   assert.equal(MP.albumOf('?album=abc'), 0);
