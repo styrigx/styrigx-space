@@ -21,7 +21,7 @@ palette-scheme.js
   → node space/scripts/gen-shell.mjs           → space/web/assets/shell/css/tokens.css + space/web/data/shell/palettes.json
 ```
 
-0.3 快捷面板的色块与预览从 `palette-roles.json` 取值（`layouts/partials/palette-tile-vars.html`），与页面角色同一份数据。四站直接使用同一份生成物，没有副本。
+0.3 快捷面板的色块与预览从 `palette-roles.json` 取值（`layouts/partials/shell/palette-tile-vars.html`），与页面角色同一份数据。四站直接使用同一份生成物，没有副本。
 
 ## 1. 一套调色板是什么
 

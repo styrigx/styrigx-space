@@ -96,7 +96,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
   font-family: var(--sgx-font-mono); font-size: 18px; font-weight: 500; line-height: 1; white-space: nowrap; letter-spacing: 0;
   color: var(--sgx-text-primary); text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease; }
 .sgx-tb-ps { color: var(--sgx-primary); margin-right: .55em; }
-/* SVG 字标（2026-11 PR-2，Gray：取代等宽文字 styrigx :~$，桌面 / 手机一样，不再有窄屏收起）：partials/shell-wordmark.html，字母 currentColor = 正文色，
+/* SVG 字标（2026-11 PR-2，Gray：取代等宽文字 styrigx :~$，桌面 / 手机一样，不再有窄屏收起）：partials/shell/shell-wordmark.html，字母 currentColor = 正文色，
    i 上的圆点跟主题色（不用 SVG 里写死的 fill）。高 --sgx-wm-h：手机 20px、桌面 23px；字标基线在 SVG 高度 78.5% 处（viewBox 70 -1578 5924 2010）。 */
 :root { --sgx-wm-h: 20px; }
 :root[data-sgx-layout="desktop"] { --sgx-wm-h: 23px; }
@@ -151,7 +151,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-tb-av-mark { position: absolute; z-index: 3; right: 1px; bottom: 1px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; pointer-events: none;
   font: 700 10px/14px var(--sgx-font-mono); text-align: center; background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); box-shadow: 0 0 0 1.5px var(--sgx-surface); }
 /* 盾牌身份徽章（定稿 v5.5 §七：四档，盾越实身份越高；站长与 root 主题色，访客与普通用户灰色 = 平时的次要色）：topbar-panel.js paintShield 写 data-sgx-tier；
-   部件见 partials/icon.html tb-shield（打勾 .sgx-sh-ok、小人 .sgx-sh-u、盾身 .sgx-sh-b）。没写档（本地 / 测试构建、还没问到身份）= 原样 */
+   部件见 partials/shell/icon.html tb-shield（打勾 .sgx-sh-ok、小人 .sgx-sh-u、盾身 .sgx-sh-b）。没写档（本地 / 测试构建、还没问到身份）= 原样 */
 .sgx-tb-shield:is([data-sgx-tier="guest"], [data-sgx-tier="user"]) .sgx-sh-ok { display: none; }
 .sgx-tb-shield[data-sgx-tier="user"] .sgx-sh-u { display: inline; }
 .sgx-tb-shield:is([data-sgx-tier="webmaster"], [data-sgx-tier="root"]) { color: var(--sgx-primary); }
@@ -206,7 +206,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 @keyframes sgx-tb-flow { to { background-position: 22px 0; } }
 .reduced-motion .sgx-tb-prog > i { animation: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-tb-prog > i { animation: none; } }
-/* tmux 页脚（foot-v1；四站同一个 partials/sgx-footer.html）：第一行 40px 状态栏（会话 space 实色块 · 窗口 · 右边 状态 / 语言 / CST 时钟），
+/* tmux 页脚（foot-v1；四站同一个 partials/shell/sgx-footer.html）：第一行 40px 状态栏（会话 space 实色块 · 窗口 · 右边 状态 / 语言 / CST 时钟），
    第二行 © 与链接；内容宽同顶栏（--sgx-tb-pad）。手机布局只显示当前窗口、不显示语言 */
 .sgx-foot { position: relative; z-index: 2; box-sizing: border-box; margin-top: 48px; padding: 0 var(--sgx-tb-pad) env(safe-area-inset-bottom, 0px);
   border-top: 1px solid var(--sgx-term-line); background: var(--sgx-surface-container-low); color: var(--sgx-text-secondary);
@@ -455,7 +455,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-th-pals { display: flex; flex-direction: column; gap: 2px; max-height: min(320px, 50vh); overflow-y: auto; overscroll-behavior: contain; }
 .sgx-th-pal { --b2: var(--pt-b2); --f1: var(--pt-f1); --f2: var(--pt-f2); --f3: var(--pt-f3); --f4: var(--pt-f4); --f5: var(--pt-f5); --f6: var(--pt-f6); display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent;
   font: inherit; text-align: left; color: var(--sgx-text-secondary); cursor: pointer; }
-/* 色块（2026-11 PR-2 恢复 #311 之前快捷面板 .sgx-qp-sw 的样子）：该色板的 6 个前景色 f1–f6 一条横排小圆点（--pt-*，partials/palette-tile-vars.html） */
+/* 色块（2026-11 PR-2 恢复 #311 之前快捷面板 .sgx-qp-sw 的样子）：该色板的 6 个前景色 f1–f6 一条横排小圆点（--pt-*，partials/shell/palette-tile-vars.html） */
 .sgx-th-sw { display: grid; grid-template-columns: repeat(6, 9px); gap: 3px; flex: none; padding: 3px 4px; border-radius: 7px; background: var(--b2); }
 .sgx-th-sw u { display: block; width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1px color-mix(in srgb, var(--sgx-surface) 55%, transparent); }
 .sgx-th-sw u:nth-child(1) { background: var(--f1); } .sgx-th-sw u:nth-child(2) { background: var(--f2); } .sgx-th-sw u:nth-child(3) { background: var(--f3); }
@@ -765,7 +765,7 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-sh-code { font-family: var(--sgx-font-mono); font-size: 15px; font-weight: 500; letter-spacing: .08em; color: var(--sgx-text-primary); -webkit-user-select: all; user-select: all; overflow-wrap: anywhere; }
 /* ---- inpage ---- */
 /* 只用共享外壳 --sgx-* 角色（跟调色板、深浅色、自定义色），不写死颜色；不用 Tailwind 工具类（便于原样搬到子站）。
-   页头 .sgx-ph（2026-11 对齐 PR-C，设计稿 tb4.html 的 .hero.ph；partials/sgx-ph.html）：一行装饰提示符「styrigx@space:~$ <命令>」+ 等宽大标题 + 主题色「_」+ 一行说明，
+   页头 .sgx-ph（2026-11 对齐 PR-C，设计稿 tb4.html 的 .hero.ph；partials/shell/sgx-ph.html）：一行装饰提示符「styrigx@space:~$ <命令>」+ 等宽大标题 + 主题色「_」+ 一行说明，
    两种布局都显示（取代 PR 309 段式标签时代「桌面视觉隐藏、手机 30px」的旧标题带）。手机 40px / 桌面 64px（同主页名字）。
    段式标签 / 平铺入口在对齐 PR-C2 退役（奇趣改 .sgx-ctab 下划线 tab，日刻改居中引句 + 三窗）。 */
 .sgx-ph { box-sizing: border-box; padding: 28px 0 4px; color: var(--sgx-text-primary); font-family: var(--sgx-font-mono); }

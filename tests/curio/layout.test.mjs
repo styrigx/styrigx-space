@@ -22,7 +22,7 @@ const parts = ['common', 'item-page', 'signin', 'page-head', 'list'].map(part).j
 const hasId = (src, id) => new RegExp('id="' + id + '"|"id" "' + id + '"').test(src) || (/^(cu|dv|gm|mv)-(chips|list|empty)$/.test(id) && new RegExp('"pre" "' + id.split('-')[0] + '"').test(src));
 
 test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 shell-topbar.html；中间 = 页名胶囊（首页 = 站名）；右边九宫格 · 快捷设置 · AI（PR-4b，头像在 AI 窗口头部）；没有抽屉、右圆分享', () => {
-  assert.match(base, /\{\{ partial "shell-topbar\.html" \(dict\n/);
+  assert.match(base, /\{\{ partial "shell\/shell-topbar\.html" \(dict\n/);
   assert.match(base, /"site" "curio"/);
   /* P4-3 奇趣拆页：页名胶囊只显示页名——首页 = 站名，子页 = 子页名（内容文件的 title），404 = 页名；不再有 data-sgx-titles（没有页内分区） */
   assert.match(base, /\{\{ if \$isHome \}\}\{\{ \$pageName = \$tr\.site\.name \}\}\{\{ end \}\}/); /* 合站：本站首页是分区页，用 $isHome 判断 */
@@ -75,10 +75,10 @@ test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主
   assert.match(base, /"nav" \$shellNav\n/);
   assert.match(base, /"mainOrigin" "https:\/\/styrigx\.com"/);
   /* 2026-11-12：logo 四站统一回主站首页（同主站 sgx-lang-path，英文 /、中文 /zh/），不再回本站首页 */
-  assert.match(base, /"home" \(partial "sgx-lang-path\.html" \(dict "path" "\/" "lang" \.Lang\)\)/);
+  assert.match(base, /"home" \(partial "shell\/sgx-lang-path\.html" \(dict "path" "\/" "lang" \.Lang\)\)/);
   assert.doesNotMatch(base, /"home" \(site\.GetPage/);
   /* 项、页脚、当前项高亮都在共享外壳 partial 里（range .nav.items / with .nav.footer / eq .id $.site） */
-  const tb = read('space/web/layouts/partials/shell-topbar.html');
+  const tb = read('space/web/layouts/partials/shell/shell-topbar.html');
   assert.match(tb, /range \.nav\.items/);
   assert.match(tb, /if eq \.id \$\.site \}\} aria-current="page"/);
   /* 导航页不放搜索框（定案第 2 条） */
@@ -96,7 +96,7 @@ test('首页（2026-11 对齐 PR-C2，设计稿 pg=curio）：就是「发现」
   const head = part('page-head');
   assert.match(head, /cond \(\.home \| default false\) "ls curio\/" \(printf "ls curio\/%s\/" \$cur\)/, '首页命令 ls curio/，子页 ls curio/<分区>/');
   assert.match(head, /range \(slice "finds" "devices" "games" "movies" "music"\)/, '五个 tab，音乐最后');
-  assert.match(head, /href="\{\{ partial "sgx-lang-path\.html" \(dict "path" \(printf "\/curio\/%s\/" \.\) "lang" \$lang\) \}\}"/, 'tab 地址走 sgx-lang-path');
+  assert.match(head, /href="\{\{ partial "shell\/sgx-lang-path\.html" \(dict "path" \(printf "\/curio\/%s\/" \.\) "lang" \$lang\) \}\}"/, 'tab 地址走 sgx-lang-path');
   const css = read('space/web/assets/curio/css/input.css');
   assert.doesNotMatch(css, /cu-music-ok|mu-denied/, 'v5 S3：音乐歌单公开，tab 不按权限藏，没有「仅本人可见」卡');
   assert.doesNotMatch(css, /\.cu-fab|\.it-view|\.cu-tile|\.it-card|\.sgx-ent|#cu-segs/, '旧浮动按钮 / 详情弹层 / 格子 / 旧卡片 / 入口 / 段式标签样式删除');

@@ -1,5 +1,5 @@
 {{ define "main" }}
-{{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" (dict "lang" $lang "ns" "daymark") (printf "daymark-%s" $lang) }}
+{{ $lang := .Lang }}{{ $tr := partialCached "shell/sgx-tr.html" (dict "lang" $lang "ns" "daymark") (printf "daymark-%s" $lang) }}
 {{/* 日刻首页（2026-11 对齐 PR-C2，设计稿 tb4.html pg=day）：
    - 余响（首页本身）：居中一屏——「cat daymark/<日期>」· 日期行「2026 · 11 · 08 · 星期日」· 大号「」引句 · — 出处 → 一行命令链（shuf -n1 再抽一句 · set today 设为今日 · cat today 回到今日 ·
      不能编辑时 su 登录后可编辑，2c）→ 13 格日期条（看那天的句子；今天主题色描边，还没到的日子灰掉）→ 三个终端窗（余响：最近几天的句子 · 拾录：最新三句 · 百味：专题 / 人物；
@@ -13,7 +13,7 @@
   {{/* ===== 余响 Echo：今天（或日期条选中那天）的一句 ===== */}}
   <section id="dm-pane-echo" class="dm-pane dm-pane-echo" aria-label="{{ $tr.index.echo }}">
     <div class="dm-today">
-      <p class="sgx-ph-cmd dm-cmd" aria-hidden="true" translate="no"><span class="sgx-pr">{{ partial "sgx-envps.html" "~" }}</span> cat daymark/<span id="dm-cmd-day">today</span></p>
+      <p class="sgx-ph-cmd dm-cmd" aria-hidden="true" translate="no"><span class="sgx-pr">{{ partial "shell/sgx-envps.html" "~" }}</span> cat daymark/<span id="dm-cmd-day">today</span></p>
       <h1 class="sr-only">{{ $tr.site.name }}</h1>
       <article id="dm-echo" class="dm-echo" aria-live="polite">
         <p id="dm-echo-day" class="dm-dd"></p>
@@ -26,7 +26,7 @@
         <button id="dm-back-today" type="button" class="sgx-cmd hidden"><span class="sgx-cmd-k" translate="no">cat today</span><i>{{ $tr.index.backToToday }}</i></button>
         {{/* 不能编辑（接口回 canWrite=false）：命令链里多一条「su」（2c 起 data-sec-open，打开顶栏终端预填 su ；daymark.js signinHint 按有没有 v6 登录换说明）。
            href 只是没 JS / 中键时的退路：本语言首页 #sec（「未获授权 → #acct&app=daymark」随应用授权删除，v6 P4） */}}
-        <a id="dm-signin" data-dm-signin class="sgx-cmd hidden" data-sec-open="" href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" ($lang)) }}#sec"><span class="sgx-cmd-k" translate="no">su</span><i data-signin-text>{{ $tr.index.signInToYour }}</i></a>
+        <a id="dm-signin" data-dm-signin class="sgx-cmd hidden" data-sec-open="" href="{{ partial "shell/sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" ($lang)) }}#sec"><span class="sgx-cmd-k" translate="no">su</span><i data-signin-text>{{ $tr.index.signInToYour }}</i></a>
       </div>
       <nav id="dm-dcal" class="dm-dcal" aria-label="{{ $tr.index.dayStrip }}"></nav>
     </div>
@@ -46,12 +46,12 @@
 
   {{/* ===== 拾录 Trove：全部句子，新的在前 ===== */}}
   <section id="dm-pane-trove" class="dm-pane dm-pane-trove" aria-label="{{ $tr.index.trove }}" hidden>
-    {{ partial "sgx-ph.html" (dict "cmd" "ls daymark/trove/" "title" (index $tr.entries "trove").title "desc" (index $tr.entries "trove").sub "path" "daymark#trove" "tag" "h2") }}
+    {{ partial "shell/sgx-ph.html" (dict "cmd" "ls daymark/trove/" "title" (index $tr.entries "trove").title "desc" (index $tr.entries "trove").sub "path" "daymark#trove" "tag" "h2") }}
     <div class="sgx-cmds">
       <a class="sgx-cmd" href="#"><span class="sgx-cmd-k" translate="no">cd ..</span><i>{{ $tr.index.back }}</i></a>
       <button id="dm-fab" type="button" class="sgx-cmd hidden"><span class="sgx-cmd-k" translate="no">touch trove/ +</span><i>{{ $tr.index.saveALine }}</i></button>
       {{/* 拾录里也有一条（不能编辑时；同余响那条，daymark.js 一起换说明和链接） */}}
-      <a id="dm-signin-trove" data-dm-signin class="sgx-cmd hidden" data-sec-open="" href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" ($lang)) }}#sec"><span class="sgx-cmd-k" translate="no">su</span><i data-signin-text>{{ $tr.index.signInToYour }}</i></a>
+      <a id="dm-signin-trove" data-dm-signin class="sgx-cmd hidden" data-sec-open="" href="{{ partial "shell/sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" ($lang)) }}#sec"><span class="sgx-cmd-k" translate="no">su</span><i data-signin-text>{{ $tr.index.signInToYour }}</i></a>
     </div>
     <div id="dm-list" class="dm-list"></div>
     <p id="dm-empty" class="dm-note hidden"></p>
@@ -60,7 +60,7 @@
 
   {{/* ===== 百味 Flavors：自建专题在前，再是按作者的「人物」；点进去是该组句子（页内返回） ===== */}}
   <section id="dm-pane-flavors" class="dm-pane dm-pane-flavors" aria-label="{{ $tr.index.flavors }}" hidden>
-    {{ partial "sgx-ph.html" (dict "cmd" "ls daymark/flavors/" "title" (index $tr.entries "flavors").title "desc" (index $tr.entries "flavors").sub "path" "daymark#flavors" "tag" "h2") }}
+    {{ partial "shell/sgx-ph.html" (dict "cmd" "ls daymark/flavors/" "title" (index $tr.entries "flavors").title "desc" (index $tr.entries "flavors").sub "path" "daymark#flavors" "tag" "h2") }}
     <div class="sgx-cmds"><a class="sgx-cmd" href="#"><span class="sgx-cmd-k" translate="no">cd ..</span><i>{{ $tr.index.back }}</i></a></div>
     <div id="dm-fl-home">
       <section id="dm-cols-sec" class="hidden dm-flsec" aria-labelledby="dm-cols-h">

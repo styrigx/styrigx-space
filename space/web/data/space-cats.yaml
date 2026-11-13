@@ -4,7 +4,7 @@
 # 2026-11 对齐 PR-B（设计稿 tb4.html）：主页不再有分类入口（旧 sgx-entries 平铺行删除）——
 #   状态页 /status/（服务状态窗；2026-11-12 旷野删除，状态从 /wild/#status 搬出单独成页，/wild/ 在 static/_redirects 301 到这里）；
 #   安全由顶栏盾牌进入（进站 v3 L1 起 /security/* 整页删了，盾牌下拉 = 进站命令行，旧地址 301 到 /#sec[=<层>]）；风格页 /theme/ 2026-11 对齐 PR-C 退役（功能在顶栏外观弹层，旧地址 static/_redirects 301 到主页）。
-# 字段：icon = partials/icon.html 的图标名；tone = 圆底配色（primary / secondary / tertiary / info）。
+# 字段：icon = partials/shell/icon.html 的图标名；tone = 圆底配色（primary / secondary / tertiary / info）。
 cats:
   - id: status
     icon: pulse

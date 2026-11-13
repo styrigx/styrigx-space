@@ -7,7 +7,7 @@
 @source "../../../content/curio/**/*.md";
 @source "../js/**/*.js";
 /* 共享外壳（合站前是本站的副本，现在直接用主站的源文件）：顶栏等 partial + 外壳 JS */
-@source "../../../layouts/partials/{shell-topbar,sgx-ph,sgx-tr,sgx-lang-path}.html";
+@source "../../../layouts/partials/shell/{shell-topbar,sgx-ph,sgx-tr,sgx-lang-path}.html";
 @source "../../../assets/shell/js/{topbar/topbar-panel,ui/modal-sheet,ai/ai-panel,ui/vk}.js";
 @source "../../../assets/shell/js/{ui/palette-scheme,prefs/prefs-write,prefs/ui-cookie-read,ui/layout-mode,i18n/lang-path,i18n/lang-boot}.js";
 

@@ -1,5 +1,5 @@
 // 字符串表测试工具（语言包化 2026-11-07）：读各站 data/i18n/<语言>.yaml（主站；2026-11 合站后奇趣 / 日刻在 data/<站>/i18n/）和共享外壳表（data/sgx-shell-i18n/，四站同一份），
-// 和 partials/sgx-tr.html 同一规则：英文表打底，页面语言表覆盖（深合并），缺键回退英文。
+// 和 partials/shell/sgx-tr.html 同一规则：英文表打底，页面语言表覆盖（深合并），缺键回退英文。
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

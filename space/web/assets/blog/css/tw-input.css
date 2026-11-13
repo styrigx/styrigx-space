@@ -14,7 +14,7 @@
 @source "../../../i18n";
 @source "../../../archetypes/blog.md";
 /* 共享外壳（合站前是博客里的副本，现在直接用主站的源文件） */
-@source "../../../layouts/partials/{shell-topbar,sgx-ph,sgx-tr,sgx-lang-path}.html";
+@source "../../../layouts/partials/shell/{shell-topbar,sgx-ph,sgx-tr,sgx-lang-path}.html";
 @source "../../shell/js/{topbar/topbar-panel,ui/modal-sheet,ai/ai-panel,ui/vk}.js";
 @source "../../shell/js/{ui/palette-scheme,prefs/prefs-write,prefs/ui-cookie-read,ui/layout-mode,i18n/lang-path,i18n/lang-boot}.js";
 @source "../../../data/shell";

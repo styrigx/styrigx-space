@@ -164,8 +164,8 @@ space/
 | 0 | 本文件 + check-layers 加 23–27（红线 + 落点 + 待迁移表 + 例外表）；顺手修掉现有的两处红线：文章排序 `partials/blog/posts-sorted.html` 首页和奇趣都在用，挪进 `partials/shell/` | 已合（#444） |
 | 1 | `assets/js/` → `assets/shell/js/`（整体挪，不拆） | 已合（#445） |
 | 2 | 拆 `lib/` 和 shell 平铺文件，按 §1.1 分组 | 已合（#446） |
-| 3 | `assets/css/` → `assets/shell/css/` | 进行中 |
-| 4 | `layouts/partials/` 的 Platform 部分 → `partials/shell/` | 未开始 |
+| 3 | `assets/css/` → `assets/shell/css/` | 已合（#447） |
+| 4 | `layouts/partials/` 的 Platform 部分 → `partials/shell/` | 进行中 |
 | 5 | `data/` 的 Platform 部分 → `data/shell/`；`palettes.yaml` 改名 `data/shell/palette-source.yaml`，避开和 `data/shell/palettes.json` 撞键 | 未开始 |
 | 6 | `scripts/` 根目录 → `build/`、`check/`、`gen/`、`deploy/`；`space/` 外面（`package.json`、`.github/workflows/`、workers 的 README / wrangler.toml 注释 / `csp-hashes.js` 文件头）只改路径字符串、不改逻辑，PR 里逐个列出 | 未开始 |
 | 7 | 共用播放器进 Platform，路由 `/curio/music/player/` 不变：播放器文案和 `.mp-*` 样式一起进 Platform，页面外壳改用 Platform 的 partial，外观不变，截图逐像素对照；脚本网址从 `/curio/js/…` 变成 `/shell/js/…` | 未开始 |

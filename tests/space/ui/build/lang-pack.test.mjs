@@ -44,7 +44,7 @@ test('外壳字符串表只有主站一份（2026-11 合站后子站直接读 da
 });
 
 test('缺键回退英文：sgx-tr.html 是「英文表 ← 页面语言表」的合并，测试工具同一规则；不认识的语言整份回退英文', () => {
-  const tpl = rd('space/web/layouts/partials/sgx-tr.html');
+  const tpl = rd('space/web/layouts/partials/shell/sgx-tr.html');
   assert.match(tpl, /merge \(index \$d "en" \| default dict\) \(index \$d \$lang \| default dict\)/);
   assert.match(tpl, /merge \(index \$s "en" \| default dict\) \(index \$s \$lang \| default dict\)/);
   /* 合并规则本身 */

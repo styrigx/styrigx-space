@@ -60,7 +60,7 @@ test('AI 窗口头部模型胶囊（2026-11 PR-5 按设计稿 ai-v1）：GET /ap
   assert.match(src, /store\(\)\.setItem\(MODEL_KEY, String\(m\.id\)\)/);
   assert.match(src, /setAttribute\('role', 'radio'\)/);
   assert.doesNotMatch(src, /openSheet\s*\(/);
-  const tb = rd('space/web/layouts/partials/shell-topbar.html');
+  const tb = rd('space/web/layouts/partials/shell/shell-topbar.html');
   assert.match(tb, /data-ai-model aria-expanded="false" aria-controls="sgx-ai-models"/);
   assert.match(tb, /role="radiogroup"[^>]*data-ai-models hidden/);
 });
@@ -71,7 +71,7 @@ test('2026-11-08 Gray 04:45：账号页 / 账号下拉都没有 AI 模型行，a
   assert.ok(gone, 'account-ai.js 应已删除');
   /* 2026-11-08 账号页删了；账号终端（shell/account/）里也没有模型行 */
   for (const f of ['window.js', 'cmd/profile.js']) assert.doesNotMatch(rd('space/web/assets/shell/js/account/' + f), /account-ai|initAiModelRow|aiModel/);
-  const tb = rd('space/web/layouts/partials/shell-topbar.html');
+  const tb = rd('space/web/layouts/partials/shell/shell-topbar.html');
   const acct = tb.slice(tb.indexOf('<dialog id="sgx-acct"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-acct"')));
   assert.doesNotMatch(acct, /\$t\.acct\.ai\b|"k" "ai"|data-acct-v="ai"/);
   assert.doesNotMatch(rd('space/web/assets/shell/js/topbar/topbar-panel.js'), /val\('ai'/);

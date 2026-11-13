@@ -2,5 +2,5 @@
    入口 su：「su · su 登录后可编辑」，点了打开顶栏终端（data-sec-open：没登录预填 su ）。
    href 只是没 JS / 中键时的退路：本语言首页 #sec（打开终端）。参数：tr（字符串表）、lang（页面语言代码） */ -}}
 {{- $tr := .tr }}{{ $lang := .lang }}
-{{- $home := partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" ($lang)) }}
+{{- $home := partial "shell/sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" ($lang)) }}
 <a id="cu-signin" class="sgx-cmd hidden" data-sec-open="" href="{{ $home }}#sec"><span class="sgx-cmd-k" translate="no">su</span><i data-signin-text>{{ $tr.curioSignin.signInToYour }}</i></a>

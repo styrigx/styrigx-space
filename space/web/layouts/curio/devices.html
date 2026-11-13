@@ -1,5 +1,5 @@
 {{ define "main" }}
-{{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
+{{ $lang := .Lang }}{{ $tr := partialCached "shell/sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
 {{/* 奇趣 › 设备（/curio/devices/；P4-3 奇趣拆页，原首页 hash 分区 #devices）：curio-items.js 画，卡片 + 状态筛选条；点卡片看详情，能编辑时在详情里编辑；右下角「设备」新建。 */}}
 <main id="cu-main" class="cu-wrap" data-cu-page="devices">
 {{ partial "curio/page-head.html" (dict "page" . "id" "devices" "tr" $tr "lang" $lang "cmds" (slice (dict "id" "dv-fab" "k" "touch curio/devices/ +" "d" $tr.cmd.addDevice))) }}

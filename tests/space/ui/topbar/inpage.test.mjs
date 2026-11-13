@@ -49,7 +49,7 @@ test('页头 .sgx-ph（2026-11 对齐 PR-C，设计稿 .hero.ph）：$ 命令 ·
   assert.match(shell, /:root\[data-sgx-layout="desktop"\] \.sgx-ph-title \{ font-size: 64px; \}/, '桌面 64px');
   assert.match(shell, /\.sgx-ph-title::after \{ content: "_" \/ ""; color: var\(--sgx-primary\); \}/, '「_」是 CSS ::after（读屏不念）');
   assert.doesNotMatch(shell, /\[data-sgx-layout="[a-z]+"\][^{]*\.sgx-segs[^{]*\{[^}]*display: none/, '段式标签不按布局隐藏');
-  const ph = rd('space/web/layouts/partials/sgx-ph.html');
+  const ph = rd('space/web/layouts/partials/shell/sgx-ph.html');
   assert.match(ph, /<header class="sgx-ph" data-sgx-ph>/);
   /* 环境提示符规则（进站 v3 L1）：谁登录显示谁（Gray 11-11 22:46）——三种都写，CSS 按 <html data-sgx-account-session> 只显示一种 */
   assert.match(ph, /<p class="sgx-ph-cmd" aria-hidden="true" translate="no"><span class="sgx-pr"><span class="sgx-envps-n" translate="no">nobody@space:~\$<\/span><span class="sgx-envps-g sgx-envps-u" translate="no">styrigx<\/span><span class="sgx-envps-g" translate="no">@space:~\$<\/span><span class="sgx-envps-r" translate="no">root@space:~#<\/span><\/span> \{\{ \.cmd \}\}<\/p>/);
@@ -94,7 +94,7 @@ test('子站接入（对齐 PR-C2）：奇趣五个分区页同一个页头（�
   for (const f of ['finds.html', 'section.html']) assert.match(rd('space/web/layouts/curio/' + f), /partial "curio\/finds-main\.html"/, f);
   for (const id of ['finds', 'devices', 'games', 'movies', 'music']) for (const f of [`${id}.md`, `${id}.zh.md`]) assert.match(rd(`space/web/content/curio/${f}`), /^description: '.+'$/m, f);
   const head = rd('space/web/layouts/partials/curio/page-head.html');
-  assert.match(head, /partial "sgx-ph\.html"/);
+  assert.match(head, /partial "shell\/sgx-ph\.html"/);
   assert.match(head, /<div class="sgx-ctab" id="cu-tabs">/);
   assert.match(head, /range \(slice "finds" "devices" "games" "movies" "music"\)/);
   assert.match(head, /data-ctab="\{\{ \. \}\}"[^>]*\{\{ if eq \. \$cur \}\} aria-current="page"\{\{ end \}\}/);
@@ -104,12 +104,12 @@ test('子站接入（对齐 PR-C2）：奇趣五个分区页同一个页头（�
   /* v5 S3：音乐歌单公开，tab 不再按权限藏 */
   assert.doesNotMatch(rd('space/web/assets/curio/css/input.css'), /cu-music-ok/);
   const dm = rd('space/web/layouts/daymark/section.html');
-  assert.equal((dm.match(/partial "sgx-ph\.html"/g) || []).length, 2, 'daymark');
-  for (const id of ['trove', 'flavors']) assert.match(dm, new RegExp(`partial "sgx-ph\\.html" \\(dict "cmd" "ls daymark/${id}/" .*"tag" "h2"\\) \\}\\}\\n\\s*<div class="sgx-cmds">`), 'daymark ' + id);
+  assert.equal((dm.match(/partial "shell\/sgx-ph\.html"/g) || []).length, 2, 'daymark');
+  for (const id of ['trove', 'flavors']) assert.match(dm, new RegExp(`partial "shell\/sgx-ph\\.html" \\(dict "cmd" "ls daymark/${id}/" .*"tag" "h2"\\) \\}\\}\\n\\s*<div class="sgx-cmds">`), 'daymark ' + id);
   for (const f of ['layouts/daymark/section.html', 'layouts/curio/section.html', 'layouts/partials/curio/page-head.html', 'layouts/blog/section.html', 'layouts/blog/tree.html', 'layouts/blog/term.html']) {
     assert.doesNotMatch(rd('space/web/' + f), /sgx-segtabs|sgx-entries/, f);
   }
-  for (const f of ['section.html', 'tree.html', 'term.html']) assert.match(rd(`space/web/layouts/blog/${f}`), /partial "sgx-ph\.html" \(dict "cmd" /, 'blog ' + f);
+  for (const f of ['section.html', 'tree.html', 'term.html']) assert.match(rd(`space/web/layouts/blog/${f}`), /partial "shell\/sgx-ph\.html" \(dict "cmd" /, 'blog ' + f);
 });
 
 test('主站内容页：页头接入（带命令），front matter 都有 description（中英）', () => {
@@ -124,7 +124,7 @@ test('主站内容页：页头接入（带命令），front matter 都有 descri
   for (const p of pages) for (const f of [`space/web/content/${p}.md`, `space/web/content/zh/${p}.md`]) assert.match(rd(f), /^description: '.+'$/m, f);
   for (const l of pages) {
     assert.ok(has(`space/web/layouts/_default/${l}.html`), l);
-    assert.match(rd(`space/web/layouts/_default/${l}.html`), /partial "sgx-ph\.html" \(dict "cmd" "[^"]+" "title" \.Title "desc" \.Description "path" \.File\.Path\)/, l);
+    assert.match(rd(`space/web/layouts/_default/${l}.html`), /partial "shell\/sgx-ph\.html" \(dict "cmd" "[^"]+" "title" \.Title "desc" \.Description "path" \.File\.Path\)/, l);
   }
 });
 

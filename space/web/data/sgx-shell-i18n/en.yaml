@@ -1,7 +1,7 @@
 # 共享外壳字符串表（语言包化 2026-11-07）：英文是源文本。四站顶栏 / 导航面板 / 快捷面板 / AI 窗口 / 分享本页共用。
 # 主站是唯一来源；gen-shell 复制成 space/web/shared/shell/i18n-<语言>.yaml，三站 sync-shell 同步到 data/sgx-shell-i18n/<语言>.yaml。
 # 加一种语言：放一份 <语言>.yaml（缺的键自动用英文），各站 hugo.yaml languages 加一项。
-# 不放进来的：品牌名（Gray AI、Styrigx）、个人信息类（名字、邮箱、账号名……原样渲染，见 partials/sgx-personal.html）、语言自己的名字（用 hugo.yaml languageName / label）。
+# 不放进来的：品牌名（Gray AI、Styrigx）、个人信息类（名字、邮箱、账号名……原样渲染，见 partials/shell/sgx-personal.html）、语言自己的名字（用 hugo.yaml languageName / label）。
 topbar:
   mayErr: "Answers may be wrong"
   model: "AI model"

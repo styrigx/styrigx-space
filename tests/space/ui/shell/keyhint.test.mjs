@@ -48,7 +48,7 @@ test('每个终端窗口都有提示行（v5 S5：锁屏 / 盾牌的终端并进
   assert.doesNotMatch(aw, /data-at-kh|createInputLine/, 'S9：账号卡片没有命令行和提示行');
   /* v5 S7：主页首屏不再嵌终端（换成 neofetch about 卡），主页也用终端窗口 #sgx-term */
   assert.doesNotMatch(read('space/web/layouts/index.html'), /data-sgx-term="home"|data-term-kh/);
-  const tb = read('space/web/layouts/partials/shell-topbar.html');
+  const tb = read('space/web/layouts/partials/shell/shell-topbar.html');
   assert.match(tb, /<p class="sgx-kh sgx-term-kh" data-term-kh hidden><\/p>\n  <\/div>\n<\/dialog>/);
   assert.match(tb, /<p class="sgx-kh sgx-ai-kh" data-ai-kh hidden><\/p>\n    <p class="sgx-ai-foot">/);
   /* 出口：终端窗口的「‹ 返回」= esc 同一条路（先退出当前命令 / reset 层），最外层关窗口 */

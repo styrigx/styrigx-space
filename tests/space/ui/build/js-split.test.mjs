@@ -20,7 +20,7 @@ const base = rd('space/web/layouts/_default/baseof.html');
 const ENTRY_DIR = 'space/web/assets/shell/js/apps/entries';
 
 function batchList() {
-  const m = base.match(/partialCached "sgx-js-batch\.html" \(dict "defines" \$featDefines "entries" \(slice ([^)]*)\)\)/);
+  const m = base.match(/partialCached "shell\/sgx-js-batch\.html" \(dict "defines" \$featDefines "entries" \(slice ([^)]*)\)\)/);
   assert.ok(m, 'baseof 用 partialCached 调 sgx-js-batch.html 并给出入口列表');
   return [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
 }
@@ -85,7 +85,7 @@ test('baseof：modulepreload + 构建签名 + 入口加载失败只自动刷新�
   const head = base.slice(0, base.indexOf('</head>'));
   assert.ok(head.includes("localStorage.getItem('sgx-palette')"), '调色板（深浅）预读仍在 head 内联');
   assert.ok(!/<script[^>]*type="module"/.test(head), 'head 里不放 module 脚本');
-  const part = rd('space/web/layouts/partials/sgx-js-batch.html');
+  const part = rd('space/web/layouts/partials/shell/sgx-js-batch.html');
   assert.ok(part.includes('js.Batch "js/sgx"') && part.includes('| fingerprint'), 'js.Batch 构建，入口 fingerprint（/js/* 是 immutable 缓存）');
 });
 

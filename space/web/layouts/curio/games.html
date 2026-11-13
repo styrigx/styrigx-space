@@ -1,5 +1,5 @@
 {{ define "main" }}
-{{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
+{{ $lang := .Lang }}{{ $tr := partialCached "shell/sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
 {{/* 奇趣 › 游戏（/curio/games/；P4-3 奇趣拆页，原首页 hash 分区 #games）：curio-items.js 画，卡片 + 状态筛选条；点卡片看详情，能编辑时在详情里编辑；右下角「游戏」新建。
    「在哪台设备上」的选项来自同一个 /api/items（设备列表一起回来）。 */}}
 <main id="cu-main" class="cu-wrap" data-cu-page="games">

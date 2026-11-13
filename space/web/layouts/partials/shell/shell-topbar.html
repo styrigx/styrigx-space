@@ -9,7 +9,7 @@
      #sgx-ai  AI 窗口：头部 Gray AI · 新对话 · 历史 · 头像（账号页），底部「仅公开内容 · 联系我」（邮箱 = 参数 email）。
    参数（dict）：
      lang        页面语言代码（en / zh …）
-     tr          共享外壳字符串表（partials/sgx-tr.html 返回值的 .shell；当前语言叠在英文上，缺键回退英文）——外壳不写任何语言的文案
+     tr          共享外壳字符串表（partials/shell/sgx-tr.html 返回值的 .shell；当前语言叠在英文上，缺键回退英文）——外壳不写任何语言的文案
      langs       语言分段的选项：[{code name short}]（hugo.yaml languages：name = 该语言自己的名字，short = 分段上的短名 EN / 中文，不翻译）
      home        logo 链接：一律回主站首页（2026-11-12 起四站统一，英文 /、中文 /zh/；调用方用 sgx-lang-path 拼 path "/"）
      center      中间的 HTML（页名 .sgx-tb-title / 阅读进度，调用方渲染好；v3 顶栏不显示，见上）；pillClass 中间容器的额外 class
@@ -17,7 +17,7 @@
      nav         shell-nav.json（items：id icon origin path hint；名字在 tr.nav.<id>.title）；site 当前项的 nav id（NAVIGATE「开」态、计数 01/04）
      mainOrigin  主站项（origin 为 styrigx.com、不是子站的项）地址前缀：主站不传（同源相对 /）；子站传 https://styrigx.com
      icons       图标 SVG（名字 → SVG 串）：tb-palette tb-shield tb-term（终端）tb-grid（NAVIGATE 四格）tb-music（音乐）tb-chat lock tb-undo share tb-send tb-newchat tb-history
-     wordmark    字标 SVG（partials/shell-wordmark.html；子站经 nav.json 的 wordmark）：顶栏左边 ❯ + 字标 + 闪烁下划线光标（2026-11 PR-2 起取代等宽文字 styrigx :~$）
+     wordmark    字标 SVG（partials/shell/shell-wordmark.html；子站经 nav.json 的 wordmark）：顶栏左边 ❯ + 字标 + 闪烁下划线光标（2026-11 PR-2 起取代等宽文字 styrigx :~$）
      security    盾牌链接（没 JS / 中键时的去处：主站首页 #sec，当前语言；普通点击打开终端 #sgx-term，按身份徽章预填：访客 su 、普通用户 exit、站长 su root、root exit，定稿 v5.5 §七）
      music       音乐图标链接（音乐方案第一步，2026-11-13）：奇趣音乐页 /curio/music/（当前语言）；第二步改成弹出播放器
      status      NAVIGATE 底部「systemctl status」链接与 STATUS 区跳转按钮：主站状态页 /status/（当前语言）

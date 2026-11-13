@@ -1,8 +1,8 @@
 {{ define "main" }}
-{{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
-{{ $home := (partial "sgx-lang-path.html" (dict "path" "/" "lang" ($tr.notFound.en))) }}
+{{ $pageLang := partial "shell/sgx-page-lang.html" . }}{{ $tr := partialCached "shell/sgx-tr.html" $pageLang $pageLang }}
+{{ $home := (partial "shell/sgx-lang-path.html" (dict "path" "/" "lang" ($tr.notFound.en))) }}
 {{/* 第二个按钮去子站 奇趣 Curio（书签在那里） */}}
-{{ $curio := (partial "sgx-lang-path.html" (dict "path" "/curio/" "lang" ($tr.notFound.en))) }}
+{{ $curio := (partial "shell/sgx-lang-path.html" (dict "path" "/curio/" "lang" ($tr.notFound.en))) }}
 
 {{/* 2026-11-09 细节 4：跟全站一致——主色 + 等宽 404、.sgx-chip 按钮（无蓝色光晕），版式不变 */}}
 <section class="sgx-404 py-24 sm:py-32 text-center">

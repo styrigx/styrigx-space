@@ -597,7 +597,7 @@ export function mountTopbar(o) {
     paintAvV6();
     if (who) { who.on(paintAv); who.on(paintAvV6); }
   }
-  /* 盾牌身份徽章（定稿 v5.5 §七）：四档图形（CSS 按 data-sgx-tier 换部件与颜色，partials/icon.html tb-shield）。
+  /* 盾牌身份徽章（定稿 v5.5 §七）：四档图形（CSS 按 data-sgx-tier 换部件与颜色，partials/shell/icon.html tb-shield）。
      没有 v6 身份且页面不是网关标记的访客（本地 / 测试构建）→ 不写档，原样 */
   const paintShield = function () {
     if (!secBtn) return;

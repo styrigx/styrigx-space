@@ -3,7 +3,7 @@
 <!DOCTYPE html>
 {{/* 合站：本站首页是 content/daymark/ 分区页（不是 Hugo 首页），404 是 layout notfound 的普通页（不是 Hugo 的 404 页） */}}
 {{ $isHome := and (eq .Kind "section") (eq .Section "daymark") }}{{ $is404 := eq .Layout "notfound" }}
-{{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" (dict "lang" $lang "ns" "daymark") (printf "daymark-%s" $lang) }}
+{{ $lang := .Lang }}{{ $tr := partialCached "shell/sgx-tr.html" (dict "lang" $lang "ns" "daymark") (printf "daymark-%s" $lang) }}
 {{- /* 测试构建（SGX_TEST_NO_WEATHER=1，CI 静态服务器没有接口）：<html data-sgx-test-no-api>，页面脚本加载时不自动问新加的读接口（tab 计数 / /api/days），免得 404 进控制台（同主站 SGX_TEST_NO_WB）；e2e 要测时先设 window.__sgxCurioApi / __sgxDaymarkApi = true。生产构建不加，产物不变 */ -}}
 <html lang="{{ $lang }}" class="scroll-smooth" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}"{{ if eq (getenv "SGX_TEST_NO_WEATHER") "1" }} data-sgx-test-no-api{{ end }}>
 <head>
@@ -61,7 +61,7 @@ __sgxLayoutWatch(__applyLayout);
 {{/* 合站：Hugo 只给站点首页自动插 generator；本站首页现在是分区页，照合站前补上 */}}{{ if $isHome }}{{ hugo.Generator }}{{ end }}
 </head>
 <body class="text-m-on-surface font-sans antialiased">
-{{/* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个）：标记是共享外壳 partials/shell-topbar.html（合站后直接用主站这份），
+{{/* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个）：标记是共享外壳 partials/shell/shell-topbar.html（合站后直接用主站这份），
    这里只准备日刻自己的参数：
    - 中间（原样搬进来）：页名胶囊 .sgx-tb-title（首页 = 站名，页内分区时换成分区名；其他页 = 页名）。
    - 右边：九宫格（导航面板，本站是「开」态）· 快捷设置 · AI（头像在 AI 窗口头部）；P4-3 PR-4b 起快捷面板四站同一套，没有按站的 tiles 参数：
@@ -83,7 +83,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ $langHref := "" }}
 {{ range .Translations }}{{ if not $langHref }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}
 {{ if not $langHref }}{{ range (site.GetPage "/daymark").AllTranslations }}{{ if ne .Language.Lang $.Language.Lang }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}{{ end }}
-{{/* 调色板色块的变量（同主站 partials/palette-tile-vars.html：--pt-b1..7 / --pt-f1..6，2026-11-12 v4 起每套一个模式），取自共享外壳 palettes.json */}}
+{{/* 调色板色块的变量（同主站 partials/shell/palette-tile-vars.html：--pt-b1..7 / --pt-f1..6，2026-11-12 v4 起每套一个模式），取自共享外壳 palettes.json */}}
 {{/* 选项顺序 = languages.<语言>.params.pickerWeight（没写按 weight）：快捷面板沿用「跟随系统 / 中文 / English」，和 features.yaml lang 选项同序；hugo.Sites 总是默认语言（英文）在前，不能直接用 */}}
 {{ $tbLangs := slice }}{{ range hugo.Sites }}{{ $tbLangs = $tbLangs | append (dict "code" .Language.Lang "name" .Language.Label "short" .Language.Params.pickerShort "w" (.Language.Params.pickerWeight | default .Language.Weight)) }}{{ end }}{{ $tbLangs = sort $tbLangs "w" }}
 {{ $pal := slice }}
@@ -94,36 +94,36 @@ __sgxLayoutWatch(__applyLayout);
 {{ range $n := seq 6 }}{{ $s = printf "%s--pt-f%d:%s;" $s $n (index $tk (printf "fg-%d" $n)) }}{{ end }}
 {{ $pal = $pal | append (dict "id" $p.id "style" $s) }}
 {{ end }}
-{{ partial "shell-topbar.html" (dict
+{{ partial "shell/shell-topbar.html" (dict
   "lang" .Lang
-  "tr" (partialCached "sgx-tr.html" (dict "lang" .Lang "ns" "daymark") (printf "daymark-%s" .Lang)).shell
+  "tr" (partialCached "shell/sgx-tr.html" (dict "lang" .Lang "ns" "daymark") (printf "daymark-%s" .Lang)).shell
   "langs" $tbLangs
-  "home" (partial "sgx-lang-path.html" (dict "path" "/" "lang" .Lang))
+  "home" (partial "shell/sgx-lang-path.html" (dict "path" "/" "lang" .Lang))
   "center" $center
   "nav" $shellNav
   "site" "daymark"
   "icons" $shellNav.icons
   "wordmark" $shellNav.wordmark
   "mainOrigin" "https://styrigx.com"
-  "acct" (partial "sgx-lang-path.html" (dict "path" $shellNav.me.href "lang" .Lang))
+  "acct" (partial "shell/sgx-lang-path.html" (dict "path" $shellNav.me.href "lang" .Lang))
   "avatar" $shellNav.me.avatar
   "name" site.Data.profile.name
   "nick" site.Data.profile.nickname
   "email" $shellNav.me.email
   "langHref" $langHref
-  "security" (printf "%s#sec" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" .Lang)))
-  "status" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/status/" "lang" .Lang))
-  "music" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/curio/music/" "lang" .Lang))
+  "security" (printf "%s#sec" (partial "shell/sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" .Lang)))
+  "status" (partial "shell/sgx-lang-path.html" (dict "path" "https://styrigx.com/status/" "lang" .Lang))
+  "music" (partial "shell/sgx-lang-path.html" (dict "path" "https://styrigx.com/curio/music/" "lang" .Lang))
   "pal" $pal
 ) }}
-{{ partial "sgx-profile-default.html" . }}
+{{ partial "shell/sgx-profile-default.html" . }}
 {{/* 页面脚本的界面文案（语言包化第二部分 2026-11-07）：字符串表 js.<表> 已是「英文表 ← 页面语言表」的合并，每张表一个 #sgx-i18n-<表>；
    脚本（assets/js/daymark.js readDict / makeTr）只读这里，不再按语言二选一 */}}
 {{ range $tbl, $dict := $tr.js }}<script id="sgx-i18n-{{ $tbl }}" type="application/json">{{ $dict | jsonify | safeJS }}</script>
 {{ end }}{{ block "main" . }}{{ end }}
-{{/* tmux 页脚（2026-11 UI 重设计 PR-1，四站同一个 partials/sgx-footer.html；当前窗口 = daymark） */}}
-{{ partial "sgx-footer.html" (dict
-  "tr" (partialCached "sgx-tr.html" (dict "lang" .Lang "ns" "daymark") (printf "daymark-%s" .Lang)).shell
+{{/* tmux 页脚（2026-11 UI 重设计 PR-1，四站同一个 partials/shell/sgx-footer.html；当前窗口 = daymark） */}}
+{{ partial "shell/sgx-footer.html" (dict
+  "tr" (partialCached "shell/sgx-tr.html" (dict "lang" .Lang "ns" "daymark") (printf "daymark-%s" .Lang)).shell
   "lang" .Lang
   "langs" $tbLangs
   "here" .RelPermalink
@@ -133,9 +133,9 @@ __sgxLayoutWatch(__applyLayout);
   "mainOrigin" "https://styrigx.com"
   "name" site.Data.profile.name
   "year" now.Year
-  "sha" (partial "sgx-build-sha.html" .)
+  "sha" (partial "shell/sgx-build-sha.html" .)
   "email" $shellNav.me.email
-  "rss" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/blog/rss.xml" "lang" .Lang))
+  "rss" (partial "shell/sgx-lang-path.html" (dict "path" "https://styrigx.com/blog/rss.xml" "lang" .Lang))
 ) }}
 {{/* 顶栏：快捷面板 + AI 窗口（共享外壳 topbar.js 等，js/sgx/topbar-host.js 打包；2026-11-04 P5-1 取代 topbar.js（抽屉）、share-host.js（右圆分享）、search-host.js（抽屉底栏搜索）） */}}
 <script src="{{ (resources.Get "daymark/js/sgx/topbar-host.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018") | fingerprint).RelPermalink }}"></script>

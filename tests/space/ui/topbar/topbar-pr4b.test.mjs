@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { resolveLang } from '../../../../space/web/assets/shell/js/topbar/topbar-panel.js';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
-const tb = rd('space/web/layouts/partials/shell-topbar.html');
+const tb = rd('space/web/layouts/partials/shell/shell-topbar.html');
 
 test('语言偏好 → 实际语言：zh / en 原样；跟随系统看浏览器语言（zh* → zh，其余 → en）', () => {
   assert.equal(resolveLang('zh', 'en-US'), 'zh');

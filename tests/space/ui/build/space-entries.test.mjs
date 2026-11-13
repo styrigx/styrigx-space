@@ -26,7 +26,7 @@ test('数据：主站门内子页 1 个（状态页，2026-11-12 起；原旷野
   /* 语言包化（2026-11-07）：名字 / 副标题在字符串表 spaceCats（数据文件只留 id / icon / tone） */
   assert.deepEqual(cats.map((c) => TR.zh.spaceCats[c.id].title), ['状态']);
   assert.deepEqual(cats.map((c) => TR.en.spaceCats[c.id].title), ['Status']);
-  const icons = rd('space/web/layouts/partials/icon.html');
+  const icons = rd('space/web/layouts/partials/shell/icon.html');
   for (const c of cats) {
     for (const k of ['icon', 'tone']) assert.ok(typeof c[k] === 'string' && c[k].trim(), `${c.id}.${k}`);
     for (const k of ['zh', 'en', 'sub_zh', 'sub_en']) assert.equal(c[k], undefined, `${c.id}.${k} 不该在数据文件里`);
