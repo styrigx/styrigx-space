@@ -16,6 +16,7 @@
  *   旧地址 #sec / [data-sec-open] 同样只打开终端（访客预填）。v6 P4 起旧的「退出进站会话 [y/N]」（钥匙层 lock）随旧会话删除。
  * - 头像 = whoami（定稿 v5.5 §七）：访客点 = 打开终端预填 `su `；站长与 root 点 = 打开账号页；普通用户（uid 1001 起）的头像只作装饰、不可点；头像一份，归站长。
  *   页面没有网关标记（本地 / 测试构建）且没有 v6 身份时点了开账号卡片（只展示，点一行 = 打开终端预填命令）。
+ * - 音乐图标（音乐方案 2c）：mountMusic——没开就弹出播放器小窗（手机是新标签页）、已开就切过去、被拦直接跳到播放器页；单窗口。
  * - >_ 终端按钮（v5 S6）：开合全站终端（同 Ctrl / ⌘ K）。
  * - 终端（v5 S5 终端合一）：调用方传 terminal（term/terminal.js 整个模块）、identityTerm（v6 身份层 identity/layer.js）、accountTerm（终端里的账号层
  *   account/cmd/layer.js mountAccountLayer）、account（账号卡片 account/window.js mountAccountWindow，只展示）；本文件仍不 import。每页一个终端 #sgx-term（桌面居中大窗、手机整块卡片）。
@@ -980,6 +981,7 @@ export function mountTopbar(o) {
   mountAvBusy(doc);
   mountFootLift(doc);
   mountClock(doc);
+  mountMusic(doc);
   const status = mountStatus(doc);
   if (status && navBtn) navBtn.addEventListener('click', function () { status(); });
   /* 2c：v6 命令（su / exit / lock / 空闲弹回）之后页面标记就地切；登录了顺手重取 NAVIGATE STATUS（之前 401 是灰的） */
@@ -989,6 +991,56 @@ export function mountTopbar(o) {
     });
   }
   return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, openAccount: function () { openAcct(); }, term: termSheet, termShell: term, termView: view, who: who, paint: paint, paintNav: paintNav };
+}
+
+/** 弹出播放器的窗口名（音乐分层方案 v1.13 §7.1「只开一个」：入口固定这个名字，播放器页自己也把 window.name 设成它） */
+export const MUSIC_WIN = 'sgx-music-player';
+/** 桌面 / DeX 小窗的尺寸（手机 Chrome 不认，开成新标签页，方案 §7.1） */
+export const MUSIC_FEATURES = 'popup,width=420,height=720';
+/** 播放器页路径（英文 /curio/music/player/、中文 /curio/zh/music/player/） */
+export const MUSIC_PATH = /\/music\/player\/?$/;
+
+/**
+ * 顶栏音乐图标点开播放器（音乐分层方案 v1.13 第二步 2c）：图标是链接（href = 播放器页，当前语言），没 JS / 中键 / Ctrl / ⌘ / Shift / Alt 照旧按链接走。
+ * 普通点击：
+ * - 先 window.open('', MUSIC_WIN) 找同名窗口——空 URL 不会让已开的播放器重新加载，歌不断；
+ * - 拿到的是新开的空白窗（about:blank）或同名窗口已走到别的页 → 让它去播放器页；拿到的是已开的播放器 → 只 focus 切过去（单窗口）；
+ *   拿到的是本页自己（本标签页曾跳到过播放器、名字没清掉）且不是播放器 → 本页跳过去；
+ * - window.open 回 null（弹窗被拦）→ 本页直接跳到播放器页（方案 §7.1 退路）。
+ * 小遥控层（图标下弹层、BroadcastChannel 问「在播什么」）是下一步，不在这里。
+ * @param {Document} [d] @param {{ open?: (url: string, name: string, features: string) => any, navigate?: (url: string) => void }} [o] 测试注入
+ */
+export function mountMusic(d, o) {
+  const doc = d || document;
+  const opt = o || {};
+  const btn = /** @type {HTMLAnchorElement|null} */ (doc.querySelector('.sgx-tb-music'));
+  if (!btn) return null;
+  const open = opt.open || function (/** @type {string} */ u, /** @type {string} */ n, /** @type {string} */ f) { return window.open(u, n, f); };
+  const navigate = opt.navigate || function (/** @type {string} */ u) { location.href = u; };
+  /** @param {string} url @returns {'opened'|'focused'|'navigated'} */
+  const go = function (url) {
+    let w = null;
+    try { w = open('', MUSIC_WIN, MUSIC_FEATURES); } catch (e) { w = null; }
+    if (!w) { navigate(url); return 'navigated'; }
+    /* 拿到的窗口在哪：空白（新开的）/ 播放器页 / 别的页（同名窗口已经走开了）；读不了（不同源）当它是播放器 */
+    let at = 'player';
+    try {
+      const h = w.location && w.location.href;
+      at = !h || h === 'about:blank' ? 'blank' : (MUSIC_PATH.test(w.location.pathname) ? 'player' : 'other');
+    } catch (e) {}
+    if (at !== 'player') {
+      if (typeof window !== 'undefined' && w === window) { navigate(url); return 'navigated'; }
+      try { w.location.href = url; } catch (e) { navigate(url); return 'navigated'; }
+    }
+    try { w.focus(); } catch (e) {}
+    return at === 'player' ? 'focused' : 'opened';
+  };
+  btn.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    go(btn.href);
+  });
+  return go;
 }
 
 /**

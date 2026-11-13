@@ -3,7 +3,7 @@
 {{/* 共用播放器页（/curio/music/player/，中文 /curio/zh/music/player/；音乐分层方案 v1.13 第二步 2b，功能见 §7.1 播放层）：
    2026-11 第 7 步（规范 v1.12 §3.5、D2）从 layouts/curio/ 搬进 Platform：套主站 baseof（顶栏 / 页脚亮 curio 靠内容页 navSite: curio），
    样式在共享外壳 @frame music（主站 main.css），文案在 data/common/i18n 的 player / js.curioPlayer；路由不变（内容文件仍在 content/curio/，type: common）。
-   独立小播放器页，桌面 / DeX 由入口用 window.open 开成小窗，手机是新标签页（入口是 2c）；主标签页随便跳，歌不断。music-player.js 画。
+   独立小播放器页，桌面 / DeX 由顶栏音乐图标用 window.open 开成小窗，手机是新标签页（2c：topbar/panel.js mountMusic，窗口名 sgx-music-player，单窗口）；主标签页随便跳，歌不断。music-player.js 画。
    - 声音、签令牌、续签、切曲、防同时响、播放模式都在共用核 music-core.js（奇趣音乐页同一份）；本页不管上传 / 删除（留在奇趣音乐页）。
    - 正在播（封面小图 + 歌名 + 歌手 + 专辑）、歌词（当前一句，点一下展开全部）、进度、播放控制、随机、倍速 1 / 1.25 / 1.5 / 2、音量 + 静音、
      曲目列表、可收起的专辑列表、Media Session（锁屏 / 耳机键）。
