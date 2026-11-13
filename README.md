@@ -68,7 +68,7 @@ Sloan Gray（styrigx）的个人数字空间：一个终端风格的个人网站
 
 - **AI 浮窗（Gray AI）**：右下浮钮打开，手机上是悬浮卡。先在站内索引里召回（关键词 + 语义向量 + 奇趣只读查询），再交给模型流式回答，Markdown 渲染；对话只存在本地。默认模型是 Workers AI 上的 Gemma 4，已登录账号可改选 GPT-OSS 20B 或 Gemini（[ADR-0004](docs/decisions/ADR-0004-ai-models.md)）。
 - **锁屏（进站 V3）**：终端锁屏 `entry@space:~$`，命令 `sudo styrigx`，用解锁密码或通行密钥进站；也接受临时钥匙与分享链接。顶栏盾牌管理进站凭证、临时钥匙、分享链接和立即锁屏。
-- **账号（V3）**：顶栏头像打开账号终端，账号密码 / 账号通行密钥登录；负责授权（写奇趣、日刻、设置云同步、头像与个人资料等），和进站是两套独立的票据——「门归网站，账号管授权」（[SGX-SEC-001](docs/security/account-v3.md)）。
+- **账号（V3）**：顶栏头像打开账号终端，账号密码 / 账号通行密钥登录；负责授权（写奇趣、日刻、设置云同步、头像与个人资料等），和进站是两套独立的票据——「门归网站，账号管授权」（[ADR-0003](docs/decisions/ADR-0003-account-v3.md)）。
 
 ## 技术栈
 
@@ -159,7 +159,7 @@ GitHub Actions（[`deploy.yml`](.github/workflows/deploy.yml)）：
 - **main**：按依赖顺序部署 Worker（AI、监测、账号 → 站点核心 → 奇趣 / 日刻接口；规则集反代并行），最后部署 Pages；每一步都有部署后核对与冒烟，失败自动回滚到部署前的版本。
 - 每个部署作业使用各自最小权限的部署令牌，放在只允许 `main` 使用的 GitHub environment 里；仓库里没有任何密钥。
 
-细节见 [SGX-OPS-001 CI 与部署](docs/operations/deploy.md)。
+细节见 [SGX-OPS-001 CI 与部署](docs/guides/operations/deploy.md)。
 
 ## 文档
 
@@ -167,12 +167,12 @@ GitHub Actions（[`deploy.yml`](.github/workflows/deploy.yml)）：
 
 | 文档 | 内容 |
 |---|---|
-| [术语表](docs/glossary.md) | 站点、进站、账号相关术语 |
+| [术语表](docs/guides/glossary.md) | 站点、进站、账号相关术语 |
 | [系统总览](docs/architecture/overview.md) | 请求路径、Worker 分工、分层规则 |
-| [主站](docs/architecture/sites/space.md) · [博客](docs/architecture/sites/blog.md) · [奇趣与日刻](docs/architecture/sites/curio-daymark.md) | 各站页面与代码位置 |
-| [终端风格 UI 系统](docs/design/ui-system.md) · [调色板](docs/design/palette.md) | 界面规则 |
-| [CI 与部署](docs/operations/deploy.md) | 检查作业、部署顺序、回滚 |
-| [PR 与提交](docs/contributing/pr-and-commits.md) · [写博客](docs/contributing/blog-writing.md) | 贡献约定 |
+| [主站](docs/architecture/space.md) · [博客](docs/architecture/blog.md) · [奇趣与日刻](docs/architecture/curio-daymark.md) | 各站页面与代码位置 |
+| [终端风格 UI 系统](docs/architecture/ui-system.md) · [调色板](docs/architecture/palette.md) | 界面规则 |
+| [CI 与部署](docs/guides/operations/deploy.md) | 检查作业、部署顺序、回滚 |
+| [PR 与提交](docs/guides/contributing/pr-and-commits.md) · [写博客](docs/guides/contributing/blog-writing.md) | 贡献约定 |
 | [ADR-0001](docs/decisions/ADR-0001-one-repo-one-site.md) · [ADR-0002](docs/decisions/ADR-0002-lock-screen.md) · [ADR-0003](docs/decisions/ADR-0003-account-v3.md) · [ADR-0004](docs/decisions/ADR-0004-ai-models.md) | 合站、锁屏、账号 V3、AI 模型的决策记录 |
 
 ## 许可

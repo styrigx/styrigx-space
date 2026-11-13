@@ -151,7 +151,7 @@ jobs:
         run: node space/scripts/gen/gen-ui-cookie-contract.mjs --check
 
       - name: Layer boundary check (SGX 3.0 分层规范)
-        # 依赖方向（docs/architecture/overview.md）：前端 lib ← auth ← shell ← apps ← entries；lib 不含鉴权接口；
+        # 前端依赖方向与落点见 space/README.md §3–4（规则 1–9、23–28）；Worker 规则见 docs/architecture/overview.md §7；
         # Worker 之间：每个 Worker 只 import 自己目录下的文件，没有 workers/shared；网关不许出现账号鉴权标识；账号 Worker 不许有路由（规则 14–17）；Worker 骨架防回退（规则 18–21，见 workers/README.md）；
         # 相对 import 解析不到文件也算失败；前端禁止 sgx-space-session（cookie 名）/sgx-lock-shown；禁止用 storage 存解锁状态
         run: node space/scripts/check/check-layers.mjs
@@ -1731,11 +1731,11 @@ jobs:
           out=$(npx --yes "wrangler@$WRANGLER_VERSION" d1 execute D1_SPACE --remote --json --command "SELECT 'core:' || name AS n FROM d1_migrations_core UNION ALL SELECT 'table:' || name FROM sqlite_master WHERE type = 'table'")
           echo "$out"
           ok=0
-          # v6 P4 收尾：只要求运行时读写的 attempt_limit / audit；旧进站 8 张表不再要求（建表语句已删，部署绿后 docs/ops/v6-p4-drop-space-legacy.sql drop）
+          # v6 P4 收尾：只要求运行时读写的 attempt_limit / audit；旧进站 8 张表不再要求（建表语句已删，部署绿后 docs/architecture/archive/ops/v6-p4-drop-space-legacy.sql drop）
           for need in '"core:0001_baseline.sql"' '"table:attempt_limit"' '"table:audit"' '"core:0002_drop_tempkey.sql"'; do
             if ! printf '%s' "$out" | grep -q "$need"; then echo "::error::D1 styrigx-space-core 里没有 $need"; ok=1; fi
           done
-          # share_link / share_fail 不再要求（v6 P4 分享短链删除；生产库已按 docs/ops/v6-p4-drop-share.sql drop）
+          # share_link / share_fail 不再要求（v6 P4 分享短链删除；生产库已按 docs/architecture/archive/ops/v6-p4-drop-share.sql drop）
           # v5 收尾 0002_drop_tempkey.sql：临时钥匙表应已删
           if printf '%s' "$out" | grep -q '"table:tempkey"'; then echo "::error::D1 styrigx-space-core 里还有 tempkey 表"; ok=1; fi
           exit $ok

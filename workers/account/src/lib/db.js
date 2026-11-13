@@ -5,13 +5,13 @@
  * 这些安全读只走绑定本身（= 主库）；内存和 KV 都不缓存，任何吊销判断都以这一次请求读到的 D1 为准。
  *
  * 表全部由 migrations/ 建（账号部署 job 先 d1 migrations apply 再部署；Worker 不自己建表）：
- * - account_epoch(name, value)：旧账号会话的纪元表（v6 P4 起没有代码读写；生产库由 docs/ops/v6-p4-drop-account-epoch.sql drop）
+ * - account_epoch(name, value)：旧账号会话的纪元表（v6 P4 起没有代码读写；生产库由 docs/architecture/archive/ops/v6-p4-drop-account-epoch.sql drop）
  * - account_password(id=1, record)、account_passkey(credential_id, record)、account_user_handle(id=1, handle, legacy_handle)
  * - account_challenge(id, purpose, challenge, expires_at)、account_attempt_limit(kind, bucket, …)
  * - account_device(device_id, …)、account_audit(id, ts, ip_prefix, ok, event, expires_at)
  * - v6 身份表（migrations/0006_identity.sql）：account_users / user_groups / user_password / user_passkey / sessions /
  *   session_stack / user_audit / recovery_key
- * 同一个库里的 settings_sync（api/prefs.js）也经 D1_ACCOUNT，表由 0002 建（数字健康 wb_daily v6 P4 删，drop 见 docs/ops/v6-p4-drop-wellbeing.sql）。
+ * 同一个库里的 settings_sync（api/prefs.js）也经 D1_ACCOUNT，表由 0002 建（数字健康 wb_daily v6 P4 删，drop 见 docs/architecture/archive/ops/v6-p4-drop-wellbeing.sql）。
  *
  * 出错一律抛（D1 未绑定、查询失败、表不存在）；调用方按 fail closed 处理（签发 503、验票无效）。
  *

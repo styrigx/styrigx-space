@@ -106,7 +106,7 @@ simple = { limit = 10, period = 60 }
 # 进站的认证状态全部在 D1（强一致），不绑定任何 KV。
 # - 进站的行（realm='lock'：纪元、解锁密码 / 通行密钥、user handle、challenge、输错计数、审计）和 lock_reset_switch；
 #   AI 全站总闸（attempt_limit realm='ai'，core/ai-limit.js）。
-# - 分享链接 share_link + share_fail（原 styrigx-share）：v6 P4 起代码不再读写，删表 SQL 在 docs/ops/（手动执行，不进 migrations/）。
+# - 分享链接 share_link + share_fail（原 styrigx-share）：v6 P4 起代码不再读写，删表 SQL 在 docs/architecture/archive/ops/（手动执行，不进 migrations/）。
 # 迁移（0001_baseline.sql + v5 收尾 0002_drop_tempkey.sql：删 tempkey 表、share_link.key_id 列）由 deploy.yml 的 deploy-space-core 自己跑（token styrigx-space-core-deploy 有 D1 编辑）：
 #   cd workers/space-core && wrangler d1 migrations apply D1_SPACE --remote
 # 代码兜底建表（src/core/d1-state.js SCHEMA，遇到「no such table」时按同一份语句建，幂等）保留；分享链接不兜底（表只由迁移建）。

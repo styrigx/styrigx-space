@@ -4,7 +4,7 @@
  * - 哈希：沿用 core/password.js 的记录格式（PBKDF2-SHA256 + 盐 + pepper，记录里带 iterations）。不用 bcrypt / argon2（Worker CPU）。
  * - pepper 方案 a（ADR-0006 §2.12 (b)）：记录的 pepper_id 决定用哪把 pepper——只剩 'account' = SGX_ACCOUNT_PASSWORD_PEPPER。
  *   v6 P4（定稿 v5.2 §十三）起 'space'（SGX_SPACE_PASSWORD_PEPPER，从进站密码迁来的旧哈希）删除：部署前须核对生产库没有 pepper_id = 'space' 的行
- *   （docs/ops/v6-p4-predeploy-check.sql，只读）。不认识的 id / 缺 pepper → 验不过（fail closed）。
+ *   （docs/architecture/archive/ops/v6-p4-predeploy-check.sql，只读）。不认识的 id / 缺 pepper → 验不过（fail closed）。
  * - 一次性密码（useradd / passwd <名>）：16 位以上随机，只显示一次，库里只存哈希；must_change = 1，expires_at = 签发 + 24 小时；
  *   过期的一次性密码一律验不过。
  * - 限流两维（定稿 v4 §十）：按 IP 硬上限（每分钟 6 次失败，满了冷却到窗口结束）；按 uid 渐进退避（每个账号一个桶，1s → 5s → 30s → 5min），不硬锁；不存在的用户名按名字记。

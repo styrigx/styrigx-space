@@ -176,8 +176,8 @@ test('/api/identity（P2）：每个 action 一档；救援白名单 = RESCUE_CO
   assert.equal(RA.rescueOf('GET', '/api/status'), false);
 });
 
-test('盘点文档 docs/specs/v6-route-inventory.md 与表一致（每一行的方法、路径、档）', () => {
-  const doc = readFileSync(REPO + 'docs/specs/v6-route-inventory.md', 'utf8');
+test('盘点文档 docs/architecture/v6-route-inventory.md 与表一致（每一行的方法、路径、档）', () => {
+  const doc = readFileSync(REPO + 'docs/architecture/v6-route-inventory.md', 'utf8');
   const lines = doc.split('\n').filter((l) => /^\| [A-Z]+ \| `/.test(l));
   assert.equal(lines.length, RA.ROUTE_ACCESS.length, '行数');
   for (const r of RA.ROUTE_ACCESS) {

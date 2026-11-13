@@ -1,5 +1,5 @@
 // 博客跟随主站设置（sgx-ui cookie：调色板（深浅跟着调色板，2026-11-12 调色板 v4）/ 语言）。
-// 契约以主站为准（docs/specs/ui-cookie.md）；博客内联的读端就是共享外壳 ui-cookie-read.js 原样，
+// 契约以主站为准（docs/architecture/ui-cookie.md）；博客内联的读端就是共享外壳 ui-cookie-read.js 原样，
 // 下面用主站契约夹具 tests/fixtures/ui-cookie-contract.json（sync-shell 同步、勿手改）逐条跑「共享读端 + 博客胶水」。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

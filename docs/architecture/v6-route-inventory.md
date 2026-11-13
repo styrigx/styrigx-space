@@ -10,7 +10,7 @@
 
 > 状态：P1 定稿（2026-11-11，Gray 已定 17 条存疑），基线 main 05abe443。机器可读的唯一来源是 `workers/account/src/core/route-access.js` 的 `ROUTE_ACCESS`；
 > 本页由它生成，`tests/workers/account/identity-route-access.test.mjs` 核对两边一致、并核对每个 Worker 的路由表都在表里（漏一条 CI 红）。
-> 相关：ADR-0006（v6 身份统一）、`docs/specs/v6-identity-migration.md`。
+> 相关：ADR-0006（v6 身份统一）、`docs/architecture/v6-identity-migration.md`。
 
 ## 规则
 

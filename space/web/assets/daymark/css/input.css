@@ -120,7 +120,7 @@ html, body {
 @import "../../common/css/frame.css";
 
 /* ===== 日刻本站样式（2026-10-24 跟进主站 PR-G 主题）=====
-   三层规则同主站 docs/design/palette.md：
+   三层规则同主站 docs/architecture/palette.md：
    - Shell（光晕、顶栏、抽屉、内容底板、玻璃）：中性，所有主题一样；顶栏 / 抽屉 / 底板不各自绑主题色。
    - Semantic：primary（前景 1：选中、链接、按钮）为主，secondary（前景 2）次之，tertiary / tag（前景 3–4）零星；前景 5–6 不进组件。
    - 组件只引用上面两层的 --sgx-* 角色，这里不写颜色值。

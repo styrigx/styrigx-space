@@ -1,6 +1,6 @@
 # v6 身份统一：数据迁移对照表（P1）
 
-> 2026-11-11 v6 P4 收尾：生成脚本 `space/scripts/v6-identity-migrate.mjs` 及其单测已删除（Gray 20:11 批准）；下文提到的脚本用法是当时的记录。旧进站表 password / passkey / user_handle 等的 drop 见 `docs/ops/v6-p4-drop-space-legacy.sql`。
+> 2026-11-11 v6 P4 收尾：生成脚本 `space/scripts/v6-identity-migrate.mjs` 及其单测已删除（Gray 20:11 批准）；下文提到的脚本用法是当时的记录。旧进站表 password / passkey / user_handle 等的 drop 见 `docs/architecture/archive/ops/v6-p4-drop-space-legacy.sql`。
 
 | 项 | 值 |
 |---|---|
@@ -12,7 +12,7 @@
 
 > 状态：P1（2026-11-11），基线 main 05abe443。**P1 只写脚本与文档，不对任何生产 D1 做数据写入**；什么时候执行由 Gray 在 P2 / P3 批准。
 > 表结构：`workers/account/migrations/0006_identity.sql`（合并后由账号部署 job 建空表）。脚本：`space/scripts/v6-identity-migrate.mjs`（只生成 SQL，不连 Cloudflare）。
-> 相关：ADR-0006、`docs/specs/v6-route-inventory.md`。
+> 相关：ADR-0006、`docs/architecture/v6-route-inventory.md`。
 
 ## 1. 新表（账号库 styrigx-account，不新增 D1）
 
@@ -51,7 +51,7 @@
 | 个人资料 KV_PROFILE `profile` | 站点资料（站长），PUT 定 root（Gray 2026-11-11：站长名片只有一份） | 不动 |
 | 设置云同步 `settings_sync` | styrigx | P2a：`workers/account/migrations/0007_v6_uid_columns.sql` 加 uid 进主键、现有行归 1000（2026-11-11 Gray 批准，挪进 `migrations/`，部署 job 执行）；迁移前只有 styrigx 能读写 |
 | 已登录设备 `account_device` | styrigx（v6 的设备 = 自己的会话） | P2a：0007 加 uid 列（默认 1000，待批）；v6 新会话的设备管理直接按 `account_sessions.uid`；旧账号会话照旧用到 P4 |
-| 数字健康 `wb_daily` | styrigx（v6 P4 随数字健康整套删除，定稿 v5.5 §四；drop 见 `docs/ops/v6-p4-drop-wellbeing.sql`） | P2a：同一份 0007 加 uid 进主键；迁移前只收 styrigx 的上报，公开合计 = 站长的（P4 删） |
+| 数字健康 `wb_daily` | styrigx（v6 P4 随数字健康整套删除，定稿 v5.5 §四；drop 见 `docs/architecture/archive/ops/v6-p4-drop-wellbeing.sql`） | P2a：同一份 0007 加 uid 进主键；迁移前只收 styrigx 的上报，公开合计 = 站长的（P4 删） |
 | 应用授权 `account_grant`（app allow / deny） | root | 不动；v6 P4 应用授权整套删除、表部署绿后 drop（定稿 v5.5 §十二，不转成组） |
 
 ### 2.3 用户与组
@@ -91,7 +91,7 @@
 
 ## 6. 执行步骤（P2 / P3，Gray 批准后；P1 不执行）
 
-1. 备份：确认两个库的 D1 Time Travel 可用（`wrangler d1 time-travel info styrigx-account` / `styrigx-space-core`），记下时间点；需要时 `wrangler d1 export` 一份。D1 是用户、组、凭据的唯一真相来源，这一步写进运维笔记 `docs/operations/`（P3 补）。
+1. 备份：确认两个库的 D1 Time Travel 可用（`wrangler d1 time-travel info styrigx-account` / `styrigx-space-core`），记下时间点；需要时 `wrangler d1 export` 一份。D1 是用户、组、凭据的唯一真相来源，这一步写进运维笔记 `docs/guides/operations/`（P3 补）。
 2. 只读导出：`node space/scripts/v6-identity-migrate.mjs --print-export` 打印两条 `SELECT`（`--json`）命令，跑出 `space.json`、`account.json`。
 3. 生成：`node space/scripts/v6-identity-migrate.mjs --space space.json --account account.json --out v6-identity.sql`，人工过一眼。
 4. 执行（Gray 批准）：`wrangler d1 execute styrigx-account --remote --file v6-identity.sql`。幂等，失败可重跑。

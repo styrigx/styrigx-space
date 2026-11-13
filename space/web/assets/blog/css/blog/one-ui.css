@@ -3,7 +3,7 @@
  * 颜色只用主站共享外壳的色彩角色（--sgx-*，sgx-frame.css，atlas/scripts/blog/sync-shell.mjs 同步）：
  * 22 套预设 × 亮 / 暗 + 自定义种子；深色 / 调色板 / 自定义色 / 减弱动效跟主站 sgx-ui cookie
  * （sgx-inherit.html 首帧前设 <html class="dark" data-theme data-palette>）。不要在组件里写颜色值。
- * 三层规则同主站 docs/design/palette.md（2026-10-23 PR-G）：Shell（光晕、顶栏、抽屉、内容底板、玻璃）中性、所有主题一样；
+ * 三层规则同主站 docs/architecture/palette.md（2026-10-23 PR-G）：Shell（光晕、顶栏、抽屉、内容底板、玻璃）中性、所有主题一样；
  * Semantic：primary（前景 1）为主——文字 / 链接 / 图标用 ink 档 --sgx-primary，按钮 / 进度 / 选中填充用 --sgx-primary-fill；
  * secondary 次之，tertiary / tag 零星；前景 5–6 不进组件。顶栏、抽屉、底板不各自绑主题色。
  * ============================================================ */
