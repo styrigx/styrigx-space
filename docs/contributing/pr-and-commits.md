@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-CON-001 |
-| 版本 | 1.0 |
-| 日期 | 2026-11-09 |
+| 版本 | 1.1 |
+| 日期 | 2026-11-13 |
 | 状态 | 现行 |
 
 ## 1. 角色
@@ -26,7 +26,7 @@
 
 3.1 提交信息用中文，格式 `type(scope): 说明`。
 
-3.2 作者为仓库拥有者的 noreply 身份；由 agent 完成的提交 SHOULD 带 trailer `Co-authored-by: Hark <hark@styrigx.com>`。
+3.2 作者与提交人（author / committer）为仓库拥有者的 noreply 身份：`Sloan Gray <81077830+styrigx@users.noreply.github.com>`（提交人显示 styrigx）；由 agent 完成的提交 SHOULD 带 trailer `Co-authored-by: Hark <hark@styrigx.com>`。
 
 3.3 MUST NOT 提交：生成的站点产物（`space/web/public/`、`.hugo_build.lock`）、`node_modules/`、大型二进制、任何 Secret 或 token 值。
 

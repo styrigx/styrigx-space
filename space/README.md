@@ -62,7 +62,7 @@ space/
 │  │  │  ├─ common/             Platform 的 partials
 │  │  │  └─ blog/  curio/  daymark/
 │  │  ├─ blog/  curio/  daymark/   各产品页面模板
-│  │  ├─ shell/                 Platform 的页面模板（共用播放器页）
+│  │  ├─ common/                Platform 的页面模板（共用播放器页 player.html）
 │  │  └─ index.html  404.html  alias.html  …   根模板（归 Platform）
 │  ├─ content/                  按产品分
 │  ├─ data/
@@ -154,7 +154,7 @@ space/
 |---|---|---|---|
 | `web/assets/jsconfig.json` | 26（落点） | 横跨整个 `assets/` 的 JS 路径配置：`baseUrl` 为 `.`（即 `assets/` 本身），覆盖 Platform 的 `common/js/` 和 curio、daymark、blog 的 `js/`；放进任一层都会断掉其它层的路径解析 | 2026-11-13 #450 |
 
-## 6. 迁移（进行中）
+## 6. 迁移（已完成）
 
 只挪位置、不改逻辑、不改外观、不改路由。每挪一处一个 PR：本地全套测试 + CI 全绿 + `public/` 对照（HTML 只允许资源路径和指纹变、压缩后的 JS/CSS 内容一致；动到界面的另附截图）才算完。迁移 PR 开着的时候，其它分支不动 `space/`。
 
@@ -167,8 +167,9 @@ space/
 | 4 | `layouts/partials/` 的 Platform 部分 → `partials/common/` | 已合（#448） |
 | 5 | `data/` 的 Platform 部分 → `data/common/`；`palettes.yaml` 改名 `data/common/palette-source.yaml`，避开和 `data/common/palette-list.json` 撞键 | 已合（#449） |
 | 6 | `scripts/` 根目录 → `build/`、`check/`、`gen/`、`deploy/`；`space/` 外面（`package.json`、`.github/workflows/`、workers 的 README / wrangler.toml 注释 / `csp-hashes.js` 文件头）只改路径字符串、不改逻辑，PR 里逐个列出 | 已合（#450） |
-| 6.5 | 目录改名（目录改名定稿 v1.6）：`shell/` → `common/`（assets、partials、data 三处）；common 分库与外壳 `frame/`，加规则 28；common 三处文件名审查 | 进行中（#451） |
-| 7 | 共用播放器进 Platform，路由 `/curio/music/player/` 不变：模板 `layouts/common/player.html` 套主站 baseof、直接用主站 `main.css`（页脚仍亮 curio）；`.mu-*`/`.mp-*` 样式进共享外壳 `@frame music`（奇趣音乐页经 frame.css 用同一份）；文案进 `data/common/i18n`；脚本进 `assets/common/js/music/`，网址从 `/curio/js/…` 变成 `/js/music/…`；截图逐像素对照（只差时钟；手机页脚多了主站底部渐隐，按平台对齐保留） | 已完成 |
-| 8 | 旧文档对齐：overview.md §6–7、repo-structure.md 改为指向本文件 | 未开始 |
+| 6.5 | 目录改名（目录改名定稿 v1.7）：`shell/` → `common/`（assets、partials、data 三处）；common 分库与外壳 `frame/`，加规则 28；common 三处文件名审查 | 已合（#451） |
+| 7 | 共用播放器进 Platform，路由 `/curio/music/player/` 不变：模板 `layouts/common/player.html` 套主站 baseof、直接用主站 `main.css`（页脚仍亮 curio）；`.mu-*`/`.mp-*` 样式进共享外壳 `@frame music`（奇趣音乐页经 frame.css 用同一份）；文案进 `data/common/i18n`；脚本进 `assets/common/js/music/`，网址从 `/curio/js/…` 变成 `/js/music/…`；截图逐像素对照（只差时钟；手机页脚多了主站底部渐隐，按平台对齐保留） | 已合（#452） |
+| 7.5 | 标识符改名（目录改名定稿 v1.7 §9）：带 shell 的标识符改 frame（`--sgx-frame-w`、`--layout-frame-width`、`@frame:begin/end` 段标记、`#sgx-i18n-frame`、字符串表 `.frame`、内部名、localStorage 清旧键 `sgx-frame-accent-css`）；终端本义 `createShell` / `T.shell` 与调色板 Shell 层不动 | 已合（#453） |
+| 8 | 旧文档对齐：overview.md §6–7、repo-structure.md 改为指向本文件 | 进行中（#454） |
 
 > D1–D4（palettes 撞键、播放器怎么进 Platform、scripts 碰到 space/ 外的路径、落点怎么拦）Gray 2026-11-13 按默认方案定，已写进 §4、§6。

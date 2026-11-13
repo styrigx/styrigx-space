@@ -5,8 +5,8 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-ARCH-001 |
-| 版本 | 2.2 |
-| 日期 | 2026-11-11 |
+| 版本 | 2.3 |
+| 日期 | 2026-11-13 |
 | 状态 | 现行 |
 | 取代 | `docs/architecture.md`（2026-11-06） |
 
@@ -87,27 +87,17 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 
 ## 6. 前端分层
 
-前端代码在 `space/web/assets/common/js/`，四站共用。
+> 2.3（2026-11-13）：原 L0–L6 分层表（lib → auth → shell → apps → entries）已由 space 骨架契约 [`space/README.md`](../../space/README.md) 取代（架构规范 v1.12 §6 第 6 条：与规范冲突的，以规范为准）。前端的目录分组、落点、依赖规矩和检查规则只写在那里，本节不再重复。
 
-| 层 | 目录 | 允许 import |
-|---|---|---|
-| lib | `lib/` | `lib/` |
-| auth | `auth/`（`passkey-assert.js`、`passkey-register.js`、`post-json.js`） | `lib/`、`auth/` |
-| shell | `shell/`（含 `term/` 终端引擎与命令表、`shell/space/` 钥匙层、`account/` 账号层与账号窗口） | `lib/`、`auth/`、`shell/` |
-| apps | `apps/` | 以上全部，`apps/` |
-| entries | `entries/` | 以上全部 |
+6.1 位置与分组：Platform 前端代码在 `space/web/assets/common/js/`，库按功能分组，外壳在 `frame/` 下；产品自己的 JS 在 `space/web/assets/<产品>/js/`（`space/README.md` §1、§1.1）。
 
-6.1 只能向左 import；前端 MUST NOT import `space/web/assets/common/js/` 以外的文件（`check-layers.mjs` 规则 1–5）。
+6.2 依赖规矩与检查：Platform 不依赖产品、产品之间不互相引用、common 的库不依赖 `frame/`，以及原规则 1–9（分组方向、基础层不含鉴权、会话 cookie 与解锁状态不进前端存储）——见 `space/README.md` §3、§4，由 `space/scripts/check/check-layers.mjs` 规则 1–9、23–28 执行，CI 必过。
 
-6.2 `lib/` MUST NOT 含鉴权逻辑：不得出现 `/api/lock-*`、`/api/space-*`、`/api/account` 与 `navigator.credentials`（规则 6）。
-
-6.3 进站守卫 `auth/guard.js` 在每页的 core chunk 里，只读网关注入的 `data-sgx-lock-session`：`valid` 时绑自动回锁（切回前台问服务端，401 → 重载）；不盖遮罩、没有锁屏界面。进站在顶栏终端里 `sudo styrigx`（钥匙层 `shell/space/layer.js`，ADR-0005）；上锁部件与接口 401 派发 `sgx:sudo`，`topbar/panel.js` 打开终端预填。
-
-6.4 进站与账号的接口调用各只有一处：`shell/space/api.js`（地址表 `shell/space/paths.js`）、`account/api.js`。
-
-6.5 打包：所有入口在 `layouts/partials/common/js-batch.html` 里一次 `js.Batch`（esbuild ESM + 代码分割）；首帧前必须执行的主题、语言、布局、提示符脚本是 `<head>` 里的同步内联脚本，其 sha256 进 CSP（`space/scripts/gen/gen-csp.mjs`）。
+6.3 打包：所有入口在 `layouts/partials/common/js-batch.html` 里一次 `js.Batch`（esbuild ESM + 代码分割）；首帧前必须执行的主题、语言、布局、提示符脚本是 `<head>` 里的同步内联脚本，其 sha256 进 CSP（`space/scripts/gen/gen-csp.mjs`）。
 
 ## 7. Worker 边界（`space/scripts/check/check-layers.mjs`，CI 必过）
+
+本节只列 Worker 相关规则 14–22；前端规则 1–9 与 space 骨架规则 23–28 见 `space/README.md` §4。
 
 | 规则 | 要求 |
 |---|---|
