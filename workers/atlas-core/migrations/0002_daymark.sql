@@ -1,5 +1,5 @@
 -- 0002_daymark.sql
--- Atlas（styrigx-atlas）表结构起点：日刻，等于 workers/daymark-core/migrations 0001+0002+0004+0005+0006 跑完后的结构（不含 0003 种子句子）
+-- Atlas（styrigx-atlas-core）表结构起点：日刻，等于 workers/daymark-core/migrations 0001+0002+0004+0005+0006 跑完后的结构（不含 0003 种子句子）
 -- 只有结构，不含种子数据；线上数据由迁移脚本从旧库拷入（设计稿第 3 步）。
 -- 已上线后不改名、不重新编号；之后的结构变更接着编号。
 

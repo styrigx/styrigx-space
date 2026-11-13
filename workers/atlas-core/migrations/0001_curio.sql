@@ -1,5 +1,5 @@
 -- 0001_curio.sql
--- Atlas（styrigx-atlas）表结构起点：奇趣，等于 workers/curio-core/migrations 0001+0003+0004+0005 跑完后的结构（2026-11-14，main 9122f158）
+-- Atlas（styrigx-atlas-core）表结构起点：奇趣，等于 workers/curio-core/migrations 0001+0003+0004+0005 跑完后的结构（2026-11-14，main 9122f158）
 -- 只有结构，不含种子数据；线上数据由迁移脚本从旧库拷入（设计稿第 3 步）。
 -- 已上线后不改名、不重新编号；之后的结构变更接着编号。
 

@@ -1,10 +1,10 @@
-// styrigx-atlas（workers/atlas，Atlas 后端合并 PR1，2026-11-14）：
+// styrigx-atlas-core（workers/atlas-core，Atlas 后端合并 PR1，2026-11-14）：
 // - 平移的两份代码和旧目录逐字一致（旧 Worker 下线前，改业务代码要两边一起改）
 // - 分流：/curio/api/* 交奇趣、/daymark/api/* 交日刻、其他 404；两边真跑在同一个 SQLite 库上（同一个 D1）
 // - 迁移 0001_curio + 0002_daymark 的结构 = 旧两个库按旧迁移跑完的结构（不含种子数据）
 // - HourlyJob：先奇趣后日刻，一边失败不拖另一边
 // - wrangler.toml：PR1 不挂路由、不开 workers.dev、无 Cron；绑定名和旧两个 Worker 一字不差，D1 / R2 各只一个
-// 运行：node --test tests/workers/atlas/*.test.mjs（CI 用 Node 22，node:sqlite）
+// 运行：node --test tests/workers/atlas-core/*.test.mjs（CI 用 Node 22，node:sqlite）
 import '../account/_cf-workers.mjs'; /* cloudflare:workers 替身：日刻 index.js 再导出 HourlyJob、rpc/* 用 WorkerEntrypoint */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,7 +15,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { whoAuth } from '../_v6who.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const A = REPO + '/workers/atlas';
+const A = REPO + '/workers/atlas-core';
 const app = await import(A + '/src/app.js');
 const worker = app.default;
 const { HourlyJob } = await import(A + '/src/rpc/hourly-job.js');
@@ -50,7 +50,7 @@ function schemaOf(files) {
 const mig = (w) => readdirSync(REPO + '/workers/' + w + '/migrations').filter((n) => n.endsWith('.sql')).sort().map((n) => REPO + '/workers/' + w + '/migrations/' + n);
 
 test('迁移：0001_curio + 0002_daymark 的结构 = 旧两个库的结构（不含种子）', () => {
-  const atlas = mig('atlas');
+  const atlas = mig('atlas-core');
   assert.deepEqual(atlas.map((f) => path.basename(f)), ['0001_curio.sql', '0002_daymark.sql']);
   const old = { ...schemaOf(mig('curio-core')), ...schemaOf(mig('daymark-core')) };
   assert.deepEqual(schemaOf(atlas), old);
@@ -78,10 +78,10 @@ function makeD1(db) {
   };
 }
 
-/** Atlas 的 env：所有 D1 绑定名指同一个库（线上同一个 D1 styrigx-atlas） */
+/** Atlas 的 env：所有 D1 绑定名指同一个库（线上同一个 D1 styrigx-atlas-core） */
 function atlasEnv(who = null) {
   const db = new DatabaseSync(':memory:');
-  for (const f of mig('atlas')) db.exec(readFileSync(f, 'utf8'));
+  for (const f of mig('atlas-core')) db.exec(readFileSync(f, 'utf8'));
   const d1 = makeD1(db);
   const kv = new Map();
   return {
@@ -175,11 +175,11 @@ function bindings(toml, block) {
   return out;
 }
 
-test('wrangler.toml：PR1 不挂路由 / 不开 workers.dev / 无 Cron；绑定名和旧两个 Worker 一致，D1、R2 各一个叫 styrigx-atlas', () => {
+test('wrangler.toml：PR1 不挂路由 / 不开 workers.dev / 无 Cron；绑定名和旧两个 Worker 一致，D1、R2 各一个叫 styrigx-atlas-core', () => {
   const t = readFileSync(A + '/wrangler.toml', 'utf8');
   const curio = readFileSync(REPO + '/workers/curio-core/wrangler.toml', 'utf8');
   const daymark = readFileSync(REPO + '/workers/daymark-core/wrangler.toml', 'utf8');
-  assert.match(t, /^name = "styrigx-atlas"$/m);
+  assert.match(t, /^name = "styrigx-atlas-core"$/m);
   assert.match(t, /^main = "src\/index.js"$/m);
   assert.match(t, /^workers_dev = false$/m);
   assert.match(t, /^preview_urls = false$/m);
@@ -190,9 +190,9 @@ test('wrangler.toml：PR1 不挂路由 / 不开 workers.dev / 无 Cron；绑定�
     const want = [...bindings(curio, block), ...bindings(daymark, block)].map((b) => b.binding);
     assert.deepEqual(bindings(t, block).map((b) => b.binding).sort(), [...new Set(want)].sort(), block);
   }
-  assert.deepEqual([...new Set(bindings(t, 'd1_databases').map((b) => b.database_name))], ['styrigx-atlas']);
+  assert.deepEqual([...new Set(bindings(t, 'd1_databases').map((b) => b.database_name))], ['styrigx-atlas-core']);
   assert.equal(new Set(bindings(t, 'd1_databases').map((b) => b.database_id)).size, 1);
-  assert.deepEqual([...new Set(bindings(t, 'r2_buckets').map((b) => b.bucket_name))], ['styrigx-atlas']);
+  assert.deepEqual([...new Set(bindings(t, 'r2_buckets').map((b) => b.bucket_name))], ['styrigx-atlas-core']);
   assert.deepEqual(bindings(t, 'services'), [{ binding: 'SPACE', service: 'styrigx-space-core', entrypoint: 'SpaceVerifier' }]);
   assert.equal(bindings(t, 'kv_namespaces')[0].id, bindings(curio, 'kv_namespaces')[0].id);
 });
