@@ -9,7 +9,7 @@
  * 只 import lib/、auth/、shell/（check-layers 规则 3）。文案在外壳字符串表 identity 节（frame/i18n），四个站同一份。
  */
 import { esc } from '../../../core/util.js';
-import { flatStrings, shellSection } from '../../term/core/strings.js';
+import { flatStrings, frameSection } from '../../term/core/strings.js';
 import { layerCtx } from '../../term/view/layer-ctx.js';
 import * as api from './api.js';
 import { USER_NAME_RE, sudoCommand } from '../../term/core/ident-args.js';
@@ -77,7 +77,7 @@ export function mountIdentityLayer(o) {
       name: t('name'), exists: t('exists'), 'not-found': t('notFound'), protected: t('protected'), weak: t('weak'), unauthorized: t('notSignedIn'),
       permission: j.need === 'wheel' ? t('notWheel') : t('permission', { c: cmd || '' }),
       /* 未知命令（服务端 action）= 终端现成的「找不到命令」（term.notFound；普通用户进 wheel / sudoers / 写组同样报它，Gray 11-11 22:36） */
-      action: String(shellSection(doc, 'term').notFound || 'command not found: {x} · try man'),
+      action: String(frameSection(doc, 'term').notFound || 'command not found: {x} · try man'),
     };
     C.err(/** @type {any} */ (map)[e] || t('unknown', { c: e || String(r && r.s) }), e === 'action' ? String(cmd || '').split(' ')[0] : undefined);
     if (e === 'permission' && j.need === 'root' && cmd) C.note(t('trySudo'), 'sudo ' + cmd);

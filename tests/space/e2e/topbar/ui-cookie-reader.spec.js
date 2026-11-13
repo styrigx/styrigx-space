@@ -10,16 +10,16 @@ const { blockExternalRequests, freezeTime, expect } = require('../helpers/helper
 
 test.use({ viewport: { width: 412, height: 915 } });
 
-/* 2026-11 合站：没有 shared/shell 副本目录了，按外壳文件名读仓库里的原位置（同 space/scripts/gen/gen-common.mjs 的 SHELL_FILES） */
+/* 2026-11 合站：没有 shared/shell 副本目录了，按外壳文件名读仓库里的原位置（同 space/scripts/gen/gen-common.mjs 的 FRAME_FILES） */
 const REPO = path.join(__dirname, '../../../..');
-const SHELL_FILES = {
+const FRAME_FILES = {
   'nav.json': 'space/web/data/common/frame/nav.json',
   'tokens.css': 'space/web/assets/common/css/tokens.css',
   'frame.css': 'space/web/assets/common/css/frame.css',
   'ui-cookie-read.js': 'space/web/assets/common/js/prefs/ui-cookie-read.js',
   'favicon.js': 'space/web/assets/common/js/ui/favicon.js',
 };
-const shell = (f) => fs.readFileSync(path.join(REPO, SHELL_FILES[f]), 'utf8');
+const shell = (f) => fs.readFileSync(path.join(REPO, FRAME_FILES[f]), 'utf8');
 const SUB = '/__ui-cookie-subsite/';
 
 /** 子站页：<head> 里 color-scheme / theme-color（默认 terra）→ 样式 → 读端原文 → 一行 apply → 记下首帧前的状态 */

@@ -31,7 +31,7 @@
  *   长网址不当链接文字：同一条回答里有 [标题](同一地址) 就用那个标题，否则显示「域名/…」。
  *   event: sources（gemini 联网来源）→ 在回答末尾追加「来源」一段（- [标题](地址)），随回答存进历史。
  */
-import { KH_EN, shellSection } from '../term/core/strings.js';
+import { KH_EN, frameSection } from '../term/core/strings.js';
 
 export const AI_API = '/api/ai';
 export const HISTORY_KEY = 'sgx-ai-history';
@@ -52,7 +52,7 @@ const EMAIL_RE = /^[^\s@<>()",;:\\]+@[^\s@<>()",;:\\]+\.[^\s@<>()",;:\\.]{2,}$/;
 function askSudo(doc) {
   try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {}
 }
-/** 英文底（源文本，没有页面字符串表时用）；页面上以 #sgx-i18n-shell 的 ai 节为准——已是「英文 ← 页面语言」的合并，缺键回退英文（语言包化 2026-11-07） */
+/** 英文底（源文本，没有页面字符串表时用）；页面上以 #sgx-i18n-frame 的 ai 节为准——已是「英文 ← 页面语言」的合并，缺键回退英文（语言包化 2026-11-07） */
 const STR_EN = {
   greet: "Hi, I'm Gray's AI assistant. Ask about this site, or talk through whatever you're working on.",
   histEmpty: "No past chats yet",
@@ -82,8 +82,8 @@ const STR_EN = {
   sug3: "What devices do you use?"
 };
 /** @param {Document} doc @returns {Record<string, string>} */
-function shellStr(doc) {
-  return Object.assign({}, STR_EN, shellSection(doc, 'ai'));
+function frameStr(doc) {
+  return Object.assign({}, STR_EN, frameSection(doc, 'ai'));
 }
 
 /** @typedef {{role: 'user'|'assistant', text: string, ts: number, error?: boolean, rate?: 'up'|'down'}} Msg */
@@ -422,7 +422,7 @@ export async function readSse(body, on) {
 export function mountAiChat(dlg, opts) {
   const o = opts || {};
   const doc = dlg.ownerDocument;
-  const t = shellStr(doc);
+  const t = frameStr(doc);
   const list = /** @type {HTMLElement} */ (dlg.querySelector('[data-ai-list]'));
   const form = /** @type {HTMLFormElement} */ (dlg.querySelector('[data-ai-form]'));
   const input = /** @type {HTMLTextAreaElement} */ (dlg.querySelector('[data-ai-in]'));
@@ -462,12 +462,12 @@ export function mountAiChat(dlg, opts) {
   };
 
   /* 按键提示行（Gray 2026-11-09 细节 1；同 term/view/keyhint.js，这里只画几行，英文底用 term/core/strings.js 的 KH_EN）：桌面「enter 发送 · shift+enter 换行 · esc 关闭」，
-     触屏换成「‹ 返回」按钮 = 关窗口（每个终端状态都有出口）。文案 #sgx-i18n-shell 的 kh 节 */
+     触屏换成「‹ 返回」按钮 = 关窗口（每个终端状态都有出口）。文案 #sgx-i18n-frame 的 kh 节 */
   (function () {
     const el = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-kh]'));
     if (!el) return;
     /** @type {Record<string, string>} */
-    const K = Object.assign({ ai: KH_EN.ai, back: KH_EN.back, backAria: KH_EN.backAria }, shellSection(doc, 'kh'));
+    const K = Object.assign({ ai: KH_EN.ai, back: KH_EN.back, backAria: KH_EN.backAria }, frameSection(doc, 'kh'));
     el.textContent = '';
     if (coarse()) {
       if (!o.close) { el.hidden = true; return; }

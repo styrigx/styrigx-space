@@ -1,18 +1,18 @@
 /**
- * @fileoverview 终端公共件（终端统一 T1，设计稿 v1.5 §4）：外壳字符串表 #sgx-i18n-shell 的读取、嵌套表拍平、按键提示行英文底。
+ * @fileoverview 终端公共件（终端统一 T1，设计稿 v1.5 §4）：外壳字符串表 #sgx-i18n-frame 的读取、嵌套表拍平、按键提示行英文底。
  * 纯函数、不 import 本目录以外的东西。term/terminal.js、ai/panel.js、term/view/keyhint.js、shell/space/term.js、account/term.js 共用这一份。
  */
 
 /**
- * 外壳字符串表（#sgx-i18n-shell，当前语言已叠在英文上）的一节；读不到 / 不是对象 → {}
+ * 外壳字符串表（#sgx-i18n-frame，当前语言已叠在英文上）的一节；读不到 / 不是对象 → {}
  * @param {Document|null|undefined} doc 缺省用 document
  * @param {string} sec 例如 'term'、'kh'、'ai'、'space'
  * @returns {Record<string, any>}
  */
-export function shellSection(doc, sec) {
+export function frameSection(doc, sec) {
   try {
     const d = doc || (typeof document !== 'undefined' ? document : null);
-    const el = d && d.getElementById ? d.getElementById('sgx-i18n-shell') : null;
+    const el = d && d.getElementById ? d.getElementById('sgx-i18n-frame') : null;
     const o = el && el.textContent ? JSON.parse(el.textContent) : null;
     const v = o && o[sec];
     return v && typeof v === 'object' ? v : {};
@@ -38,7 +38,7 @@ export function flatStrings(tree, pre, acc) {
   return out;
 }
 
-/** 英文底（源文本）；页面上以 #sgx-i18n-shell 的 kh 节为准。键名 = 状态 */
+/** 英文底（源文本）；页面上以 #sgx-i18n-frame 的 kh 节为准。键名 = 状态 */
 export const KH_EN = Object.freeze({
   /** 窗口里的命令行（盾牌 / 账号下拉首层、抽屉终端）：esc 关窗口 */
   cmd: 'enter run · esc close',

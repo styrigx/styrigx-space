@@ -432,7 +432,7 @@ export function mountTopbar(o) {
   /** 外壳字符串表的一节（acct / sec）：{key} 占位由调用方替换 @param {string} sec @returns {Record<string, string>} */
   const trSec = function (sec) {
     try {
-      const el = doc.getElementById('sgx-i18n-shell');
+      const el = doc.getElementById('sgx-i18n-frame');
       const j = el && el.textContent ? JSON.parse(el.textContent) : null;
       return j && j[sec] && typeof j[sec] === 'object' ? j[sec] : {};
     } catch (e) { return {}; }

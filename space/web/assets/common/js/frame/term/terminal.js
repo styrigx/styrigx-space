@@ -10,12 +10,12 @@
  * - man 的结果在终端窗口里的全屏阅读页显示（S9，term/view/pager.js，less 式），不进滚动区。
  * - 每次打开终端窗口都是干净的新会话（S9）：滚动区回到欢迎行、提示符重画、进行中的输入 / 选择取消、cwd 回到本页；history 照旧（sessionStorage）。
  *   桌面是居中大窗（#sgx-term 抽屉），手机整块卡片；四站只有这一个（v5 S7 起主页首屏是 neofetch，不再嵌终端）。
- * - 文案：#sgx-i18n-shell 的 term 节（data/common/frame/i18n/<语言>.yaml，缺键回退下面的英文）。
+ * - 文案：#sgx-i18n-frame 的 term 节（data/common/frame/i18n/<语言>.yaml，缺键回退下面的英文）。
  *
  * 共享外壳组件：只许 import term/**（终端统一 T1，gen-common 核对）。
  */
 import { parse } from './core/parse.js';
-import { KH_EN, shellSection, flatStrings } from './core/strings.js';
+import { KH_EN, frameSection, flatStrings } from './core/strings.js';
 import { createRegistry } from './core/registry.js';
 import { completeLine, ghostOf } from './core/complete.js';
 import { createHistory } from './core/history.js';
@@ -39,7 +39,7 @@ export const ARGS = /** @type {Record<string, string[]>} */ ({});
 REG.list().forEach(function (c) { if (c.args) Object.defineProperty(ARGS, c.name, { enumerable: true, get: function () { return c.args; } }); });
 const HIST_KEY = 'sgx-term-hist';
 
-/** 英文底（源文本）；页面上以 #sgx-i18n-shell 的 term 节为准 */
+/** 英文底（源文本）；页面上以 #sgx-i18n-frame 的 term 节为准 */
 export const TERM_EN = {
   welcome: 'space os 1.0 — type {help} to see all commands, {cd} to jump there',
   hint: 'tab complete · ↑ history · Ctrl K anywhere',
@@ -97,7 +97,7 @@ export const TERM_EN = {
  * @param {Document} [doc] @returns {Record<string, string>}
  */
 export function termStrings(doc) {
-  return Object.assign({}, TERM_EN, shellSection(doc, 'term'));
+  return Object.assign({}, TERM_EN, frameSection(doc, 'term'));
 }
 
 /** 打错命令时拿来比的真命令（命令名 + 几个常用的整句） */
@@ -252,7 +252,7 @@ const SECRET = ['pw', 'newpw', 'newpw2', 'suburl'];
  * @param {Element} root
  * @param {ReturnType<typeof createShell>} sh
  * @param {{ kh?: string, onBack?: () => void, isShown?: () => boolean, pmUser?: string,
- *   layers?: (line: any) => { acct?: any, ident?: any } }} [opts] kh = 命令行时按键提示行那一句（#sgx-i18n-shell kh 节）；onBack = 触屏「‹ 返回」/ 最外层 esc
+ *   layers?: (line: any) => { acct?: any, ident?: any } }} [opts] kh = 命令行时按键提示行那一句（#sgx-i18n-frame kh 节）；onBack = 触屏「‹ 返回」/ 最外层 esc
  */
 export function mountTerminal(root, sh, opts) {
   const o = opts || {};
@@ -268,7 +268,7 @@ export function mountTerminal(root, sh, opts) {
   if (!out || !form || !input || !psEl || !hint) return null;
   const inp = input;
   const outEl = out;
-  const SP = flatStrings(shellSection(doc, 'space'));
+  const SP = flatStrings(frameSection(doc, 'space'));
   /** 输入行自己要的几句（秘密输入 / 命名的读屏名、^C、没有这个选项）：外壳字符串表 space 节 @param {string} k */
   const t = function (k) { return SP[k] || ''; };
 
@@ -371,7 +371,7 @@ export function mountTerminal(root, sh, opts) {
     });
     scrollEnd();
   }
-  const khS = shellSection(doc, 'kh');
+  const khS = frameSection(doc, 'kh');
   /** 全屏阅读页（man）：盖住正文和按键提示行；退出后焦点还给输入行 */
   const pg = createPager({
     root: /** @type {HTMLElement} */ (root),

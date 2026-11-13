@@ -3,7 +3,7 @@
    颜色只用共享外壳的色彩角色（--sgx-*，sgx-frame.css）。 */
 
 :root {
-  --layout-shell-width: 1168px;
+  --layout-frame-width: 1168px;
   --layout-page-gutter: 32px;
   --layout-page-top: 126px;
   --layout-page-bottom: 72px;
@@ -36,7 +36,7 @@ body {
 }
 
 main {
-  width: min(100%, var(--layout-shell-width));
+  width: min(100%, var(--layout-frame-width));
   max-width: none;
   margin: auto;
   padding: var(--layout-page-top) var(--layout-page-gutter) var(--layout-page-bottom);

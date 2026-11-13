@@ -77,13 +77,13 @@ test('夹具：每个能读的 cookie 都带 lang 字段（小写语言代码 / 
 const cookieOf = (name) => 'sgx-ui=' + fx.cases.find((c) => c.name.startsWith(name)).cookie;
 
 test('旧版自定义色留下的 <style id="sgx-accent-roles"> / 本站缓存首帧清掉；换调色板就换深浅', () => {
-  const s = sandbox({ cookie: cookieOf('湖蓝 lake'), store: { 'sgx-shell-accent-css': 'old|#1f8a70\nCSS' } });
+  const s = sandbox({ cookie: cookieOf('湖蓝 lake'), store: { 'sgx-frame-accent-css': 'old|#1f8a70\nCSS' } });
   const st = s.ctx.document.createElement('style');
   st.id = 'sgx-accent-roles';
   s.ctx.document.head.appendChild(st);
   s.U.apply(s.html);
   assert.equal(s.ctx.document.getElementById('sgx-accent-roles'), null);
-  assert.equal(s.ls.has('sgx-shell-accent-css'), false);
+  assert.equal(s.ls.has('sgx-frame-accent-css'), false);
   assert.equal(s.html.getAttribute('data-palette'), 'lake');
   assert.equal(s.html.classList.contains('dark'), true);
   s.setCookie(cookieOf('雾霾蓝 dustyblue'));

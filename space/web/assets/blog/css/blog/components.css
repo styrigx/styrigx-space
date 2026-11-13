@@ -14,7 +14,7 @@
 
 /* ===== 列表页（index.html：页签面板、系列卡、专题筛选） ===== */
 .page-home main {
-  width: min(100%, var(--layout-shell-width));
+  width: min(100%, var(--layout-frame-width));
   max-width: none;
   padding: 0 var(--layout-page-gutter) var(--layout-page-bottom);
 }
@@ -869,7 +869,7 @@
 
 /* ===== 标签页（_default/term.html） ===== */
 .page-tag main {
-  width: min(100%, var(--layout-shell-width));
+  width: min(100%, var(--layout-frame-width));
   max-width: none;
   padding: 118px var(--layout-page-gutter) var(--layout-page-bottom);
 }
@@ -887,14 +887,14 @@
 
 
 /* ===== 页面外框 = 外壳框（主站一比一，主站 layout 层 .home-wrap / .set-layout 等）=====
-   宽 = --sgx-shell-w、不加横向内边距：手机上左右边线就是顶栏两侧圆的外缘（16px 页边距）；宽屏时内容列在框里居中，按页最宽
+   宽 = --sgx-frame-w、不加横向内边距：手机上左右边线就是顶栏两侧圆的外缘（16px 页边距）；宽屏时内容列在框里居中，按页最宽
    （列表 / 标签 1104、文章 1018）。顶部第一块内容从 --oui-nav-clear（= 主站 --sgx-content-top）开始。 */
 .page-home main,
 .page-tag main,
 .oui-archive-wrap,
 .oui-article-wrap {
   box-sizing: border-box;
-  width: var(--sgx-shell-w);
+  width: var(--sgx-frame-w);
   max-width: var(--blog-col-max, 1104px);
   margin-left: auto;
   margin-right: auto;

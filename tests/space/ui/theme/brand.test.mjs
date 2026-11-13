@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { shellFiles, readWordmark } from '../../../../space/scripts/gen/gen-common.mjs';
+import { frameFiles, readWordmark } from '../../../../space/scripts/gen/gen-common.mjs';
 import { toHex, recolor } from '../../../../space/web/assets/common/js/ui/favicon.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -24,7 +24,7 @@ test('字标：单行 SVG、可访问名 Styrigx、字母 / 圆点两条路径�
   assert.match(svg, /<path class="wm-dot" fill="#2f5f86" d="M/);
   assert.ok(svg.length < 2400, '路径已压缩（整数坐标，无 transform）：' + svg.length);
   assert.doesNotMatch(svg, /transform=|<style/);
-  const nav = JSON.parse(shellFiles()['nav.json']);
+  const nav = JSON.parse(frameFiles()['nav.json']);
   assert.equal(nav.brand, 'Styrigx');
   assert.equal(nav.wordmark, svg);
   const base = rd('space/web/layouts/_default/baseof.html').toString();
@@ -37,7 +37,7 @@ test('字标：单行 SVG、可访问名 Styrigx、字母 / 圆点两条路径�
 });
 
 test('外壳 CSS（顶栏 v3 · PR-2）：❯ 主题色、SVG 字标（字母正文色、圆点跟主题色，手机 20 / 桌面 23px 高）、光标主题色 1.05 秒步进闪；窄屏也是完整字标', () => {
-  const s = shellFiles()['frame.css'];
+  const s = frameFiles()['frame.css'];
   assert.match(s, /\.sgx-tb-logo \{[^}]*font-family: var\(--sgx-font-mono\); font-size: 18px;/);
   assert.match(s, /\.sgx-tb-ps \{ color: var\(--sgx-primary\);/);
   assert.doesNotMatch(s, /\.sgx-tb-tl\b/, ':~$ 删了');
@@ -100,5 +100,5 @@ test('favicon.js：颜色转十六进制；只换默认两色，认不出的 SVG
 test('PR-4b：PR-4a §6.1 的窄屏图标版 logo 删除（顶栏只用字标；标签页图标 favicon.svg 不受影响）', () => {
   const tb = rd('space/web/layouts/partials/common/frame/topbar.html').toString();
   assert.doesNotMatch(tb, /sgx-tb-mark|mk-bg|mk-fg/);
-  assert.doesNotMatch(shellFiles()['frame.css'], /\.sgx-tb-mark/);
+  assert.doesNotMatch(frameFiles()['frame.css'], /\.sgx-tb-mark/);
 });

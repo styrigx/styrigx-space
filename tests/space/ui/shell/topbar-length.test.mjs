@@ -26,14 +26,14 @@ const TPL = {
 };
 /** 各站内联的布局脚本（__layoutMode 起到 __sgxLayoutWatch(__applyLayout); 止） */
 const SCRIPTS = Object.fromEntries(Object.entries(TPL).map(([k, t]) => [k, t.match(/function __layoutMode\(\)\{[\s\S]*?\n__sgxLayoutWatch\(__applyLayout\);/)[0]]));
-/** 各站同步来的 layout-mode.js（子站带 @sgx-shell 头注释） */
+/** 各站同步来的 layout-mode.js（子站带 @sgx-frame 头注释） */
 const COPIES = {
   main: LIB,
   curio: read('space/web/assets/common/js/ui/layout-mode.js'),
   daymark: read('space/web/assets/common/js/ui/layout-mode.js'),
   blog: read('space/web/assets/common/js/ui/layout-mode.js'),
 };
-const body = (s) => s.slice(s.indexOf('function __sgxUaMobile')).replace(/\/\* @sgx-shell:end \*\/\n?$/, '');
+const body = (s) => s.slice(s.indexOf('function __sgxUaMobile')).replace(/\/\* @sgx-frame:end \*\/\n?$/, '');
 
 const PHONE_UA = 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
 const DESK_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
@@ -171,8 +171,8 @@ test('各站自己的样式不再按 layout-* 类改 --sgx-content-max / 顶栏�
     const raw = read(f);
     const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
     assert.doesNotMatch(strip(raw), /layout-(?:mobile|phone|dex)[^{}]*\{[^}]*--sgx-content-max/, f);
-    /* 外壳以外不许再给 .sgx-topbar 定宽 / 定左右（外壳段：主站 @shell:begin/end，子站 @sgx-shell:begin/end） */
-    const outside = strip(raw.replace(/\/\* @(?:sgx-)?shell:begin[\s\S]*?@(?:sgx-)?shell:end[^*]*\*\//g, ''));
+    /* 外壳以外不许再给 .sgx-topbar 定宽 / 定左右（外壳段：主站 @frame:begin/end，子站 @sgx-frame:begin/end） */
+    const outside = strip(raw.replace(/\/\* @(?:sgx-)?frame:begin[\s\S]*?@(?:sgx-)?frame:end[^*]*\*\//g, ''));
     for (const m of outside.matchAll(/([^{}]*\.sgx-topbar[^{}]*)\{([^}]*)\}/g)) {
       assert.doesNotMatch(m[2], /(?:^|[;\s])(?:width|left|right|max-width|min-width|margin)\s*:/, `${f}: ${m[1].trim()}`);
     }

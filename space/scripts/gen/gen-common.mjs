@@ -7,7 +7,7 @@
  * 只剩四个由源头算出来、没法直接引用的派生文件由本脚本生成（勿手改，改源头后重跑本脚本）：
  *   space/web/assets/common/css/tokens.css  25 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；space/web/data/common/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
  *                                          + 调色板派生 token（tag / chart）+ 组件别名层
- *   space/web/assets/common/css/frame.css   顶栏（全大椭圆）、快捷面板 + AI 窗口、页头 / 子页共用件、宽屏平铺：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
+ *   space/web/assets/common/css/frame.css   顶栏（全大椭圆）、快捷面板 + AI 窗口、页头 / 子页共用件、宽屏平铺：input.css 里 /* @frame:begin <名> *\/ … /* @frame:end <名> *\/ 之间的原文
  *                                          （子站样式表 @import 这两份：assets/blog/css/input.css、assets/curio/css/input.css、assets/daymark/css/input.css）
  *   space/web/data/common/frame/nav.json          快捷面板导航页的项（space/web/data/common/frame/nav-source.json）+ 用到的图标 SVG（space/web/layouts/partials/common/icon.html）
  *                                          + me.email：对外联系邮箱（space/web/data/common/profile.yaml 的 email；子站 AI 窗口「联系我」的默认值）
@@ -56,11 +56,11 @@ const SRC = {
   layoutMode: path.join(REPO, 'space/web/assets/common/js/ui/layout-mode.js'),
   langPath: path.join(REPO, 'space/web/assets/common/js/i18n/lang-path.js'),
   langBoot: path.join(REPO, 'space/web/assets/common/js/i18n/lang-boot.js'),
-  shellI18n: path.join(REPO, 'space/web/data/common/frame/i18n'),
+  frameI18n: path.join(REPO, 'space/web/data/common/frame/i18n'),
 };
 export const READER_SRC = SRC.reader;
 /** frame.css 里按这个顺序拼 input.css 的标记段 */
-export const SHELL_REGIONS = ['topbar-frame', 'panel', 'inpage', 'wide', 'terminal', 'music'];
+export const FRAME_REGIONS = ['topbar-frame', 'panel', 'inpage', 'wide', 'terminal', 'music'];
 /* 导航项以外外壳要用的图标（2026-11-04 P5-1；2026-11 顶栏 v3；v5 S6 顶栏 E）：顶栏（盾牌、外观调色盘、四格 NAVIGATE、>_ 终端）、AI 浮钮、NAVIGATE 的 lock、外观面板恢复默认、AI 发送 / 新对话 / 历史。
    都要是不含模板语法的完整内联 SVG（P4-2 删搜索层时 ai-search 随 nav.json 的 search 项一起删了） */
 export const EXTRA_ICONS = ['tb-palette', 'tb-shield', 'tb-term', 'tb-grid', 'tb-music', 'tb-chat', 'lock', 'tb-undo', 'tb-send', 'tb-newchat', 'tb-history'];
@@ -71,9 +71,9 @@ const sha = (s) => createHash('sha256').update(s).digest('hex');
 
 /** input.css 里抽出指定名字的标记段（不含标记行本身） */
 export function extractRegion(css, name) {
-  const re = new RegExp(`^/\\* @shell:begin ${name}(?:[（( ][^\\n]*)? \\*/\\n([\\s\\S]*?)^/\\* @shell:end ${name} \\*/$`, 'm');
+  const re = new RegExp(`^/\\* @frame:begin ${name}(?:[（( ][^\\n]*)? \\*/\\n([\\s\\S]*?)^/\\* @frame:end ${name} \\*/$`, 'm');
   const m = css.match(re);
-  if (!m) throw new Error(`input.css 里找不到 @shell:begin/end ${name}`);
+  if (!m) throw new Error(`input.css 里找不到 @frame:begin/end ${name}`);
   return m[1].replace(/\n$/, '');
 }
 
@@ -143,11 +143,11 @@ function renderTokens(data) {
   );
 }
 
-function renderShell() {
+function renderFrame() {
   const css = readFileSync(SRC.css, 'utf8');
-  const parts = SHELL_REGIONS.map((n) => `/* ---- ${n} ---- */\n` + extractRegion(css, n));
+  const parts = FRAME_REGIONS.map((n) => `/* ---- ${n} ---- */\n` + extractRegion(css, n));
   return (
-    HEAD('space/web/assets/common/css/input.css 的 @shell 标记段') +
+    HEAD('space/web/assets/common/css/input.css 的 @frame 标记段') +
     '/* 依赖 tokens.css 的 --sgx-* 角色；不进任何 @layer。 */\n' +
     parts.join('\n') +
     '\n'
@@ -230,10 +230,10 @@ export function renderLangBoot() {
 }
 
 /** 外壳字符串表（语言包化 2026-11-07）：space/web/data/common/frame/i18n/<语言>.yaml 原样复制成 i18n-<语言>.yaml（有几种语言复制几份；必须有 en.yaml） */
-export function renderShellI18n() {
-  const names = readdirSync(SRC.shellI18n).filter((f) => /^[a-z]{2,3}\.yaml$/.test(f)).sort();
+export function renderFrameI18n() {
+  const names = readdirSync(SRC.frameI18n).filter((f) => /^[a-z]{2,3}\.yaml$/.test(f)).sort();
   if (!names.includes('en.yaml')) throw new Error('space/web/data/common/frame/i18n/ 必须有 en.yaml（英文是源文本、缺键回退英文）');
-  return Object.fromEntries(names.map((f) => ['i18n-' + f, readFileSync(path.join(SRC.shellI18n, f), 'utf8')]));
+  return Object.fromEntries(names.map((f) => ['i18n-' + f, readFileSync(path.join(SRC.frameI18n, f), 'utf8')]));
 }
 
 /** 顶栏 partial：原样复制；只能用参数（子站没有主站的 partial 和 data），不许 partial / site.Data / resources */
@@ -333,11 +333,11 @@ export function renderAll() {
   renderStandalone(SRC.prefsWrite, 'prefs-write.js', 'syncUiCookie');
   renderStandalone(SRC.langPath, 'lang-path.js', 'langPath');
   renderLangBoot();
-  renderShellI18n();
+  renderFrameI18n();
   return {
     files: {
       'tokens.css': renderTokens(data),
-      'frame.css': renderShell(),
+      'frame.css': renderFrame(),
       'nav.json': renderNav(),
       'palette-list.json': renderPalettes(data),
     },
@@ -349,7 +349,7 @@ export function renderAll() {
  * 共享外壳的全部文件（合站前 shared/shell 里那一套的名字）→ 仓库里的位置：四个派生文件 + 子站直接用的主站源文件。
  * 只是索引（测试和文档按名字找文件用），没有副本。
  */
-export const SHELL_FILES = Object.freeze({
+export const FRAME_FILES = Object.freeze({
   ...OUT,
   'topbar.html': 'space/web/layouts/partials/common/frame/topbar.html',
   'page-header.html': 'space/web/layouts/partials/common/frame/page-head.html',
@@ -373,10 +373,10 @@ export const SHELL_FILES = Object.freeze({
 });
 
 /** @returns {Record<string,string>} 共享外壳文件名 → 内容（派生文件按源头现算，其余读源文件） */
-export function shellFiles() {
+export function frameFiles() {
   const { files } = renderAll();
   const out = {};
-  for (const [k, p] of Object.entries(SHELL_FILES)) out[k] = k in files ? files[k] : readFileSync(path.join(REPO, p), 'utf8');
+  for (const [k, p] of Object.entries(FRAME_FILES)) out[k] = k in files ? files[k] : readFileSync(path.join(REPO, p), 'utf8');
   return out;
 }
 

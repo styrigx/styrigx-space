@@ -58,7 +58,7 @@ test('没有搜索；快捷面板只来自共享外壳（本站不自己写）�
   assert.doesNotMatch(index, /id="dm-tags"/);
   assert.equal(existsSync(path.join(REPO, 'space/web/layouts/partials/daymark/sgx-qp.html')), false);
   assert.equal(existsSync(path.join(REPO, 'space/web/assets/daymark/js/sgx/shell/capsule-kb.js')), false);
-  /* 快捷面板样式只在 @sgx-shell 同步段里（共享外壳 frame.css），本站自己的段不写 */
+  /* 快捷面板样式只在 @sgx-frame 同步段里（共享外壳 frame.css），本站自己的段不写 */
   const own = css.slice(css.indexOf('@import "../../common/css/frame.css";'));
   assert.ok(css.indexOf('@import "../../common/css/frame.css";') > 0);
   assert.doesNotMatch(css, /\.bk-cap/);
@@ -86,8 +86,8 @@ test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主
   assert.deepEqual(nav.items.map((i) => trZh.nav[i.id].title), ['主页', '博客', '奇趣', '日刻']); /* 顶栏 v3 NAVIGATE 01–04 */
   assert.deepEqual(nav.footer, []);
   assert.equal(nav.me.href, 'https://styrigx.com/account/');
-  assert.match(base, /\{\{ \$shellNav := site\.Data\.common\.frame\.nav \}\}/); /* 合站：直接读主站 data/common/frame/nav.json，没有副本 */
-  assert.match(base, /"nav" \$shellNav\n/);
+  assert.match(base, /\{\{ \$frameNav := site\.Data\.common\.frame\.nav \}\}/); /* 合站：直接读主站 data/common/frame/nav.json，没有副本 */
+  assert.match(base, /"nav" \$frameNav\n/);
   assert.match(base, /"mainOrigin" "https:\/\/styrigx\.com"/);
   /* 2026-11-12：logo 四站统一回主站首页（同主站 sgx-lang-path，英文 /、中文 /zh/），不再回本站首页 */
   assert.match(base, /"home" \(partial "common\/lang-path\.html" \(dict "path" "\/" "lang" \.Lang\)\)/);

@@ -1,7 +1,7 @@
 /**
  * @fileoverview 终端的 man 页（终端统一 T5；v5 S5 一张表）：man.js 用 import() 懒加载，不进首包。
  * 格式：<NAME>(1) / NAME / SYNOPSIS / DESCRIPTION / AUTH / NOTES，在终端里的全屏阅读页显示（S9，less 式）。
- * 这里的文字是英文底：页面上 NAME 说明以 #sgx-i18n-shell 的 man 节为准（键 = 命令名），DESCRIPTION / AUTH / NOTES 以 manBody 节为准
+ * 这里的文字是英文底：页面上 NAME 说明以 #sgx-i18n-frame 的 man 节为准（键 = 命令名），DESCRIPTION / AUTH / NOTES 以 manBody 节为准
  * （键 = 命令名，{ desc: [], auth: '', notes: [] }，行数和这里一一对应；中文页每一页都要有，tests/space/ui/shell/man-i18n.test.mjs 查）。命令写法不翻译。
  */
 /** 命令 → { d: NAME 说明, syn: SYNOPSIS 各行, desc? / auth? / notes?: 正文（这个文件不 import，懒加载 chunk 不牵出共享代码）。v6 P4 起旧命令（sudo styrigx / sudo root / sudo -v、lock passwd / passkey / --all、share）的页删了或改成 v6 写法 } */

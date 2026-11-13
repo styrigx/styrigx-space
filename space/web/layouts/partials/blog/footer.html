@@ -7,7 +7,7 @@
 {{- $langs := slice }}{{ range hugo.Sites }}{{ $langs = $langs | append (dict "code" .Language.Lang "short" .Language.Params.pickerShort) }}{{ end -}}
 {{- $prof := site.Data.common.profile -}}
 {{- partial "common/frame/footer.html" (dict
-  "tr" (partialCached "common/tr.html" $lang $lang).shell
+  "tr" (partialCached "common/tr.html" $lang $lang).frame
   "lang" $lang
   "langs" $langs
   "here" .RelPermalink

@@ -13,7 +13,7 @@ function tables(lang) {
   const k = site + ':' + lang;
   if (!cache[k]) {
     const t = strings(site, lang);
-    cache[k] = { ...(t.js || {}), shell: t.shell || {} };
+    cache[k] = { ...(t.js || {}), frame: t.frame || {} };
   }
   return cache[k];
 }

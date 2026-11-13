@@ -9,7 +9,7 @@
      #sgx-ai  AI 窗口：头部 Gray AI · 新对话 · 历史 · 头像（账号页），底部「仅公开内容 · 联系我」（邮箱 = 参数 email）。
    参数（dict）：
      lang        页面语言代码（en / zh …）
-     tr          共享外壳字符串表（partials/common/tr.html 返回值的 .shell；当前语言叠在英文上，缺键回退英文）——外壳不写任何语言的文案
+     tr          共享外壳字符串表（partials/common/tr.html 返回值的 .frame；当前语言叠在英文上，缺键回退英文）——外壳不写任何语言的文案
      langs       语言分段的选项：[{code name short}]（hugo.yaml languages：name = 该语言自己的名字，short = 分段上的短名 EN / 中文，不翻译）
      home        logo 链接：一律回主站首页（2026-11-12 起四站统一，英文 /、中文 /zh/；调用方用 sgx-lang-path 拼 path "/"）
      center      中间的 HTML（页名 .sgx-tb-title / 阅读进度，调用方渲染好；v3 顶栏不显示，见上）；pillClass 中间容器的额外 class
@@ -134,7 +134,7 @@
 </dialog>
 {{- /* 账号卡片（头像点开；S9 起只展示，没有命令行）：已登录 = 个人资料 › · 设备 › · 账号安全 › · 应用授权 › · 退出登录；没登录账号 = 一行 sudo root。
    点一行 = 收起卡片、打开终端 #sgx-term、预填 profile / device / passkey / app / exit / sudo root；v5 S6 起没进站（访客 / 分享链接会话）头像是死按钮。
-   内容由 shell/account/window.js 画（文案在 .shell.account，四站同一份）；这里只放面板骨架和没 JS 时的一行字。
+   内容由 frame/account/window.js 画（文案在 .frame.account，四站同一份）；这里只放面板骨架和没 JS 时的一行字。
    旧地址 /account/* 由 static/_redirects 301 到本语言首页 #acct=<子页>，topbar/panel.js 在终端里预填对应命令。 */ -}}
 <dialog id="sgx-acct" class="sgx-qp sgx-pop sgx-acct" aria-label="{{ $t.topbar.account }}" data-acct-state="">
   <div class="sgx-qp-sheet" tabindex="-1" autofocus>
@@ -160,4 +160,4 @@
   </div>
 </dialog>
 {{- /* 外壳 JS（topbar.js / ai.js / share.js）的文案：同一张外壳字符串表，只出当前语言（已叠在英文上） */}}
-<script id="sgx-i18n-shell" type="application/json">{{ $t | jsonify | safeJS }}</script>
+<script id="sgx-i18n-frame" type="application/json">{{ $t | jsonify | safeJS }}</script>

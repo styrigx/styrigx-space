@@ -1,4 +1,4 @@
-/* 由 space/scripts/gen/gen-common.mjs 从 space/web/assets/common/css/input.css 的 @shell 标记段 生成，勿手改；主站和子站同一个 Hugo 站，子站样式表直接 @import。 */
+/* 由 space/scripts/gen/gen-common.mjs 从 space/web/assets/common/css/input.css 的 @frame 标记段 生成，勿手改；主站和子站同一个 Hugo 站，子站样式表直接 @import。 */
 /* 依赖 tokens.css 的 --sgx-* 角色；不进任何 @layer。 */
 /* ---- topbar-frame ---- */
 /* 跨页 View Transitions（2.4.0 D；2026-11-09 Gray 批：搬进共享外壳，四站同站跳转都做，只淡入淡出）：
@@ -38,11 +38,11 @@ html[data-sgx-layout="phone"] { --sgx-tb-h: 56px; }
 :root { --sgx-tb-label-bg: color-mix(in oklab, var(--sgx-nav-selected) 45%, transparent); }
 /* 尺寸体系（2026-10-23 PR-D）：--sgx-page-m 左右页边距（手机 < 600px 固定 12px——2026-11 对齐 PR-B 照设计稿 m=1 的 --pad，之前 16px；≥ 600px 从 840 宽 24px 线性到 1920 宽 48px）。
    --sgx-content-max：外壳框（各站页面外框）最宽，按 <html data-sgx-layout> 定：phone 640、desktop = 内容宽 --sgx-content-w 1080（2026-11 PR-A 照设计稿：所有页内容 1080 居中、和顶栏字标 / 图标对齐，撤掉 #308 的宽屏通栏；没有这个属性 = 没跑脚本，退回 1068）。
-   --sgx-shell-w：外壳框宽 = min(100% − 2 × 页边距, 最宽)。
+   --sgx-frame-w：外壳框宽 = min(100% − 2 × 页边距, 最宽)。
    --sgx-tb-pad：顶栏 / 页脚左右内边距 = max(页边距 / 刘海安全区, (100% − 内容宽) / 2)，两者内容都落在居中的 --sgx-content-w 里；
    --sgx-tb-w：顶栏内容宽（= 100% − 2 × --sgx-tb-pad），面板的右缘按它对齐。
    布局模式只有两种：手机 phone / 桌面 desktop（共享外壳 layout-mode.js __sgxLayout()，四站 <head> 原样内联、首帧前写好 data-sgx-layout）。 */
-:root { --sgx-page-m: 12px; --sgx-content-max: 1068px; --sgx-shell-w: min(100% - 2 * var(--sgx-page-m), var(--sgx-content-max));
+:root { --sgx-page-m: 12px; --sgx-content-max: 1068px; --sgx-frame-w: min(100% - 2 * var(--sgx-page-m), var(--sgx-content-max));
   --sgx-tb-pad: max(var(--sgx-page-m), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px), (100% - var(--sgx-content-w)) / 2);
   --sgx-tb-w: calc(100% - 2 * var(--sgx-tb-pad)); }
 :root[data-sgx-layout="phone"] { --sgx-content-max: 640px; }
@@ -1121,7 +1121,7 @@ html.mu-playing .mu-wrap { padding-bottom: 236px; }
 .mu-album-acts .mu-del-btn { color: var(--sgx-danger); }  /* 加一级：frame.css 先于奇趣 .cu-btn-text 引入，同权重会被压掉 */
 .mu-player { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; padding: 0 0 env(safe-area-inset-bottom, 0px); pointer-events: none; }
 .mu-player.hidden { display: none; }
-.mu-player-in { box-sizing: border-box; width: var(--sgx-shell-w); margin: 0 auto 12px; padding: 12px 16px 10px; border-radius: 1.5rem; pointer-events: auto;
+.mu-player-in { box-sizing: border-box; width: var(--sgx-frame-w); margin: 0 auto 12px; padding: 12px 16px 10px; border-radius: 1.5rem; pointer-events: auto;
   background: color-mix(in srgb, var(--sgx-surface-container) 88%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); box-shadow: 0 10px 30px rgb(0 0 0 / 18%); }
 .mu-now-row { display: flex; align-items: flex-start; gap: 8px; }
 .mu-now-row > .mu-now { flex: 1; }

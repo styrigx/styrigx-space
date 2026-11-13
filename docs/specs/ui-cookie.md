@@ -64,7 +64,7 @@ sgx-ui=<base64url(UTF-8 JSON)>; Domain=styrigx.com; Path=/; Max-Age=34560000; Sa
 | `rm` | 固定 `0`（减弱动效跟系统 `prefers-reduced-motion`） | 只有数字 `1` 算开 | `0` |
 | `lang` | `sgx-lang` 是已配置的语言（`en` / `zh`）时原样写，否则写 `system` | `^[a-z]{2,3}$` | `system` |
 
-5.1 旧 cookie 里的 `mode`、`accent`、`mat`（3.0 之前写端写过）读端一律忽略：深浅只看 `pal` 是浅套还是深套（`SgxUI.DARK`），不内联 `--sgx-seed`、不插 `<style id="sgx-accent-roles">`；`apply()` 顺手删掉旧版插的 `<style>` 和子站缓存 `sgx-shell-accent-css`。
+5.1 旧 cookie 里的 `mode`、`accent`、`mat`（3.0 之前写端写过）读端一律忽略：深浅只看 `pal` 是浅套还是深套（`SgxUI.DARK`），不内联 `--sgx-seed`、不插 `<style id="sgx-accent-roles">`；`apply()` 顺手删掉旧版插的 `<style>` 和子站缓存 `sgx-frame-accent-css`。
 
 5.2 早期 v1 的时钟 / 天气字段（`tz1`、`tz2`、`h12`、`clock`、`wx`、`unit`、`loc`、`city`、`precise`）自 P4-2c（2026-11-05）起写端不再写，读端忽略。
 

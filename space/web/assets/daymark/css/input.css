@@ -127,7 +127,7 @@ html, body {
    顶栏、抽屉、搜索层在上面的共享外壳段；下面的「主站一比一」几段是主站 input.css 里还没进共享外壳的部分，原样搬来（主站改了要跟着改）。 */
 
 
-/* ---- 外壳框最宽（Mobile 640 / DeX 1440）由共享外壳按 <html data-sgx-layout> 定（四站同一条布局规则，baseof __sgxShellLayout）；
+/* ---- 外壳框最宽（Mobile 640 / DeX 1440）由共享外壳按 <html data-sgx-layout> 定（四站同一条布局规则，baseof __sgxLayout()）；
    本站 layout-mobile / layout-dex 类只管弹层样式，不再改 --sgx-content-max（P4-3 顶栏长度统一） ---- */
 
 /* ---- 主站一比一：正文顶部偏移（主站 tokens 层 --nav-h / --sgx-content-top：顶栏下沿 + 16px + 安全区；手机 84px，≥ 840 宽 88px） ---- */

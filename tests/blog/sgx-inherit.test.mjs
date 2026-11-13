@@ -256,11 +256,11 @@ test('博客已没有外观开关：旧的 navfolio-theme / sgx-theme-at，以�
 });
 test('旧 cookie 的 accent 一律忽略（自定义主题色 2026-11-12 删除）：不写 --sgx-seed、不插角色 <style>，旧缓存清掉', () => {
   for (const accent of ['#ffd54f', '#2f5f86', '#FFD54F', 'rose', 'red;x']) {
-    const r = run({ cookie: 'sgx-ui=' + enc({ v: 2, pal: 'teal', accent }), local: { 'sgx-shell-accent-css': 'old|#ffd54f\nX' } });
+    const r = run({ cookie: 'sgx-ui=' + enc({ v: 2, pal: 'teal', accent }), local: { 'sgx-frame-accent-css': 'old|#ffd54f\nX' } });
     assert.equal(r.attrs['data-palette'], 'teal');
     assert.equal(r.seed, '', accent);
     assert.equal(r.style(), null, accent);
-    assert.equal(r.local['sgx-shell-accent-css'], undefined);
+    assert.equal(r.local['sgx-frame-accent-css'], undefined);
   }
 });
 /* 语言（语言清理 2026-11-07）：四站同一份 lang-boot.js；博客每页都跳（不只首页），只去本页 <meta name="sgx-alt-<语言>"> 声明过的地址 */

@@ -4,21 +4,21 @@
  * 触屏不显示按键（没有键盘），改成一个「‹ 返回」按钮，按下 = 这个状态的退出路径（同 esc）——每个终端状态都要有出口（Gray 2026-11-09）。
  *
  * 用在锁屏、盾牌（shell/space/term.js 的宿主）和账号下拉（account/term.js）。主页 / 抽屉终端（term/terminal.js）和 AI 窗口（ai/panel.js）
- * 只许 import term/**，各自画几行，英文底同用 term/core/strings.js 的 KH_EN；文案同一张表：#sgx-i18n-shell 的 kh 节（data/common/frame/i18n/<语言>.yaml，缺键回退英文）。
+ * 只许 import term/**，各自画几行，英文底同用 term/core/strings.js 的 KH_EN；文案同一张表：#sgx-i18n-frame 的 kh 节（data/common/frame/i18n/<语言>.yaml，缺键回退英文）。
  *
  * 读屏：按键文字是装饰（aria-hidden），「‹ 返回」是真按钮（有名字，读屏能点）。
  */
-import { KH_EN, shellSection } from '../core/strings.js';
+import { KH_EN, frameSection } from '../core/strings.js';
 
 /** 英文底（源文本）：终端统一 T1 起放在 term/core/strings.js，这里转出 */
 export { KH_EN };
 
 /**
- * #sgx-i18n-shell 的 kh 节叠在英文上
+ * #sgx-i18n-frame 的 kh 节叠在英文上
  * @param {Document} [doc] @returns {Record<string, string>}
  */
 export function khStrings(doc) {
-  return Object.assign({}, KH_EN, shellSection(doc, 'kh'));
+  return Object.assign({}, KH_EN, frameSection(doc, 'kh'));
 }
 
 /**

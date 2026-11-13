@@ -168,7 +168,7 @@ space/
 | 5 | `data/` 的 Platform 部分 → `data/common/`；`palettes.yaml` 改名 `data/common/palette-source.yaml`，避开和 `data/common/palette-list.json` 撞键 | 已合（#449） |
 | 6 | `scripts/` 根目录 → `build/`、`check/`、`gen/`、`deploy/`；`space/` 外面（`package.json`、`.github/workflows/`、workers 的 README / wrangler.toml 注释 / `csp-hashes.js` 文件头）只改路径字符串、不改逻辑，PR 里逐个列出 | 已合（#450） |
 | 6.5 | 目录改名（目录改名定稿 v1.6）：`shell/` → `common/`（assets、partials、data 三处）；common 分库与外壳 `frame/`，加规则 28；common 三处文件名审查 | 进行中（#451） |
-| 7 | 共用播放器进 Platform，路由 `/curio/music/player/` 不变：模板 `layouts/common/player.html` 套主站 baseof、直接用主站 `main.css`（页脚仍亮 curio）；`.mu-*`/`.mp-*` 样式进共享外壳 `@shell music`（奇趣音乐页经 frame.css 用同一份）；文案进 `data/common/i18n`；脚本进 `assets/common/js/music/`，网址从 `/curio/js/…` 变成 `/js/music/…`；截图逐像素对照（只差时钟；手机页脚多了主站底部渐隐，按平台对齐保留） | 已完成 |
+| 7 | 共用播放器进 Platform，路由 `/curio/music/player/` 不变：模板 `layouts/common/player.html` 套主站 baseof、直接用主站 `main.css`（页脚仍亮 curio）；`.mu-*`/`.mp-*` 样式进共享外壳 `@frame music`（奇趣音乐页经 frame.css 用同一份）；文案进 `data/common/i18n`；脚本进 `assets/common/js/music/`，网址从 `/curio/js/…` 变成 `/js/music/…`；截图逐像素对照（只差时钟；手机页脚多了主站底部渐隐，按平台对齐保留） | 已完成 |
 | 8 | 旧文档对齐：overview.md §6–7、repo-structure.md 改为指向本文件 | 未开始 |
 
 > D1–D4（palettes 撞键、播放器怎么进 Platform、scripts 碰到 space/ 外的路径、落点怎么拦）Gray 2026-11-13 按默认方案定，已写进 §4、§6。

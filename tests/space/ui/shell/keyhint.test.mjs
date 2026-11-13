@@ -37,7 +37,7 @@ test('文案：外壳字符串表 en / zh 都有 kh 节，键和英文底一一�
   /* 终端统一 T1：terminal.js / ai/panel.js 不再抄英文底，和 keyhint.js 同用 shell/term/core/strings.js 的 KH_EN */
   for (const f of ['terminal.js', 'ai/panel.js']) {
     const src = read('space/web/assets/common/js/' + (FE_AT[f] || f));
-    assert.match(src, /^import \{ KH_EN, shellSection(, flatStrings)? \} from '(?:\.\/|\.\.\/term\/)core\/strings\.js';$/m, f + ' 用公共件');
+    assert.match(src, /^import \{ KH_EN, frameSection(, flatStrings)? \} from '(?:\.\/|\.\.\/term\/)core\/strings\.js';$/m, f + ' 用公共件');
     assert.doesNotMatch(src, /cmdHome: '|ai: 'enter send/, f + ' 不再抄英文底');
   }
 });

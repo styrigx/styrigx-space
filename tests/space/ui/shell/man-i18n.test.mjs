@@ -45,12 +45,12 @@ test('zh.yaml：每一页的 NAME 说明和正文都有译文，行数对得上�
   }
 });
 
-/** 假页面：#sgx-i18n-shell 是中文表（叠在英文上，同 tr.html） */
+/** 假页面：#sgx-i18n-frame 是中文表（叠在英文上，同 tr.html） */
 function zhPage() {
   const merged = JSON.parse(JSON.stringify(TR.en));
   for (const [k, v] of Object.entries(TR.zh)) merged[k] = v && typeof v === 'object' && !Array.isArray(v) ? Object.assign({}, merged[k], v) : v;
   const el = { textContent: JSON.stringify(merged) };
-  /** @type {any} */ (globalThis).document = { getElementById: (id) => (id === 'sgx-i18n-shell' ? el : null) };
+  /** @type {any} */ (globalThis).document = { getElementById: (id) => (id === 'sgx-i18n-frame' ? el : null) };
 }
 
 test('中文页 man <命令>：阅读页里的正文（DESCRIPTION / AUTH / NOTES 以下）每一行都是中文，没有英文底', async () => {

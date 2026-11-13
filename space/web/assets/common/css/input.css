@@ -7,11 +7,11 @@
    - overrides 承接原来靠 !important 硬压的规则（!important 只留在减弱动效里）；
    - 同一层内保持原文件相对顺序，层分配沿文件自上而下只升不降，避免优先级翻转。
    - 不分层的部分（有意为之，优先于所有层）：文件开头的 View Transitions；文件末尾 overrides（续）之后的一段——
-     共享外壳的 @shell 区块（space/scripts/gen/gen-common.mjs 原样抽给子站，子站里同样不分层），以及必须压过外壳规则的主站规则
+     共享外壳的 @frame 区块（space/scripts/gen/gen-common.mjs 原样抽给子站，子站里同样不分层），以及必须压过外壳规则的主站规则
      （主站 layout 层、顶栏三栏、快捷面板、头像裁剪、输入方式）。往这一段加规则前先确认确实要压过所有层。 ===== */
 @layer tw, reset, tokens, sgx-base, sgx-components, sgx-utilities, overrides;
 
-/* ===== 2.4.0 D：跨页 View Transitions —— 2026-11-09 搬进共享外壳 @shell topbar-frame（四站同一套，见那里） ===== */
+/* ===== 2.4.0 D：跨页 View Transitions —— 2026-11-09 搬进共享外壳 @frame topbar-frame（四站同一套，见那里） ===== */
 
 /* ===== reset 层：最小自定义重置 ===== */
 @layer reset {
@@ -4250,7 +4250,7 @@
   .layout-dex main { padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); }
   .layout-dex footer { padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); }
 
-  /* ----- 首页栅格（2026-10-23 PR-D）：外框 = 外壳框（--sgx-shell-w，桌面通栏，见文件末尾主站 layout 段；宽屏平铺 PR 起桌面名片 / 日刻去卡片，见 wide 段后的主站规则）。
+  /* ----- 首页栅格（2026-10-23 PR-D）：外框 = 外壳框（--sgx-frame-w，桌面通栏，见文件末尾主站 layout 段；宽屏平铺 PR 起桌面名片 / 日刻去卡片，见 wide 段后的主站规则）。
      列数 N（P4-2c 起固定 2 列，原 ≥ 1200 宽 3 列）；每列最窄 320px：
        repeat(auto-fit, minmax(max(320px, (100% − (N−1)·gap) / N), 1fr))
      → 框够宽时正好 N 列等分；框窄到放不下 N 个 320 就自动少一列，直到一列，绝不挤到 320 以下。
@@ -4585,7 +4585,7 @@
 }
 
 @layer sgx-components {
-/* @shell:begin inpage（内容页页头 + 对齐 PR-C 共用件，P4-3 §6.6 / 设计 §5.2、§6.2、§6.3；组件 partials/common/frame/page-head.html，共享外壳：gen-common 抽到 frame.css，四站同一套） */
+/* @frame:begin inpage（内容页页头 + 对齐 PR-C 共用件，P4-3 §6.6 / 设计 §5.2、§6.2、§6.3；组件 partials/common/frame/page-head.html，共享外壳：gen-common 抽到 frame.css，四站同一套） */
 /* 只用共享外壳 --sgx-* 角色（跟调色板、深浅色、自定义色），不写死颜色；不用 Tailwind 工具类（便于原样搬到子站）。
    页头 .sgx-ph（2026-11 对齐 PR-C，设计稿 tb4.html 的 .hero.ph；partials/common/frame/page-head.html）：一行装饰提示符「styrigx@space:~$ <命令>」+ 等宽大标题 + 主题色「_」+ 一行说明，
    两种布局都显示（取代 PR 309 段式标签时代「桌面视觉隐藏、手机 30px」的旧标题带）。手机 40px / 桌面 64px（同主页名字）。
@@ -4782,7 +4782,7 @@
 .sgx-spec .cg { color: var(--sgx-success); }
 .sgx-spec .cy { color: var(--sgx-warning); }
 .sgx-spec .k { color: var(--sgx-warning); }
-/* @shell:end inpage */
+/* @frame:end inpage */
 }
 
 /* topbar v2.0 start — 与 Book 同一套（返回圆 + 长条 + 导航圆）。旧顶栏（时间/日期/天气/音乐、
@@ -4797,7 +4797,7 @@
    放在 @layer 外：要压过同样不分层的 .sgx-topbar { view-transition-name }。只主站（锁屏只在主站），不进共享外壳。 */
 body.sgx-entry #site-nav { visibility: hidden; }
 body.sgx-entry #site-nav .sgx-topbar { view-transition-name: none; }
-/* @shell:begin topbar-frame（共享外壳：space/scripts/gen/gen-common.mjs 原样抽到 space/web/shared/shell/frame.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
+/* @frame:begin topbar-frame（共享外壳：space/scripts/gen/gen-common.mjs 原样抽到 space/web/shared/shell/frame.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
 /* 跨页 View Transitions（2.4.0 D；2026-11-09 Gray 批：搬进共享外壳，四站同站跳转都做，只淡入淡出）：
    同源跨文档跳转自动交叉淡化 180ms（渐进增强，不支持的浏览器忽略）；顶栏挂 view-transition-name 保持不动。
    系统「减弱动效」时连 @view-transition 都不声明（完全不做过渡）；本站「减弱动效」开关（.reduced-motion）只能把动画清零。 */
@@ -4835,11 +4835,11 @@ html[data-sgx-layout="phone"] { --sgx-tb-h: 56px; }
 :root { --sgx-tb-label-bg: color-mix(in oklab, var(--sgx-nav-selected) 45%, transparent); }
 /* 尺寸体系（2026-10-23 PR-D）：--sgx-page-m 左右页边距（手机 < 600px 固定 12px——2026-11 对齐 PR-B 照设计稿 m=1 的 --pad，之前 16px；≥ 600px 从 840 宽 24px 线性到 1920 宽 48px）。
    --sgx-content-max：外壳框（各站页面外框）最宽，按 <html data-sgx-layout> 定：phone 640、desktop = 内容宽 --sgx-content-w 1080（2026-11 PR-A 照设计稿：所有页内容 1080 居中、和顶栏字标 / 图标对齐，撤掉 #308 的宽屏通栏；没有这个属性 = 没跑脚本，退回 1068）。
-   --sgx-shell-w：外壳框宽 = min(100% − 2 × 页边距, 最宽)。
+   --sgx-frame-w：外壳框宽 = min(100% − 2 × 页边距, 最宽)。
    --sgx-tb-pad：顶栏 / 页脚左右内边距 = max(页边距 / 刘海安全区, (100% − 内容宽) / 2)，两者内容都落在居中的 --sgx-content-w 里；
    --sgx-tb-w：顶栏内容宽（= 100% − 2 × --sgx-tb-pad），面板的右缘按它对齐。
    布局模式只有两种：手机 phone / 桌面 desktop（共享外壳 layout-mode.js __sgxLayout()，四站 <head> 原样内联、首帧前写好 data-sgx-layout）。 */
-:root { --sgx-page-m: 12px; --sgx-content-max: 1068px; --sgx-shell-w: min(100% - 2 * var(--sgx-page-m), var(--sgx-content-max));
+:root { --sgx-page-m: 12px; --sgx-content-max: 1068px; --sgx-frame-w: min(100% - 2 * var(--sgx-page-m), var(--sgx-content-max));
   --sgx-tb-pad: max(var(--sgx-page-m), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px), (100% - var(--sgx-content-w)) / 2);
   --sgx-tb-w: calc(100% - 2 * var(--sgx-tb-pad)); }
 :root[data-sgx-layout="phone"] { --sgx-content-max: 640px; }
@@ -5040,15 +5040,15 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
   .sgx-seg2 button:first-child { border-radius: 7px 0 0 7px; }
   .sgx-seg2 button:last-child { border-radius: 0 7px 7px 0; }
 }
-/* @shell:end topbar-frame */
+/* @frame:end topbar-frame */
 /* 主站 layout 层（2026-10-23 PR-D，只在主站，不进共享外壳）：外壳框最宽 Mobile 640（宽竖屏内容栏）、桌面通栏（宽屏平铺 PR）—— 由共享外壳 topbar-frame 段按
    <html data-sgx-layout> 统一定（P4-3 顶栏长度统一，四站同一处，这里不再按 html.layout-* 另写一遍）。
-   顶栏在各页都跟随这个框（不按页面内容收缩，切页时两侧圆不跳）；页面外框（首页 / 设置 / 账号 / 聊天 / 404）宽 = --sgx-shell-w、
+   顶栏在各页都跟随这个框（不按页面内容收缩，切页时两侧圆不跳）；页面外框（首页 / 设置 / 账号 / 聊天 / 404）宽 = --sgx-frame-w、
    不加横向内边距，左右边线和顶栏两侧圆外缘对齐；页面里的内容列在框里居中：设置子页 / 账号（含服务状态）720，聊天 760，设置首页 DeX 两栏 1024（见 settings 段）。 */
-.home-wrap, .sgx-404 { box-sizing: border-box; width: var(--sgx-shell-w); max-width: none; margin-left: auto; margin-right: auto; }
+.home-wrap, .sgx-404 { box-sizing: border-box; width: var(--sgx-frame-w); max-width: none; margin-left: auto; margin-right: auto; }
 /* 门内验证剩余时间胶囊（inline-flex，外框第一个子元素）：外框桌面通栏后仍停在原来的位置——原外框（最宽 1440）的左缘（宽屏平铺 PR：表单页不改样子） */
 
-/* @shell:begin wide（宽屏平铺：桌面布局内容页去卡片、多栏 + 细分隔线；共享外壳：gen-common 抽到 frame.css，子站同步；只用 --sgx-* 角色，不写死颜色） */
+/* @frame:begin wide（宽屏平铺：桌面布局内容页去卡片、多栏 + 细分隔线；共享外壳：gen-common 抽到 frame.css，子站同步；只用 --sgx-* 角色，不写死颜色） */
 /* 宽屏平铺（Gray 2026-11-07，参考 rzcthink.top）：只在桌面布局（<html data-sgx-layout="desktop">，浏览器桌面版 / 手动「桌面」；不按像素断点）。手机布局一律不变。
    - 内容区宽（2026-11 PR-A 起）：桌面 --sgx-content-max = 1080（topbar-frame 段），外壳框和顶栏内容区同宽对齐（原来是通栏）；下面的去卡片 / 多栏照旧。
    - 内容页去卡片：文字直接铺在背景上，块与块、栏与栏之间用细线（--sgx-wide-line）分开。
@@ -5064,10 +5064,10 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 :root[data-sgx-layout="desktop"] .sgx-wide-cols > * { min-width: 0; box-sizing: border-box; padding: 24px var(--sgx-wide-pad); box-shadow: -1px 0 0 0 var(--sgx-wide-line), 0 -1px 0 0 var(--sgx-wide-line); }
 :root[data-sgx-layout="desktop"] .sgx-wide-h { margin: 0; padding: 0 0 12px; border-bottom: 1px solid var(--sgx-wide-line);
   font-size: 12px; font-weight: 700; letter-spacing: var(--sgx-track-label); text-transform: uppercase; color: var(--sgx-text-secondary); }
-/* @shell:end wide */
+/* @frame:end wide */
 /* 底部停靠栏高度（main 底部留白用；原地搜索层已在 P4-2 删除） */
 :root { --sgx-bottom-dock-h: 56px; }
-/* @shell:begin panel（共享外壳：space/scripts/gen/gen-common.mjs 原样抽到 space/web/shared/shell/frame.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
+/* @frame:begin panel（共享外壳：space/scripts/gen/gen-common.mjs 原样抽到 space/web/shared/shell/frame.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
 /* 快捷面板 + AI 窗口（2026-11-04 P5-1，四个站同一套；标记在共享外壳 topbar.html，主站 topbar/quick-panel.js、子站共享外壳 topbar.js 开关）：
    非模态 <dialog>（show()，不进顶层），fixed 铺满「顶栏下沿以下」的区域：dialog 本身就是遮罩（is-open 时 --sgx-scrim），
    z-index 45 = 盖住正文，但在顶栏 #site-nav（50）下面——顶栏不被遮罩压暗、图标照常可点（再点关闭）。两个窗口互斥。
@@ -5587,10 +5587,10 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-avc-btn:disabled { opacity: .5; }
 /* 盾牌（进站 v3 L1，shell/space/shield.js）：复用 .sgx-at-*；临时钥匙明文码只多这一条 */
 .sgx-sh-code { font-family: var(--sgx-font-mono); font-size: 15px; font-weight: 500; letter-spacing: .08em; color: var(--sgx-text-primary); -webkit-user-select: all; user-select: all; overflow-wrap: anywhere; }
-/* @shell:end panel */
+/* @frame:end panel */
 /* topbar v2.0 end */
 
-/* @shell:begin terminal（站内终端，2026-11 UI 重设计 PR-2，设计稿 term-v1；共享外壳：gen-common 抽到 frame.css，四站同一套；只用 --sgx-* 角色，不写死颜色） */
+/* @frame:begin terminal（站内终端，2026-11 UI 重设计 PR-2，设计稿 term-v1；共享外壳：gen-common 抽到 frame.css，四站同一套；只用 --sgx-* 角色，不写死颜色） */
 /* 窗口 .sgx-term = 标题栏（三个圆点 · guest@space: ~ · 右边按键提示）+ 输出区（aria-live）+ 一行真输入框；全站抽屉 #sgx-term 里是 .sgx-term--drawer，页面里的静态窗（主页 about、旷野、博客 tree、日刻）是 .sgx-term--static。
    引擎 / 视图 assets/common/js/frame/term/terminal.js；输出的类：-k 关键字、-o 次要、-ok 箭头、-err 出错、-dir 目录、-q 引文、-a 链接、-pp 提示符。 */
 .sgx-term { box-sizing: border-box; text-align: left; border: 1px solid var(--sgx-term-line); border-radius: 14px; overflow: hidden;
@@ -5702,9 +5702,9 @@ html:not([data-sgx-account-session="out"]) .sgx-envps-g, html:not([data-sgx-acco
 /* 一行输出式的加载提示（Gray 2026-11-09 细节 3）：「› fetching daymark…」，同锁屏「› booting space…」的写法；› 是装饰 */
 .sgx-wait { margin: 0; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.7; color: var(--sgx-text-tertiary); }
 .sgx-wait[hidden] { display: none; }
-/* @shell:end terminal */
+/* @frame:end terminal */
 
-/* @shell:begin music（共用播放器：.mu-* 奇趣音乐页控件、.mp-* 弹出播放器 /curio/music/player/；2026-11 第 7 步从 curio/css/input.css 原样搬来（规范 v1.12 §3.5、D2）；共享外壳：gen-common 抽到 frame.css，子站 @import；只用 --sgx-* 角色） */
+/* @frame:begin music（共用播放器：.mu-* 奇趣音乐页控件、.mp-* 弹出播放器 /curio/music/player/；2026-11 第 7 步从 curio/css/input.css 原样搬来（规范 v1.12 §3.5、D2）；共享外壳：gen-common 抽到 frame.css，子站 @import；只用 --sgx-* 角色） */
 /* 音乐 */
 .mu-wrap { padding-bottom: 24px; }
 html.mu-playing .mu-wrap { padding-bottom: 236px; }
@@ -5737,7 +5737,7 @@ html.mu-playing .mu-wrap { padding-bottom: 236px; }
 .mu-album-acts .mu-del-btn { color: var(--sgx-danger); }  /* 加一级：frame.css 先于奇趣 .cu-btn-text 引入，同权重会被压掉 */
 .mu-player { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; padding: 0 0 env(safe-area-inset-bottom, 0px); pointer-events: none; }
 .mu-player.hidden { display: none; }
-.mu-player-in { box-sizing: border-box; width: var(--sgx-shell-w); margin: 0 auto 12px; padding: 12px 16px 10px; border-radius: 1.5rem; pointer-events: auto;
+.mu-player-in { box-sizing: border-box; width: var(--sgx-frame-w); margin: 0 auto 12px; padding: 12px 16px 10px; border-radius: 1.5rem; pointer-events: auto;
   background: color-mix(in srgb, var(--sgx-surface-container) 88%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); box-shadow: 0 10px 30px rgb(0 0 0 / 18%); }
 .mu-now-row { display: flex; align-items: flex-start; gap: 8px; }
 .mu-now-row > .mu-now { flex: 1; }
@@ -5830,7 +5830,7 @@ html.mu-view-only :is(#mp-prev, #mp-next, #mp-speed, #mp-seek, #mp-shuffle) { op
 .reduced-motion .mp-albums-btn svg { transition: none; }
 /* 主站 main.css 里 Tailwind 的 .hidden 在 @layer tw，压不过本段不分层的 display；播放器外框在加载完前要藏住（奇趣样式表里 .hidden 带 !important，原来不用这条） */
 .mp-app.hidden { display: none; }
-/* @shell:end music */
+/* @frame:end music */
 
 /* 主页（2026-11 UI 重设计 PR-2 首屏终端；对齐 PR-B 按设计稿 tb4.html 主页默认 / m=1；只在主站）：内容宽对齐顶栏内容（--sgx-content-w 1080，左右同 --sgx-tb-pad）。
    hero 居中：状态胶囊 → $ whoami → 名字 → $ 副标题 + 闪烁光标 → # 介绍 → 嵌入终端（头像只在顶栏、签名只在账号下拉）；

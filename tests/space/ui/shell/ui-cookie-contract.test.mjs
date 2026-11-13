@@ -11,7 +11,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { renderContract, FIXTURE } from '../../../../space/scripts/gen/gen-ui-cookie-contract.mjs';
-import { shellFiles, READER_SRC } from '../../../../space/scripts/gen/gen-common.mjs';
+import { frameFiles, READER_SRC } from '../../../../space/scripts/gen/gen-common.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const READER = readFileSync(READER_SRC, 'utf8');
@@ -173,7 +173,7 @@ test('读端是 ES5 经典脚本：没有箭头函数 / let / const / 模板串 
 });
 
 test('共享外壳带上读端 / 图标（2026-11 合站后子站直接用主站源文件；契约夹具只有 tests/fixtures 一份）', () => {
-  const files = shellFiles();
+  const files = frameFiles();
   assert.equal(files['ui-cookie-read.js'], READER);
   assert.equal(files['favicon.js'], readFileSync(path.join(REPO, 'space/web/assets/common/js/ui/favicon.js'), 'utf8'));
   assert.equal(files['favicon.svg'], readFileSync(path.join(REPO, 'space/web/static/favicon.svg'), 'utf8'));
@@ -182,14 +182,14 @@ test('共享外壳带上读端 / 图标（2026-11 合站后子站直接用主站
 
 const cookieOf = (name) => 'sgx-ui=' + fx.cases.find((c) => c.name === name).cookie;
 
-test('旧版自定义色留下的东西首帧清掉：<style id="sgx-accent-roles">、本站缓存 sgx-shell-accent-css、内联 --sgx-seed', () => {
-  const s = sandbox({ cookie: cookieOf('湖蓝 lake（深套）'), store: { 'sgx-shell-accent-css': 'oldver|#1f8a70\nOLD' } });
+test('旧版自定义色留下的东西首帧清掉：<style id="sgx-accent-roles">、本站缓存 sgx-frame-accent-css、内联 --sgx-seed', () => {
+  const s = sandbox({ cookie: cookieOf('湖蓝 lake（深套）'), store: { 'sgx-frame-accent-css': 'oldver|#1f8a70\nOLD' } });
   const st = s.head.appendChild(s.ctx.document.createElement('style'));
   st.id = 'sgx-accent-roles';
   s.html.style.setProperty('--sgx-seed', '#1f8a70');
   s.U.apply(s.html);
   assert.equal(s.ctx.document.getElementById('sgx-accent-roles'), null);
-  assert.equal(s.ls.has('sgx-shell-accent-css'), false);
+  assert.equal(s.ls.has('sgx-frame-accent-css'), false);
   assert.equal(s.html.style.getPropertyValue('--sgx-seed'), '');
   assert.equal(s.html.getAttribute('data-palette'), 'lake');
   assert.equal(s.html.classList.contains('dark'), true);
