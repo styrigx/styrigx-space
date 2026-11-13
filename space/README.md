@@ -165,8 +165,8 @@ space/
 | 1 | `assets/js/` → `assets/shell/js/`（整体挪，不拆） | 已合（#445） |
 | 2 | 拆 `lib/` 和 shell 平铺文件，按 §1.1 分组 | 已合（#446） |
 | 3 | `assets/css/` → `assets/shell/css/` | 已合（#447） |
-| 4 | `layouts/partials/` 的 Platform 部分 → `partials/shell/` | 进行中 |
-| 5 | `data/` 的 Platform 部分 → `data/shell/`；`palettes.yaml` 改名 `data/shell/palette-source.yaml`，避开和 `data/shell/palettes.json` 撞键 | 未开始 |
+| 4 | `layouts/partials/` 的 Platform 部分 → `partials/shell/` | 已合（#448） |
+| 5 | `data/` 的 Platform 部分 → `data/shell/`；`palettes.yaml` 改名 `data/shell/palette-source.yaml`，避开和 `data/shell/palettes.json` 撞键 | 进行中 |
 | 6 | `scripts/` 根目录 → `build/`、`check/`、`gen/`、`deploy/`；`space/` 外面（`package.json`、`.github/workflows/`、workers 的 README / wrangler.toml 注释 / `csp-hashes.js` 文件头）只改路径字符串、不改逻辑，PR 里逐个列出 | 未开始 |
 | 7 | 共用播放器进 Platform，路由 `/curio/music/player/` 不变：播放器文案和 `.mp-*` 样式一起进 Platform，页面外壳改用 Platform 的 partial，外观不变，截图逐像素对照；脚本网址从 `/curio/js/…` 变成 `/shell/js/…` | 未开始 |
 | 8 | 旧文档对齐：overview.md §6–7、repo-structure.md 改为指向本文件 | 未开始 |

@@ -1,5 +1,5 @@
 # 云同步后台自动同步了哪些项（2026-10-24 PR4 起；原来在账号 → 云同步子页按组显示，2026-11-08 Gray 04:47 删了子页，只留后台同步，这份清单留作说明 + 单测核对）。
-# 必须与 lib/cloud-sync.js syncKeys() 实际同步的 key 一一对应：data/features.yaml 里带 sgx- key 的设置，去掉 sgx-lang / sgx-layout（跟随设备，不同步），
+# 必须与 lib/cloud-sync.js syncKeys() 实际同步的 key 一一对应：data/shell/features.yaml 里带 sgx- key 的设置，去掉 sgx-lang / sgx-layout（跟随设备，不同步），
 # 再加 EXTRA（sgx-ai-model；P4-2c 起天气两项随天气删除，P4-2d 加 AI 模型，2026-11-12 调色板 v4 删 sgx-theme-mode / sgx-accent）。tests/space/ui/sync/sync-items.test.mjs 核对两边完全一致，改了同步范围要同时改这里。
 # 名字（语言包化 2026-11-07）：组名在字符串表 syncItems.group.<组 id>；项名 features.yaml 里有的用字符串表 features.<id>.name，不在的（EXTRA）用 syncItems.extra.<key>。
 groups:

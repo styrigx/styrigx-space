@@ -152,7 +152,7 @@
      来源（2026-10-23 PR-G 七色调色板）：22 套，每套 = 1 个背景色 + 6 个前景撞色（定稿 palette-v0.3；规格由 palette-scheme.js 的 THEMES →
      themeSpec() 算出，node space/scripts/gen-palettes.mjs --roles 重建 JSON；全部对比度检查通过：正文 ≥4.5:1，控件 ≥3:1）。原来的单色 / 撞色两组合并，x* 撞色 id 已删除
      （旧值 x<id> 迁到 <id>）。
-     - 预设：值在 space/web/data/palette-roles.json，由 space/scripts/gen-palettes.mjs 生成进下面 @gen-palettes 两行标记之间，
+     - 预设：值在 space/web/data/shell/palette-roles.json，由 space/scripts/gen-palettes.mjs 生成进下面 @gen-palettes 两行标记之间，
        不要手改（改 JSON 后重跑脚本；单测会核对两边一致）。<html data-palette="…"> 选预设（baseof 内联脚本读 localStorage
        sgx-palette；子站读 sgx-ui cookie 的 pal）；默认 terra（陶土）不写 data-palette，所以 terra 写在 :root 上。
      - 2026-11-12 调色板 v4：没有深浅模式，也没有自定义颜色。每套只有一个模式（底色 OKLCH L ≥ 0.6 = 浅套，其余深套），
@@ -201,7 +201,7 @@
     --sgx-tag-bg: var(--sgx-fg-4-tint);
     --sgx-tag-fg: var(--sgx-fg-4-ink);
   }
-  /* @gen-palettes:begin（space/scripts/gen-palettes.mjs 由 space/web/data/palette-roles.json 生成，勿手改） */
+  /* @gen-palettes:begin（space/scripts/gen-palettes.mjs 由 space/web/data/shell/palette-roles.json 生成，勿手改） */
   /* 樱桃 · Cherry（cherry，深套）：背景樱桃；前景 抹茶 / 冰川蓝 / 琥珀 / 极光青 / 兰紫 / 莓果 */
   :root[data-palette="cherry"] {
     --sgx-seed: #86ad3f;

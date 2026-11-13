@@ -5,7 +5,7 @@
 {{- range .Translations }}{{ if not $langHref }}{{ $langHref = .RelPermalink }}{{ end }}{{ end -}}
 {{- if not $langHref }}{{ range (site.GetPage "/blog").AllTranslations }}{{ if ne .Language.Lang $lang }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}{{ end -}}
 {{- $langs := slice }}{{ range hugo.Sites }}{{ $langs = $langs | append (dict "code" .Language.Lang "short" .Language.Params.pickerShort) }}{{ end -}}
-{{- $prof := site.Data.profile -}}
+{{- $prof := site.Data.shell.profile -}}
 {{- partial "shell/sgx-footer.html" (dict
   "tr" (partialCached "shell/sgx-tr.html" $lang $lang).shell
   "lang" $lang

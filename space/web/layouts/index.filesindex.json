@@ -3,10 +3,10 @@
 {{/* 语言列表来自 hugo.yaml languages（语言包化 2026-11-07：不写死 zh / en） */}}
 {{ $langs := slice }}{{ range hugo.Sites }}{{ $langs = $langs | append .Language.Lang }}{{ end }}
 
-{{/* ---------- 站点（data/sites.yaml；名字 / 副标题在字符串表 sites.<id>，按语言取，缺键回退英文） ---------- */}}
+{{/* ---------- 站点（data/shell/sites.yaml；名字 / 副标题在字符串表 sites.<id>，按语言取，缺键回退英文） ---------- */}}
 {{ range $l := $langs }}
   {{ $tr := partialCached "shell/sgx-tr.html" $l $l }}
-  {{ range $s := site.Data.sites }}
+  {{ range $s := site.Data.shell.sites }}
     {{ $id := printf "site-%s" $s.id }}
     {{ if eq $l "en" }}{{ $id = printf "site-%s-en" $s.id }}{{ end }}
     {{ $st := index $tr.sites $s.id }}

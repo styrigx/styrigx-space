@@ -1,6 +1,6 @@
 /**
  * @fileoverview 2.4.0-G：功能开关统一配置（运行时）。
- * - 定义来自页面内 #sgx-features JSON（Hugo 由 data/features.yaml 生成），默认值与 yaml 一致。
+ * - 定义来自页面内 #sgx-features JSON（Hugo 由 data/shell/features.yaml 生成），默认值与 yaml 一致。
  * - key 沿用现有 localStorage key，老用户设置不丢；key 不存在即默认值。
  * - set(id, v) 写值（等于默认值时删 key）；on(id, fn) 订阅变更。
  * - storage 事件做跨标签页同步；同时派发 sgx-settings-changed 做旧代码兼容。

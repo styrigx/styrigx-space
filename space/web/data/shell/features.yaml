@@ -1,5 +1,5 @@
 # 2.4.0-G：功能开关统一配置（类似 One UI floating feature）。
-# - 语言包化（2026-11-07）：名字 / 说明 / 选项文字不在这里，在字符串表 data/i18n/<语言>.yaml 的 features.<id>.name / desc / opt.<选项 id>（英文为底，缺键回退英文）。
+# - 语言包化（2026-11-07）：名字 / 说明 / 选项文字不在这里，在字符串表 data/shell/i18n/<语言>.yaml 的 features.<id>.name / desc / opt.<选项 id>（英文为底，缺键回退英文）。
 # - build: false → 编译期移除（模板不输出 HTML；JS 用 js.Build define 摇掉代码；设置页不显示）。
 # - key 沿用现有 localStorage key，不改名，老用户设置不丢。
 # - 用户数据类 key 不在这里，统一走 core 的 storage 封装。

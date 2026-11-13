@@ -3,14 +3,14 @@
    用 partialCached 调，按语言（子站按 站-语言）缓存：
      {{ $tr := partialCached "shell/sgx-tr.html" $lang $lang }} → {{ $tr.account.title }}、{{ $tr.shell.topbar.share }}
      {{ $tr := partialCached "shell/sgx-tr.html" (dict "lang" .Lang "ns" "curio") (printf "curio-%s" .Lang) }}
-   返回：本站表 data/i18n/<语言>.yaml（子站 data/<站>/i18n/<语言>.yaml）叠在英文表上（深合并，缺的键回退英文，不回退中文）；
-   共享外壳表 data/sgx-shell-i18n/<语言>.yaml 同样叠在英文上，放在 .shell 下。
-   加一种语言 = 放 data/i18n/<语言>.yaml（+ 主站 data/sgx-shell-i18n/<语言>.yaml）+ hugo.yaml languages 一项；模板不用改。
+   返回：本站表 data/shell/i18n/<语言>.yaml（子站 data/<站>/i18n/<语言>.yaml）叠在英文表上（深合并，缺的键回退英文，不回退中文）；
+   共享外壳表 data/shell/sgx-shell-i18n/<语言>.yaml 同样叠在英文上，放在 .shell 下。
+   加一种语言 = 放 data/shell/i18n/<语言>.yaml（+ 主站 data/shell/sgx-shell-i18n/<语言>.yaml）+ hugo.yaml languages 一项；模板不用改。
    不进表的：品牌名（Gray AI、Styrigx）、个人信息类（partials/shell/sgx-personal.html）、语言自己的名字（hugo.yaml languageName / label）。 */ -}}
 {{- $lang := . | default "en" -}}
-{{- $d := site.Data.i18n | default dict -}}
+{{- $d := site.Data.shell.i18n | default dict -}}
 {{- if reflect.IsMap . }}{{ $lang = .lang | default "en" }}{{ $d = index site.Data .ns "i18n" | default dict }}{{ end -}}
-{{- $s := index site.Data "sgx-shell-i18n" | default dict -}}
+{{- $s := index site.Data "shell" "sgx-shell-i18n" | default dict -}}
 {{- $site := merge (index $d "en" | default dict) (index $d $lang | default dict) -}}
 {{- $shell := merge (index $s "en" | default dict) (index $s $lang | default dict) -}}
 {{- return merge $site (dict "shell" $shell) -}}

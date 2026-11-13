@@ -45,7 +45,7 @@ test('su 的密码提示 = 「Password:」（su root 也是，输的是 root 的
   assert.equal([...su.matchAll(/proofOf\(t\('pwPrompt'\), 'su-challenge'/g)].length, 2, 'su root 与 su <用户>');
   assert.match(js, /proofOf\(t\('pwFor', \{ u: u\.name \}\), 'sudo-challenge'/, 'sudo 输自己的凭据');
   for (const l of ['en', 'zh']) {
-    const y = yaml('space/web/data/sgx-shell-i18n/' + l + '.yaml');
+    const y = yaml('space/web/data/shell/sgx-shell-i18n/' + l + '.yaml');
     assert.match(y, /\n {2}pwPrompt: "Password:"\n/, l);
     assert.match(y, /\n {2}pwFor: "\[sudo\] password for \{u\}:"\n/, l);
   }
@@ -54,10 +54,10 @@ test('su 的密码提示 = 「Password:」（su root 也是，输的是 root 的
 test('访客入口文案跟 su：状态页锁卡按钮、lockedHint、AI 窗口锁着的提示；不再写 sudo styrigx', () => {
   const st = rd('space/web/layouts/_default/status.html');
   assert.match(st, /<button type="button" class="st-btn trm-cmdbtn" data-st="sudo" translate="no">su<\/button>/);
-  assert.match(rd('space/web/data/i18n/en.yaml'), /\n {2}lockedHint: visible after su\n/);
-  assert.match(rd('space/web/data/i18n/zh.yaml'), /\n {2}lockedHint: su 登录后可见\n/);
-  const zh = yaml('space/web/data/sgx-shell-i18n/zh.yaml');
-  const en = yaml('space/web/data/sgx-shell-i18n/en.yaml');
+  assert.match(rd('space/web/data/shell/i18n/en.yaml'), /\n {2}lockedHint: visible after su\n/);
+  assert.match(rd('space/web/data/shell/i18n/zh.yaml'), /\n {2}lockedHint: su 登录后可见\n/);
+  const zh = yaml('space/web/data/shell/sgx-shell-i18n/zh.yaml');
+  const en = yaml('space/web/data/shell/sgx-shell-i18n/en.yaml');
   assert.match(zh, /\n {2}unauthorized: 登录后才能问：su\n {2}locked: 已上锁，su 登录后可用\n/);
   assert.match(en, /\n {2}unauthorized: "Gray AI opens after you sign in: su"\n {2}locked: Locked\. Sign in with su to use Gray AI\n/);
   const ai = rd('space/web/assets/shell/js/ai/ai-panel.js');

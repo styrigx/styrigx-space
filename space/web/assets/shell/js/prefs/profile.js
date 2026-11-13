@@ -2,7 +2,7 @@
  * @fileoverview 个人资料（2026-11-07 Gray 定）：姓名、昵称、签名、对外联系邮箱的前端唯一来源。
  *
  * 来源三层，后者盖前者：
- * 1. 构建期默认值：space/web/data/profile.yaml → baseof 输出的 <script id="sgx-profile-default" type="application/json">，
+ * 1. 构建期默认值：space/web/data/shell/profile.yaml → baseof 输出的 <script id="sgx-profile-default" type="application/json">，
  *    模板也直接把默认值画进首帧（名字卡、页脚、锁屏头像替代文字等）。
  * 2. 本机缓存：localStorage sgx-profile（{v:1, p:{改过的字段}, t}），上次进门时从接口拿到的。
  *    锁屏（进门前不问接口）和子站 AI 窗口「联系我」读它。四站同源，同一份。云同步白名单不收这个键（prefs/cloud-sync.js syncKeys）。

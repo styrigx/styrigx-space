@@ -21,13 +21,13 @@
 | `/status/`、`/zh/status/` | `layouts/_default/status.html` | `apps/entries/entry-space-status.js` | 状态页：`#status`（服务状态，读 `/api/status`，要进站；页底进站凭证使用记录读 `/api/space-audit`）。不在导航 01–04 里，入口是导航面板 STATUS 区的按钮和面板页脚 `systemctl status ›`。about 卡 v5 S7 起只在首页 |
 | `/404.html` | `layouts/404.html` | — | 404 |
 
-2.1 首页 `$` 行只打字轮播英文标语 `hugo.yaml` 的 `params.tagline`（中英页面相同，不翻译；`apps/home-typer.js`，减弱动效时静止）。`#` 行显示账号个人资料的签名 motto：首帧用 `data/profile.yaml` 的默认值，随后 `prefs/profile.js` 以 `/api/profile` 覆盖；空值时整行隐藏，不截断、不翻译。
+2.1 首页 `$` 行只打字轮播英文标语 `hugo.yaml` 的 `params.tagline`（中英页面相同，不翻译；`apps/home-typer.js`，减弱动效时静止）。`#` 行显示账号个人资料的签名 motto：首帧用 `data/shell/profile.yaml` 的默认值，随后 `prefs/profile.js` 以 `/api/profile` 覆盖；空值时整行隐藏，不截断、不翻译。
 
 2.2 v5 S3 起页面两态内容相同，站点核心不再剥掉任何内容（`SGX-DESKTOP` 标记已从模板删除）。
 
 2.3 已退役的页面由 `static/_redirects` 301：`/wild/` → `/status/`（2026-11-12 旷野删除）；`/about/` → `/#about`（`/wellbeing/` v6 P4 删除）；`/theme/` → `/`；`/account/*` → `/#acct=<层>`；`/security/*` → `/#sec…`；`/owner/` → `/#sec=keys`；`/chat/`、`/search/`、`/browser/*`、`/files/*` → `/`。
 
-2.4 版本号唯一来源 `space/web/data/version.yaml`（`ui`、`sgx` 两个字段），模板缺字段即构建失败。
+2.4 版本号唯一来源 `space/web/data/shell/version.yaml`（`ui`、`sgx` 两个字段），模板缺字段即构建失败。
 
 ## 3. 外壳组件
 

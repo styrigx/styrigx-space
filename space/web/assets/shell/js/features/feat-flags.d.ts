@@ -1,5 +1,5 @@
 /* 2.4.0-G：编译期功能开关（Hugo js.Build define 注入，esbuild 替换为 true/false）。
-   由 data/features.yaml 生成，保持同步。 */
+   由 data/shell/features.yaml 生成，保持同步。 */
 declare const SGX_FEAT_THEME_MODE: boolean;
 declare const SGX_FEAT_PALETTE: boolean;
 declare const SGX_FEAT_LAYOUT: boolean;

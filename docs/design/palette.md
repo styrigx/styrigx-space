@@ -11,13 +11,13 @@
 
 ## 0. 数据源与生成链
 
-0.1 颜色值的**唯一来源**是 `space/web/assets/shell/js/ui/palette-scheme.js` 的 `THEMES` + `FG_POOL`。`space/web/data/palettes.yaml`（id / 名字 / 分组）与定稿夹具 `tests/fixtures/palette-v0.3.json` 只是被单测逐项核对的副本。
+0.1 颜色值的**唯一来源**是 `space/web/assets/shell/js/ui/palette-scheme.js` 的 `THEMES` + `FG_POOL`。`space/web/data/shell/palette-source.yaml`（id / 名字 / 分组）与定稿夹具 `tests/fixtures/palette-v0.3.json` 只是被单测逐项核对的副本。
 
 0.2 生成链（CI 对两个脚本都跑 `--check`）：
 
 ```
 palette-scheme.js
-  → node space/scripts/gen-palettes.mjs --roles → space/web/data/palette-roles.json + input.css 的 @gen-palettes 段
+  → node space/scripts/gen-palettes.mjs --roles → space/web/data/shell/palette-roles.json + input.css 的 @gen-palettes 段
   → node space/scripts/gen-shell.mjs           → space/web/assets/shell/css/tokens.css + space/web/data/shell/palettes.json
 ```
 
@@ -189,10 +189,10 @@ palette-scheme.js
 
 ## 8. 改调色板
 
-1. `palette-scheme.js` 的 `THEMES` 加 / 改一行（6 个前景从 `FG_POOL` 挑），`space/web/data/palettes.yaml`、`space/web/data/features.yaml` 的 palette 选项同步。
+1. `palette-scheme.js` 的 `THEMES` 加 / 改一行（6 个前景从 `FG_POOL` 挑），`space/web/data/shell/palette-source.yaml`、`space/web/data/shell/features.yaml` 的 palette 选项同步。
 2. `node space/scripts/gen-palettes.mjs --roles`、`node space/scripts/gen-shell.mjs`，再各跑一次 `--check`。
 3. 单测 `tests/space/ui/theme/palette-scheme.test.mjs` 会核对：对比度审计全过、中性彩度 ≤ 0.012、danger / success 不变、前景 ink 在 tint 上 ≥4.5:1、
-   填充档 on 色 ≥4.5:1、`SEM` / `PINS` 不被改写、22 套没有手调值、palettes.yaml / 定稿夹具和 THEMES 一致。
+   填充档 on 色 ≥4.5:1、`SEM` / `PINS` 不被改写、22 套没有手调值、palette-source.yaml / 定稿夹具和 THEMES 一致。
 
 ## 9. 修订记录
 

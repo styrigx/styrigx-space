@@ -19,10 +19,10 @@ const files = {
   ...generated,
   'topbar.html': readFileSync(path.join(REPO, 'space/web/layouts/partials/shell/shell-topbar.html'), 'utf8'),
   'footer.html': readFileSync(path.join(REPO, 'space/web/layouts/partials/shell/sgx-footer.html'), 'utf8'),
-  'i18n-en.yaml': readFileSync(path.join(REPO, 'space/web/data/sgx-shell-i18n/en.yaml'), 'utf8'),
-  'i18n-zh.yaml': readFileSync(path.join(REPO, 'space/web/data/sgx-shell-i18n/zh.yaml'), 'utf8'),
+  'i18n-en.yaml': readFileSync(path.join(REPO, 'space/web/data/shell/sgx-shell-i18n/en.yaml'), 'utf8'),
+  'i18n-zh.yaml': readFileSync(path.join(REPO, 'space/web/data/shell/sgx-shell-i18n/zh.yaml'), 'utf8'),
 };
-const ROLES = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/palette-roles.json'), 'utf8'));
+const ROLES = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/shell/palette-roles.json'), 'utf8'));
 
 test('共享外壳的四个派生文件和源头一致（改了源头要重跑 node space/scripts/gen-shell.mjs）；没有 shared/shell 副本目录', () => {
   for (const [k, v] of Object.entries(generated)) assert.equal(readFileSync(path.join(REPO, OUT[k]), 'utf8'), v, OUT[k]);
@@ -106,8 +106,8 @@ test('nav.json（顶栏 v3 NAVIGATE / tmux 页脚，2026-11 UI 重设计 PR-1）
   assert.equal(nav.icons['ai-search'], undefined);
   // 页脚外链（README 同一组）
   assert.deepEqual(nav.links, { github: 'https://github.com/styrigx', x: 'https://x.com/styrigx' });
-  // 头像（子站链到主站账号页）；2026-11-07 个人资料：me.email = data/profile.yaml 的对外联系邮箱（gen-shell 注入，子站 AI 窗口「联系我」默认值）
-  const prof = yaml.load(readFileSync(path.join(REPO, 'space/web/data/profile.yaml'), 'utf8'));
+  // 头像（子站链到主站账号页）；2026-11-07 个人资料：me.email = data/shell/profile.yaml 的对外联系邮箱（gen-shell 注入，子站 AI 窗口「联系我」默认值）
+  const prof = yaml.load(readFileSync(path.join(REPO, 'space/web/data/shell/profile.yaml'), 'utf8'));
   assert.deepEqual(nav.me, { href: 'https://styrigx.com/account/', avatar: 'https://styrigx.com/avatar/192.webp', email: prof.email });
   assert.equal(prof.email, 'styrigx@gmail.com');
   const tr = { en: yaml.load(files['i18n-en.yaml']), zh: yaml.load(files['i18n-zh.yaml']) };

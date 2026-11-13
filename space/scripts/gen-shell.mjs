@@ -5,12 +5,12 @@
  * 和 JS（assets/shell/js/ 各组），没有副本、没有同步脚本、没有 lock。
  *
  * 只剩四个由源头算出来、没法直接引用的派生文件由本脚本生成（勿手改，改源头后重跑本脚本）：
- *   space/web/assets/shell/css/tokens.css  25 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；space/web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
+ *   space/web/assets/shell/css/tokens.css  25 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；space/web/data/shell/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
  *                                          + 调色板派生 token（tag / chart）+ 组件别名层
  *   space/web/assets/shell/css/shell.css   顶栏（全大椭圆）、快捷面板 + AI 窗口、页头 / 子页共用件、宽屏平铺：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
  *                                          （子站样式表 @import 这两份：assets/blog/css/input.css、assets/curio/css/input.css、assets/daymark/css/input.css）
- *   space/web/data/shell/nav.json          快捷面板导航页的项（space/web/data/shell-nav.json）+ 用到的图标 SVG（space/web/layouts/partials/shell/icon.html）
- *                                          + me.email：对外联系邮箱（space/web/data/profile.yaml 的 email；子站 AI 窗口「联系我」的默认值）
+ *   space/web/data/shell/nav.json          快捷面板导航页的项（space/web/data/shell/shell-nav.json）+ 用到的图标 SVG（space/web/layouts/partials/shell/icon.html）
+ *                                          + me.email：对外联系邮箱（space/web/data/shell/profile.yaml 的 email；子站 AI 窗口「联系我」的默认值）
  *                                          + 字标 SVG wordmark（space/web/layouts/partials/shell/shell-wordmark.html）；子站模板读 site.Data.shell.nav
  *   space/web/data/shell/palettes.json     预设 id / 名字 / 分组 / 种子 / 背景色 / 6 前景 + 每套亮暗的 Shell + Semantic token 值（含 bg-1..7、chart-1..6）
  *                                          + 默认值 + 子站自定义色缓存版本号；子站模板读 site.Data.shell.palettes
@@ -37,10 +37,10 @@ export const OUT = Object.freeze({
   'palettes.json': 'space/web/data/shell/palettes.json',
 });
 const SRC = {
-  roles: path.join(REPO, 'space/web/data/palette-roles.json'),
+  roles: path.join(REPO, 'space/web/data/shell/palette-roles.json'),
   css: path.join(REPO, 'space/web/assets/shell/css/input.css'),
-  nav: path.join(REPO, 'space/web/data/shell-nav.json'),
-  profile: path.join(REPO, 'space/web/data/profile.yaml'),
+  nav: path.join(REPO, 'space/web/data/shell/shell-nav.json'),
+  profile: path.join(REPO, 'space/web/data/shell/profile.yaml'),
   icons: path.join(REPO, 'space/web/layouts/partials/shell/icon.html'),
   wordmark: path.join(REPO, 'space/web/layouts/partials/shell/shell-wordmark.html'),
   topbar: path.join(REPO, 'space/web/layouts/partials/shell/shell-topbar.html'),
@@ -56,7 +56,7 @@ const SRC = {
   layoutMode: path.join(REPO, 'space/web/assets/shell/js/ui/layout-mode.js'),
   langPath: path.join(REPO, 'space/web/assets/shell/js/i18n/lang-path.js'),
   langBoot: path.join(REPO, 'space/web/assets/shell/js/i18n/lang-boot.js'),
-  shellI18n: path.join(REPO, 'space/web/data/sgx-shell-i18n'),
+  shellI18n: path.join(REPO, 'space/web/data/shell/sgx-shell-i18n'),
 };
 export const READER_SRC = SRC.reader;
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
@@ -95,7 +95,7 @@ export function readWordmark() {
   return svg;
 }
 
-const PRESETS_BEGIN = '  /* @ui-cookie-presets:begin（space/scripts/gen-shell.mjs 按 space/web/data/palette-roles.json + palette-scheme.js 生成，勿手改） */';
+const PRESETS_BEGIN = '  /* @ui-cookie-presets:begin（space/scripts/gen-shell.mjs 按 space/web/data/shell/palette-roles.json + palette-scheme.js 生成，勿手改） */';
 const PRESETS_END = '  /* @ui-cookie-presets:end */';
 
 /** ui-cookie-read.js 的 @ui-cookie-presets 段：预设 id → 种子（= palettes.json 的顺序）+ 深套 id 列表（DARK，首帧据此设 dark 类）+ 每套底色（BG） */
@@ -132,7 +132,7 @@ function renderTokens(data) {
     .map((l) => l.replace(/^ {2}/, ''))
     .join('\n');
   return (
-    HEAD('space/web/data/palette-roles.json') +
+    HEAD('space/web/data/shell/palette-roles.json') +
     '/* 25 套七色调色板：<html data-palette="<id>">（默认 terra 不写）；每套只有一个模式（浅套 / 深套由底色决定），深套时 <html class="dark">。 */\n' +
     block +
     '\n/* 调色板派生 token（tag / chart）：只引用上面的色调 token */\n' +
@@ -163,10 +163,10 @@ function renderNav() {
   const wordmark = readWordmark();
   /* 2026-11-07 个人资料：对外联系邮箱的默认值（profile.yaml 是唯一来源，子站从 me.email 传给顶栏） */
   const prof = yaml.load(readFileSync(SRC.profile, 'utf8')) || {};
-  if (typeof prof.email !== 'string' || !prof.email) throw new Error('space/web/data/profile.yaml 缺 email');
+  if (typeof prof.email !== 'string' || !prof.email) throw new Error('space/web/data/shell/profile.yaml 缺 email');
   nav.me = Object.assign({}, nav.me || {}, { email: prof.email });
   return (
-    JSON.stringify({ _generated: 'styrigx-space space/scripts/gen-shell.mjs ← space/web/data/shell-nav.json + profile.yaml（me.email）+ icon.html + shell-wordmark.html；勿手改', ...nav, wordmark, icons }, null, 2) +
+    JSON.stringify({ _generated: 'styrigx-space space/scripts/gen-shell.mjs ← space/web/data/shell/shell-nav.json + profile.yaml（me.email）+ icon.html + shell-wordmark.html；勿手改', ...nav, wordmark, icons }, null, 2) +
     '\n'
   );
 }
@@ -229,10 +229,10 @@ export function renderLangBoot() {
   return src;
 }
 
-/** 外壳字符串表（语言包化 2026-11-07）：space/web/data/sgx-shell-i18n/<语言>.yaml 原样复制成 i18n-<语言>.yaml（有几种语言复制几份；必须有 en.yaml） */
+/** 外壳字符串表（语言包化 2026-11-07）：space/web/data/shell/sgx-shell-i18n/<语言>.yaml 原样复制成 i18n-<语言>.yaml（有几种语言复制几份；必须有 en.yaml） */
 export function renderShellI18n() {
   const names = readdirSync(SRC.shellI18n).filter((f) => /^[a-z]{2,3}\.yaml$/.test(f)).sort();
-  if (!names.includes('en.yaml')) throw new Error('space/web/data/sgx-shell-i18n/ 必须有 en.yaml（英文是源文本、缺键回退英文）');
+  if (!names.includes('en.yaml')) throw new Error('space/web/data/shell/sgx-shell-i18n/ 必须有 en.yaml（英文是源文本、缺键回退英文）');
   return Object.fromEntries(names.map((f) => ['i18n-' + f, readFileSync(path.join(SRC.shellI18n, f), 'utf8')]));
 }
 
@@ -301,7 +301,7 @@ function renderPalettes(data) {
   return (
     JSON.stringify(
       {
-        _generated: 'styrigx-space space/scripts/gen-shell.mjs ← space/web/data/palette-roles.json；勿手改',
+        _generated: 'styrigx-space space/scripts/gen-shell.mjs ← space/web/data/shell/palette-roles.json；勿手改',
         default: DEFAULT_ID,
         /* 子站据此判断自己消费的是哪一版调色板用法规则（docs/design/palette.md）；规则变了手动加一 */
         rulesVersion: RULES_VERSION,
@@ -366,8 +366,8 @@ export const SHELL_FILES = Object.freeze({
   'lang-boot.js': 'space/web/assets/shell/js/i18n/lang-boot.js',
   'lang-path.html': 'space/web/layouts/partials/shell/sgx-lang-path.html',
   'tr.html': 'space/web/layouts/partials/shell/sgx-tr.html',
-  'i18n-en.yaml': 'space/web/data/sgx-shell-i18n/en.yaml',
-  'i18n-zh.yaml': 'space/web/data/sgx-shell-i18n/zh.yaml',
+  'i18n-en.yaml': 'space/web/data/shell/sgx-shell-i18n/en.yaml',
+  'i18n-zh.yaml': 'space/web/data/shell/sgx-shell-i18n/zh.yaml',
   'favicon.js': 'space/web/assets/shell/js/ui/favicon.js',
   'favicon.svg': 'space/web/static/favicon.svg',
 });

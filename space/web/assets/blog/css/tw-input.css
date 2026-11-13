@@ -18,6 +18,6 @@
 @source "../../shell/js/{topbar/topbar-panel,ui/modal-sheet,ai/ai-panel,ui/vk}.js";
 @source "../../shell/js/{ui/palette-scheme,prefs/prefs-write,prefs/ui-cookie-read,ui/layout-mode,i18n/lang-path,i18n/lang-boot}.js";
 @source "../../../data/shell";
-@source "../../../data/sgx-shell-i18n";
+@source "../../../data/shell/sgx-shell-i18n";
 
 @custom-variant dark (&:where(.dark, .dark *));

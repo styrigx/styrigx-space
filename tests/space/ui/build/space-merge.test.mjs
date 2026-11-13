@@ -1,6 +1,6 @@
 /**
  * P4-3 PR-4b（§6.4 / §6.5，§8 第 6 条）：主页和设置合成「旷野 / Space」，原设置子页去掉 settings 一层挂到根下。
- * - 单一数据源对得上：data/space-cats.yaml 的分类 ↔ content 的 url
+ * - 单一数据源对得上：data/shell/space-cats.yaml 的分类 ↔ content 的 url
  * - 根下新路径不和子站前缀、账号页、各 Worker 路由、网关转发表、静态目录、_redirects 的旧跳转撞名
  * - 构建产物（有才跑；CI 在拼树之后补跑）：没有 settings/ 目录；任何 HTML 都没有指向旧设置层的 href；新地址都在
  * - 全仓 git grep 旧设置层地址只剩历史文档
@@ -20,7 +20,7 @@ const rd = (/** @type {string} */ p) => readFileSync(path.join(REPO, p), 'utf8')
 const OLD = 'settings';
 const OLD_PATH = '/' + OLD + '/';
 
-const cats = /** @type {any} */ (yaml.load(rd('space/web/data/space-cats.yaml'))).cats.map((/** @type {any} */ c) => String(c.id));
+const cats = /** @type {any} */ (yaml.load(rd('space/web/data/shell/space-cats.yaml'))).cats.map((/** @type {any} */ c) => String(c.id));
 /** 主站门内子页的地址（英文；中文前加 /zh，P4-3 PR-4c） */
 const NEW_PATHS = cats.map((c) => '/' + c + '/'); /* 进站 v3 L1：/security/、/security/lock/、/security/tempkeys/ 删了（盾牌下拉） */
 

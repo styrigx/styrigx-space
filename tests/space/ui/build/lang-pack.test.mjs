@@ -38,7 +38,7 @@ test('各站字符串表：每种语言的键都是英文表的子集；英文�
   }
 });
 
-test('外壳字符串表只有主站一份（2026-11 合站后子站直接读 data/sgx-shell-i18n，没有副本）', () => {
+test('外壳字符串表只有主站一份（2026-11 合站后子站直接读 data/shell/sgx-shell-i18n，没有副本）', () => {
   for (const s of ['blog', 'curio', 'daymark']) assert.ok(!existsSync(path.join(REPO, 'space/web/data', s, 'sgx-shell-i18n')), s);
   assert.ok(tableLangs('space', 'sgx-shell-i18n').includes('en'));
 });
@@ -75,11 +75,11 @@ test('模板不再按语言二选一：主站 / 奇趣 / 日刻模板没有 $isE
 
 test('数据文件不带中英文字段（文案在字符串表）；签名 motto 是个人资料单一值（Gray 2026-11-07）', () => {
   for (const f of ['features.yaml', 'space-cats.yaml', 'sites.yaml', 'sync-items.yaml']) {
-    const s = rd('space/web/data/' + f).replace(/^\s*#.*$/gm, '');
+    const s = rd('space/web/data/shell/' + f).replace(/^\s*#.*$/gm, '');
     assert.doesNotMatch(s, /\b(zh|en|sub_zh|sub_en|label_zh|label_en|motto_zh|motto_en):/, f);
   }
   assert.ok(!existsSync(path.join(REPO, 'space/web/data/en/sites.yaml')), 'en/sites.yaml 合进 sites.yaml');
-  const prof = rd('space/web/data/profile.yaml');
+  const prof = rd('space/web/data/shell/profile.yaml');
   assert.match(prof, /^motto: .+$/m);
   assert.doesNotMatch(prof, /motto_(zh|en)/);
 });

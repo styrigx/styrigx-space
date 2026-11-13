@@ -1,9 +1,9 @@
-{{/* 站点地图：页面清单只来自 data/public-pages.yaml（想让搜索引擎收录的页；v5 S3 起整站都公开，其余主站页模板自带 noindex，
+{{/* 站点地图：页面清单只来自 data/shell/public-pages.yaml（想让搜索引擎收录的页；v5 S3 起整站都公开，其余主站页模板自带 noindex，
    子站各有自己的站点地图）。tests/workers/space-core/sitemap.test.mjs 核对。
    P4-3 PR-4c：只在根上出一份（输出格式 sitemappublic，root: true）；中英两种语言各渲染一次但内容完全相同，谁后写都一样。 */}}
 {{ printf "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>" | safeHTML }}
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  {{ range (index .Site.Data "public-pages").pages }}
+  {{ range (index .Site.Data "shell" "public-pages").pages }}
   <url>
     <loc>{{ site.BaseURL }}{{ strings.TrimPrefix "/" . }}</loc>
   </url>

@@ -69,7 +69,7 @@ test('设备「上次活动」相对时间；会话开始时间', () => {
 function keysOf(o, pre) {
   return Object.entries(o || {}).flatMap(([k, v]) => (v && typeof v === 'object' ? keysOf(v, (pre ? pre + '.' : '') + k) : [(pre ? pre + '.' : '') + k]));
 }
-const TR = Object.fromEntries(['zh', 'en'].map((l) => [l, /** @type {any} */ (yaml.load(rd('space/web/data/sgx-shell-i18n/' + l + '.yaml')))]));
+const TR = Object.fromEntries(['zh', 'en'].map((l) => [l, /** @type {any} */ (yaml.load(rd('space/web/data/shell/sgx-shell-i18n/' + l + '.yaml')))]));
 
 test('字符串表：account.* 中英键一致；旧的平铺 acct 节删了；代码里写死的键两种语言都有', () => {
   assert.equal(TR.zh.acct, undefined);

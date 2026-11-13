@@ -60,7 +60,7 @@ test('访客：所有要身份的命令提示先 su <用户>（同身份层 notS
   assert.deepEqual(L.calls, []);
   assert.equal(TERM_EN.needSu, 'not signed in · {x} first');
   for (const lang of ['en', 'zh']) {
-    const t = yaml.load(rd('space/web/data/sgx-shell-i18n/' + lang + '.yaml'));
+    const t = yaml.load(rd('space/web/data/shell/sgx-shell-i18n/' + lang + '.yaml'));
     assert.equal(t.term.needSu.replace('{x}', 'su ' + t.term.suUser), t.identity.notSignedIn, lang + '：终端访客提示 = 身份层 notSignedIn');
     assert.equal(t.account.v6.notSignedIn, t.identity.notSignedIn, lang);
     assert.equal(t.account.v6.forbidden, t.term.needRoot6, lang);
