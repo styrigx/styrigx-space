@@ -392,6 +392,36 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .dark .sgx-theme .sgx-qp-sheet { box-shadow: 0 20px 50px rgba(0,0,0,.5); }
 :root[data-sgx-layout="desktop"] .sgx-nav .sgx-qp-sheet { right: calc((100% - var(--sgx-tb-w)) / 2 + 44px); width: min(360px, var(--sgx-tb-w)); }
 :root[data-sgx-layout="desktop"] .sgx-theme .sgx-qp-sheet { right: calc((100% - var(--sgx-tb-w)) / 2 + 92px); width: min(260px, var(--sgx-tb-w)); }
+/* 小遥控层 #sgx-mu（音乐方案 v1.13 §九，顶栏音乐图标下）：同外观卡的实色卡、不压暗页面；240 宽、圆角 14、内边距 12 14。
+   右缘：手机对齐顶栏内容区；桌面让到音乐按钮下面（右缘再往左 149px = 音乐按钮右缘到内容区右缘，桌面步距 44：盾牌 · 分隔线 · 终端 · 头像）。
+   NOW PLAYING 小字 · 歌名（正文 15px，一行省略）· 歌手 · 一排：上一曲 · 播放/暂停 · 下一曲 · 右边「播放器 ↗」 */
+.sgx-mu.is-open { background-color: transparent; }
+.sgx-mu .sgx-qp-sheet { top: 0; left: auto; right: calc((100% - var(--sgx-tb-w)) / 2); width: min(240px, var(--sgx-tb-w)); max-width: none; margin: 0; padding: 12px 14px;
+  border-radius: 14px; border-color: var(--sgx-term-line); background: var(--sgx-surface); -webkit-backdrop-filter: none; color: var(--sgx-text-primary);
+  box-shadow: 0 20px 50px rgba(0,0,0,.22); opacity: 0; transform: translateY(-4px); transition: opacity .16s ease, transform .16s ease; }
+:root[data-sgx-layout="desktop"] .sgx-mu .sgx-qp-sheet { right: calc((100% - var(--sgx-tb-w)) / 2 + 149px); width: min(240px, var(--sgx-tb-w)); }
+.dark .sgx-mu .sgx-qp-sheet { box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+.sgx-mu.is-open .sgx-qp-sheet { opacity: 1; transform: none; }
+@supports (backdrop-filter: blur(1px)) { .sgx-mu .sgx-qp-sheet { backdrop-filter: none; } }
+.reduced-motion .sgx-mu .sgx-qp-sheet { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-mu .sgx-qp-sheet { transition: none; } }
+.sgx-mu-k { margin: 0 0 6px; font-family: var(--sgx-font-mono); font-size: 11px; letter-spacing: var(--sgx-track-label); color: var(--sgx-text-tertiary); }
+.sgx-mu-t, .sgx-mu-a { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sgx-mu-t { font-size: 15px; font-weight: 600; line-height: 1.35; }
+.sgx-mu-a { margin-top: 2px; font-size: 12px; color: var(--sgx-text-secondary); }
+.sgx-mu-ctl { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.sgx-mu-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid var(--sgx-term-line); border-radius: 10px;
+  background: transparent; color: var(--sgx-text-primary); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.sgx-mu-btn svg { width: 18px; height: 18px; }
+.sgx-mu-tg { border-color: var(--sgx-primary); background: var(--sgx-term-sel); color: var(--sgx-primary); }
+.sgx-mu-tg .sgx-mu-pause, .sgx-mu-tg.is-playing .sgx-mu-play { display: none; }
+.sgx-mu-tg.is-playing .sgx-mu-pause { display: block; }
+.sgx-mu-open { margin-left: auto; padding: 6px 2px; border: 0; background: transparent; font-family: var(--sgx-font-mono); font-size: 12px; color: var(--sgx-primary); cursor: pointer; border-radius: 4px; }
+@media (hover: hover) and (pointer: fine) { .sgx-mu-btn:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); } .sgx-mu-open:hover { text-decoration: underline; text-underline-offset: 3px; } }
+.sgx-mu-btn:focus-visible, .sgx-mu-open:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+/* 音乐图标的播放态：正在出声 = 右上角一个主题色小点（不占宽度，方案 §九）；用 ::before，::after 是触屏 44×44 点击区 */
+.sgx-tb-music { position: relative; }
+.sgx-tb-music.is-playing::before { content: ""; position: absolute; top: 7px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--sgx-primary); box-shadow: 0 0 0 2px var(--sgx-surface); pointer-events: none; }
 /* NAVIGATE 头：$ NAVIGATE · 01/05（字距 3px、次要色）；下面一条线 */
 .sgx-nav-h, .sgx-nav-f { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 20px; font-size: 12px; letter-spacing: var(--sgx-track-label); color: var(--sgx-text-secondary); }
 .sgx-nav-h { border-bottom: 1px solid var(--sgx-term-line); }
