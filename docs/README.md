@@ -61,7 +61,13 @@
 | SGX-SPEC-005 | [`tasks/v6-identity-migration.md`](tasks/v6-identity-migration.md) | 草案 | v6 数据迁移对照表：凭据 → root / styrigx、pepper 来源、userHandle |
 | — | [`tasks/space-architecture-standardization-draft-v1.12.md`](tasks/space-architecture-standardization-draft-v1.12.md) | 定稿 | space 架构规范 v1.12 |
 | — | [`tasks/directory-rename-draft-v1.7.md`](tasks/directory-rename-draft-v1.7.md) | 定稿 | 目录改名定稿 v1.7 |
-| — | [`tasks/v6-身份统一方案-最终稿-v5.5.md`](tasks/v6-身份统一方案-最终稿-v5.5.md) | 定稿 | v6 身份统一方案定稿 v5.5 |
+| — | [`tasks/styrigx-redesign.pdf`](tasks/styrigx-redesign.pdf) | 定稿 | 改版设计稿（2026-11-07） |
+| — | [`tasks/NAMING-V2.md`](tasks/NAMING-V2.md) | 定稿 | 账号命名 v2（2026-11-08） |
+| — | [`tasks/SPACE-V3.md`](tasks/SPACE-V3.md) | 定稿 | 进站命名 v3（2026-11-09，含锁屏与盾牌那轮决定） |
+| — | [`tasks/终端统一设计稿-v1.5.txt`](tasks/终端统一设计稿-v1.5.txt) | 定稿 | 终端统一设计稿 v1.5（2026-11-09） |
+| — | [`tasks/term-design-v5.md`](tasks/term-design-v5.md) | 定稿 | 终端设计 v5（2026-11-10） |
+| — | [`tasks/v6-身份统一方案-最终稿-v5.6.md`](tasks/v6-身份统一方案-最终稿-v5.6.md) | 定稿 | v6 身份统一方案定稿 v5.6 |
+| — | [`tasks/proxy-sub-design-final.md`](tasks/proxy-sub-design-final.md) | 定稿 | 代理订阅服务设计稿 v1.10 |
 | ADR-0001 | [`decisions/ADR-0001-one-repo-one-site.md`](decisions/ADR-0001-one-repo-one-site.md) | 决策 | 子站并入一个仓库、一个 Hugo 站 |
 | ADR-0002 | [`decisions/ADR-0002-lock-screen.md`](decisions/ADR-0002-lock-screen.md) | 决策 | 锁屏方案演进：Turnstile → 临时钥匙 → 命令行进站 |
 | ADR-0003 | [`decisions/ADR-0003-account-v3.md`](decisions/ADR-0003-account-v3.md) | 决策 | 账号与进站 V3：门归网站、账号管授权 |

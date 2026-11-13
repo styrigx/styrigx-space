@@ -1,0 +1,224 @@
+# 终端统一 设计稿 v1.5（给 Gray / Muse 审）
+
+> 基于 `styrigx/styrigx-space` main `225888e9`（#371）。本稿只定方案：不写代码、不开 PR。测试归 Muse；不重拍视觉基线。
+
+## 0. 原则（Gray 已定）
+
+1. **五个 tty**（Gray 01:59 定：盾牌、账号不合并）：tty1 锁屏、tty2 主页（首屏终端 + 全站 Ctrl K 抽屉）、tty3 盾牌下拉、tty4 AI、tty5 账号（头像下拉）。新增 `tty` 命令：显示当前 tty，`tty <n>` 切换。
+2. **一个引擎 + 一张命令注册表**：每条命令一个对象（名称、可用 tty、参数、补全、man 页、run）。
+3. **只有 tty1 按入口限制命令**（白名单：解锁相关、help、man、clear、tty），锁屏也只加载白名单命令的代码。tty2/3/4/5 用同一张全表。服务端鉴权不变：登录、reauth、reset 照旧由 Worker 判，前端白名单不算鉴权。
+4. **命令行不跳页**：唯一跳到 GUI 的是 `open <路径>`（类似 xdg-open）；`cd` / `ls` / `pwd` 只在命令行里走虚拟目录。reauth、确认、遮挡输入、文件选择、复制链接都在当前 tty 里原地完成。
+5. **man**：`man <命令>` 每条一页，格式同现有锁屏的 `man styrigx`（Gray 口中的「man space」）：`NAME(1)` / NAME / SYNOPSIS / DESCRIPTION / SEE ALSO / `(END)`，按 q 退出。光打 `man` 出索引；`help` 是简短列表。
+6. **外观一律不动**：布局、配色、字体、尺寸、DOM 结构、类名都不改。视觉测试应当没有 diff。
+7. **代码按职责分文件夹、分文件。**
+8. **只借 Linux 终端的习惯，不做完整 shell**：借的是「命令 + 参数」、man、tab 补全、历史、提示符。
+
+### 不做清单
+| 不做 | 说明 |
+|---|---|
+| 管道 `\|` | 不解析，`\|` 当普通字符，原样进参数 |
+| 重定向 `> >> <` | 同上 |
+| 变量 `$X`、`export`、命令替换 `` `…` `` / `$(…)` | 不展开 |
+| 脚本 / 多条命令 `;` `&&` `\|\|`、`source` | 一行只跑一条命令 |
+| 通配符 `* ? [..]`、花括号展开 | 不展开，当字面量 |
+| 引号转义、别名定义 `alias`、作业控制 `& fg bg` | 参数一律按空白切开；名称里不许有空格（sub-add 等命令会校验） |
+
+## 1. 现状盘点
+
+### 1.1 三份引擎
+| | **A** `shell/terminal.js`（715 行 / 29 KB） | **B** `shell/space/term.js`（332 行 / 16 KB） | **C** `shell/account/term.js`（695 行 / 36 KB） |
+|---|---|---|---|
+| 入口 | `createShell` + `mountTermView` | `createTerm`（宿主传 `onCmd`/`ps`） | `mountAccountTerm`（引擎和宿主写在一起） |
+| 宿主 | 主页 `[data-sgx-term="home"]` + 抽屉 `#sgx-term`（topbar-panel.js 经 quick-panel 传入，同一个实例） | 锁屏 `space/entry.js`、盾牌 `space/shield.js` | 账号下拉 `#sgx-acct`（quick-panel.js、daymark topbar-host.js） |
+| 命令分发 | `exec()` 里的 switch | 宿主自己写：`parseEntryCmd` / `parseResetCmd` / `parseShieldCmd`（space/commands.js） | `parseCmd`（account/commands.js）+ `runCmd` 里的 switch |
+| 提示符 | 环境提示符：`styrigx@space:~$` / `root@account:~#`，cd 后带路径 | `entry@space:~$`、`reset@space:~#`、`styrigx@space:~#`、秘密行 `[sudo] password for x:` / `tempkey:` / `[sudo] recovery key:`、选择时 `>` | `login@account:~$`、`root@account:~#`、`reset@account:~#`、选择时 `>` |
+| 历史 | ↑↓ + 草稿，sessionStorage `sgx-term-hist`，最多 50 条 | ↑↓，只在内存里，没有草稿 | **没有** |
+| 补全 | Tab 补全 + 淡色影子（→ 接受） | **没有** | **没有** |
+| 打错提示 | 自带一份 `lev`/`suggest`（不能 import，抄的） | `shell/suggest.js` | `shell/suggest.js` |
+| 输入模式 | 只有命令行；异步命令时禁用输入 | cmd · pick · pw · temp · rkey · newpw · newpw2 · pkname · busy · done | cmd · pick · pw · rkey · newpw · newpw2 · pkname · busy |
+| 输出 | 片段 `[类, 文字, 链接]`，只用 `textContent` | `innerHTML` + `esc`，类前缀 `p`（`sgx-entry` / `sgx-at`） | `innerHTML` + `esc`，类前缀写死 `sgx-at` |
+| ^C / esc / IME | Ctrl C、Ctrl L；没有 IME 补提交 | ^C、esc、触屏 ^C 按钮、IME 回车由 keyup 补提交（#333） | 同 B（这段代码几乎逐行相同） |
+| 文案 | `termStrings`（i18n 的 term 节）+ 抄来的 `khStrings` | `shellTable(doc,'space')` + `flatStrings` | 自带一份 `flatStrings`（i18n 的 account 节） |
+| 约束 | gen-shell `renderStandalone`：**不许 import** | 无 | 无 |
+
+**重复的部分**：`flatStrings`（B、C 各一份），`lev`/`suggest`（A 抄了 suggest.js），`normCmd`（space/commands、account/commands 各一份），`MAX_TRIES`/`TRIES_OVER`/`TRY_AGAIN`（两份），`ENV_GUEST`/`ENV_ROOT` 和 `ROOT_COMMAND`/`ADMIN_COMMAND`（A 里抄了一份）。B、C 的输入行逻辑（setMode/toCmd/ask/pick/focusIn/interrupt/submit/IME keyup/选项点击）有约 200 行几乎一样。
+
+### 1.2 现有命令清单
+| 终端 | 命令 | 备注 |
+|---|---|---|
+| tty2 主页/抽屉 | `help`/`?` | 三栏帮助，主页挂载时自动跑一次 |
+| | `cd <blog\|curio\|daymark\|wild\|~\|..>` | 主页上滚到对应区块，**其他页跳到那个站**（违反原则 4） |
+| | `ls [目录]` | 列目录；daymark 下列出 `today` |
+| | `cat daymark/today` | 异步取今日一句 |
+| | `sudo root [reauth\|reset]` | **打开账号下拉**；`sudo styrigx` **打开盾牌** |
+| | `theme [dark\|light\|auto]` | 不带参数打开外观面板 |
+| | `lock` · `ask <问题>` · `clear`/`cls` | ask 会打开 AI 窗口并代发问题 |
+| tty1 锁屏 | `sudo styrigx [passkey\|password\|tempkey]` · `sudo styrigx reset` | 进站、恢复钥匙 |
+| | `help`/`?`/**`ls`** · `man styrigx`/`man` · `clear`/`cls` | ls 在这里是 help 的别名 |
+| tty1 reset 层 | `passwd` · `passkey ls\|add\|rm <n>` · `exit`/`logout` · help · clear | 提示符 `reset@space:~#` |
+| tty3 盾牌（`styrigx@space:~#`） | `sudo styrigx reauth [passkey\|password]` · `lock` · `exit` · help/ls/man · clear；在 keys 层还有 `passwd`、`passkey add` | |
+| tty5 账号 | `sudo root`（`sudo -i`/`su`/`login`）· `sudo root reauth`（`sudo -v`）· `sudo root reset` · `exit`/`logout` · `passwd` · `passkey add` · `cd profile\|devices\|security\|apps\|~\|..` · help/?/man/ls · clear | cd 在这里是切换下拉里的层 |
+| tty4 AI | 没有命令行（`ai-panel.js` 是聊天窗口，也不许 import） | |
+| 测试 | 单元测试：`tests/space/ui/shell/{terminal,suggest,keyhint,shared-shell,detail-pass}.test.mjs`、`ui/account/term.test.mjs`。e2e：`e2e/topbar/{terminal,shield}.spec.js`、`e2e/lock/*`、`e2e/account/term.spec.js`、`e2e/helpers/lock-term.cjs`、`e2e/visual/lock.spec.js` | |
+
+## 2. 目标架构
+
+### 2.1 文件结构（`space/web/assets/js/shell/` 下）
+```
+term/
+  core/
+    engine.js      createEngine({tty, registry, host})：解析 → 查表 → 执行；模式（cmd/pick/secret/busy/pager）；^C 中断
+    registry.js    register()/get()/list(tty)/names(tty)；tty1 白名单在这里做过滤
+    parse.js       normCmd、parse（只按空白切，见「不做清单」）
+    complete.js    complete / ghost / commonPrefix（从 A 搬过来，候选改从表里取）
+    history.js     每个 tty 一份；秘密输入、选择输入不进历史
+    prompt.js      各 tty 的提示符规则（原样搬，字符串不变）
+    suggest.js     lev/suggest（shell/suggest.js 移进来，原路径留一个 re-export）
+    strings.js     flatStrings、shellTable、termStrings、khStrings（只留一份）
+    tty.js         tty 状态：当前 tty、切换、各 tty 宿主的登记
+  view/
+    line-view.js   输出渲染：片段 → DOM，类前缀由宿主传入（sgx-term / sgx-entry / sgx-at），产出的 DOM 和现在一致
+    input-line.js  B、C 合并后的输入行（模式、秘密输入、pick、触屏 ^C、IME keyup 补提交、焦点归还）
+  cmds/
+    base/   help.js man.js clear.js tty.js open.js
+    fs/     cd.js ls.js pwd.js cat.js        虚拟目录树放在 fs/tree.js
+    ui/     theme.js lock.js ask.js
+    space/  sudo-styrigx.js reset-*.js        锁屏 / 盾牌的凭证命令，调用现有 space/session.js、reset.js、reauth.js
+    account/ sudo-root.js exit.js passwd.js passkey.js
+    sub/    （P2）sub.js sub-key.js sub-link.js sub-add.js sub-upload.js sub-mv.js sub-on.js sub-off.js sub-rm.js sub-refresh.js
+    index-tty1.js  只 import 白名单里的命令（锁屏 chunk 只带这些）
+    index-full.js  全表（tty2/3/4/5）
+  man/
+    <命令>.js     man 页数据（键指向 i18n），由 man.js 按统一格式渲染
+```
+宿主文件保留原位、变薄：`terminal.js`（tty2，继续导出 `createShell`/`mountTermView`/`parse`/`complete`… 保证现有测试的 import 不坏）、`space/entry.js`（tty1）、`space/shield.js`（tty3）、`account/term.js`（tty5）。各业务模块（session/reauth/reset/keys/devices/grants/profile/tempkeys/links）不动，只是改为由命令对象调用。
+
+### 2.2 tty 切换与状态
+- `tty.js` 记住当前 tty。每个宿主挂载时登记 `{n, show(), ps(), surface}`。
+- `tty`：显示 `tty2`（简化版：Linux 的 tty 输出设备路径如 `/dev/pts/0`，这里只输出编号名）。`tty 3` 打开 tty3 的宿主（盾牌下拉），`tty 5` 打开账号下拉，`tty 4` 打开 AI 窗口，`tty 2` 打开 Ctrl K 抽屉（在主页则聚焦首屏终端）。这是切 tty，不算跳页，也不跳 URL。
+- tty1 里 `tty` 只显示；`tty <n>` 输出 `tty: permission denied`，因为还没进站。
+- `sudo root …` / `sudo styrigx …` 不再打开下拉，而是在当前 tty 原地跑验证（原则 4）。要进账号的 GUI 层就用 `open ~/account/security` 这类命令。
+- 每个 tty 的 cwd 和输入模式各自保存，切 tty 不会互相干扰。
+
+### 2.3 补全 / 历史 / 提示符怎么统一
+- **补全**：第 1 个词从 `registry.names(tty)` 里取；后面的词调用该命令的 `complete(args, ctx)`（虚拟路径、来源名等）。五个 tty 都有 Tab 补全（tty4 只在 `$ ` 开头时）。影子（淡色提示）只在有 `[data-term-ghost]` 元素的 tty2 显示，其余 tty 没有这个元素，外观不变。
+- **历史**：`history.js` 统一处理 ↑↓、草稿、去掉相邻重复、上限 50 条。tty2 继续用 `sgx-term-hist`（键名不变）；tty3 用 `sgx-term-hist-3`（sessionStorage）；tty1 只放内存（锁屏不落盘）。秘密模式下的输入一律不进历史。
+
+**五个 tty 一览**
+| tty | 宿主 | 提示符（原样） | Tab 补全 | 历史 |
+|---|---|---|---|---|
+| tty1 | 锁屏 | `entry@space:~$` / `reset@space:~#` | 有（只补白名单命令） | 只在内存 |
+| tty2 | 主页首屏 + Ctrl K 抽屉 | `styrigx@space:~$` / `root@account:~#`，带 cwd | 有，带淡色影子 | sessionStorage `sgx-term-hist`（键名不变） |
+| tty3 | 盾牌下拉 | `styrigx@space:~#` | 有 | sessionStorage `sgx-term-hist-3` |
+| tty4 | AI 窗口（`$ ` 前缀才是命令） | 无（沿用 AI 输入框） | `$ ` 开头时有，无影子 | 命令走 sessionStorage `sgx-term-hist-4`；普通提问仍走 AI 自己的 `sgx-ai-history`，两者不混 |
+| tty5 | 账号头像下拉 | `login@account:~$` / `root@account:~#` / `reset@account:~#` | 有 | sessionStorage `sgx-term-hist-5` |
+所有 tty：秘密输入、选择输入不进历史。
+
+**tty4 的 ↑↓ 召回哪个历史**：看输入框当前内容。以 `$` 开头（含只敲了 `$`）→ 召回命令历史 `sgx-term-hist-4`，召回的条目带 `$ ` 前缀放回输入框；其余情况（含空输入框）→ 照旧召回 AI 提问历史 `sgx-ai-history`，现有行为不变。两条历史各自独立，不互相穿插。
+- **提示符**：`prompt.js` 把现有字符串原样集中起来，每个 tty 的规则不变（见 1.1）。外观零变化。
+- **打错提示**：候选从注册表生成（命令名 + 每条命令声明的 `examples`），不再到处手写候选数组。
+
+## 3. 命令注册表 schema（示例）
+```js
+// cmds/sub/sub-upload.js
+export default {
+  name: 'sub-upload',
+  tty: 'full',                 // 'full' = tty2/3/4/5；tty1 白名单命令写 ['tty1','full']
+  args: [{ name: 'name', required: true, kind: 'source' }],   // kind 决定补全
+  examples: ['sub-upload home'],                               // 给打错提示和 help 用
+  help: 'help.subUpload',      // help 列表那一行（i18n 键）
+  man: () => import('../../man/sub-upload.js'),                // 懒加载，不进首包
+  complete: (args, ctx) => ctx.sub.sourceNames(),              // 来源名（用户自定义，和文件名无关）
+  needs: ['account'],          // 前端只用来给提示；真正的鉴权在服务端
+  async run(args, io, ctx) {   // io = 引擎给的输出/输入能力：out/ok/err/pick/ask(secret)/busy/progress/filePick
+    const f = await io.filePick({ accept: '.yaml,.yml,.txt' });
+    if (!f) return;
+    const r = await ctx.sub.upload(args[0], f, (p) => io.progress(p)); // [######----] 60%
+    io.ok(io.tf('sub.uploaded', { name: args[0], n: r.nodes }));       // 已上传 <名称> · N 个节点
+  },
+};
+```
+- 别名写在 `aliases`（`cls`→clear、`?`→help、`logout`→exit、`sudo -i`→sudo root）。旧的空格写法 `passkey add` 等作为别名保留；正式名改成连字符（`passkey-add`），和 sub-* 的写法一致。
+- 有子命令的 `sudo` 用一个对象，在 `run` 里分 `root` / `styrigx`；`man sudo` 一页写全。
+- P2 要注册的命令：`sub`（状态）、`sub-key`（要 reauth）、`sub-link`（要 reauth，新链接只显示一次）、`sub-add <名称>`（会话模式，链接用遮挡输入）、`sub-upload <名称>`、`sub-mv <旧名> <新名>`、`sub-on` / `sub-off` / `sub-rm <名称>`、`sub-refresh`。`man sub` 的 SEE ALSO 列出其余 9 条。
+
+## 4. 迁移步骤（每个 PR 都能单独合，外观零变化，视觉测试应当无 diff）
+
+| PR | 内容 | 行为变化 |
+|---|---|---|
+| **T1 公共件** | 新建 `term/core/{strings,suggest,parse}.js`，删掉重复的 `flatStrings`/`lev`/`normCmd`/常量。gen-shell 的 `renderStandalone` 对 terminal.js、ai-panel.js 放宽为「只许 import `./term/**`」。已核实（main 225888e9）：只有一个 Hugo 站 `space/web/hugo.yaml`，curio/daymark 的 `topbar-host.js` 用相对路径 import 主站 `js/shell/terminal.js`、`ai-panel.js`，由同一次构建打包，没有子站原样复制这两个文件。放宽时同步改 `terminal.test.mjs`「不 import 任何东西」、`suggest.test.mjs`「抄的 lev 同 suggest.js」、`keyhint.test.mjs`「抄的英文底」三处断言 | 无 |
+| **T2 输入行** | **重点核对片段里的链接**（`[类, 文字, 链接]` → `<a>` 的属性、顺序、转义）与原 innerHTML 产出逐字一致。B、C 合并成 `view/input-line.js`（类前缀、`data-term-pick`/`data-at-pick` 等属性名都由参数传入）；account/term.js 改用它 | 无（DOM、类名不变） |
+| **T3 引擎 + 表（tty2）** | `core/{engine,registry,complete,history,prompt}.js` + `cmds/{base,fs,ui}`；terminal.js 变成宿主，原有导出保留 | 无 |
+| **T4 迁 tty1 / tty3 盾牌 / tty5 账号** | 三个 parse*Cmd 改成注册表；`index-tty1.js` 白名单；tty1、tty3、tty5 补上 Tab 补全和历史 | 新增补全和历史（属于功能，外观不变） |
+| **T5 man / help** | `man/*`、`man` 索引、pager 模式（提示符 `:`，按 q 回命令行）、`help` 简短列表；`锁屏 `ls` 仍是 help 的别名（锁屏没有目录，敲 ls 就是想看能干什么） | 输出文字有变化（不在视觉基线里） |
+| **T6 tty / open / cd** | `tty`、`open <路径>`、`pwd`；cd 不再跳到别的站；sudo 不再打开下拉，改为原地验证 | **有行为变化**：Muse 需要改 `terminal.spec.js`「cd curio 跳到奇趣」和 sudo 打开下拉的那几条用例 |
+| （P2）| sub-* 注册进表，属于订阅 P2，不在本系列 | |
+
+每个 PR 合并前：单元测试 + e2e + 视觉测试全绿，视觉测试 0 diff；合并后看 main Deploy 是否通过。
+
+## 5. 风险
+- **锁屏 tty1 限制**：锁屏 chunk 必须只 import `index-tty1.js`。用构建检查（js-split / esbuild metafile）断言锁屏 chunk 里没有 `cmds/fs|ui|account|sub`。白名单只是减少暴露面，安全仍靠服务端会话、reauth、reset 票。
+- **CSP**：Report-Only 的 `script-src 'self' + hash`。新模块都是同源静态文件，没问题；但不许 `eval` / `new Function`，也不许新增内联脚本（否则 hash 会失效）。输出统一走片段 + `textContent`；B、C 原来的 `innerHTML` 会改成片段渲染，但产出的 DOM 必须和原来一样（Muse 的快照测试负责核对）。
+- **包体积**：三份合计约 81 KB 源码，去重后应该更小。man 页、sub-upload（文件选择）、passkey 都用 `import()` 懒加载。现在 quick-panel 在每一页都静态引入 terminal.js 和 account/term.js，表做好之后不能把全部命令都塞进 core chunk。以 T1 之前的 chunk 大小为基线，每个 PR 不许变大。
+- **现有 e2e 选择器**：`#sgx-entry-cmd`、`#sgx-entry-log`、`#sgx-entry-form[data-mode]`、`[data-term-pick]`、`[data-term-in|out|ps|ghost|kh]`、`.sgx-at-*` / `[data-at-pick|mode|layer]`、`sgx-term-*` 类名全部保留，不改名。
+- **gen-shell / shared-shell.test**：放宽 import 约束需要同时改脚本和测试（T1）。ai-panel.js 与 terminal.js 一起在 T1 放宽为只许 import `./term/**`（tty4 要用同一张命令表，见第 7 节第 2 条、8.4）。
+- **IME / 触屏**：#333 的 keyup 补提交、触屏 ^C 按钮、焦点归还都是修过的坑，T2 合并时逐行保留。
+
+## 6. 交给 Muse 的测试要点
+1. **纯函数**：parse（含不做清单：`a | b`、`$X`、`*` 都按字面量）、complete、history（秘密输入不进历史；tty2 键名不变）、suggest、registry.list(tty1) 只有白名单。
+2. **tty1**：白名单之外的命令一律 `command not found`；`tty 2` 输出 permission denied；锁屏 chunk 不含非白名单模块（构建断言）。
+3. **man**：每条注册的命令都有 man 页（表驱动断言）；格式和现有 `man styrigx` 一致；q 能退出；`man` 能列出索引；`help` 简短。
+4. **不跳页**：cd、ls、pwd、sudo 都不改 URL、不打开 GUI；只有 `open` 会。
+5. **原有行为回归**：锁屏进站、reset、盾牌 reauth、账号 sudo root/reauth/reset、通行密钥 busy 时 ^C、IME 回车补提交（#333）、触屏 ^C。
+6. **视觉测试**：每个 PR 都应 0 diff，不重拍基线。T6 只改功能 e2e。
+7. **P2**：sub-upload 进度条文本 `[######----] 60%`；sub-link 的新链接只显示一次（再跑一次不再显示）；sub-add 输入链接时遮挡（不进历史、不进日志）；sub-mv 名称冲突时报错。
+
+## 7. Gray 决定（3 条，均已定）
+1. ~~盾牌下拉算哪个 tty？~~ **已定（Gray 01:59）**：盾牌 tty3，账号 tty5，不合并。tty3 历史键 `sgx-term-hist-3` 归盾牌，账号改 `sgx-term-hist-5`；`tty 3`/`tty 5` 分别打开对应下拉。
+2. ~~tty4（AI）的形态？~~ **已定（Gray 02:10）**：AI 窗口输入以 `$ ` 开头即当命令执行（同一张全表），结果作为系统行显示在对话里；其他输入照旧发给 AI。外观不动。ai-panel.js 需放宽 import 约束（只许 `./term/**`），并入 T1/T3。
+3. ~~主页 `cd blog` 还滚动吗？~~ **已定（Gray 02:11）**：不滚动，和其他 tty 一致，只改 cwd 和提示符；滚动交给 `open ~/blog`。
+
+## 8. v1.1 补充（Muse 审稿意见）
+
+### 8.1 sub-mv（新增命令，Gray 2026-11-10 02:26 确认：只改名，不做「移动」，因为来源没有可移动的位置）
+已写进代理订阅设计 v1.10（§5、§7、§8.1），以那边为准。语义摘要：
+- **前提以代理订阅设计 v1.10 为准**（2026-11-10 00:27 Gray 定，覆盖 v1.5）：每源一条链接 `/s/<令牌>/<来源名>`，每个来源单独 age 加密成一份 provider，**不合并、节点名不加 `[来源名]` 前缀**。v1.5 的单条合并下载 `/s/<令牌>` 已废弃。
+- `sub-mv <旧名> <新名>`：只改 `sources.name`，**沿用原 id**，成品 `armor`、上次好节点 `last_nodes_enc`、开关状态都保留。不触发刷新：代理订阅设计 v1.7 起不加前缀，来源名不进文件内容，`armor` 原样就是新路径的内容，改完立即生效。
+- 新名同样只许 `[A-Za-z0-9_-]`、1–32 位；新名已存在 → 报错 `sub-mv: <新名>: already exists`，不覆盖；旧名不存在 → `sub-mv: <旧名>: no such source`；新旧相同 → 什么都不做。
+- **后果**：下载路径是 `/s/<令牌>/<来源名>`，改名后**旧路径立即 404**，手机里那个 provider 的 url 要换成新名。所以执行前二次确认，显示新旧两条路径（令牌部分遮挡）。
+- 鉴权：会话（同 sub-add）。
+- man sub-mv 写明「改名会让手机里的旧链接失效」。
+
+### 8.2 多词别名的匹配
+解析仍只按空白切词。查表规则：**最长前缀**——先拿前 3 个词用 `-` 拼起来查表（含 aliases），没有再试前 2 个、前 1 个；命中后剩下的词作参数。
+- `passkey add` → 试 `passkey-add` 命中 → 命令 passkey-add，无参数。
+- `passkey rm 2` → `passkey-rm-2` 不中 → `passkey-rm` 命中 → 参数 `2`。
+- `sudo root reauth` → `sudo-root-reauth` 不中…→ `sudo` 命中，`root reauth` 作参数（sudo 自己分子命令）。
+- 多词别名登记成词数组（如 `sudo -i` → `['sudo','-i']` 指向 `sudo root`），匹配时逐词比较，同样走最长前缀，且先于连字符拼接查。
+- 都不中 → `command not found`，打错提示照旧。Muse 测：`passkey add`、`passkey-add`、`passkey rm 2`、`sudo -i` 四种写法。
+
+### 8.3 虚拟目录树（fs/tree.js）
+| 路径 | 类型 | `cd` | `ls` 输出 | `open` 打开 |
+|---|---|---|---|---|
+| `~` | 目录 | ✓ | blog curio daymark wild account shield（P2 起加 proxy） | 主页 |
+| `~/blog` | 目录 | ✓ | （空） | blog 首页 |
+| `~/curio` | 目录 | ✓ | （空） | curio 首页 |
+| `~/daymark` | 目录 | ✓ | today | daymark 首页 |
+| `~/daymark/today` | 文件 | ✗（`not a directory`） | — | daymark 今日页；`cat` 取今日一句 |
+| `~/wild` | 目录 | ✓ | （空） | 主页 wild 区块 |
+| `~/account` | 目录 | ✓ | profile devices security apps | tty5 账号下拉首层 |
+| `~/account/profile` · `devices` · `security` · `apps` | 目录 | ✓ | （空） | tty5 下拉对应层。目录名→层名（沿用 `account/commands.js` 的 `CD_DIRS`/`LAYER_PATH`）：profile→profile、devices→devices、**security→keys**、**apps→grants** |
+| `~/shield` | 目录 | ✓ | keys tempkeys links | tty3 盾牌下拉首层 |
+| `~/shield/keys` · `tempkeys` · `links` | 目录 | ✓ | （空） | tty3 盾牌对应层（沿用 `SHIELD_LAYERS`） |
+| （P2）`~/proxy` | 目录 | ✓ | 各来源（名称、类型、域名或「文件」、节点数、状态） | 代理订阅图形单页（同代理订阅设计 v1.10 §8.2：`cd ~/proxy`/`open ~/proxy`）。放在 `~` 下，不在 `~/account/apps` 下，所以 `ls ~/account/apps` P2 后仍为空；账号页「应用授权」里的入口只是 GUI 链接 |
+
+- `..`、`~`、相对路径、Tab 补全都按这张表；`cd` 只改 cwd 和提示符，不滚动不跳页（所有 tty 一致）。
+- 不存在的路径：`cd`/`ls`/`open` 统一报 `<命令>: <路径>: No such file or directory`。
+- `open` 不带参数 = `open .`（当前 cwd）。未进站时 open 要会话的路径由服务端照常拦，前端不另判。
+- tty1 没有这棵树（锁屏不加载 fs/）。
+
+### 8.4 `$ ` 前缀只在 tty4
+`$ `（美元符 + 空格）前缀**只在 tty4 的 AI 输入框**里有意义：用来区分「跑命令」和「问 AI」。tty1/2/3/5 里直接敲命令，不加 `$`；在那些 tty 里打 `$ ls` 就是命令名 `$`，报 command not found。和「不做清单」里的 `$X` 不展开是两回事：tty4 剥掉前缀后，剩下的命令行同样不展开变量。
+
+### 8.5 ask 与跨 tty
+`ask <问题>` 不自己发请求：调用 `tty.js` 的 `switchTo(4)` 打开 AI 窗口，再调 tty4 登记的 `submit(text)` 接口把问题作为普通提问发出（不加 `$`）。规则：**跨 tty 只通过 tty.js 登记的接口**（show / submit），命令不直接碰别的宿主的 DOM。`tty 4` = 只打开不发问。
