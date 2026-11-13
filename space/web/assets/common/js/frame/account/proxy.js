@@ -23,7 +23,7 @@ export const CODE_RE = /^[A-Za-z]{2,3}$/;
 export const USAGE = /** @type {Record<string, string>} */ ({
   '': 'sub', 'show': 'sub show [name]', 'add': 'sub add <name>', 'upload': 'sub upload <name>', 'mv': 'sub mv <old> <new>',
   'rm': 'sub rm <name>', 'on': 'sub on <name>', 'off': 'sub off <name>', 'update': 'sub update <name>',
-  'map': 'sub map [<word> [<target>]] | sub map rm <word> | sub map ls <name>', 'fp': 'sub fp [value]', 'key': 'sub key', 'token': 'sub token reset',
+  'map': 'sub map [word [target]] | sub map rm <word> | sub map ls <name>', 'fp': 'sub fp [value]', 'key': 'sub key', 'token': 'sub token reset',
 });
 
 /**

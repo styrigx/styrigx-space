@@ -10,8 +10,8 @@
 export const FP_VALUES = Object.freeze(['chrome', 'firefox', 'safari', 'ios', 'android', 'edge', '360', 'qq', 'random', 'none']);
 export const FP_DEFAULT = 'chrome';
 
-/* 去旧图标：任何位置的国旗（区旗字母对）和 Gray 原配置里的几个图标，连同其后空白（同原 Rename_Strip_Flag） */
-const STRIP_RE = /(?:[\u{1F1E6}-\u{1F1FF}]{2}|[\u{1F30D}\u{1F30E}\u{1F30F}\u{1F310}\u{1F680}\u{1F338}]|\u2708\uFE0F?)\s*/gu;
+/* 去旧图标：节点名里任何位置的 emoji 一律去掉（国旗、Extended_Pictographic，连同肤色 / 零宽连接 / 变体选择符 / 键帽 / 旗帜标签），Gray 2026-11-14 02:48 定，无命令 */
+const STRIP_RE = /(?:[\u{1F1E6}-\u{1F1FF}]|\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}\u{E0020}-\u{E007F}\u200D\uFE0E\uFE0F\u20E3])+/gu;
 const SHORT_RE = /^[a-z]{1,3}$/;
 const ALNUM = /[a-z0-9]/;
 
@@ -36,7 +36,7 @@ export function hasWord(name, word) {
 }
 
 /** 去旧图标 @param {string} name */
-export const stripIcons = (name) => name.replace(STRIP_RE, '').replace(/\s{2,}/g, ' ').trim();
+export const stripIcons = (name) => name.replace(STRIP_RE, ' ').replace(/\s{2,}/g, ' ').trim();
 
 /**
  * @typedef {{ drop: string[], flags: { word: string, flag: string }[], fp: string }} Rules

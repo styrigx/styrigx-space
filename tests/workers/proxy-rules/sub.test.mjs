@@ -388,6 +388,7 @@ test('nodes：丢弃 → 去旧图标（任何位置）→ 加国旗 → 指纹 
   assert.deepEqual(r.unmatched, ['Russia 1'], 'us 不命中 russia');
   assert.ok(r.proxies.every((p) => p['client-fingerprint'] === 'safari'));
   assert.equal(N.processNodes([{ name: 'a', type: 'ss', 'client-fingerprint': 'qq' }], { drop: [], flags: [], fp: 'none' }).proxies[0]['client-fingerprint'], 'qq', 'none = 不加');
+  assert.deepEqual(['⚡HK 01', '🎮 US-游戏 ✈️', '新加坡 1️⃣ x', '香港🇭🇰01', '🏴‍☠️ 01'].map(N.stripIcons), ['HK 01', 'US-游戏', '新加坡 1 x', '香港 01', '01'], '任何 emoji 都去掉（Gray 2026-11-14）');
   assert.equal(N.countDropped([{ name: '剩余 到期' }, { name: '到期' }], '到期', ['剩余']), 1, '已被别的丢弃词丢掉的不算');
 });
 

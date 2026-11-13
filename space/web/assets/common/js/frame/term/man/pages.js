@@ -31,7 +31,7 @@ export const PAGES = Object.freeze({
   /* 代理订阅（sub v1.13）：一条 sub + 子命令，root 档 */
   sub: {
     d: 'proxy subscription: status, urls, sources, node words, fingerprint, key and token',
-    syn: ['sub', 'sub show [name]', 'sub add <name>', 'sub upload <name>', 'sub mv <old> <new>', 'sub rm <name>', 'sub on | off <name>', 'sub update <name>', 'sub map', 'sub map <word> [<target>]', 'sub map rm <word>', 'sub map ls <name>', 'sub fp [value]', 'sub key', 'sub token reset'],
+    syn: ['sub', 'sub show [name]', 'sub add <name>', 'sub upload <name>', 'sub mv <old> <new>', 'sub rm <name>', 'sub on | off <name>', 'sub update <name>', 'sub map', 'sub map <word> [target]', 'sub map rm <word>', 'sub map ls <name>', 'sub fp [value]', 'sub key', 'sub token reset'],
     desc: [
       'sub: the public key (head and tail), the token state and each source: name · airport host or file · nodes · unmatched (airports) · enabled / disabled / error.',
       'show: print the token and every source url (or just one), each with copy; works any time.',
