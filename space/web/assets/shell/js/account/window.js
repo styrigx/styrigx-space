@@ -18,7 +18,7 @@ import { readCache, effectiveProfile, profileDefaults, PROFILE_EVENT } from '../
 import { flatStrings } from '../term/core/strings.js';
 import { layerFromPath } from './commands.js';
 
-/** 嵌套字符串表 → 点号键：终端统一 T1 起在 shell/term/core/strings.js，这里转出 */
+/** 嵌套字符串表 → 点号键：终端统一 T1 起在 term/core/strings.js，这里转出 */
 export { flatStrings };
 
 /** 页面入口给的名字 → 怎么开（commands.js；topbar-panel.js 的 accountLayer） */

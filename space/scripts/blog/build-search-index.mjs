@@ -10,7 +10,7 @@
  *   - hugo 构建后的 space/web/public/blog/[zh/]post/<文件名>/index.html：正文（<section id="article-start"> 里，短代码 / Markdown 已渲染好），
  *     去掉代码块标题栏和行号、HTML 标签，压成纯文本，最多 TEXT_MAX 字（2026-11 AI 语义召回起 24000 字 ≈ 全文：
  *     styrigx-ai 的 Cron 把正文切段写进 Vectorize；关键词召回仍只取前 600 字进上下文）。
- *     网址按 hugo.yaml 的 permalinks（/blog/post/:contentbasename/，中文 /blog/zh/post/…：中文文章 front matter 的 url，前缀规则同主站 lib/lang-path.js）拼，并核对构建产物里确实有这一页——
+ *     网址按 hugo.yaml 的 permalinks（/blog/post/:contentbasename/，中文 /blog/zh/post/…：中文文章 front matter 的 url，前缀规则同主站 i18n/lang-path.js）拼，并核对构建产物里确实有这一页——
  *     没有就报错（网址规则改了 → 这里红，不会把错地址写进索引）。
  *
  * 用法：npm run build 之后 node space/scripts/blog/build-search-index.mjs [--out <文件>]（默认仓库根的 search-index.blog.json）

@@ -1,10 +1,10 @@
 /**
  * @fileoverview 全站终端里的 v6 身份层（P2b，定稿 v4 §六 / §七 / §八；命令手册 docs/specs/v6-identity-migration.md）。
  *
- * 终端命令（shell/term/cmds/ident、keys/sudo.js、base/exit.js、keys/lock.js、acct passwd）在有 v6 新会话或用 v6 写法时调这里：
+ * 终端命令（term/cmds/ident、keys/sudo.js、base/exit.js、keys/lock.js、acct passwd）在有 v6 新会话或用 v6 写法时调这里：
  * su <用户> / su root、sudo <命令>、exit、lock、whoami、groups、who、useradd / userdel / usermod、passwd / passwd <名>；P3 救援入口 rescue（§九）。
  * 前台空闲计时（Page Visibility）：root 层前台空闲 15 分钟 → POST idle 弹回普通用户；页面隐藏 / 锁屏时暂停计时。
- * 输出 / 输入模式 / 秘密输入走终端的输入行（shell/term/view/layer-ctx.js）；后端只在 ./api.js。旧入口（sudo styrigx / sudo root / lock passwd …）不经这里。
+ * 输出 / 输入模式 / 秘密输入走终端的输入行（term/view/layer-ctx.js）；后端只在 ./api.js。旧入口（sudo styrigx / sudo root / lock passwd …）不经这里。
  *
  * 只 import lib/、auth/、shell/（check-layers 规则 3）。文案在外壳字符串表 identity 节（sgx-shell-i18n），四个站同一份。
  */

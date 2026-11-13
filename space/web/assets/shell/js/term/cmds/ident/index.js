@@ -4,7 +4,7 @@ import { isV6 } from '../../core/who.js';
 
 /**
  * v6 身份命令（P2b，定稿 v4 §六 / §八）：whoami · su · groups · who · useradd · userdel · usermod；P3 救援入口 rescue（§九）。
- * 流程在身份层（shell/identity/layer.js，终端里的 x.v.ident）；这里只查参数。真正的权限判断在服务端（permits）。
+ * 流程在身份层（identity/layer.js，终端里的 x.v.ident）；这里只查参数。真正的权限判断在服务端（permits）。
  * man 索引只给 v6 身份列（user = v6 普通用户，root6 = v6 root；core/who.js kindOf），没有 v6 会话时四种旧身份的 man 不变（分步割接）。
  * sudo / exit / lock / passwd 沿用原命令名：有 v6 会话或 v6 写法时转到这里（keys/sudo.js、base/exit.js、keys/lock.js、acct/index.js）。
  */

@@ -44,7 +44,7 @@
 | styrigx | 进站会话 by=`password` / `passkey` | `styrigx@space:~#` |
 | root | 已进站且 `sudo root` 登录了账号 | `root@account:~#` |
 
-2.3.1 身份只认服务端（`GET /api/lock-session-check` 与网关注入的 `data-sgx-lock-session`；`shell/term/core/who.js`）。首帧按页面标记画，标了 `valid` 才问服务端细分 link / styrigx / root。前端 MUST NOT 自存身份。
+2.3.1 身份只认服务端（`GET /api/lock-session-check` 与网关注入的 `data-sgx-lock-session`；`term/core/who.js`）。首帧按页面标记画，标了 `valid` 才问服务端细分 link / styrigx / root。前端 MUST NOT 自存身份。
 
 2.3.2 进站会话票的 by 白名单：`password`、`passkey`、`link`（`workers/space-core/src/core/realms.js` `TICKETS.LockSessionTicket.bys`）。网关写给账号 Worker 的 `X-Styrigx-Space-By` 只取这三个值，账号 Worker 的读端（`workers/account/src/lib/gateway.js`）用同一份白名单，其余值（含 v5 前的 `tempkey`）读成空串；`tests/workers/account/gateway-identity.test.mjs` 核对两边一致。
 

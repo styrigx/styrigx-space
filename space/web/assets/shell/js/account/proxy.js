@@ -1,6 +1,6 @@
 /**
  * @fileoverview 代理订阅的 sub 指令（v3.1，Gray 2026-11-10 定）：一条 `sub` + 子命令，在终端里原地做完——y/N、遮挡输入、选文件、复制。
- * 终端命令表里的 sub（shell/term/cmds/sub/index.js）把原样的一行交给这里（C.cmdSub）。
+ * 终端命令表里的 sub（term/cmds/sub/index.js）把原样的一行交给这里（C.cmdSub）。
  * 后端：POST /api/account/proxy（api.proxy）；鉴权在服务端（root 档；v6 P4 起没有旧会话的 reauth 票）。令牌由服务端封存，sub show 随时重印。
  */
 import { SUB_ARGS } from '../term/cmds/sub/args.js';

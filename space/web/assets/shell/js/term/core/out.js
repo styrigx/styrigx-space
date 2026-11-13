@@ -5,7 +5,7 @@
  * @typedef {{ out: Out[], clear?: boolean, after?: () => void }} Result
  */
 
-/** HTML 转义（终端输出行拼 HTML 时用；同 lib/util.js esc，term/** 不 import 外面） @param {any} s */
+/** HTML 转义（终端输出行拼 HTML 时用；同 core/util.js esc，term/** 不 import 外面） @param {any} s */
 export function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
     return /** @type {Record<string, string>} */ ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];

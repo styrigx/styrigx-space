@@ -1,7 +1,7 @@
 /**
  * @fileoverview AI 窗口的内容（2026-11-04 P5-1，第 4 件前端，方案 5.5）：站内对话助手，四个站同一份。
- * 共享外壳组件：gen-shell 原样复制成 space/web/shared/shell/ai.js；窗口的开合 / 互斥由 topbar.js（主站 shell/topbar-panel.js）管，这里只管窗口里面。
- * 只许 import shell/term/**（终端统一 T1，gen-shell 核对）：外壳字符串表读取、按键提示行英文底用 shell/term/core/strings.js。
+ * 共享外壳组件：gen-shell 原样复制成 space/web/shared/shell/ai.js；窗口的开合 / 互斥由 topbar.js（主站 topbar/topbar-panel.js）管，这里只管窗口里面。
+ * 只许 import term/**（终端统一 T1，gen-shell 核对）：外壳字符串表读取、按键提示行英文底用 term/core/strings.js。
  *
  * - 问：POST /api/ai（同源，credentials: same-origin）{ q, lang, history } → text/event-stream：event delta…（回答分段）→ done（2026-11-06 起不再有 event hits，不显示来源卡片：链接只出现在模型写的正文里）；
  *   出错时 event error。响应头 X-Styrigx-AI-Scope: private | public 只用来在底部小字说明「包含私密内容 / 仅公开内容」。
@@ -9,11 +9,11 @@
  * - 历史只存本地 localStorage sgx-ai-history（P4-3 后续 §3.3：{v:2, cur, chats:[{id, title, time, msgs:[{role, text, ts, rate?}]}]}，多份对话，每份最多 50 条，
  *   最多 20 份、超了删最旧的；title = 首问前 20 字；cur = 当前对话 id。读到 v1 {v:1, msgs} 包成一份对话写回 v2；旧记录里可能还带 hits，读出来不渲染）；
  *   四站同源所以同一台设备上是同一份（同源带来的，不是同步）；
- *   lib/cloud-sync.js 的白名单不收这个键，不跨设备。发给服务端的 history 只带最近 6 条 {role, text}（服务端再截 2000 字）。
+ *   prefs/cloud-sync.js 的白名单不收这个键，不跨设备。发给服务端的 history 只带最近 6 条 {role, text}（服务端再截 2000 字）。
  * - 头部一行（2026-11 PR-5 按设计稿 ai-v1）：G 徽标 · Gray AI / 副标题 · 模型胶囊（data-ai-model）· 新对话（data-ai-clear）· 历史（data-ai-history：窗口内的列表视图）· ×（topbar.js 接）；
  *   头像（账号页）不在 AI 窗口里了（设计稿没有；账号入口是顶栏头像）。回答下是来源卡片（站内链接）和建议问题。联系挪到底部那行「仅公开内容 · 联系我」（data-ai-contact：mailto:<对外联系邮箱>）。
  *   邮箱（2026-11-07 个人资料）：模板按各站传入的默认值（data/profile.yaml 的 email）画 href；挂载和每次打开时再读本机缓存
- *   localStorage sgx-profile（主站 lib/profile.js 进门后从 GET /api/profile 写的；四站同源同一份），有改过的合法邮箱就换上。这里不发请求。
+ *   localStorage sgx-profile（主站 prefs/profile.js 进门后从 GET /api/profile 写的；四站同源同一份），有改过的合法邮箱就换上。这里不发请求。
  *   底部小字的「仅公开内容 / 包含私密内容」在 data-ai-scope 上。空态显示开场白（助手气泡样式，不存历史）。
  * - 每条助手回答下（§3.4）：复制 / 重试（重问前面那条提问，替换这条回答）/ 👍 / 👎（只存本地，记在该条消息的 rate 上，再点取消）。
  * - 模型（P4-2d）：账号页「AI 模型」一行把选择存在 localStorage sgx-ai-model（进云同步，换设备跟着走）；这里发问时有就带上 body.model，
@@ -41,14 +41,14 @@ export const CHATS_MAX = 20;
 export const TITLE_MAX = 20;
 export const SEND_HISTORY = 6;
 export const Q_MAX = 200;
-/** 账号页选的模型 id（P4-2d；四站同源同一份；lib/cloud-sync.js 的 EXTRA 收这个键） */
+/** 账号页选的模型 id（P4-2d；四站同源同一份；prefs/cloud-sync.js 的 EXTRA 收这个键） */
 export const MODEL_KEY = 'sgx-ai-model';
-/** 个人资料本机缓存（主站 lib/profile.js PROFILE_CACHE_KEY 同一个键；{v:1, p:{email…}, t}） */
+/** 个人资料本机缓存（主站 prefs/profile.js PROFILE_CACHE_KEY 同一个键；{v:1, p:{email…}, t}） */
 export const PROFILE_KEY = 'sgx-profile';
-/** 邮箱格式（与主站 lib/profile.js EMAIL_RE 同一条） */
+/** 邮箱格式（与主站 prefs/profile.js EMAIL_RE 同一条） */
 const EMAIL_RE = /^[^\s@<>()",;:\\]+@[^\s@<>()",;:\\]+\.[^\s@<>()",;:\\.]{2,}$/;
 
-/** 请人进站（= lib/sudo.js SUDO_EVENT；本文件只许 import shell/term/**，抄一份）：顶栏终端预填 su （v6 割接；topbar-panel.js 接） @param {Document} doc */
+/** 请人进站（= auth/sudo.js SUDO_EVENT；本文件只许 import term/**，抄一份）：顶栏终端预填 su （v6 割接；topbar-panel.js 接） @param {Document} doc */
 function askSudo(doc) {
   try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {}
 }
@@ -461,7 +461,7 @@ export function mountAiChat(dlg, opts) {
     try { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (e) { return false; }
   };
 
-  /* 按键提示行（Gray 2026-11-09 细节 1；同 shell/keyhint.js，这里只画几行，英文底用 shell/term/core/strings.js 的 KH_EN）：桌面「enter 发送 · shift+enter 换行 · esc 关闭」，
+  /* 按键提示行（Gray 2026-11-09 细节 1；同 term/view/keyhint.js，这里只画几行，英文底用 term/core/strings.js 的 KH_EN）：桌面「enter 发送 · shift+enter 换行 · esc 关闭」，
      触屏换成「‹ 返回」按钮 = 关窗口（每个终端状态都有出口）。文案 #sgx-i18n-shell 的 kh 节 */
   (function () {
     const el = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-kh]'));

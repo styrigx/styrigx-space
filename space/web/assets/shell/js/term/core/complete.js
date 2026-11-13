@@ -1,5 +1,5 @@
 /**
- * @fileoverview tab 补全 / 补全影子（终端统一 T3：从 shell/terminal.js 搬来，候选改从注册表取）。纯函数。
+ * @fileoverview tab 补全 / 补全影子（终端统一 T3：从 term/terminal.js 搬来，候选改从注册表取）。纯函数。
  */
 
 /** 一组字符串的公共前缀 @param {string[]} list */

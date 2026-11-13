@@ -1,9 +1,9 @@
 /**
- * @fileoverview 全站终端里的账号层（v5 S5 终端合一；S9 起账号的所有操作都在这里，账号卡片 shell/account/window.js 只展示）。
+ * @fileoverview 全站终端里的账号层（v5 S5 终端合一；S9 起账号的所有操作都在这里，账号卡片 account/window.js 只展示）。
  *
- * 终端里的账号命令（shell/term/cmds/acct、sub）调这里挂在 C 上的流程：passkey（./keys.js）、device（./devices.js）、
+ * 终端里的账号命令（term/cmds/acct、sub）调这里挂在 C 上的流程：passkey（./keys.js）、device（./devices.js）、
  * profile（./profile.js）、sub（../proxy.js）。命令先由终端按 v6 身份把门（cmds/keys/gate.js），服务端再按路由档判。
- * 要输入、选择的都在终端里原地做完；输出 / 输入模式走终端的输入行（shell/term/view/layer-ctx.js）。后端只在 ../api.js。
+ * 要输入、选择的都在终端里原地做完；输出 / 输入模式走终端的输入行（term/view/layer-ctx.js）。后端只在 ../api.js。
  * v6 P4（定稿 v5.2 §十三）起旧账号会话（sudo root 登录 / sudo root reauth / sudo root reset、GET /api/account 状态、登录标记 sgx-account-signed-in）删除。
  *
  * 只 import lib/、auth/、shell/（check-layers 规则 3）。文案在外壳字符串表 account.*（sgx-shell-i18n），四个站同一份。

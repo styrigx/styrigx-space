@@ -1,5 +1,5 @@
 /**
- * @fileoverview v6 身份命令的参数（P2b）：纯函数，终端命令（cmds/ident、keys/sudo.js）和身份层（shell/identity/layer.js）共用。
+ * @fileoverview v6 身份命令的参数（P2b）：纯函数，终端命令（cmds/ident、keys/sudo.js）和身份层（identity/layer.js）共用。
  * 写法同 docs/specs/v6-identity-migration.md 的命令手册；服务端（workers/account/src/api/identity.js）再判一次。
  */
 

@@ -8,7 +8,7 @@
  */
 import { sgxReload } from '../status/diag-jumptrace.js';
 
-/** v6 身份接口（同 shell/identity/api.js IDENTITY_API；守卫不 import 那边，那边带通行密钥代码） */
+/** v6 身份接口（同 identity/api.js IDENTITY_API；守卫不 import 那边，那边带通行密钥代码） */
 const IDENTITY_API = '/api/identity';
 
 /** 页面标记变了的事件（window 上，detail { ok, live }）：首帧 initLock 发一次（没有 live）；2c 起 v6 su / exit / lock 之后
@@ -21,7 +21,7 @@ export function pageState() {
   return s === 'valid' || s === 'locked' ? s : 'unknown';
 }
 
-/** 页面上有没有 v6 登录标记（服务端随 sgx-session 写的 sgx-id=1；非 HttpOnly、不含秘密，同 shell/identity/api.js hasMarker） */
+/** 页面上有没有 v6 登录标记（服务端随 sgx-session 写的 sgx-id=1；非 HttpOnly、不含秘密，同 identity/api.js hasMarker） */
 export function hasV6Marker() {
   try { return /(?:^|;\s*)sgx-id=1(?:;|$)/.test(document.cookie || ''); } catch (e) { return false; }
 }

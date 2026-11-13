@@ -3,12 +3,12 @@ import { v6Root } from '../../core/who.js';
 
 /**
  * 账号命令（v6；P4-3 按定稿 v5.5 §四 / §五 / §七 / §八收紧）：
- * - passwd：改自己的密码（先输当前密码）/ passwd <名>：root 发一次性密码（身份层 shell/identity/layer.js）；普通用户层
+ * - passwd：改自己的密码（先输当前密码）/ passwd <名>：root 发一次性密码（身份层 identity/layer.js）；普通用户层
  * - passkey [ls | add | rm <n>]：站长与 root 自己的通行密钥（POST /api/identity passkey-*，webmaster 档；普通用户不能管通行密钥，§八）
  * - device：设备列表（POST /api/account/devices list，webmaster 档，全站视图）；device rm <n> | rm --all：踢出（root 档）——
  *   root 直接做；别的身份提示先 su root（同 sub）；sudoers 可 sudo device rm …（keys/sudo.js 借 root 跑）
  * - profile [set name | nick | sign | email <值> | avatar]：个人资料（PUT /api/profile 站长 + root；头像一份，归站长）；普通用户只能看
- * 流程在账号层（shell/account/cmd/*）；这里只把门、查参数。v6 P4 起旧账号会话（sudo root）与 reset 层删除，一律按 v6 身份。
+ * 流程在账号层（account/cmd/*）；这里只把门、查参数。v6 P4 起旧账号会话（sudo root）与 reset 层删除，一律按 v6 身份。
  */
 
 const V6 = /** @type {any} */ (['user', 'root6']);
@@ -79,7 +79,7 @@ const device = {
   },
 };
 
-/** profile set 的字段名（= shell/account/cmd/profile.js PROFILE_KEYS 的键） */
+/** profile set 的字段名（= account/cmd/profile.js PROFILE_KEYS 的键） */
 const PROFILE_SET = ['name', 'nick', 'sign', 'email'];
 
 const profile = {

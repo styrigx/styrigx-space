@@ -1,14 +1,14 @@
 /**
  * @fileoverview 外观写端（2026-11-04 P5-1，定案第 5 条：四站共用一个写端）。
- * 源在这里（从 lib/prefs.js / lib/ui-cookie.js 抽出），gen-shell 原样复制成共享外壳 space/web/shared/shell/prefs-write.js，三个子站 sync-shell 同步。
- * 自成一体：不 import 任何东西（子站原样复制）；cookie 的字段表 / 编解码用页面上已有的 window.SgxUI（ui-cookie-read.js：主站 lib/ui-cookie.js 引入，子站 <head> 内联）。
+ * 源在这里（从 prefs/prefs.js / prefs/ui-cookie.js 抽出），gen-shell 原样复制成共享外壳 space/web/shared/shell/prefs-write.js，三个子站 sync-shell 同步。
+ * 自成一体：不 import 任何东西（子站原样复制）；cookie 的字段表 / 编解码用页面上已有的 window.SgxUI（ui-cookie-read.js：主站 prefs/ui-cookie.js 引入，子站 <head> 内联）。
  *
  * 写什么：
  * - localStorage（PR3 起四站同源，同一份）：sgx-palette（默认 terra = 删 key）、
  *   sgx-lang（配置里的语言 en / zh …；跟随系统 = 'system'，语言清理 2026-11-07 起明确存值，旧的空 / 没有也按跟随系统）。
  *   2026-11-12 调色板 v4：深浅模式（sgx-theme-mode）和自定义主题色（sgx-accent）删除，深浅只由调色板决定（SgxUI.paint）。
- * - sgx-ui cookie（syncUiCookie，原 lib/ui-cookie.js 的写法原样搬来）：子站首帧前读它；主站读 localStorage。
- * 主站：lib/prefs.js 的 setter 仍经 features.js 写同一批 key（features 的订阅 / 云同步要用），cookie 由 core.js 在 sgx-settings-changed 时调本文件的 syncUiCookie；
+ * - sgx-ui cookie（syncUiCookie，原 prefs/ui-cookie.js 的写法原样搬来）：子站首帧前读它；主站读 localStorage。
+ * 主站：prefs/prefs.js 的 setter 仍经 features.js 写同一批 key（features 的订阅 / 云同步要用），cookie 由 core.js 在 sgx-settings-changed 时调本文件的 syncUiCookie；
  *   DEFAULT_PALETTE / normPalette 也从这里取。
  * 子站：快捷面板（共享外壳 topbar.js）调本文件的 setPalette / setLangPref：写 key → 改 <html>（SgxUI.paint）→ 写 cookie。
  *   子站写入的外观在本设备生效（同源，主站下次打开就是新的）；跨设备以账号云同步为准（主站同步时上传），云同步覆盖这些设置之前不承诺跨设备。
@@ -59,7 +59,7 @@ export function normPalette(v) {
   return /^x[a-z]+$/.test(v) ? v.slice(1) : v;
 }
 
-/* ---------------- sgx-ui cookie（原 lib/ui-cookie.js） ---------------- */
+/* ---------------- sgx-ui cookie（原 prefs/ui-cookie.js） ---------------- */
 
 function readCookie() {
   var m = document.cookie.match(/(?:^|;\s*)sgx-ui=([^;]*)/);
@@ -150,7 +150,7 @@ export function setLangPref(v) {
 }
 
 
-/* 布局偏好（P4-3 PR-4b：快捷面板四站同一套，子站也有布局行；只有手机 / 自动 / 桌面）：同主站 lib/prefs.js，localStorage sgx-layout = phone / auto / desktop
+/* 布局偏好（P4-3 PR-4b：快捷面板四站同一套，子站也有布局行；只有手机 / 自动 / 桌面）：同主站 prefs/prefs.js，localStorage sgx-layout = phone / auto / desktop
    （同源同一份；旧值 mobile → phone、dex / pc → desktop）。模式按共享外壳 layout-mode.js __sgxLayout() 算（四站 <head> 内联同一份）；
    写完重算本页布局：各站 <head> 都有 window.__applyLayout，调它；万一没有就按 __sgxLayout 只改 data-sgx-layout。 */
 /** @returns {'phone'|'auto'|'desktop'} */

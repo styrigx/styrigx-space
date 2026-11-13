@@ -5,7 +5,7 @@
  * 1. 构建期默认值：space/web/data/profile.yaml → baseof 输出的 <script id="sgx-profile-default" type="application/json">，
  *    模板也直接把默认值画进首帧（名字卡、页脚、锁屏头像替代文字等）。
  * 2. 本机缓存：localStorage sgx-profile（{v:1, p:{改过的字段}, t}），上次进门时从接口拿到的。
- *    锁屏（进门前不问接口）和子站 AI 窗口「联系我」读它。四站同源，同一份。云同步白名单不收这个键（lib/cloud-sync.js syncKeys）。
+ *    锁屏（进门前不问接口）和子站 AI 窗口「联系我」读它。四站同源，同一份。云同步白名单不收这个键（prefs/cloud-sync.js syncKeys）。
  * 3. 运行时接口：GET /api/profile（进门即可，没账号会话也行）——只在锁屏已解锁的页面（<html data-sgx-lock-session="valid">）请求，
  *    回来的非 null 字段覆盖默认值并写回缓存。
  *
@@ -225,7 +225,7 @@ let inited = false;
 
 /**
  * 全站：页面上有 [data-sgx-profile] 才动——先用本机缓存画，再（已进门时）问接口。没有这类元素的页面什么都不做、不发请求。
- * shell/core.js initCore 调。
+ * apps/core.js initCore 调。
  */
 export function initProfile() {
   if (inited || typeof document === 'undefined') return;

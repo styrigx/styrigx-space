@@ -1,5 +1,5 @@
 /**
- * @fileoverview 终端选择（[1] [2] …，锁屏 / 盾牌 shell/space/term.js、账号下拉 shell/account/term.js）的高亮跟着输入走（Gray 2026-11-09 手机截图：
+ * @fileoverview 终端选择（[1] [2] …，锁屏 / 盾牌 shell/space/term.js、账号下拉 account/term.js）的高亮跟着输入走（Gray 2026-11-09 手机截图：
  * 在 `>` 后面打了 2，回车之前 [1] 还亮着）。桌面单键直接选中不经过这里；手机输入法的按键不报具体键（keydown 是 Unidentified），字进了输入框，靠 input 事件重画高亮。
  */
 

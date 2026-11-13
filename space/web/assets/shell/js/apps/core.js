@@ -56,13 +56,13 @@ export function initCore() {
   if (!SGX_TEST_NO_LOCK) initLock();
   /* 标签页图标跟调色板（换调色板时换 SVG 图标的底色） */
   initFavicon();
-  /* 2026-11-07 个人资料：页面上有 [data-sgx-profile]（首页名片、账号卡、关于页页脚）才动：先画本机缓存，已进门再问 /api/profile（lib/profile.js） */
+  /* 2026-11-07 个人资料：页面上有 [data-sgx-profile]（首页名片、账号卡、关于页页脚）才动：先画本机缓存，已进门再问 /api/profile（prefs/profile.js） */
   initProfile();
 
   /* 5.2：写共享 UI cookie sgx-ui（老用户补写；设置变更时再写一次） */
   syncUiCookie();
   window.addEventListener('sgx-settings-changed', syncUiCookie);
-  /* 账号云同步：登录了账号，设置项跨设备同步（lib/cloud-sync.js；锁屏没解锁不请求，没登录账号 401 account 后不再请求；
+  /* 账号云同步：登录了账号，设置项跨设备同步（prefs/cloud-sync.js；锁屏没解锁不请求，没登录账号 401 account 后不再请求；
      普通拉取最多 5 分钟一次，回到前台也按这个节流，账号页 / 云同步页 / 登录 / 打开开关时强制） */
   initCloudSync().catch(function () {});
   /* 2c：v6 su 之后页面标记就地切成 valid → 立即强制拉一次；exit / lock 回访客 → 丢掉没推的改动 */

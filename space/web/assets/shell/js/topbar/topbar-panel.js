@@ -1,8 +1,8 @@
 /**
  * @fileoverview 顶栏的三个弹出窗口（2026-11-04 P5-1；2026-11 UI 重设计 PR-1 顶栏 v3；v5 S6 顶栏 E：盾牌 · 外观 · 四格 | >_ · 头像）：NAVIGATE #sgx-nav（四格按钮）、外观 #sgx-qp（调色盘按钮）、AI 窗口 #sgx-ai（右下角浮钮），
  * 外加顶栏底边的滑页进度条 .sgx-tb-prog 和 tmux 页脚的 CST 时钟。
- * 共享外壳组件：四个站共用这一份（主站 shell/quick-panel.js 调它，子站入口脚本调它）。
- * 自成一体：不 import 任何东西；状态机（modal-sheet.js）、外观 setter（主站 lib/prefs.js / 子站 prefs-write.js）、AI 内容（ai.js）、
+ * 共享外壳组件：四个站共用这一份（主站 topbar/quick-panel.js 调它，子站入口脚本调它）。
+ * 自成一体：不 import 任何东西；状态机（modal-sheet.js）、外观 setter（主站 prefs/prefs.js / 子站 prefs-write.js）、AI 内容（ai.js）、
  * 键盘高度订阅（vk.js 的 onKeyboardHeight，转给 AI 窗口；P4-3 PR-3）都由调用方传进来。
  *
  * - 三个窗口都是非模态 <dialog>（modalSheet modal:false → show()）：从顶栏下方落下，顶栏留在上面可点；开合 / 系统返回 / Esc / bfcache 走 modalSheet。
@@ -17,8 +17,8 @@
  * - 头像 = whoami（定稿 v5.5 §七）：访客点 = 打开终端预填 `su `；站长与 root 点 = 打开账号页；普通用户（uid 1001 起）的头像只作装饰、不可点；头像一份，归站长。
  *   页面没有网关标记（本地 / 测试构建）且没有 v6 身份时点了开账号卡片（只展示，点一行 = 打开终端预填命令）。
  * - >_ 终端按钮（v5 S6）：开合全站终端（同 Ctrl / ⌘ K）。
- * - 终端（v5 S5 终端合一）：调用方传 terminal（shell/terminal.js 整个模块）、identityTerm（v6 身份层 shell/identity/layer.js）、accountTerm（终端里的账号层
- *   shell/account/cmd/layer.js mountAccountLayer）、account（账号卡片 shell/account/window.js mountAccountWindow，只展示）；本文件仍不 import。每页一个终端 #sgx-term（桌面居中大窗、手机整块卡片）。
+ * - 终端（v5 S5 终端合一）：调用方传 terminal（term/terminal.js 整个模块）、identityTerm（v6 身份层 identity/layer.js）、accountTerm（终端里的账号层
+ *   account/cmd/layer.js mountAccountLayer）、account（账号卡片 account/window.js mountAccountWindow，只展示）；本文件仍不 import。每页一个终端 #sgx-term（桌面居中大窗、手机整块卡片）。
  *   每次打开终端都是干净的新会话（S9：view.fresh()，history 照旧）。页面上的账号入口（[data-acct-open]、旧地址 #acct=…）都去终端：子页 → 预填命令。
  *   顶栏 >_、Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」打开它；盾牌也打开它（访客预填 su ）。命令的动作（滚动 / 跳转 / 外观 / AI / 账号窗口）都在这里接。
  * - 上锁的地方（v5 S3：AI 窗口、状态页 status 窗、奇趣音乐的播放，以及各处接口回 401）都只发 document 上的 `sgx:sudo` 事件（SUDO_EVENT），
@@ -48,9 +48,9 @@ function aiOrigin(btn, dlg, sheet) {
 }
 /** 关键词搜索（v5 S4，网关 GET /api/find，公开） */
 const FIND_API = '/api/find';
-/** 上锁的地方要人进站时发的事件（= lib/sudo.js SUDO_EVENT，本文件不 import，抄一份） */
+/** 上锁的地方要人进站时发的事件（= auth/sudo.js SUDO_EVENT，本文件不 import，抄一份） */
 export const SUDO_EVENT = 'sgx:sudo';
-/** 页面标记变了的事件（window 上；= shell/space/guard.js SESSION_EVENT，本文件不 import，抄一份）。detail { ok, live }：
+/** 页面标记变了的事件（window 上；= auth/guard.js SESSION_EVENT，本文件不 import，抄一份）。detail { ok, live }：
  *  守卫首帧发的没有 live；2c 起 v6 命令就地切标记时发 live: true（云同步、名片、AI 窗口、服务状态页、守卫各自接） */
 export const SESSION_EVENT = 'sgx:session';
 
@@ -437,9 +437,9 @@ export function mountTopbar(o) {
       return j && j[sec] && typeof j[sec] === 'object' ? j[sec] : {};
     } catch (e) { return {}; }
   };
-  /* ---------------- 终端（v5 S5 终端合一：锁屏 tty1、主页 tty2、盾牌 tty3、账号 tty5 合成一个；shell/terminal.js） ----------------
+  /* ---------------- 终端（v5 S5 终端合一：锁屏 tty1、主页 tty2、盾牌 tty3、账号 tty5 合成一个；term/terminal.js） ----------------
      一个会话、一份历史；提示符按身份（nobody / link / styrigx / root，服务端说了算）。桌面是居中大窗、手机整块卡片（#sgx-term）；
-     v5 S7 起主页首屏是 neofetch、不再嵌终端，四站都用 #sgx-term（S8 删了主页嵌入终端的代码路径）。v6 身份层（o.identityTerm：shell/identity/layer.js）和账号层（o.accountTerm：shell/account/cmd/layer.js）共用它的输入行。 */
+     v5 S7 起主页首屏是 neofetch、不再嵌终端，四站都用 #sgx-term（S8 删了主页嵌入终端的代码路径）。v6 身份层（o.identityTerm：identity/layer.js）和账号层（o.accountTerm：account/cmd/layer.js）共用它的输入行。 */
   const T = o.terminal;
   const termDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-term'));
   const acctBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-av'));
@@ -503,8 +503,8 @@ export function mountTopbar(o) {
   /** 终端那一头（给终端里的账号层） */
   const termLink = { close: closeTerm, shown: function () { return !!(termSheet && termSheet.isShown()); } };
 
-  /* ---------------- 账号卡片（头像，shell/account/window.js；S9 起只展示）：第一次打开时画 ---------------- */
-  /** 入口名（旧地址 #acct=<子页>、[data-acct-open]）→ 在终端里怎么开：o.accountLayer = shell/account/commands.js layerFromPath
+  /* ---------------- 账号卡片（头像，account/window.js；S9 起只展示）：第一次打开时画 ---------------- */
+  /** 入口名（旧地址 #acct=<子页>、[data-acct-open]）→ 在终端里怎么开：o.accountLayer = account/commands.js layerFromPath
    * @param {string} n @returns {{cmd: string}} */
   const acctLayer = function (n) { return o.accountLayer ? o.accountLayer(n) : { cmd: '' }; };
   /** 打开账号卡片 */
@@ -890,7 +890,7 @@ export function mountTopbar(o) {
     if (who && who.v6Hinted()) who.refresh();
     /* 上锁的地方要进站（SUDO_EVENT，发事件的都是服务端说了没进站：页面标记 locked 或接口 401）：打开终端、预填 su （不替人回车） */
     doc.addEventListener(SUDO_EVENT, function (/** @type {any} */ ev) {
-      /* detail.line（lib/sudo.js askSudo 第二个参数，如 /status/ 403 的 su root，#404 未决项第 5 项）：已登录、只是权限不够——只预填这一行，不动页面标记和身份 */
+      /* detail.line（auth/sudo.js askSudo 第二个参数，如 /status/ 403 的 su root，#404 未决项第 5 项）：已登录、只是权限不够——只预填这一行，不动页面标记和身份 */
       const want = ev && ev.detail && typeof ev.detail.line === 'string' ? ev.detail.line : '';
       if (want) { showTerm(function () { if (view) view.prefill(want); }); return; }
       /* 页面标记跟着改成 locked（AI 窗口锁、听歌等按它画访客态） */

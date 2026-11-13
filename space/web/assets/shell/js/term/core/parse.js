@@ -1,6 +1,6 @@
 /**
  * @fileoverview 终端公共件（终端统一 T1，设计稿 v1.5 §4）：命令行归一。纯函数 / 常量，不 import。
- * shell/terminal.js 与各命令共用这一份。v6 P4 起旧命令字 sudo styrigx / sudo root 与旧环境提示符 root@account 随旧会话删除。
+ * term/terminal.js 与各命令共用这一份。v6 P4 起旧命令字 sudo styrigx / sudo root 与旧环境提示符 root@account 随旧会话删除。
  */
 
 /**

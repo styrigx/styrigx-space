@@ -1,6 +1,6 @@
 /**
  * @fileoverview 终端公共件（终端统一 T1，设计稿 v1.5 §4）：外壳字符串表 #sgx-i18n-shell 的读取、嵌套表拍平、按键提示行英文底。
- * 纯函数、不 import 本目录以外的东西。shell/terminal.js、shell/ai-panel.js、shell/keyhint.js、shell/space/term.js、shell/account/term.js 共用这一份。
+ * 纯函数、不 import 本目录以外的东西。term/terminal.js、ai/ai-panel.js、term/view/keyhint.js、shell/space/term.js、account/term.js 共用这一份。
  */
 
 /**

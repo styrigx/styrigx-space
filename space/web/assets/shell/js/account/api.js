@@ -11,7 +11,7 @@ import { postJSON, errText as apiErrText } from '../auth/post-json.js';
 
 /** 账号接口：POST 到 /api/account/<入口> */
 const ACCOUNT_API = '/api/account';
-/** v6 身份接口（自己的通行密钥走这里；同 shell/identity/api.js IDENTITY_API） */
+/** v6 身份接口（自己的通行密钥走这里；同 identity/api.js IDENTITY_API） */
 const IDENTITY_API = '/api/identity';
 
 /** 服务端错误码（面板按它分支） */
@@ -25,7 +25,7 @@ export const ERR = Object.freeze({
 
 /**
  * sudo 借 root（定稿 v5.5 §四「后台数据控制……一律 root 档，站长用 sudo 提权、不必 su root」；§七「站长预填 sudo …」）：
- * 终端 sudo device … / sudo sub … 跑这一条命令时由身份层（shell/identity/layer.js sudoProof）给一个「证明」来源，
+ * 终端 sudo device … / sudo sub … 跑这一条命令时由身份层（identity/layer.js sudoProof）给一个「证明」来源，
  * 这条命令里每次调账号接口都改走 POST /api/identity { action:'sudo', password | {cid, credential}, command:{ method, path, body } }
  * （服务端 api/sudo-route.js：每次验自己的凭据、不发票据、不压栈；回的就是那条接口的响应，形状不变）。
  * 下一条命令开始前清掉（setSudo(null)）。

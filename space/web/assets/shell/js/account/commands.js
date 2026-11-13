@@ -6,7 +6,7 @@ import { normCmd } from '../term/core/parse.js';
 
 /** profile set 的字段名 → 资料字段（用户看得见的写法短一点；S9。term/cmds/acct 的补全表 PROFILE_SET 是这里的键） */
 export const PROFILE_KEYS = Object.freeze({ name: 'name', nick: 'nickname', sign: 'motto', email: 'email' });
-/** 命令行解析（小写、空白归一）：终端统一 T1 起在 shell/term/core/parse.js，这里转出 */
+/** 命令行解析（小写、空白归一）：终端统一 T1 起在 term/core/parse.js，这里转出 */
 export { normCmd };
 
 /**

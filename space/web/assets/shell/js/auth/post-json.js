@@ -1,6 +1,6 @@
 /**
- * @fileoverview POST JSON（回 { s, j }）+ 服务端错误码 → 文案。账号终端（shell/account/api.js）和盾牌的临时钥匙 / 分享短链页共用。
- * 2026-11-08 按 NAMING-V2 §2.8 改名：原 auth/account-api.js；账号接口地址 ACCOUNT_API 搬进 shell/account/api.js（后端名只在那一处）。
+ * @fileoverview POST JSON（回 { s, j }）+ 服务端错误码 → 文案。账号终端（account/api.js）和盾牌的临时钥匙 / 分享短链页共用。
+ * 2026-11-08 按 NAMING-V2 §2.8 改名：原 auth/account-api.js；账号接口地址 ACCOUNT_API 搬进 account/api.js（后端名只在那一处）。
  */
 
 /**

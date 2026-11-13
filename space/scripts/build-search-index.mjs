@@ -143,7 +143,7 @@ export function build(pub = PUB) {
   for (const x of byUrl.values()) {
     /** @type {string[]} */
     const crumbs = [];
-    /* 语言根（英文 / 、中文 /zh/，lib/lang-path.js）= 旷野页：旷野子页的最上一级；旷野页自己和账号页（独立）不挂 */
+    /* 语言根（英文 / 、中文 /zh/，i18n/lang-path.js）= 旷野页：旷野子页的最上一级；旷野页自己和账号页（独立）不挂 */
     const root = ORIGIN + langPath('/', x.lang);
     const underSpace = x.url !== root && !/^\/account\//.test(stripLang(x.url.slice(ORIGIN.length)));
     for (let u = x.url.replace(/[^/]+\/$/, ''); u.length > root.length; u = u.replace(/[^/]+\/$/, '')) {

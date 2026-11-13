@@ -2,17 +2,17 @@
  * @fileoverview 终端（v5 S5 终端合一，term-design-v5）：原锁屏 tty1、主页 tty2、盾牌 tty3、账号 tty5 合成一个终端——一个会话、一份历史、一张命令表。
  * AI 窗口（tty4）不动：它里面以 $ 开头的输入照旧走这里的 createShell（自己的历史 sgx-term-hist-4）。
  *
- * - 引擎 createShell()：命令表（shell/term/cmds/index.js）、提示符（身份 shell/term/core/who.js：访客 nobody / v6 用户 / v6 root，服务端说了算）、
+ * - 引擎 createShell()：命令表（term/cmds/index.js）、提示符（身份 term/core/who.js：访客 nobody / v6 用户 / v6 root，服务端说了算）、
  *   历史（↑↓，sessionStorage sgx-term-hist，全站一份）、Tab 补全、cd 的当前目录。真正的动作（跳页 / 外观 / AI / 打开账号窗口）由调用方经 act 传进来。
- * - 视图 mountTerminal()：把一个终端窗口标记（[data-sgx-term]）接到引擎上。输入行用 shell/term/view/input-line.js（秘密输入 / 选择 / 等待 / ^C 都在那里），
- *   要输入、选择、验证的命令（su、sudo、exit、lock、账号命令、sub）交给调用方给的两层上下文去跑（layers：v6 身份层 shell/identity/layer.js、
- *   账号层 shell/account/cmd/layer.js），它们共用这一个输入行（shell/term/view/layer-ctx.js）。账号窗口（头像，shell/account/window.js）只展示（S9），点一行 = 打开这个终端、预填命令。
- * - man 的结果在终端窗口里的全屏阅读页显示（S9，shell/term/view/pager.js，less 式），不进滚动区。
+ * - 视图 mountTerminal()：把一个终端窗口标记（[data-sgx-term]）接到引擎上。输入行用 term/view/input-line.js（秘密输入 / 选择 / 等待 / ^C 都在那里），
+ *   要输入、选择、验证的命令（su、sudo、exit、lock、账号命令、sub）交给调用方给的两层上下文去跑（layers：v6 身份层 identity/layer.js、
+ *   账号层 account/cmd/layer.js），它们共用这一个输入行（term/view/layer-ctx.js）。账号窗口（头像，account/window.js）只展示（S9），点一行 = 打开这个终端、预填命令。
+ * - man 的结果在终端窗口里的全屏阅读页显示（S9，term/view/pager.js，less 式），不进滚动区。
  * - 每次打开终端窗口都是干净的新会话（S9）：滚动区回到欢迎行、提示符重画、进行中的输入 / 选择取消、cwd 回到本页；history 照旧（sessionStorage）。
  *   桌面是居中大窗（#sgx-term 抽屉），手机整块卡片；四站只有这一个（v5 S7 起主页首屏是 neofetch，不再嵌终端）。
  * - 文案：#sgx-i18n-shell 的 term 节（data/sgx-shell-i18n/<语言>.yaml，缺键回退下面的英文）。
  *
- * 共享外壳组件：只许 import shell/term/**（终端统一 T1，gen-shell 核对）。
+ * 共享外壳组件：只许 import term/**（终端统一 T1，gen-shell 核对）。
  */
 import { parse } from './core/parse.js';
 import { KH_EN, shellSection, flatStrings } from './core/strings.js';

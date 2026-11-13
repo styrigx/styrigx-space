@@ -179,7 +179,7 @@ var toastTimer = null;
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
 }
-/** 请人进站：顶栏终端预填 su （shell/topbar-panel.js 接 sgx:sudo，= js/lib/sudo.js SUDO_EVENT）；子页经 SgxCurioUI.sudo 用同一个 */
+/** 请人进站：顶栏终端预填 su （topbar/topbar-panel.js 接 sgx:sudo，= shell/js/auth/sudo.js SUDO_EVENT）；子页经 SgxCurioUI.sudo 用同一个 */
 function askSudo(){ try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {} }
 function getJSON(url){
   return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){
@@ -220,7 +220,7 @@ function errText(e){
  * @returns {string} 说明文字
  */
 function signinHint(){
-  /* 2d：已经以 v6 用户登录（登录标记 sgx-id=1，同 shell/identity/api.js hasMarker）、只是不在写组 → 命令仍是 su（缺组时提示 su），
+  /* 2d：已经以 v6 用户登录（登录标记 sgx-id=1，同 identity/api.js hasMarker）、只是不在写组 → 命令仍是 su（缺组时提示 su），
      文字换成站内已上线的无权限句 noPermission「当前用户没有这个权限。」，不再说「su 登录后可编辑」 */
   if (v6SignedIn() && T.noPermission) return T.noPermission;
   /* 2c（v6 割接）：没登录 → 「su 登录后可编辑」（入口 su / data-sec-open / #sec 在模板里） */

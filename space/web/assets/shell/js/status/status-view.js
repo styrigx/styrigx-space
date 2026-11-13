@@ -11,7 +11,7 @@
  *     incidents: [{ id, site, started_at, ended_at|null, cause }] }
  * 日期（days[].day、today）是北京时间 YYYY-MM-DD；时间戳是毫秒。页面上的时间一律按北京时间显示（和监测的日期口径一致）。
  *
- * 文案：t(key) / fmt(key, vars) 来自页面里的 #sgx-i18n-status（partials/status-i18n.html，lib/i18n.js loadI18n）。
+ * 文案：t(key) / fmt(key, vars) 来自页面里的 #sgx-i18n-status（partials/status-i18n.html，i18n/i18n.js loadI18n）。
  */
 import { esc } from '../core/util.js';
 
@@ -312,7 +312,7 @@ export function renderSite(s, ctx) {
 }
 
 /* ===== unit 行（2026-11 对齐 PR-B，设计稿 tb4.html pg=wild 的 systemctl status space.target）=====
- * 六个 unit，口径同外壳 NAVIGATE STATUS 六格（shell/topbar-panel.js mountStatus cellsOf）：
+ * 六个 unit，口径同外壳 NAVIGATE STATUS 六格（topbar/topbar-panel.js mountStatus cellsOf）：
  *   space / blog / curio / daymark = 主站那一项（四站同一个 Pages、同一条网关链路，子站不单独测）；gray-ai = ai 那一项；
  *   auth = 网关本身（/api/status 这一问能回来就是在线，延迟 = 这一问的往返）。规则集（proxy-rules）不在六个 unit 里，在下面的可用率行。 */
 export const UNITS = [

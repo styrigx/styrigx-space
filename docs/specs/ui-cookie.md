@@ -17,7 +17,7 @@
 | 角色 | 文件 |
 |---|---|
 | 字段表、版本、编解码、读端 `SgxUI` | `space/web/assets/shell/js/prefs/ui-cookie-read.js` |
-| 写端 `syncUiCookie()` | `space/web/assets/shell/js/prefs/prefs-write.js`（`lib/ui-cookie.js` 只转导出） |
+| 写端 `syncUiCookie()` | `space/web/assets/shell/js/prefs/prefs-write.js`（`prefs/ui-cookie.js` 只转导出） |
 | 首帧语言跳转 | `space/web/assets/shell/js/i18n/lang-boot.js` |
 | 契约夹具 | `tests/fixtures/ui-cookie-contract.json`（`space/scripts/gen-ui-cookie-contract.mjs` 跑真写端生成） |
 

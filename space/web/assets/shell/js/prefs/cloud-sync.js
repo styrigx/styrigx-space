@@ -8,7 +8,7 @@
  * - 时机（2026-10-24 拉取节流）：只在锁屏已解锁的页面（<html data-sgx-lock-session="valid">）请求；不看锁屏进门方式，
  *   2b 起纯 v6 登录（su styrigx / su root）的页面网关也标 valid，数据按 v6 会话的 uid 归属（服务端 dataUid）；
  *   能不能同步直接按 /api/prefs 的结果：401 / 403 → 这次不同步。
- *   - 普通拉取（每页加载 shell/core.js、页面回到前台）最多每 5 分钟一次：上次成功拉取 / 推送的时刻记在
+ *   - 普通拉取（每页加载 apps/core.js、页面回到前台）最多每 5 分钟一次：上次成功拉取 / 推送的时刻记在
  *     localStorage sgx-sync-pull（毫秒），没过 5 分钟就不发 GET /api/prefs。
  *   - 强制拉取不受节流（force）：刚登录、进账号页 /account/（云同步子页和总开关 2026-11-08 删除，只留后台自动同步）。
  *   本页改了设置（sgx-settings-changed）→ 记时间、1.5 秒防抖后推上去（不受节流）；推送成功也刷新上面的时刻；
@@ -41,7 +41,7 @@ const FORCE_REUSE_MS = 3000;
 const EXCLUDE = new Set(['sgx-lang', 'sgx-layout']);
 /** features.yaml 之外也要同步的 key */
 /* P4-2c：sgx-weather-loc / sgx-weather-city 随天气删除。
-   P4-2d：sgx-ai-model（账号页选的 AI 模型 id，shell/ai-panel.js MODEL_KEY）；AI 窗口的对话历史仍只存本地、不同步 */
+   P4-2d：sgx-ai-model（账号页选的 AI 模型 id，ai/ai-panel.js MODEL_KEY）；AI 窗口的对话历史仍只存本地、不同步 */
 const EXTRA = ['sgx-ai-model'];
 
 /** @returns {string[]} 要同步的 localStorage key */
@@ -238,7 +238,7 @@ let sessionBound = false;
  * 2c：页面标记就地切了（v6 su / exit / lock 之后顶栏发 window 'sgx:session'，detail { ok, live: true }；守卫首帧那次没有 live，不管）。
  * - 切成 valid（刚 su 登录）→ 立即强制拉一次（忽略节流、旧 out 标记和 FORCE_REUSE_MS：可能刚换了身份）
  * - 切成 locked（exit / lock 回访客）→ 丢掉还没推的改动（属于刚退出的身份；没有会话推了也是 401）
- * shell/core.js 调一次（幂等）。
+ * apps/core.js 调一次（幂等）。
  */
 export function bindSessionSync() {
   if (sessionBound) return;
@@ -256,7 +256,7 @@ export function bindSessionSync() {
 }
 
 /**
- * 主站每页调用一次（shell/core.js），页面回到前台再调；账号页 / 云同步页 / 登录 / 打开开关时 force。
+ * 主站每页调用一次（apps/core.js），页面回到前台再调；账号页 / 云同步页 / 登录 / 打开开关时 force。
  * 锁屏已解锁 + 开关开才动（不看锁屏进门方式，按 /api/prefs 的结果）；普通调用 5 分钟内拉过就不拉（'fresh'）。
  * @param {{force?: boolean}} [opts] force：忽略节流（刚登录 / 打开开关 / 进账号页、云同步页）
  * @returns {Promise<string>} 'off' | 'skip' | 'fresh' | 'ok' | 'error'

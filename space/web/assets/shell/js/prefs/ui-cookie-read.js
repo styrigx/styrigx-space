@@ -1,7 +1,7 @@
 /**
  * @fileoverview sgx-ui cookie 只读解析器（2026-10-22）：子站（博客 / 日刻 / 奇趣）首帧前读主站写的外观，<html> 落到和主站一样的状态。
  *
- * - 主站 lib/ui-cookie.js 写（localStorage 是唯一来源，cookie 只是镜像）；子站只读，永远不写 sgx-ui。
+ * - 主站 prefs/ui-cookie.js 写（localStorage 是唯一来源，cookie 只是镜像）；子站只读，永远不写 sgx-ui。
  *   写端也用这里的 NAME / V / FONT_SIZES / PRESETS / encode / decode，两边同一份字段表，不会各说各话。
  * - 经典脚本、ES5、无依赖：子站原样内联进 <head>（共享外壳 space/web/shared/shell/ui-cookie-read.js 就是本文件），
  *   也能被打包器当副作用模块 import。挂在 window.SgxUI 上。

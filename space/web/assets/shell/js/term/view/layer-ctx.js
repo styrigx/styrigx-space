@@ -1,5 +1,5 @@
 /**
- * @fileoverview 一个输入行、几套命令上下文（v5 S5 终端合一）：钥匙层（shell/space/*）和账号层（shell/account/*）的模块各自往「自己的」上下文上挂函数
+ * @fileoverview 一个输入行、几套命令上下文（v5 S5 终端合一）：钥匙层（shell/space/*）和账号层（account/*）的模块各自往「自己的」上下文上挂函数
  * （两边都有 verify / cmdReset / cmdPasswd / authErr / reauthExp …，同名不同义），但输出、输入模式、秘密输入、选择都走同一个输入行（input-line.js 的 C）。
  *
  * layerCtx(C, own)：以 C 为原型的新对象 + own 里的字段。输入行自己读写的状态（mode / onSecret / onCancel / busyCancel / refocus）

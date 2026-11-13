@@ -189,7 +189,7 @@ function staticImports(code, label) {
 }
 
 /**
- * 核对 import（含字面量 import()）只落在 shell/term/** 里，并顺着 term/** 里的文件往下查（它们也只许互相 import）
+ * 核对 import（含字面量 import()）只落在 term/** 里，并顺着 term/** 里的文件往下查（它们也只许互相 import）
  * @param {string} file @param {string} label @param {string} [termDir] 单测换成临时目录 @param {Set<string>} [seen]
  */
 export function checkTermImports(file, label, termDir = TERM_DIR, seen = new Set()) {
@@ -208,7 +208,7 @@ export function checkTermImports(file, label, termDir = TERM_DIR, seen = new Set
 
 /**
  * 自成一体的 JS 组件：原样复制（不能 import；必须导出 exportName）。
- * opts.term：只许 import shell/term/**（终端统一 T1 起 terminal.js、ai-panel.js；同一次 Hugo 构建打包，子站没有原样副本）
+ * opts.term：只许 import term/**（终端统一 T1 起 terminal.js、ai-panel.js；同一次 Hugo 构建打包，子站没有原样副本）
  * @param {string} file @param {string} label @param {string} exportName @param {{term?: boolean}} [opts]
  */
 export function renderStandalone(file, label, exportName, opts = {}) {

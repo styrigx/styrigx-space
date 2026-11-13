@@ -14,7 +14,7 @@
  * Esc（模态：原生 cancel；非模态 modal:false：document keydown）走 close()，点遮罩由调用方接到 close()；close(after) 先退掉哨兵、等它出栈后再执行 after
  * （跳转 / 再弹别的层），免得目标页的返回多一步。
  */
-/** 减弱动效：<html class="reduced-motion">（主站 / 子站读端都会写）或系统 prefers-reduced-motion（同 lib/util.js reducedMotion） */
+/** 减弱动效：<html class="reduced-motion">（主站 / 子站读端都会写）或系统 prefers-reduced-motion（同 core/util.js reducedMotion） */
 function reducedMotion() {
   return (
     document.documentElement.classList.contains('reduced-motion') ||

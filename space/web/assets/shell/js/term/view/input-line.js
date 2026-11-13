@@ -1,6 +1,6 @@
 /**
  * @fileoverview 终端输入行 + 输出区（终端统一 T2，设计稿 v1.5 §4）：锁屏 / 盾牌（shell/space/term.js 转出，宿主 entry.js、shield.js）
- * 和账号下拉（shell/account/term.js）以前各写一份、约 200 行几乎一样，这里合成一份。
+ * 和账号下拉（account/term.js）以前各写一份、约 200 行几乎一样，这里合成一份。
  * 一行真输入框 + 输出区：输出行、命令回显、选项（可点）、不回显的秘密输入、^C / esc、↑↓ 历史、手机输入法回车补提交（#333 的 IME 修正）、
  * 触屏 ^C 键、一轮结束后把焦点还给输入行。
  *
@@ -26,7 +26,7 @@ export const SECRET_MODES = Object.freeze(['pw', 'rkey', 'newpw', 'newpw2']);
  * @property {HTMLElement} ps 提示符（label）
  * @property {HTMLElement} hint 输入行下面一行注释 + 触屏 ^C
  * @property {HTMLElement} live aria-live 区
- * @property {HTMLElement} [kh] 最底一行按键提示（shell/keyhint.js；可选）
+ * @property {HTMLElement} [kh] 最底一行按键提示（term/view/keyhint.js；可选）
  */
 
 /**

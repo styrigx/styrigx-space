@@ -18,7 +18,7 @@ import { uptimeDays, uptimeText } from '../status/uptime.js';
 export function mountSpace() {
   /** @type {Array<() => void>} */
   const offs = [];
-  /** 同 lib/events.js on()，但记下清理函数，destroy 时统一拆 @type {typeof evOn} */
+  /** 同 core/events.js on()，但记下清理函数，destroy 时统一拆 @type {typeof evOn} */
   const on = function (t, type, fn, o) {
     const off = evOn(t, type, fn, o);
     offs.push(off);

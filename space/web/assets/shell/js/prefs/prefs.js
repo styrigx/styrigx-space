@@ -1,6 +1,6 @@
 /**
  * @fileoverview 外观 / 语言偏好的统一读写（设置页和顶栏快捷面板共用同一套 setter，两边永远同步）。
- * 2026-11-04 P5-1：cookie 写法、默认色板和存值归一搬进共享外壳的外观写端 lib/prefs-write.js（子站快捷设置也用它）；这里的 setter 仍经 features.js（订阅 / 云同步要用），写的 key 和写端一样。
+ * 2026-11-04 P5-1：cookie 写法、默认色板和存值归一搬进共享外壳的外观写端 prefs/prefs-write.js（子站快捷设置也用它）；这里的 setter 仍经 features.js（订阅 / 云同步要用），写的 key 和写端一样。
  * - 存储一律经 features.js（key 不变：sgx-palette / sgx-layout / sgx-lang；2026-11-12 调色板 v4 删除 sgx-theme-mode 和自定义主题色），
  *   features.set 内派发 sgx-settings-changed + 订阅回调，
  *   别的页面部件（设置页的开关、快捷面板的磁贴）各自订阅 features.on 重绘。
@@ -20,7 +20,7 @@ export function isDark() {
   return document.documentElement.classList.contains('dark');
 }
 
-/* 默认调色板 DEFAULT_PALETTE、存值归一 normPalette：2026-11-04 P5-1 起定义在外观写端 lib/prefs-write.js（四站共用，见上面的 import / export） */
+/* 默认调色板 DEFAULT_PALETTE、存值归一 normPalette：2026-11-04 P5-1 起定义在外观写端 prefs/prefs-write.js（四站共用，见上面的 import / export） */
 
 /** @returns {string} 调色板 id（默认 terra） */
 export function palette() {
@@ -110,6 +110,6 @@ export function setLang(v) {
   /* 语言清理（2026-11-07）：偏好明确存 'system'（features.set 遇到默认值会删 key，这里再写一次）；旧版存的空 / 没有也按跟随系统读 */
   sset('sgx-lang', pick);
   const want = pick === 'system' ? systemLang() : pick;
-  /* P4-3 PR-4c：英文无前缀、中文 /zh/，地址统一由 lib/lang-path.js 拼 */
+  /* P4-3 PR-4c：英文无前缀、中文 /zh/，地址统一由 i18n/lang-path.js 拼 */
   return langPath(location.pathname, want) + location.search + location.hash;
 }
