@@ -178,6 +178,37 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 .layout-dex .bk-overlay.open .bk-panel { opacity: 1; transform: none; }
 .layout-dex .bk-dialog { max-width: 24rem; }
 .sheet-handle { display: none; }
+/* 音乐上传窗 #mu-up-wrap（2026-11-14 Gray：同 AI 窗口的悬浮终端卡片，不要底部升起半遮）：开合 / 遮罩用共享外壳 .sgx-qp，这里只定卡片——
+   实色、1px 终端线、圆角 16（同 AI 窗口 ai-v1）；四边留 --sgx-page-m 悬浮在顶栏下方，最宽 520 居中，高度随内容、最高到底部安全区之上；
+   半档遮罩（同手机 AI 窗口）；开合 = 轻微缩放 + 淡入 240ms（减弱动效只淡入）。头部一行：等宽小标题 · ×，下一条细线；表单区自己滚，底部按钮常驻。 */
+.sgx-up.is-open { background-color: color-mix(in srgb, var(--sgx-scrim) 45%, transparent); }
+.sgx-up .sgx-qp-sheet { top: var(--sgx-page-m); left: max(var(--sgx-page-m), env(safe-area-inset-left, 0px)); right: max(var(--sgx-page-m), env(safe-area-inset-right, 0px));
+  width: auto; max-width: 520px; max-height: calc(100% - 2 * var(--sgx-page-m) - env(safe-area-inset-bottom, 0px)); margin: 0 auto; padding: 0;
+  display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; border-color: var(--sgx-term-line); background: var(--sgx-mat-solid); -webkit-backdrop-filter: none;
+  transform: translateY(-6px) scale(.97); opacity: 0; transform-origin: 50% 0; transition: transform .24s cubic-bezier(.2,.8,.2,1), opacity .24s cubic-bezier(.2,.8,.2,1); }
+@supports (backdrop-filter: blur(1px)) { .sgx-up .sgx-qp-sheet { backdrop-filter: none; } }
+.sgx-up.is-open .sgx-qp-sheet { transform: none; opacity: 1; }
+.reduced-motion .sgx-up .sgx-qp-sheet { transform: none; transition: opacity .12s ease; }
+@media (prefers-reduced-motion: reduce) { .sgx-up .sgx-qp-sheet { transform: none; transition: opacity .12s ease; } }
+.mu-up-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 16px; border-bottom: 1px solid var(--sgx-term-line); }
+.mu-up-title { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--sgx-font-mono); font-size: 14px; font-weight: 600; color: var(--sgx-text-primary); }
+.mu-up-x { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 999px; color: var(--sgx-text-secondary); -webkit-tap-highlight-color: transparent; }
+.mu-up-x svg { width: 19px; height: 19px; }
+.mu-up-x:active { background: var(--sgx-state-pressed-bg); }
+.mu-up-x:focus-visible, .mu-up-go:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+.mu-up-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 16px; }
+.mu-up-foot { flex: none; padding: 12px 16px 14px; border-top: 1px solid var(--sgx-term-line); }
+.mu-up-go { width: 100%; height: 44px; border-radius: 8px; background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 600; }
+.mu-up-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* 桌面（Gray 2026-11-14 03:50–03:51：只要终端那种横版矩形，内容自己排）：形状同站内终端桌面大窗——居中，宽 min(1040px, 86vw)，离顶栏 10vh（24–96px），圆角 14；
+   内容：表单左右两栏（左：专辑名 / 艺术家 · 年份 / 说明，右：三个选文件），按钮靠右。高度随内容。 */
+:root[data-sgx-layout="desktop"] .sgx-up .sgx-qp-sheet { top: max(24px, min(96px, 10vh)); left: 0; right: 0; width: min(1040px, 86vw); max-width: none; margin: 0 auto; border-radius: 14px;
+  max-height: calc(100% - 2 * max(24px, min(96px, 10vh))); box-shadow: 0 30px 70px rgba(0,0,0,.28); }
+.dark:root[data-sgx-layout="desktop"] .sgx-up .sgx-qp-sheet, :root.dark[data-sgx-layout="desktop"] .sgx-up .sgx-qp-sheet { box-shadow: 0 30px 70px rgba(0,0,0,.45); }
+:root[data-sgx-layout="desktop"] .mu-up-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; padding: 22px 24px 20px; }
+:root[data-sgx-layout="desktop"] .mu-up-col > .cu-file { flex: 1 1 0; display: flex; align-items: center; justify-content: center; }
+:root[data-sgx-layout="desktop"] .mu-up-foot { display: flex; justify-content: flex-end; padding: 12px 24px 14px; }
+:root[data-sgx-layout="desktop"] .mu-up-go { width: auto; min-width: 160px; padding: 0 24px; }
 /* 标题栏 = 终端窗口标题栏：左三点，中间等宽小标题，右关闭 */
 .bk-titlebar { position: relative; display: grid; grid-template-columns: 64px 1fr 64px; align-items: center; height: 44px; flex-shrink: 0; margin-bottom: 14px; padding: 0 6px 0 14px;
   border-bottom: 1px solid var(--sgx-term-line); background: var(--sgx-surface-container-low); border-radius: 14px 14px 0 0; }

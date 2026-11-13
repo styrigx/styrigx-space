@@ -326,7 +326,8 @@ test('音乐（有权限）：上传专辑——音频按文件名排序逐个�
   const calls = await mockMusic(page, 'owner');
   await page.goto('/curio/zh/music/');
   await page.locator('#mu-upload').click();
-  await expect(page.locator('#mu-up-wrap')).toHaveClass(/open/);
+  await expect(page.locator('#mu-up-wrap')).toHaveJSProperty('open', true);
+  await expect(page.locator('#mu-up-wrap')).toHaveAttribute('data-state', 'open');
   await expect(page.locator('#mu-up-form')).toContainText('95 MB');
   await page.locator('#mu-up-go').click();
   await expect(page.locator('#mu-up-msg')).toHaveText('填一下专辑名。');
@@ -343,7 +344,7 @@ test('音乐（有权限）：上传专辑——音频按文件名排序逐个�
   await expect(page.locator('#mu-up-audio-name')).toHaveText('已选 3 个');
   await page.locator('#mu-up-lrc').setInputFiles([{ name: '02 - Help Me.lrc', mimeType: 'text/plain', buffer: Buffer.from('[00:01.00]Help me') }]);
   await page.locator('#mu-up-go').click();
-  await expect(page.locator('#mu-up-wrap')).not.toHaveClass(/open/, { timeout: 30000 });
+  await expect(page.locator('#mu-up-wrap')).toHaveJSProperty('open', false, { timeout: 30000 });
   await expect(page.locator('#bk-toast')).toHaveText('已上传');
   expect(calls.find((c) => c.op === 'album.add')).toMatchObject({ title: 'Court and Spark', artist: 'Joni Mitchell', year: 1974 });
   const ups = calls.filter((c) => c.upload === 'track');
@@ -353,6 +354,47 @@ test('音乐（有权限）：上传专辑——音频按文件名排序逐个�
   /* 新专辑成了当前专辑 */
   await expect(page.locator('#mu-album-title')).toHaveText('Court and Spark');
   await expect(page.locator('#mu-tracks .mu-track-title')).toHaveText(['Court and Spark', 'Help Me', 'Twisted']);
+});
+
+test('音乐（有权限）：上传窗是 AI 窗口那种悬浮卡片（非模态 <dialog class=sgx-qp>）——关闭按钮 / Esc / 系统返回 / 点遮罩都只关窗、留在本页；开着时页面不能滚；点顶栏按钮先关它再开顶栏窗口', async ({ page }) => {
+  await mockMusic(page, 'owner');
+  await page.goto('/curio/zh/music/');
+  const dlg = page.locator('#mu-up-wrap');
+  const openIt = async () => {
+    await page.locator('#mu-upload').click();
+    await expect(dlg).toHaveJSProperty('open', true);
+    await expect(dlg).toHaveAttribute('data-state', 'open');
+  };
+  expect(await dlg.evaluate((d) => d.tagName)).toBe('DIALOG');
+  /* 关闭按钮 */
+  await openIt();
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden');
+  await expect(page.locator('#mu-upload')).toHaveAttribute('aria-expanded', 'true');
+  await page.locator('#mu-up-x').click();
+  await expect(dlg).toHaveJSProperty('open', false);
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe('');
+  /* Esc */
+  await openIt();
+  await page.keyboard.press('Escape');
+  await expect(dlg).toHaveJSProperty('open', false);
+  /* 系统返回：只关窗，不离开音乐页 */
+  await openIt();
+  await page.goBack();
+  await expect(dlg).toHaveJSProperty('open', false);
+  expect(new URL(page.url()).pathname).toBe('/curio/zh/music/');
+  /* 点遮罩（卡片下方的空白处） */
+  await openIt();
+  const vp = page.viewportSize();
+  await page.mouse.click(vp.width / 2, vp.height - 4);
+  await expect(dlg).toHaveJSProperty('open', false);
+  expect(new URL(page.url()).pathname).toBe('/curio/zh/music/');
+  /* 顶栏仍可点、和顶栏窗口互斥：点导航按钮 → 上传窗关、导航面板开且停住（不被迟到的返回事件关掉） */
+  await openIt();
+  await page.locator('#site-nav [aria-controls="sgx-nav"]').click();
+  await expect(dlg).toHaveJSProperty('open', false);
+  await expect(page.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
+  await page.waitForTimeout(400);
+  await expect(page.locator('#sgx-nav')).toHaveJSProperty('open', true);
 });
 
 /* ================= 弹出播放器（音乐第二步 2b，/curio/music/player/） ================= */

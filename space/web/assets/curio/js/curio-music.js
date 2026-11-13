@@ -305,11 +305,29 @@ $('#mu-album-del').addEventListener('click', function(){
 /* ---------- 上传 ---------- */
 var upFiles = { audio: [], cover: null, lrc: [] };
 function upMsg(m, bad){ var el = $('#mu-up-msg'); el.textContent = m || ''; el.classList.toggle('hidden', !m); el.classList.toggle('text-m-error', !!bad); }
+/* 上传窗 = 非模态 <dialog class="sgx-qp sgx-up">（同 AI 窗口的悬浮卡片）+ 共享 modalSheet（topbar-host.js 挂的 window.SgxModalSheet）：
+ * 系统返回 / Esc 只关窗不离页；点遮罩（dialog 本身）关；点顶栏任一按钮先关它（同顶栏窗口互斥）。时长同 CSS .24s。
+ * 拿不到状态机（不该发生）就退回裸 show / close。 */
+var upDlg = $('#mu-up-wrap');
+function upLock(on){ doc.body.style.overflow = on || doc.querySelector('.bk-overlay.open') ? 'hidden' : ''; }
+var upSheet = G.SgxModalSheet ? G.SgxModalSheet(upDlg, $('#mu-upload'), { ms: 240, reducedMs: 120, stateKey: 'sgxMuUp', modal: false, onOpen: function(){ upLock(true); }, onClosed: function(){ upLock(false); } })
+  : { open: function(){ if (!upDlg.open) { upDlg.show(); upDlg.classList.add('is-open'); upLock(true); } }, close: function(){ if (upDlg.open) { upDlg.classList.remove('is-open'); upDlg.close(); } upLock(false); } };
+upDlg.addEventListener('click', function(e){ if (e.target === upDlg) upSheet.close(); });
+var nav = doc.getElementById('site-nav');
+/* 先关上传窗、等它的历史哨兵出栈，再在下一个任务里把这次点击补给原按钮（同 topbar/panel.js 顶栏窗口互斥）：
+ * 同一个 popstate 还要派给顶栏窗口的 modalSheet 监听，同一下里就开顶栏窗口会被它当成「系统返回」立刻关掉 */
+if (nav) nav.addEventListener('click', function(e){
+  var t = upDlg.open && e.target.closest && e.target.closest('button, a');
+  if (!t) return;
+  e.preventDefault(); e.stopPropagation();
+  upSheet.close(function(){ G.setTimeout(function(){ t.click(); }, 0); });
+}, true);
+$('#mu-up-x').addEventListener('click', function(){ upSheet.close(); });
 $('#mu-upload').addEventListener('click', function(){
   $('#mu-up-form').reset(); upFiles = { audio: [], cover: null, lrc: [] };
   $('#mu-up-audio-name').textContent = T.choose; $('#mu-up-cover-name').textContent = T.coverNone; $('#mu-up-lrc-name').textContent = T.lrcNone;
   upMsg(''); $('#mu-up-go').disabled = false;
-  if (UI) UI.openOverlay('mu-up-wrap');
+  upSheet.open();
 });
 $('#mu-up-audio').addEventListener('change', function(){ upFiles.audio = sortByName(this.files); $('#mu-up-audio-name').textContent = upFiles.audio.length ? T.chosen(upFiles.audio.length) : T.choose; });
 $('#mu-up-cover').addEventListener('change', function(){ upFiles.cover = this.files && this.files[0] || null; $('#mu-up-cover-name').textContent = upFiles.cover ? upFiles.cover.name : T.coverNone; });
@@ -385,7 +403,7 @@ $('#mu-up-go').addEventListener('click', function(){
     albums = j.albums || []; coverVer = Date.now();
     var i = albums.map(function(a){ return a.id; }).indexOf(albumId);
     renderCovers(); select(i < 0 ? 0 : i, true);
-    if (UI) UI.closeOverlay('mu-up-wrap');
+    upSheet.close();
     toast(failed ? T.partial(failed) : T.saved);
   }).catch(function(e){ if (!e.sgxLocked) upMsg(failMsg(e), true); }).then(function(){ btn.disabled = false; });
 });

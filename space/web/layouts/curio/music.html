@@ -53,33 +53,38 @@
 </div>
 <audio id="mu-audio" preload="metadata"></audio>
 
-{{/* ===== 上传专辑 ===== */}}
-<div id="mu-up-wrap" class="bk-overlay fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="mu-up-title">
-  <div class="bk-overlay-backdrop absolute inset-0" data-close="mu-up"></div>
-  <div class="bk-panel text-m-on-surface shadow-2xl">
-    <div class="sheet-handle"></div>
-    <div class="bk-titlebar">
-      <div class="bk-titlebar-side" aria-hidden="true"></div>
-      <div class="bk-titlebar-mid"><h2 id="mu-up-title" class="text-lg font-extrabold">{{ $tr.music.uploadAlbum2 }}</h2></div>
-      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="mu-up" aria-label="{{ $tr.music.close }}">{{ partial "curio/icon.html" (dict "name" "x-mark" "uid" "muu-x") }}</button></div>
+{{/* ===== 上传专辑：同 AI 窗口的悬浮终端卡片（Gray 2026-11-14 03:37：不要底部升起半遮，要 AI 窗那种）。
+   非模态 <dialog class="sgx-qp sgx-up">（共享外壳 .sgx-qp：顶栏下方铺满、dialog 本身是遮罩、顶栏留在上面可点）+ 共享 modalSheet（系统返回 / Esc / bfcache）；
+   点遮罩关，点顶栏任一按钮也先关它（顶栏窗口互斥）。外观在 curio input.css .sgx-up。
+   桌面（Gray 03:50–03:51）：只取终端窗那种横版矩形——居中宽窗；内容自己排：表单左右两栏（左：文字 + 说明，右：三个选文件），按钮靠右。
+   这次只换音乐上传；设备 / 游戏 / 电影 / 发现 / 日刻的 bk-overlay 后续跟进。 ===== */}}
+<dialog id="mu-up-wrap" class="sgx-qp sgx-up" aria-labelledby="mu-up-title">
+  <div class="sgx-qp-sheet" tabindex="-1">
+    <div class="mu-up-head">
+      <h2 id="mu-up-title" class="mu-up-title">{{ $tr.music.uploadAlbum2 }}</h2>
+      <button id="mu-up-x" type="button" class="mu-up-x" aria-label="{{ $tr.music.close }}">{{ partial "curio/icon.html" (dict "name" "x-mark" "uid" "muu-x") }}</button>
     </div>
-    <form id="mu-up-form" class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 pb-4 flex flex-col gap-4" novalidate>
+    <form id="mu-up-form" class="mu-up-body" novalidate>
+      <div class="mu-up-col">
       <label class="cu-field"><span>{{ $tr.music.album }}</span><input id="mu-up-name" type="text" maxlength="120" autocomplete="off"></label>
       <div class="it-two">
         <label class="cu-field"><span>{{ $tr.music.artist }}</span><input id="mu-up-artist" type="text" maxlength="120" autocomplete="off"></label>
         <label class="cu-field"><span>{{ $tr.music.year }}</span><input id="mu-up-year" type="number" inputmode="numeric" min="1900" max="2100" step="1"></label>
       </div>
+      <p class="text-xs text-m-on-surface-variant">{{ $tr.music.trackOrderFollowsThe }}</p>
+      <p id="mu-up-msg" class="hidden text-sm"></p>
+      </div>
+      <div class="mu-up-col">
       <label class="cu-file"><input id="mu-up-audio" type="file" accept="audio/*,.mp3,.m4a,.flac,.ogg,.opus,.wav,.aac" multiple class="sr-only"><span id="mu-up-audio-name">{{ $tr.music.chooseTracks }}</span></label>
       <label class="cu-file"><input id="mu-up-cover" type="file" accept="image/*" class="sr-only"><span id="mu-up-cover-name">{{ $tr.music.coverOptional }}</span></label>
       <label class="cu-file"><input id="mu-up-lrc" type="file" accept=".lrc,text/plain" multiple class="sr-only"><span id="mu-up-lrc-name">{{ $tr.music.lyricsLrcOptionalMatched }}</span></label>
-      <p class="text-xs text-m-on-surface-variant">{{ $tr.music.trackOrderFollowsThe }}</p>
-      <p id="mu-up-msg" class="hidden text-sm"></p>
+      </div>
     </form>
-    <div class="shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-[var(--sgx-divider)] flex gap-3">
-      <button id="mu-up-go" type="button" class="flex-1 h-12 rounded-full bg-m-primary-fill text-m-on-primary-fill text-[15px] font-bold disabled:opacity-50">{{ $tr.music.upload }}</button>
+    <div class="mu-up-foot">
+      <button id="mu-up-go" type="button" class="mu-up-go disabled:opacity-50">{{ $tr.music.upload }}</button>
     </div>
   </div>
-</div>
+</dialog>
 
 {{ partial "curio/common.html" (dict "tr" $tr "lang" $lang) }}
 {{ end }}
