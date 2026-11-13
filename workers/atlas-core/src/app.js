@@ -7,7 +7,7 @@
  *   /daymark/api/* → src/daymark/index.js（X-Daymark-Runtime）
  *   其他           → 404（带 X-Atlas-Runtime）
  * 公开路径不变，前端无感。两份代码在旧 Worker 下线（设计稿第 7 步）前要和旧目录逐字一致，
- * tests/workers/atlas-core-core/core.test.mjs 核对；改业务代码时两边一起改。
+ * tests/workers/atlas-core/core.test.mjs 核对；改业务代码时两边一起改。
  */
 import curio, { runHourly as runCurioHourly } from './curio/app.js';
 import daymark from './daymark/index.js';

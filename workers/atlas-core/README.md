@@ -5,7 +5,7 @@ Atlas：内容层的接口 Worker。命名：带 `-core` 的是两层核心，`s
 ## 现在在哪一步
 
 **PR1：只有代码，不部署、不挂路由。** 线上仍由 `styrigx-curio-core`、`styrigx-daymark-core` 服务。后续（每个生产动作先经 Gray 点头）：
-（已建 D1 / R2 `styrigx-atlas-core`，2026-11-14）→ 拷数据（逐表核行数、对象数）→ 部署不挂路由冒烟 → 切换（短暂只读、补拷增量、路由与 status / ai 的服务绑定改指 Atlas、CI 换 deploy-atlas）→ 观察 → 报清单下线旧 Worker / D1 / R2 和 `workers/curio-core`、`workers/daymark-core`。
+（已建 D1 / R2 `styrigx-atlas-core`，2026-11-14）→ 拷数据（逐表核行数、对象数）→ 部署不挂路由冒烟 → 切换（短暂只读、补拷增量、路由与 status / ai 的服务绑定改指 Atlas、CI 换 deploy-atlas-core）→ 观察 → 报清单下线旧 Worker / D1 / R2 和 `workers/curio-core`、`workers/daymark-core`。
 
 ## 入口
 
@@ -17,7 +17,7 @@ src/curio/             奇趣，workers/curio-core/src 原样平移（不含它�
 src/daymark/           日刻，workers/daymark-core/src 原样平移
 ```
 
-旧两个 Worker 下线前，`src/curio/`、`src/daymark/` 必须和旧目录逐字一致（`tests/workers/atlas-core-core/core.test.mjs`）：改奇趣 / 日刻业务代码时两边一起改。访问档、守卫、路由表都在各自目录里，本 Worker 不另加。
+旧两个 Worker 下线前，`src/curio/`、`src/daymark/` 必须和旧目录逐字一致（`tests/workers/atlas-core/core.test.mjs`）：改奇趣 / 日刻业务代码时两边一起改。访问档、守卫、路由表都在各自目录里，本 Worker 不另加。
 
 ## 绑定
 
