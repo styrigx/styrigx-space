@@ -3,13 +3,14 @@
  * 每个改动之后自动刷新一次（由调用方 waitUntil 或直接 await）。回给 account 的只有状态，不回机场链接和节点内容；
  * 下载令牌只在 showToken（sub show）/ rotateToken（sub token reset）回原文，两者在 account 那边都要 reauth。
  */
-import { NAME_RE, MAX_SOURCES, MAX_BYTES, MAX_URL } from './config.js';
-import { getMeta, setMeta, setToken, listSources, getSourceFull, countSources, insertSource, replaceAirport, renameSource, updateFileNodes, setEnabled as dbSetEnabled, deleteSource, clearAllArmor } from './store.js';
+import { NAME_RE, MAX_SOURCES, MAX_BYTES, MAX_URL, MAX_MAP_WORDS, MAX_DROP_WORDS, MAX_WORD } from './config.js';
+import { getMeta, setMeta, setToken, listSources, listSourcesFull, getSourceFull, countSources, insertSource, replaceAirport, renameSource, updateFileNodes, setEnabled as dbSetEnabled, deleteSource, clearAllArmor, loadMap, findCountry, findWord, countWords, addDrop, setFlag, removeWord } from './store.js';
+import { processNodes, countDropped, normWord, FP_VALUES, FP_DEFAULT } from './nodes.js';
 import { busy } from './lock.js';
 import { airportHost, fetchAirport } from './airport.js';
 import { userAgent } from './ua.js';
 import { extractProxies } from './parse.js';
-import { aad } from './pipeline.js';
+import { aad, airportRules } from './pipeline.js';
 import { importDbKey, seal, open } from '../../lib/aes.js';
 import { isX25519Recipient } from '../../lib/age.js';
 import { newToken, hashToken, TOKEN_AAD } from '../../lib/token.js';
@@ -32,7 +33,7 @@ export async function status(env, now = Date.now()) {
     refreshing: await busy(env, now),
     sources: rows.map((r) => ({
       name: r.name, type: r.type, enabled: Number(r.enabled) === 1, host: r.type === 'airport' ? r.host : '',
-      nodes: Number(r.node_count) || 0, ready: Number(r.ready) === 1, lastOkAt: r.last_ok_at || 0, error: r.last_error || '', gen: r.gen || 0,
+      nodes: Number(r.node_count) || 0, unmatched: r.type === 'airport' ? Number(r.unmatched) || 0 : 0, ready: Number(r.ready) === 1, lastOkAt: r.last_ok_at || 0, error: r.last_error || '', gen: r.gen || 0,
     })),
   };
 }
@@ -153,4 +154,98 @@ export async function rename(env, from, to) {
   if (!(await getSourceFull(env, from))) return fail('not-found');
   if (await getSourceFull(env, to)) return fail('exists');
   return (await renameSource(env, from, to)) ? { ok: true } : fail('exists');
+}
+
+/* ---- 节点处理（设计稿 v1.13）：sub map / sub fp / sub update ---- */
+
+/** 源词：去首尾空白、小写，1–32 字符，不能是 rm、ls @param {unknown} w */
+function word(w) {
+  const v = normWord(w);
+  return v && v.length <= MAX_WORD && v !== 'rm' && v !== 'ls' ? v : '';
+}
+
+/** 开着的机场源的原始节点（解密 last_nodes_enc） @param {any} env @param {CryptoKey} key */
+async function airportNodes(env, key) {
+  const out = [];
+  for (const r of await listSourcesFull(env)) {
+    if (r.type !== 'airport' || Number(r.enabled) !== 1 || !r.last_nodes_enc) continue;
+    try { out.push({ row: r, proxies: JSON.parse(await open(key, aad(r.id, 'nodes'), r.last_nodes_enc)) }); } catch (e) { /* 坏行跳过 */ }
+  }
+  return out;
+}
+
+/** sub map：全部映射词（按顺序，带国旗）和丢弃词 @param {any} env */
+export async function mapList(env) {
+  const m = await loadMap(env);
+  return { ok: true, flags: m.flags.map((f) => ({ word: f.word, code: f.code, flag: f.flag })), drop: m.drop };
+}
+
+/**
+ * sub map <源词> [目标词]：没目标 = 丢弃词（回会丢掉的节点数）；有目标 = 映射词（两位或三位国家码，存两位；已是映射词即改目标）。
+ * 源词两张表合起来唯一：已是丢弃词又给目标、已是映射词又不给目标 → exists（带现在的归属）。
+ * @param {any} env @param {unknown} w @param {unknown} [code]
+ */
+export async function mapSet(env, w, code) {
+  const v = word(w);
+  if (!v) return fail('word');
+  const now = await findWord(env, v);
+  if (code === undefined || code === null || code === '') {
+    if (now === 'drop') return { ok: false, error: 'exists', as: 'drop' };
+    if (now) return { ok: false, error: 'exists', as: now.code, flag: now.flag };
+    if ((await countWords(env, 'map_drop')) >= MAX_DROP_WORDS) return fail('too-many-words');
+    const key = await dbKey(env);
+    if (!key) return fail('config');
+    const old = (await loadMap(env)).drop;
+    let dropped = 0;
+    for (const a of await airportNodes(env, key)) dropped += countDropped(a.proxies, v, old);
+    await addDrop(env, v);
+    return { ok: true, word: v, drop: true, dropped };
+  }
+  if (typeof code !== 'string' || !/^[A-Za-z]{2,3}$/.test(code)) return fail('bad-code');
+  const c = await findCountry(env, code);
+  if (!c) return fail('bad-code');
+  if (now === 'drop') return { ok: false, error: 'exists', as: 'drop' };
+  if (!now && (await countWords(env, 'map_flag')) >= MAX_MAP_WORDS) return fail('too-many-words');
+  await setFlag(env, v, c.a2);
+  return { ok: true, word: v, code: c.a2, flag: c.flag, changed: !!now };
+}
+
+/** sub map rm <源词> @param {any} env @param {unknown} w */
+export async function mapRm(env, w) {
+  const v = word(w);
+  if (!v) return fail('word');
+  return (await removeWord(env, v)) ? { ok: true, word: v } : fail('not-found');
+}
+
+/** sub map ls <源名>：该机场源没加上国旗的节点原名（只回名字） @param {any} env @param {unknown} name */
+export async function mapLs(env, name) {
+  if (typeof name !== 'string' || !NAME_RE.test(name)) return fail('name');
+  const row = await getSourceFull(env, name);
+  if (!row) return fail('not-found');
+  if (row.type !== 'airport') return fail('type');
+  if (!row.last_nodes_enc) return { ok: true, names: [] };
+  const key = await dbKey(env);
+  if (!key) return fail('config');
+  let proxies;
+  try { proxies = JSON.parse(await open(key, aad(row.id, 'nodes'), row.last_nodes_enc)); } catch (e) { return fail('config'); }
+  return { ok: true, names: processNodes(proxies, await airportRules(env)).unmatched };
+}
+
+/** sub fp [值]：没值回当前；有值校验后保存 @param {any} env @param {unknown} [value] */
+export async function fp(env, value) {
+  if (value === undefined || value === null || value === '') return { ok: true, fp: (await getMeta(env, 'fp')) || FP_DEFAULT };
+  const v = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (FP_VALUES.indexOf(v) < 0) return fail('fp');
+  await setMeta(env, 'fp', v);
+  return { ok: true, fp: v, changed: true };
+}
+
+/** sub update <源名>：只机场源；off 的源报 off；回 id 给调用方只拉这一个 @param {any} env @param {unknown} name */
+export async function update(env, name) {
+  if (typeof name !== 'string' || !NAME_RE.test(name)) return fail('name');
+  const row = await getSourceFull(env, name);
+  if (!row) return fail('not-found');
+  if (row.type !== 'airport') return fail('type');
+  if (Number(row.enabled) !== 1) return fail('off');
+  return { ok: true, id: row.id };
 }

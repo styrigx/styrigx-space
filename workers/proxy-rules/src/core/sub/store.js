@@ -24,7 +24,7 @@ export async function setToken(env, hash, sealed) {
   await db(env).batch([db(env).prepare(up).bind('token_hash', hash), db(env).prepare(up).bind('token_sealed', sealed)]);
 }
 
-const COLS = 'id, name, type, enabled, host, node_count, last_ok_at, last_error, gen, created_at, (armor <> \'\') AS ready';
+const COLS = 'id, name, type, enabled, host, node_count, unmatched, last_ok_at, last_error, gen, created_at, (armor <> \'\') AS ready';
 
 /** 列表（不含密文） @param {any} env */
 export async function listSources(env) {
@@ -126,4 +126,53 @@ export async function writeArmor(env, id, armor, gen, owner) {
 /** 换公钥后旧成品作废（新公钥的成品由紧接着的刷新写） @param {any} env */
 export async function clearAllArmor(env) {
   await db(env).prepare("UPDATE sources SET armor = '', gen = 0").run();
+}
+
+/** 机场源处理后：记没加上国旗的节点数 @param {any} env @param {string} id @param {number} n */
+export async function saveUnmatched(env, id, n) {
+  await db(env).prepare('UPDATE sources SET unmatched = ? WHERE id = ?').bind(n, id).run();
+}
+
+/* ---- sub map（设计稿 v1.13）：丢弃词 map_drop、映射词 map_flag、国家码 iso_country（固定） ---- */
+
+/** 处理规则：丢弃词、映射词（按 pos，带国旗） @param {any} env */
+export async function loadMap(env) {
+  const d = await db(env).prepare('SELECT word FROM map_drop ORDER BY pos').all();
+  const f = await db(env).prepare('SELECT m.word AS word, m.code AS code, c.flag AS flag FROM map_flag m JOIN iso_country c ON c.a2 = m.code ORDER BY m.pos').all();
+  return { drop: (d.results || []).map((r) => r.word), flags: f.results || [] };
+}
+
+/** 国家码（两位或三位，不分大小写）→ 对照表一行 @param {any} env @param {string} code */
+export async function findCountry(env, code) {
+  const c = code.toUpperCase();
+  return db(env).prepare('SELECT a2, a3, flag FROM iso_country WHERE a2 = ? OR a3 = ?').bind(c, c).first();
+}
+
+/** 源词现在在哪：'drop' | { code, flag } | null @param {any} env @param {string} word */
+export async function findWord(env, word) {
+  if (await db(env).prepare('SELECT 1 AS x FROM map_drop WHERE word = ?').bind(word).first()) return 'drop';
+  return db(env).prepare('SELECT m.code AS code, c.flag AS flag FROM map_flag m JOIN iso_country c ON c.a2 = m.code WHERE m.word = ?').bind(word).first();
+}
+
+/** @param {any} env @param {'map_drop'|'map_flag'} table */
+export async function countWords(env, table) {
+  const r = await db(env).prepare(`SELECT COUNT(*) AS n FROM ${table}`).first();
+  return r ? Number(r.n) : 0;
+}
+
+/** 加丢弃词 @param {any} env @param {string} word */
+export async function addDrop(env, word) {
+  await db(env).prepare('INSERT INTO map_drop (word, pos) VALUES (?, (SELECT COALESCE(MAX(pos), 0) + 1 FROM map_drop))').bind(word).run();
+}
+
+/** 加映射词 / 已有则改目标（顺序不变） @param {any} env @param {string} word @param {string} code */
+export async function setFlag(env, word, code) {
+  await db(env).prepare('INSERT INTO map_flag (word, code, pos) VALUES (?, ?, (SELECT COALESCE(MAX(pos), 0) + 1 FROM map_flag)) ON CONFLICT(word) DO UPDATE SET code = excluded.code').bind(word, code).run();
+}
+
+/** 删源词（两张表都找） @param {any} env @param {string} word @returns {Promise<boolean>} */
+export async function removeWord(env, word) {
+  const a = await db(env).prepare('DELETE FROM map_drop WHERE word = ?').bind(word).run();
+  const b = await db(env).prepare('DELETE FROM map_flag WHERE word = ?').bind(word).run();
+  return Number(a.meta && a.meta.changes) + Number(b.meta && b.meta.changes) > 0;
 }

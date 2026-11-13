@@ -11,7 +11,10 @@
  * - add { name, url } → 加机场 / 同名改链接（先试拉，回新旧域名，不回链接）
  * - upload { name, text } → 上传文件 / 同名覆盖（只抽 proxies）
  * - mv { from, to } → 改名，不刷新
- * - on / off / rm { name }（终端的 sub enable / sub disable / sub rm）
+ * - on / off / rm { name }（终端的 sub on / sub off / sub rm）
+ * - update { name } → 立即拉这一个机场源（v1.13）
+ * - map → 映射词与丢弃词；map_set { word, code? } → 没 code 加丢弃词，有 code 加 / 改映射；map_rm { word }；map_ls { name } → 该机场源没加上国旗的节点原名
+ * - fp { value? } → 看 / 改指纹
  * 改动类都在 ProxyAdmin 里自动刷新一次，回的结果里带 refresh。ProxyAdmin 的业务失败原样回（422，{ ok:false, error }）。
  *
  * 除 status 外都在身份审计记 sub <action> [源名]（不记链接、文件、公钥、令牌）。
@@ -24,7 +27,7 @@ import { dbReady } from '../../lib/db.js';
 export const SUB_BASE = 'https://proxy-rules.styrigx.com/s/';
 const MAX_TEXT = 2 * 1024 * 1024;
 
-const ACTIONS = new Set(['status', 'show', 'token', 'key', 'add', 'upload', 'mv', 'on', 'off', 'rm']);
+const ACTIONS = new Set(['status', 'show', 'token', 'key', 'add', 'upload', 'mv', 'on', 'off', 'rm', 'update', 'map', 'map_set', 'map_rm', 'map_ls', 'fp']);
 
 /** @param {any} env */
 const proxyReady = (env) => !!(env && env.PROXY && typeof env.PROXY.status === 'function');
@@ -86,13 +89,45 @@ export const onRequestPost = guarded(async function (context) {
         r = await P.remove(name);
         break;
       }
+      case 'update': {
+        const name = str(body.name, 32);
+        if (!name) return apiError(400, 'params');
+        r = await P.update(name);
+        break;
+      }
+      case 'map': r = await P.map(); break;
+      case 'map_set': {
+        const word = str(body.word, 64);
+        const code = body.code === undefined || body.code === null || body.code === '' ? undefined : str(body.code, 3);
+        if (!word || (body.code !== undefined && body.code !== null && body.code !== '' && !code)) return apiError(400, 'params');
+        r = await P.mapSet(word, code);
+        break;
+      }
+      case 'map_rm': {
+        const word = str(body.word, 64);
+        if (!word) return apiError(400, 'params');
+        r = await P.mapRm(word);
+        break;
+      }
+      case 'map_ls': {
+        const name = str(body.name, 32);
+        if (!name) return apiError(400, 'params');
+        r = await P.mapLs(name);
+        break;
+      }
+      case 'fp': {
+        const value = body.value === undefined || body.value === null || body.value === '' ? undefined : str(body.value, 16);
+        if (body.value !== undefined && body.value !== null && body.value !== '' && !value) return apiError(400, 'params');
+        r = await P.fp(value);
+        break;
+      }
       default: return apiError(400, 'action');
     }
   } catch (e) {
     return apiError(503, 'upstream');
   }
   if (!r || typeof r !== 'object') return apiError(503, 'upstream');
-  if (v6 && action !== 'status') {
+  if (v6 && action !== 'status' && action !== 'map' && action !== 'map_ls' && !(action === 'fp' && !body.value)) {
     const who = auditActor(v6);
     const nm = action === 'mv' ? [str(body.from, 32), str(body.to, 32)].filter(Boolean).join(' ') : (str(body.name, 32) || '');
     await writeUserAudit(env, { uid: who.uid, command: 'sub ' + action + (nm ? ' ' + nm : '') + who.suffix, ok: r.ok === true, ip: clientAddress(request) });

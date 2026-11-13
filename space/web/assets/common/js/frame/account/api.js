@@ -97,6 +97,17 @@ export const proxy = Object.freeze({
   toggle: function (name, on) { return post('proxy', on ? 'on' : 'off', { name: name }); },
   /** @param {string} name */
   rm: function (name) { return post('proxy', 'rm', { name: name }); },
+  /** 立即拉一个机场源 @param {string} name */
+  update: function (name) { return post('proxy', 'update', { name: name }); },
+  map: function () { return post('proxy', 'map'); },
+  /** 没 code = 丢弃词 @param {string} word @param {string} [code] */
+  mapSet: function (word, code) { return post('proxy', 'map_set', code ? { word: word, code: code } : { word: word }); },
+  /** @param {string} word */
+  mapRm: function (word) { return post('proxy', 'map_rm', { word: word }); },
+  /** @param {string} name */
+  mapLs: function (name) { return post('proxy', 'map_ls', { name: name }); },
+  /** 没 value = 看当前 @param {string} [value] */
+  fp: function (value) { return post('proxy', 'fp', value ? { value: value } : {}); },
 });
 
 /** 错误码 → 文案（common.err*，同 auth/post-json.js） */

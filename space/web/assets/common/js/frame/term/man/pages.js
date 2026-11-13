@@ -28,17 +28,20 @@ export const PAGES = Object.freeze({
     desc: ['profile: name, nickname, signature and email (a site default shows when you haven’t set one).', 'set: change one field; the whole site follows at once. Name up to 40, nickname up to 32, email checked for format.', 'avatar: pick a photo and crop it, or remove yours.'],
     auth: 'signed in',
   },
-  /* 代理订阅（sub v3.1）：一条 sub + 子命令，root 档 */
+  /* 代理订阅（sub v1.13）：一条 sub + 子命令，root 档 */
   sub: {
-    d: 'proxy subscription: status, urls, sources, key and token',
-    syn: ['sub', 'sub show [name]', 'sub add <name>', 'sub upload <name>', 'sub mv <old> <new>', 'sub rm <name>', 'sub enable | disable <name>', 'sub key', 'sub token reset'],
+    d: 'proxy subscription: status, urls, sources, node words, fingerprint, key and token',
+    syn: ['sub', 'sub show [name]', 'sub add <name>', 'sub upload <name>', 'sub mv <old> <new>', 'sub rm <name>', 'sub on | off <name>', 'sub update <name>', 'sub map', 'sub map <word> [<target>]', 'sub map rm <word>', 'sub map ls <name>', 'sub fp [value]', 'sub key', 'sub token reset'],
     desc: [
-      'sub: the public key (head and tail), the token state and each source: name · airport host or file · nodes · enabled / disabled / error.',
+      'sub: the public key (head and tail), the token state and each source: name · airport host or file · nodes · unmatched (airports) · enabled / disabled / error.',
       'show: print the token and every source url (or just one), each with copy; works any time.',
       'add: asks for the airport link (hidden). The same name again changes the link: it is fetched once first and replaces the old one only if that works.',
       'upload: pick a local YAML file; only proxies: is kept. The same name again overwrites it.',
       'mv: rename only, nothing is refreshed; the old path 404s at once. rm: asks y/N, then deletes link, nodes and output.',
-      'enable / disable: a disabled source 404s; its link or file and output are kept.',
+      'on / off: an off source isn\'t fetched and 404s; its link or file and output are kept. on fetches once right away.',
+      'update: fetch one airport now (airports only).',
+      'map: list source words. map <word>: drop every node whose name has it. map <word> <target>: put the target\'s flag (ISO 3166-1 code, two or three letters) on nodes whose name has it; the same word again changes the target. map rm <word> removes it; map ls <name> lists that airport\'s nodes that got no flag.',
+      'fp [value]: show or set the TLS fingerprint added to every airport node: chrome (default), firefox, safari, ios, android, edge, 360, qq, random, none.',
       'key: paste an age1… X25519 public key; every source is re-encrypted right after.',
       'token reset: makes a new token (asks y/N when one exists); every old url stops working at once.',
     ],
@@ -46,8 +49,8 @@ export const PAGES = Object.freeze({
     notes: [
       'Urls are https://proxy-rules.styrigx.com/s/<token>/<name>; every output is age-encrypted to your public key.',
       'The server keeps the token sealed with its own key, so sub show can print it again.',
-      'Adding, uploading, enabling, disabling, removing or changing the key refreshes once automatically; airports also refresh every 6 hours.',
-      'Names use A–Z a–z 0–9 _ - (1–32). At most 20 sources, 2 MB per file. Post-quantum keys (age1pq1…) are not supported yet.',
+      'Adding, uploading, on, off, removing or changing the key refreshes once automatically; airports also refresh every 6 hours. Changing words or the fingerprint reprocesses airports from their stored nodes without fetching. Uploaded files are never processed.',
+      'Names use A–Z a–z 0–9 _ - (1–32). At most 20 sources, 800 nodes each, 2 MB per file; at most 100 map words and 50 drop words. Post-quantum keys (age1pq1…) are not supported yet.',
     ],
   },
   /* v6 身份命令（P2b）：只给 v6 身份列；正文译文在 manBody */

@@ -67,7 +67,7 @@ export const ROUTE_ACCESS = Object.freeze([
     actions: { list: 'webmaster', revoke: 'root', 'revoke-all': 'root' },
     decided: '定稿 v5.5 §五：设备会话的列表与踢出属后台控制，root 档（站长 sudo），列表为全站视图；§七：站长打开账号页时设备卡列表直接可读，只有改动才预填 sudo（Gray 2026-11-11 19:59）→ list webmaster、revoke / revoke-all root' }),
   R({ method: 'POST', path: '/api/account/proxy', level: 'root', worker: 'account', why: '代理订阅管理 sub（转 styrigx-proxy-rules ProxyAdmin；含令牌、age 公钥）',
-    actions: { status: 'root', show: 'root', token: 'root', key: 'root', add: 'root', mv: 'root', on: 'root', off: 'root', upload: 'root', rm: 'root' },
+    actions: { status: 'root', show: 'root', token: 'root', key: 'root', add: 'root', mv: 'root', on: 'root', off: 'root', upload: 'root', rm: 'root', update: 'root', map: 'root', map_set: 'root', map_rm: 'root', map_ls: 'root', fp: 'root' },
     decided: 'Gray 2026-11-11 定 root，不加新组' }),
   R({ method: 'PUT', path: '/api/avatar', level: 'webmaster', worker: 'account', why: '换站点头像（全站一份配置，归站长 styrigx）', decided: '定稿 v5.5 §五：avatar、prefs 写入 webmaster（站长 + root）；§七：全站只有一份配置（Gray 2026-11-11 18:10–18:39）' }),
   R({ method: 'DELETE', path: '/api/avatar', level: 'webmaster', worker: 'account', why: '删站点头像（回默认）', del: 'item', decided: '定稿 v5.5 §五：同上' }),

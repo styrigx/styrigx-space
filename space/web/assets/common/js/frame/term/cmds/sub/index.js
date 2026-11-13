@@ -2,7 +2,7 @@ import { layer, notHere, v6RootGate, FLOW } from '../keys/gate.js';
 import { SUB_ARGS, subSubArgs } from './args.js';
 
 /**
- * sub（代理订阅 v3.1）：一条命令 + 子命令（show / add / upload / mv / rm / on / off / key / token），账号命令，要 root。
+ * sub（代理订阅 v1.13）：一条命令 + 子命令（show / add / upload / mv / rm / on / off / update / map / fp / key / token），账号命令，要 root。
  * 在同一个终端里原地跑：y/N、遮挡输入、选文件都在这里做完。子命令的参数检查和流程在 account/proxy.js（C.cmdSub，
  * 来源名大小写敏感，传原样的一行）；这里只把门（root）。
  * v6（v6-commands「授权与订阅（root，或 sudo）」；路由表 POST /api/account/proxy = root 档）：v6 root 直接做；

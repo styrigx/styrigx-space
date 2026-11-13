@@ -241,9 +241,12 @@ test('刷新：每源单独加密；用 mihomo UA；手机能解；下载 /s/<�
   assert.match(armor, /^-----BEGIN AGE ENCRYPTED FILE-----\n/);
   const plain = await ageDecrypt(armor, id);
   assert.match(plain, /^# styrigx proxy-rules /);
-  assert.deepEqual(JSON.parse(plain.split('\n')[1]).proxies.map((p) => p.name), ['HK 01', 'JP 01', 'HK 01 #2']);
+  const ap = JSON.parse(plain.split('\n')[1]).proxies;
+  assert.deepEqual(ap.map((p) => p.name), ['🇭🇰 HK 01', '🇯🇵 JP 01', '🇭🇰 HK 01 #2'], '机场源：按初始映射词加国旗');
+  assert.ok(ap.every((p) => p['client-fingerprint'] === 'chrome'), '指纹默认 chrome');
   const c = JSON.parse((await ageDecrypt(await (await get(`/s/${token}/Cloady`)).text(), id)).split('\n')[1]);
   assert.deepEqual(c.proxies.map((p) => p.name), ['Cloady']);
+  assert.equal(c.proxies[0]['client-fingerprint'], undefined, '文件源一律不处理');
   assert.ok(!plain.includes('MATCH,DIRECT') && !plain.includes('proxy-groups'), '机场自带的规则、分组不进成品');
 });
 
@@ -370,4 +373,72 @@ test('绑了 SELF：每个源各走一次 ProxyRefresher 调用（各算各的 C
   assert.equal((await get(`/s/${token}/F`)).status, 200);
   const id0 = env.D1_PROXY.rows('sources')[0].id;
   assert.deepEqual(await refresher.refreshSource(id0, 'someone-else', Date.now(), 'mihomo/1'), { ok: false, error: 'busy' });
+});
+
+/* ---- v1.13 节点处理：sub map / sub fp / sub update ---- */
+const N = await import('../../../workers/proxy-rules/src/core/sub/nodes.js');
+
+test('nodes：丢弃 → 去旧图标（任何位置）→ 加国旗 → 指纹 → 重名 #n；短词整词匹配；文件源不走这里', () => {
+  const rules = { drop: ['剩余'], flags: [{ word: 'us', flag: '🇺🇸' }, { word: '香港', flag: '🇭🇰' }], fp: 'safari' };
+  const r = N.processNodes([
+    { name: '剩余流量 10G', type: 'ss' }, { name: '🇭🇰 香港 01 🚀', type: 'ss' }, { name: 'Russia 1', type: 'ss' }, { name: 'US-2', type: 'ss' }, { name: '香港 01', type: 'ss' },
+  ], rules);
+  assert.equal(r.dropped, 1);
+  assert.deepEqual(r.proxies.map((p) => p.name), ['🇭🇰 香港 01', 'Russia 1', '🇺🇸 US-2', '🇭🇰 香港 01 #2']);
+  assert.deepEqual(r.unmatched, ['Russia 1'], 'us 不命中 russia');
+  assert.ok(r.proxies.every((p) => p['client-fingerprint'] === 'safari'));
+  assert.equal(N.processNodes([{ name: 'a', type: 'ss', 'client-fingerprint': 'qq' }], { drop: [], flags: [], fp: 'none' }).proxies[0]['client-fingerprint'], 'qq', 'none = 不加');
+  assert.equal(N.countDropped([{ name: '剩余 到期' }, { name: '到期' }], '到期', ['剩余']), 1, '已被别的丢弃词丢掉的不算');
+});
+
+test('sub map：单词 = 丢弃（回多丢几个）；双词 = 国家码（两位三位同一目标）；源词两表唯一；rm 只带源词；坏码 / 冷词拒绝', async () => {
+  await setup();
+  await admin.addAirport(env, 'Linkcube', AIRPORT);
+  airportBody = () => yamlOf(['狮城 01', '剩余流量', 'HK 01', 'Zz 9']);
+  await runRefresh(env, { fetchFn });
+  let r = await admin.mapSet(env, '狮城', 'SGP');
+  assert.deepEqual([r.ok, r.code, r.flag, r.changed], [true, 'SG', '🇸🇬', true], '初始词里已有狮城 → 改目标');
+  r = await admin.mapSet(env, ' 新词 ', 'jp');
+  assert.deepEqual([r.ok, r.word, r.code, r.changed], [true, '新词', 'JP', false]);
+  assert.deepEqual(await admin.mapSet(env, 'zz'), { ok: true, word: 'zz', drop: true, dropped: 1 });
+  assert.deepEqual(await admin.mapSet(env, 'zz', 'US'), { ok: false, error: 'exists', as: 'drop' });
+  const hk = await admin.mapSet(env, '港');
+  assert.deepEqual([hk.ok, hk.error, hk.as, hk.flag], [false, 'exists', 'HK', '🇭🇰'], '已是映射词又敲单词 → 拒绝');
+  assert.equal((await admin.mapSet(env, 'x', 'XX')).error, 'bad-code');
+  assert.equal((await admin.mapSet(env, 'x', 'S1')).error, 'bad-code');
+  for (const bad of ['', 'rm', 'LS', 'x'.repeat(33)]) assert.equal((await admin.mapSet(env, bad)).error, 'word', bad);
+  assert.deepEqual(await admin.mapRm(env, 'zz'), { ok: true, word: 'zz' });
+  assert.equal((await admin.mapRm(env, 'zz')).error, 'not-found');
+  const list = await admin.mapList(env);
+  assert.ok(list.flags.some((f) => f.word === '新词' && f.flag === '🇯🇵'));
+  assert.ok(list.drop.includes('剩余'));
+  assert.deepEqual((await admin.mapLs(env, 'Linkcube')).names, ['Zz 9']);
+  await admin.upload(env, 'Cloady', yamlOf(['Cloady']));
+  assert.equal((await admin.mapLs(env, 'Cloady')).error, 'type');
+});
+
+test('sub fp：默认 chrome；只收可选值；改后机场源用原始节点重处理不拉机场', async () => {
+  await setup();
+  await admin.addAirport(env, 'Linkcube', AIRPORT);
+  await runRefresh(env, { fetchFn });
+  assert.deepEqual(await admin.fp(env), { ok: true, fp: 'chrome' });
+  assert.equal((await admin.fp(env, 'opera')).error, 'fp');
+  assert.deepEqual(await admin.fp(env, 'Firefox'), { ok: true, fp: 'firefox', changed: true });
+  const before = fetched.length;
+  const r = await runRefresh(env, { fetchFn, noFetch: true, airports: true });
+  assert.equal(r.ok, true);
+  assert.equal(fetched.length, before, '不拉机场');
+});
+
+test('sub update：只机场源；off 报 off；文件报 type；回 id 只拉这一个', async () => {
+  await setup();
+  await admin.addAirport(env, 'Linkcube', AIRPORT);
+  await admin.upload(env, 'Cloady', yamlOf(['Cloady']));
+  assert.equal((await admin.update(env, 'Cloady')).error, 'type');
+  assert.equal((await admin.update(env, 'Nope')).error, 'not-found');
+  const ok = await admin.update(env, 'Linkcube');
+  assert.equal(ok.ok, true);
+  assert.ok(ok.id);
+  await admin.setEnabled(env, 'Linkcube', false);
+  assert.equal((await admin.update(env, 'Linkcube')).error, 'off');
 });
