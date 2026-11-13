@@ -99,7 +99,7 @@ function atlasEnv(who = null) {
 const CTX = { waitUntil() {} };
 const req = (p, init = {}) => new Request('https://styrigx.com' + p, init);
 
-test('分流：前缀定产品；奇趣、日刻读在同一个库上照常工作，运行标记各自不变', async () => {
+test('分流：前缀定产品；奇趣、日刻读在同一个库上照常工作，运行标记各自不变，另加 X-Atlas-Runtime', async () => {
   assert.equal(app.productOf('/curio/api/links'), 'curio');
   assert.equal(app.productOf('/daymark/api/today'), 'daymark');
   for (const p of ['/', '/curio', '/curio/api', '/daymark/x', '/blog/api/x', '/atlas/api/x']) assert.equal(app.productOf(p), '', p);
@@ -108,10 +108,12 @@ test('分流：前缀定产品；奇趣、日刻读在同一个库上照常工�
   const c = await worker.fetch(req('/curio/api/links'), env, CTX);
   assert.equal(c.status, 200);
   assert.equal(c.headers.get('X-Curio-Runtime'), 'worker');
+  assert.equal(c.headers.get('X-Atlas-Runtime'), 'worker', '切换后外部靠这个头认出走了 atlas-core');
   for (const p of ['/daymark/api/quotes', '/daymark/api/collections', '/daymark/api/days']) {
     const d = await worker.fetch(req(p), env, CTX);
     assert.equal(d.status, 200, p);
     assert.equal(d.headers.get('X-Daymark-Runtime'), 'worker', p);
+    assert.equal(d.headers.get('X-Atlas-Runtime'), 'worker', p);
   }
   const m = await worker.fetch(req('/curio/api/music'), env, CTX);
   assert.equal(m.status, 200);
@@ -175,7 +177,7 @@ function bindings(toml, block) {
   return out;
 }
 
-test('wrangler.toml：PR1 不挂路由 / 不开 workers.dev / 无 Cron；绑定名和旧两个 Worker 一致，D1、R2 各一个叫 styrigx-atlas-core', () => {
+test('wrangler.toml：挂 /curio/api/*、/daymark/api/* 两条路由 / 不开 workers.dev / 无 Cron；绑定名和旧两个 Worker 一致，D1、R2 各一个叫 styrigx-atlas-core', () => {
   const t = readFileSync(A + '/wrangler.toml', 'utf8');
   const curio = readFileSync(REPO + '/workers/curio-core/wrangler.toml', 'utf8');
   const daymark = readFileSync(REPO + '/workers/daymark-core/wrangler.toml', 'utf8');
@@ -183,7 +185,8 @@ test('wrangler.toml：PR1 不挂路由 / 不开 workers.dev / 无 Cron；绑定�
   assert.match(t, /^main = "src\/index.js"$/m);
   assert.match(t, /^workers_dev = false$/m);
   assert.match(t, /^preview_urls = false$/m);
-  assert.doesNotMatch(t, /^\[\[routes\]\]/m);
+  assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/curio/api/*', 'styrigx.com/daymark/api/*']);
+  assert.equal([...t.matchAll(/^zone_name = "styrigx\.com"$/gm)].length, 2);
   assert.match(t, /^crons = \[\]$/m);
 
   for (const block of ['d1_databases', 'r2_buckets', 'services', 'kv_namespaces']) {

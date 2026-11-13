@@ -4,8 +4,10 @@ Atlas：内容层的接口 Worker。命名：带 `-core` 的是两层核心，`s
 
 ## 现在在哪一步
 
-**PR1：只有代码，不部署、不挂路由。** 线上仍由 `styrigx-curio-core`、`styrigx-daymark-core` 服务。后续（每个生产动作先经 Gray 点头）：
-（已建 D1 / R2 `styrigx-atlas-core`，2026-11-14）→ 拷数据（逐表核行数、对象数）→ 部署不挂路由冒烟 → 切换（短暂只读、补拷增量、路由与 status / ai 的服务绑定改指 Atlas、CI 换 deploy-atlas-core）→ 观察 → 报清单下线旧 Worker / D1 / R2 和 `workers/curio-core`、`workers/daymark-core`。
+**状态（2026-11-14）**：D1 / R2 `styrigx-atlas-core` 已建、数据已从旧两库一桶迁入并核对；本 Worker 已不挂路由部署、只读冒烟与线上逐字节一致。
+本 PR 带上切换后的样子：`wrangler.toml` 挂 `styrigx.com/curio/api/*`、`styrigx.com/daymark/api/*`；status 的 `JOB_CURIO` / `JOB_DAYMARK` 合成 `JOB_ATLAS`；ai 的 `CURIO` 改指本 Worker；CI 由 `deploy-atlas-core` 部署，`deploy-curio-core` / `deploy-daymark-core` 删除。
+切换窗口（每步先经 Gray 点头）：短暂只读 → 补拷增量 → 用路由接口把两条路由改指本 Worker → 合并本 PR → 观察 → 报清单下线旧 Worker / D1 / R2 和 `workers/curio-core`、`workers/daymark-core`。
+所有响应带 `X-Atlas-Runtime: worker`（产品头 `X-Curio-Runtime` / `X-Daymark-Runtime` 新旧 Worker 一样，靠这个分）。
 
 ## 入口
 

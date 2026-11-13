@@ -1,7 +1,8 @@
 # styrigx-atlas-core：内容层接口 Worker（Atlas 后端合并，2026-11-14 设计稿第一项）。
 # 奇趣（原 styrigx-curio-core）、日刻（原 styrigx-daymark-core）合成一个 Worker、一个 D1、一个 R2；公开路径 /curio/api/*、/daymark/api/* 不变。
-# PR1（本版）：只有代码，**不挂路由、不部署**；CI 只做 dry-run 打包和单测。
-#   D1 styrigx-atlas-core（d2abaedb-…，ENAM）、R2 styrigx-atlas-core（ENAM，Standard）2026-11-14 04:50 建好（Gray 点头）；第 5 步切换时再加 [[routes]]、CI 加 deploy-atlas-core。
+# D1 styrigx-atlas-core（d2abaedb-…，ENAM）、R2 styrigx-atlas-core（ENAM，Standard）2026-11-14 04:50 建好（Gray 点头），数据 04:51 从旧两库一桶迁入。
+# 路由：切换窗口里先用 Cloudflare 路由接口把旧两个 Worker 的两条路由直接改指本 Worker（不留空档），本 PR 合并后由 deploy-atlas-core 按这里接管。
+# 旧 workers/curio-core、workers/daymark-core 不再部署（CI job 已删），下线时连目录删。
 # 绑定名和旧 Worker 一字不差（D1_FINDS…D1_MUSIC、D1_QUOTES 全指同一个库，R2_PHOTOS / R2_MUSIC 同一个桶），业务代码不改。
 
 name = "styrigx-atlas-core"
@@ -9,6 +10,14 @@ main = "src/index.js"
 compatibility_date = "2026-10-21"
 workers_dev = false
 preview_urls = false
+
+[[routes]]
+pattern = "styrigx.com/curio/api/*"
+zone_name = "styrigx.com"
+
+[[routes]]
+pattern = "styrigx.com/daymark/api/*"
+zone_name = "styrigx.com"
 
 [observability]
 enabled = true

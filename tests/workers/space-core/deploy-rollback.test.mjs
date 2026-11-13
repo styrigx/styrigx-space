@@ -296,13 +296,12 @@ const WORKER_JOBS = {
   'deploy-proxy-rules-worker': { dir: 'workers/proxy-rules', secret: 'STYRIGX_PROXY_RULES_DEPLOY', internal: false },
   'deploy-space-core': { dir: 'workers/space-core', secret: 'STYRIGX_SPACE_CORE_DEPLOY', internal: false },
   'deploy-account-worker': { dir: 'workers/account', secret: 'STYRIGX_ACCOUNT_DEPLOY', internal: false },
-  /* 合并 PR3：两个子站接口 Worker 从 styrigx-atlas 接过来部署（GitHub 环境 / 环境密钥已建好，名字同 token） */
-  'deploy-curio-core': { dir: 'workers/curio-core', secret: 'STYRIGX_CURIO_CORE_DEPLOY', internal: false },
-  'deploy-daymark-core': { dir: 'workers/daymark-core', secret: 'STYRIGX_DAYMARK_CORE_DEPLOY', internal: false },
+  /* 2026-11-14 Atlas 后端合并：原 deploy-curio-core / deploy-daymark-core 合成一个 job（GitHub 环境 / 环境密钥名字同 token） */
+  'deploy-atlas-core': { dir: 'workers/atlas-core', secret: 'STYRIGX_ATLAS_CORE_DEPLOY', internal: false },
 };
 const isDeploy = (/** @type {any} */ st) => st.uses && String(st.uses).startsWith('cloudflare/wrangler-action') && /^deploy\b/.test(String(st.with && st.with.command));
 
-test('deploy.yml：7 个 Worker job 都是「记线上版本 → 部署 → (核对) → 失败回滚」，token 同部署那一步', () => {
+test('deploy.yml：6 个 Worker job 都是「记线上版本 → 部署 → (核对) → 失败回滚」，token 同部署那一步', () => {
   for (const [name, cfg] of Object.entries(WORKER_JOBS)) {
     const steps = wf.jobs[name].steps;
     const snap = steps.findIndex((s) => s.id === 'live');
@@ -361,7 +360,8 @@ test('deploy.yml：部署顺序 ai → status → 账号 → styrigx-space-core 
   assert.ok(!needs('deploy-account-worker').includes('deploy-space-core'));
   /* space-core：ai、status、账号之后（服务绑定指向它们）；Pages 等 space-core 和两个子站接口 Worker */
   for (const n of ['deploy-ai-worker', 'deploy-status-worker', 'deploy-account-worker']) assert.ok(needs('deploy-space-core').includes(n), n);
-  for (const n of ['deploy-space-core', 'deploy-curio-core', 'deploy-daymark-core']) assert.ok(needs('build-and-deploy').includes(n), n);
+  for (const n of ['deploy-space-core', 'deploy-atlas-core']) assert.ok(needs('build-and-deploy').includes(n), n);
+  for (const j of Object.keys(wf.jobs)) assert.ok(!/^deploy-(curio|daymark)-core$/.test(j) && !needs(j).some((n) => /^deploy-(curio|daymark)-core$/.test(n)), j + '：curio-core / daymark-core 不再部署');
   assert.equal(wf.jobs['deploy-space-core'].environment, 'STYRIGX_SPACE_CORE_DEPLOY');
   /* space-core 自己跑迁移（进站 v3 L2b：一个绑定 D1_SPACE、一份基线），在部署之前；没有 D1_SHARE_LINK 了 */
   const core = wf.jobs['deploy-space-core'].steps;
@@ -377,8 +377,8 @@ test('deploy.yml：部署顺序 ai → status → 账号 → styrigx-space-core 
   assert.equal(core[ver].env.CLOUDFLARE_API_TOKEN, '${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}');
   assert.ok(!Object.keys(wf.jobs).includes('d1-cutover-gate'), '没有搬迁闸门 job');
   for (const j of Object.keys(wf.jobs)) assert.ok(!needs(j).includes('d1-cutover-gate') && !/d1-cutover-gate/.test(String(wf.jobs[j].if || '')), j);
-  /* 两个子站接口 Worker：服务绑定 SPACE 指向 space-core，所以排在它之后 */
-  for (const c of ['deploy-curio-core', 'deploy-daymark-core']) {
+  /* 子站接口 Worker（atlas-core，奇趣 + 日刻）：服务绑定 SPACE 指向 space-core，所以排在它之后 */
+  for (const c of ['deploy-atlas-core']) {
     assert.ok(needs(c).includes('deploy-status-worker'), c);
     assert.ok(needs(c).includes('deploy-space-core'), c);
     assert.equal(wf.jobs[c].environment, WORKER_JOBS[c].secret, c + ' environment = secret name');
@@ -386,7 +386,8 @@ test('deploy.yml：部署顺序 ai → status → 账号 → styrigx-space-core 
     const mig = steps.findIndex((st) => st.with && /^d1 migrations apply styrigx-/.test(String(st.with.command)));
     assert.ok(mig >= 0 && mig < steps.findIndex(isDeploy), c + ': D1 migrations before deploy');
     const smoke = steps.find((st) => /^Smoke test/.test(st.name)).run;
-    assert.match(smoke, new RegExp('https://styrigx\\.com/' + c.replace('deploy-', '').replace('-core', '') + '/api/'), c + ': smoke hits the main-domain route');
+    for (const p of ['curio', 'daymark']) assert.match(smoke, new RegExp('https://styrigx\\.com/' + p + '/api/'), c + ': smoke hits the main-domain route ' + p);
+    assert.match(smoke, /x-atlas-runtime/, c + ': smoke checks the Atlas runtime header');
     assert.doesNotMatch(smoke, /atlas\.styrigx\.com/, c + ': P4-3 PR-1 起旧图志域名的过渡期路由已删，冒烟不再测它');
   }
   /* 网关冒烟：v5 S3 整站放开，子站页面没进站也 200 访客态（网关注入 locked 标记），不再 302 踢回锁屏；旧图志域名的 301 已于 P4-3 PR-1 删除，不再测 */

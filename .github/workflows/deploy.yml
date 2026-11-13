@@ -24,7 +24,7 @@ env:
   # 所有 wrangler（npx 和 wrangler-action）用同一个固定版本；升级时只改这里
   WRANGLER_VERSION: '4.152.0'
 
-# 自动回滚（main 部署）：Pages 和 9 个 Worker（合并 PR3 起含 curio-core / daymark-core）的 job 部署前记下线上版本（step id live），部署 / 冒烟 / 部署后核对失败
+# 自动回滚（main 部署）：Pages 和 8 个 Worker（2026-11-14 起 curio-core / daymark-core 合成 atlas-core）的 job 部署前记下线上版本（step id live），部署 / 冒烟 / 部署后核对失败
 # 就退回那个版本（space/scripts/deploy/deploy-rollback.mjs；Worker 用 wrangler rollback，Pages 用回滚 API），job 照样红。
 # 只用各 job 部署本来就用的那把 token，不加 secret、不加权限。第一次部署（没有旧版本）/ 记录失败 → 不回滚，同以前。
 # 不回滚：D1 迁移（只进不退，迁移要写成兼容旧代码）、KV 数据（搜索索引）、Secrets Store、路由 / 自定义域名、已部署的其他 job。
@@ -132,7 +132,7 @@ jobs:
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-proxy-rules-dist
 
       - name: Curio core Worker bundle check (styrigx-curio-core, dry-run)
-        # 子站接口 Worker（2026-11-02 从 styrigx-atlas 搬来；合并 PR3 起由本工作流 deploy-curio-core / deploy-daymark-core 部署）
+        # 子站接口 Worker（2026-11-02 从 styrigx-atlas 搬来；2026-11-14 起不再部署，由 atlas-core 接替；下线前保留打包检查）
         working-directory: workers/curio-core
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-curio-core-dist
 
@@ -969,7 +969,7 @@ jobs:
     # Pages 只放静态文件，会话检查全靠网关，所以等网关部署好、线上冒烟通过后再部署 Pages；网关失败就不部署 Pages。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-space-core, deploy-curio-core, deploy-daymark-core]
+    needs: [quality, passkey-e2e, deploy-space-core, deploy-atlas-core]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -1249,7 +1249,7 @@ jobs:
     # 2026-11-05 run 42007357284：原 token 没有 Secrets Store 权限，带钥匙部署报 10021，Gray 定改名 + 加权限，一次带钥匙部署成功、不靠退路。
     # Workers AI 绑定要不要额外权限文档没写清：先不加；首次部署若报权限错，Gray 给这把 token 加 Workers AI 权限后重跑（对线上无影响）。
     # 2026-11 AI 语义召回：wrangler.toml 加了 Vectorize 绑定 styrigx-ai-recall（索引要先在 Cloudflare 建好，否则部署失败、退路也失败、回滚）、
-    # 服务绑定 CURIO（styrigx-curio-core#CurioReader）、[placement] region、每小时 Cron。若部署报 Vectorize 权限错，给这把 token 加 Vectorize 编辑后重跑。
+    # 服务绑定 CURIO（styrigx-atlas-core#CurioReader）、[placement] region、每小时 Cron。若部署报 Vectorize 权限错，给这把 token 加 Vectorize 编辑后重跑。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e]
@@ -1411,11 +1411,11 @@ jobs:
     # 权限 Workers Scripts 编辑 + D1 编辑（styrigx-proxy 迁移）+ Secrets Store 编辑（SGX_PROXY_DB_KEY 绑定）+ styrigx.com 的 Workers Routes 编辑；环境只允许 main。
     # 步骤：D1 迁移（migrations/；已迁过的跳过，失败要让 job 红）→ 记录线上版本 → 部署 → 冒烟 → 失败回滚（只回代码，不回迁移）。
     # account 的 /api/account/proxy 经服务绑定 PROXY 调本 Worker 的 ProxyAdmin；两边各自部署，本 Worker 没部署完的那一两分钟 account 回 503 upstream。
-    # 排在 ai、curio-core、daymark-core 之后（2026-11-10）：免费账号整个账号只有 5 个 Cron Trigger，
+    # 排在 ai、atlas-core（2026-11-14 前是 curio-core、daymark-core）之后（2026-11-10）：免费账号整个账号只有 5 个 Cron Trigger，
     # 那三个先部署（crons = [] 清掉自己的每小时 Cron，改由 status 调），本 Worker 的 6 小时 Cron 才有名额。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-ai-worker, deploy-curio-core, deploy-daymark-core]
+    needs: [quality, passkey-e2e, deploy-ai-worker, deploy-atlas-core]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_PROXY_RULES_DEPLOY
@@ -1499,21 +1499,21 @@ jobs:
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
-  deploy-curio-core:
-    # 奇趣接口 Worker styrigx-curio-core（workers/curio-core；合并 PR3 起由本仓库部署，styrigx-atlas 仓库不再部署）。
-    # 路由见 workers/curio-core/wrangler.toml：styrigx.com/curio/api/*（旧图志域名的过渡期路由 P4-3 PR-1 删除），
+  deploy-atlas-core:
+    # 内容层接口 Worker styrigx-atlas-core（workers/atlas-core；2026-11-14 Atlas 后端合并：原 deploy-curio-core / deploy-daymark-core 两个 job 合成本 job）。
+    # 奇趣 + 日刻一个 Worker、一个 D1、一个 R2；路由见 workers/atlas-core/wrangler.toml：styrigx.com/curio/api/*、styrigx.com/daymark/api/*，
     # 比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：v6 会话经站点核心 SpaceVerifier.admit() 问账号 Worker（服务绑定 SPACE）。
-    # 进站 v3 L2 起排在 styrigx-space-core 之后（needs）：服务绑定 SPACE 指向的 Worker / 入口 SpaceVerifier 要先在，不然部署不了。
-    # 网关切过去到本 Worker 部署完的那一两分钟，旧版本问的是旧网关的 AuthVerifier（还在，L3 才删），子站接口照旧。和网关一样等 status 的健康闸门。
+    # 排在 styrigx-space-core 之后（needs）：服务绑定 SPACE 指向的 Worker / 入口 SpaceVerifier 要先在。status（JOB_ATLAS）、ai（CURIO）绑本 Worker 的入口，
+    # 本 Worker 已在线上（2026-11-14 不挂路由先部署过），所以它们排在前面也部署得了。
     # 步骤：D1 迁移（migrations/；已迁过的跳过，失败要让 job 红）→ 记录线上版本 → 部署 → 核对新版本 → 冒烟 → 失败回滚。
-    # token：Cloudflare 上 styrigx-curio-core-deploy = GitHub 环境 STYRIGX_CURIO_CORE_DEPLOY 里的同名环境密钥 STYRIGX_CURIO_CORE_DEPLOY
-    # （styrigx-atlas 仓库时用的同一把；权限 Workers Scripts 编辑 + D1 编辑 + styrigx.com 的 Workers Routes 编辑，部署前 Gray 核对）；环境只允许 main。
+    # token：Cloudflare 上 styrigx-atlas-core-deploy = GitHub 环境 STYRIGX_ATLAS_CORE_DEPLOY 里的同名环境密钥 STYRIGX_ATLAS_CORE_DEPLOY
+    # （权限 Workers Scripts 编辑 + D1 编辑 + styrigx.com 的 Workers Routes 编辑）；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e, deploy-status-worker, deploy-space-core]
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: STYRIGX_CURIO_CORE_DEPLOY
+    environment: STYRIGX_ATLAS_CORE_DEPLOY
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -1523,169 +1523,76 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Apply D1 migrations (styrigx-curio-core)
-        # 不新增迁移：表结构在 styrigx-atlas 时已迁到最新，这一步应是 No migrations to apply
+      - name: Apply D1 migrations (styrigx-atlas-core)
+        # 0001_curio / 0002_daymark 在 2026-11-14 建库时已执行并记在 d1_migrations，这一步应是 No migrations to apply
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
-          apiToken: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
+          apiToken: ${{ secrets.STYRIGX_ATLAS_CORE_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/curio-core
+          workingDirectory: workers/atlas-core
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
-          command: d1 migrations apply styrigx-curio-core --remote
+          command: d1 migrations apply styrigx-atlas-core --remote
 
       - name: Record live Worker version (rollback target)
         # 部署前记下线上 100% 流量的版本（space/scripts/deploy/deploy-rollback.mjs）。记录失败 → 空，只打 warning、不拦部署：空 = 这次失败不自动回滚
         id: live
         continue-on-error: true
-        working-directory: workers/curio-core
+        working-directory: workers/atlas-core
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ATLAS_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
-      - name: Deploy 奇趣 core Worker (styrigx-curio-core)
-        # wrangler deploy 按 wrangler.toml 的 [[routes]] 整体覆盖线上路由：只有主域名路由（旧图志域名的路由在这一步被摘掉）
+      - name: Deploy Atlas core Worker (styrigx-atlas-core)
+        # wrangler deploy 按 wrangler.toml 的 [[routes]] 整体覆盖线上路由：/curio/api/*、/daymark/api/* 两条
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
-          apiToken: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
+          apiToken: ${{ secrets.STYRIGX_ATLAS_CORE_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/curio-core
+          workingDirectory: workers/atlas-core
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
 
       - name: Post-deploy check (live version switched)
-        working-directory: workers/curio-core
+        working-directory: workers/atlas-core
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ATLAS_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
-      - name: Smoke test production (styrigx.com/curio/api/* lands on this Worker)
-        # 只发不带 cookie 的只读请求。这时网关可能还是旧版本：接口路由比网关的通配更具体，新旧网关下回答相同。
+      - name: Smoke test production (styrigx.com/curio/api/* and /daymark/api/* land on this Worker)
+        # 只发不带 cookie 的只读请求。X-Atlas-Runtime 只有本 Worker 打（产品头 X-Curio-Runtime / X-Daymark-Runtime 旧 Worker 也有，分不出来）。
         run: |
           set -u
           check() { # 地址 期望状态码
             for i in 1 2 3 4 5 6; do
               hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "$1" | tr -d '\r' || true)
               code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
-              rt=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="x-curio-runtime"{print $2}')
-              echo "$1 -> $code X-Curio-Runtime=${rt:-none} (try $i)"
+              rt=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="x-atlas-runtime"{print $2}')
+              echo "$1 -> $code X-Atlas-Runtime=${rt:-none} (try $i)"
               if [ "$code" = "$2" ] && [ "$rt" = "worker" ]; then return 0; fi
               sleep 5
             done
-            echo "::error::$1 expected $2 with X-Curio-Runtime: worker"; return 1
+            echo "::error::$1 expected $2 with X-Atlas-Runtime: worker"; return 1
           }
           ok=0
-          # v5 S3 访问表（workers/curio-core/src/routes.js ROUTE_ACCESS）：读公开（歌单只有元数据）；听 / 导出要进站
+          # 访问表（workers/atlas-core/src/curio/routes.js、src/daymark/routes.js ROUTE_ACCESS）：读公开；听 / 导出 / 表外路径要进站
           check "https://styrigx.com/curio/api/links" 200 || ok=1
           check "https://styrigx.com/curio/api/music" 200 || ok=1
           check "https://styrigx.com/curio/api/music-stream?t=smoke&id=1" 401 || ok=1
           check "https://styrigx.com/curio/api/export" 401 || ok=1
-          exit $ok
-
-      - name: Roll back to the recorded version (deploy or post-deploy check failed)
-        # 只换代码版本：D1 迁移、路由不回滚（接口按去掉 /curio 前缀的路径分发，不看主机，回滚后的旧版本照样能接现在的路由）。
-        # job 照样红，网关不部署
-        if: failure() && steps.live.outputs.version != ''
-        working-directory: workers/curio-core
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
-
-  deploy-daymark-core:
-    # 日刻接口 Worker styrigx-daymark-core（workers/daymark-core；合并 PR3 起由本仓库部署，styrigx-atlas 仓库不再部署）。
-    # 路由见 workers/daymark-core/wrangler.toml：styrigx.com/daymark/api/*（旧图志域名的过渡期路由 P4-3 PR-1 删除），
-    # 比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：v6 会话经站点核心 SpaceVerifier.admit() 问账号 Worker（服务绑定 SPACE）。
-    # 进站 v3 L2 起排在 styrigx-space-core 之后（needs）：服务绑定 SPACE 指向的 Worker / 入口 SpaceVerifier 要先在，不然部署不了。
-    # 网关切过去到本 Worker 部署完的那一两分钟，旧版本问的是旧网关的 AuthVerifier（还在，L3 才删），子站接口照旧。和网关一样等 status 的健康闸门。
-    # 步骤：D1 迁移（migrations/；已迁过的跳过，失败要让 job 红）→ 记录线上版本 → 部署 → 核对新版本 → 冒烟 → 失败回滚。
-    # token：Cloudflare 上 styrigx-daymark-core-deploy = GitHub 环境 STYRIGX_DAYMARK_CORE_DEPLOY 里的同名环境密钥 STYRIGX_DAYMARK_CORE_DEPLOY
-    # （styrigx-atlas 仓库时用的同一把；权限 Workers Scripts 编辑 + D1 编辑 + styrigx.com 的 Workers Routes 编辑，部署前 Gray 核对）；环境只允许 main。
-    # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
-    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-status-worker, deploy-space-core]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    environment: STYRIGX_DAYMARK_CORE_DEPLOY
-    steps:
-      - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-
-      - name: Setup Node
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Apply D1 migrations (styrigx-daymark-core)
-        # 不新增迁移：表结构在 styrigx-atlas 时已迁到最新，这一步应是 No migrations to apply
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
-        with:
-          apiToken: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/daymark-core
-          wranglerVersion: ${{ env.WRANGLER_VERSION }}
-          command: d1 migrations apply styrigx-daymark-core --remote
-
-      - name: Record live Worker version (rollback target)
-        # 部署前记下线上 100% 流量的版本（space/scripts/deploy/deploy-rollback.mjs）。记录失败 → 空，只打 warning、不拦部署：空 = 这次失败不自动回滚
-        id: live
-        continue-on-error: true
-        working-directory: workers/daymark-core
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
-
-      - name: Deploy 日刻 core Worker (styrigx-daymark-core)
-        # wrangler deploy 按 wrangler.toml 的 [[routes]] 整体覆盖线上路由：只有主域名路由（旧图志域名的路由在这一步被摘掉）
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
-        with:
-          apiToken: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/daymark-core
-          wranglerVersion: ${{ env.WRANGLER_VERSION }}
-          command: deploy
-
-      - name: Post-deploy check (live version switched)
-        working-directory: workers/daymark-core
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
-
-      - name: Smoke test production (styrigx.com/daymark/api/* lands on this Worker)
-        # 只发不带 cookie 的只读请求。这时网关可能还是旧版本：接口路由比网关的通配更具体，新旧网关下回答相同。
-        run: |
-          set -u
-          check() { # 地址 期望状态码
-            for i in 1 2 3 4 5 6; do
-              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "$1" | tr -d '\r' || true)
-              code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
-              rt=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="x-daymark-runtime"{print $2}')
-              echo "$1 -> $code X-Daymark-Runtime=${rt:-none} (try $i)"
-              if [ "$code" = "$2" ] && [ "$rt" = "worker" ]; then return 0; fi
-              sleep 5
-            done
-            echo "::error::$1 expected $2 with X-Daymark-Runtime: worker"; return 1
-          }
-          ok=0
-          # v5 S3 访问表（workers/daymark-core/src/routes.js ROUTE_ACCESS）：读公开；表里没有的路径一律要进站
           check "https://styrigx.com/daymark/api/quotes" 200 || ok=1
           check "https://styrigx.com/daymark/api/today" 200 || ok=1
           check "https://styrigx.com/daymark/api/no-such-endpoint" 401 || ok=1
           exit $ok
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)
-        # 只换代码版本：D1 迁移、路由不回滚（接口按去掉 /daymark 前缀的路径分发，不看主机，回滚后的旧版本照样能接现在的路由）。
-        # job 照样红，网关不部署
+        # 只换代码版本：D1 迁移、路由不回滚。job 照样红，Pages 不部署
         if: failure() && steps.live.outputs.version != ''
-        working-directory: workers/daymark-core
+        working-directory: workers/atlas-core
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ATLAS_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"

@@ -3,7 +3,7 @@
 # 没有公开地址：不开 workers.dev、不挂路由、不挂域名。
 #   - 定时：Cron 每分钟一次（src/index.js scheduled），检查 src/targets.js 里的 4 个地址，10 秒超时，
 #     连续 3 次失败开一条故障，恢复后自动关。
-#   - 每小时任务（2026-11-10）：同一条 41 分 Cron 经服务绑定 JOB_DAYMARK / JOB_CURIO / JOB_AI 叫三个 Worker 的 HourlyJob.run()（src/hourly.js）。
+#   - 每小时任务（2026-11-10）：同一条 41 分 Cron 经服务绑定 JOB_ATLAS / JOB_AI 叫两个 Worker 的 HourlyJob.run()（src/hourly.js；2026-11-14 前是 JOB_DAYMARK / JOB_CURIO / JOB_AI 三个）。
 #   - 每日任务（v6 P2c）：同一条 41 分 Cron，只在 03:00 CST（UTC 19 点）那一轮经 JOB_ACCOUNT 叫账号 Worker 的 AccountJanitor.purgeExpiredUsers()
 #     （到期满 30 天的用户自动删除，src/daily.js）。v6 P4 起分享短链整套删除，原 JOB_SPACE（space-core ShareJanitor）绑定一并删。
 #   - 用量：Cron 每小时 41 分一次（src/usage.js），用只读 token 读 Cloudflare API（D1 / R2 / KV 存储、今天的 Workers 请求数），
@@ -70,14 +70,10 @@ service = "styrigx-ai"
 
 # 每小时任务（2026-11-10，src/hourly.js）：三个 Worker 的命名入口 HourlyJob，只有 run(at)，公网进不来。
 # 绑定要求对方 Worker 已存在（都早已存在）；入口要等对方新版部署后才有，这之前那一轮只打日志。
+# Atlas 后端合并（2026-11-14）：原 JOB_DAYMARK、JOB_CURIO 两条合成 JOB_ATLAS（一轮里先奇趣后日刻），两条都指 atlas-core 会每小时跑两遍。
 [[services]]
-binding = "JOB_DAYMARK"
-service = "styrigx-daymark-core"
-entrypoint = "HourlyJob"
-
-[[services]]
-binding = "JOB_CURIO"
-service = "styrigx-curio-core"
+binding = "JOB_ATLAS"
+service = "styrigx-atlas-core"
 entrypoint = "HourlyJob"
 
 [[services]]

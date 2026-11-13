@@ -5,7 +5,8 @@
  * 本文件只按公开地址前缀分流，不碰各自的访问档、守卫、路由表：
  *   /curio/api/*   → src/curio/app.js（X-Curio-Runtime）
  *   /daymark/api/* → src/daymark/index.js（X-Daymark-Runtime）
- *   其他           → 404（带 X-Atlas-Runtime）
+ *   其他           → 404
+ * 所有响应另打 X-Atlas-Runtime: worker（切换路由后从外部确认接口走了本 Worker；产品头 X-Curio-Runtime / X-Daymark-Runtime 新旧 Worker 一样，分不出来）。
  * 公开路径不变，前端无感。两份代码在旧 Worker 下线（设计稿第 7 步）前要和旧目录逐字一致，
  * tests/workers/atlas-core/core.test.mjs 核对；改业务代码时两边一起改。
  */
@@ -37,6 +38,14 @@ function notFound() {
   });
 }
 
+/** 给产品的响应补上 X-Atlas-Runtime（响应头可能不可改，复制一份再设） */
+export function tag(res) {
+  if (!res || res.status === 101) return res;
+  const out = new Response(res.body, res);
+  out.headers.set('X-Atlas-Runtime', 'worker');
+  return out;
+}
+
 /**
  * 每小时任务：先奇趣（搜索索引兜底 + 清扫时段的照片清扫），再日刻（搜索索引兜底）。
  * 一边失败不影响另一边；返回各自结果。
@@ -57,8 +66,8 @@ export default {
    */
   async fetch(request, env, ctx) {
     const product = productOf(new URL(request.url).pathname);
-    if (product === 'curio') return curio.fetch(request, env, ctx);
-    if (product === 'daymark') return daymark.fetch(request, env, ctx);
+    if (product === 'curio') return tag(await curio.fetch(request, env, ctx));
+    if (product === 'daymark') return tag(await daymark.fetch(request, env, ctx));
     return notFound();
   },
 
