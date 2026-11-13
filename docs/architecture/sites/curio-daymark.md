@@ -33,7 +33,7 @@
 | 继承主站外观 | `assets/curio/js/sgx/`（`ui-inherit-run.js`、`topbar-host.js`；`shell-accent.js` 随自定义主题色 2026-11-12 删除） | `assets/daymark/js/sgx/` |
 | 字符串表 | `data/curio/i18n/` | `data/daymark/i18n/` |
 
-2.1 两站都 MUST 使用主站的共享外壳（顶栏、导航面板、调色板 token、`ui-cookie-read.js`、`lang-boot.js`），MUST NOT 复制。样式表 `@import` 主站 `assets/css/shell/*.css`。
+2.1 两站都 MUST 使用主站的共享外壳（顶栏、导航面板、调色板 token、`ui-cookie-read.js`、`lang-boot.js`），MUST NOT 复制。样式表 `@import` 主站 `assets/shell/css/*.css`。
 
 2.2 CSS 类名前缀：奇趣 `cu-`，日刻 `dm-`；`bk-` 是沿用的共用弹层组件。
 

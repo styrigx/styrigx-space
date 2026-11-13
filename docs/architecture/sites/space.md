@@ -33,7 +33,7 @@
 
 | 组件 | 代码 | 说明 |
 |---|---|---|
-| 顶栏 | `layouts/partials/shell-topbar.html`、`assets/css/shell/` | 顶栏 E（v5 S6）：盾牌 · 调色 · 导航四格 │ `>_` 终端 · 头像；底边滑页进度条 |
+| 顶栏 | `layouts/partials/shell-topbar.html`、`assets/shell/css/` | 顶栏 E（v5 S6）：盾牌 · 调色 · 导航四格 │ `>_` 终端 · 头像；底边滑页进度条 |
 | 导航面板 | `#sgx-nav`，`topbar/topbar-panel.js` | 顶栏四格打开；站点导航、语言与布局两行 Auto 控件、分享本页（v5 S6 去掉 lock 按钮） |
 | 快捷面板 | `#sgx-qp`，`topbar/quick-panel.js` | 调色打开；深浅色、调色板 |
 | 终端 | `#sgx-term`，`term/terminal.js` + `term/` | 全站唯一终端（v5 S5）：顶栏 `>_`、`Ctrl / ⌘ K`、盾牌、上锁部件打开；桌面居中大窗、手机整块卡片；钥匙层 `shell/space/layer.js`、账号层 `account/cmd/layer.js` 共用输入行（ADR-0005） |

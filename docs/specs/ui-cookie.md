@@ -117,7 +117,7 @@ node --test tests/space/ui/shell/ui-cookie-contract.test.mjs
 
 ### 8.3 禁止
 
-- MUST NOT 手改生成物：`tests/fixtures/ui-cookie-contract.json`、`space/web/data/shell/`、`space/web/assets/css/shell/`、`ui-cookie-read.js` 的 `@ui-cookie-presets` 段。
+- MUST NOT 手改生成物：`tests/fixtures/ui-cookie-contract.json`、`space/web/data/shell/`、`space/web/assets/shell/css/`、`ui-cookie-read.js` 的 `@ui-cookie-presets` 段。
 - 色板改名 MUST 在 `normPal()` 里迁移旧 id 并补夹具用例。
 
 ## 9. 子站读端

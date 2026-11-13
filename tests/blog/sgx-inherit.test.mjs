@@ -338,7 +338,7 @@ test('博客 head 不再加载 inherit.ts / palette-scheme.js（自定义色引�
   assert.doesNotMatch(HEAD, /#fdfdf9/);
 });
 test('共享外壳副本含 22 套预设（v4 起每套一段）和顶栏 / 快捷面板样式（2026-11-04 P5-1 抽屉删了）', () => {
-  const shell = (readFileSync(new URL('../../space/web/assets/css/shell/tokens.css', import.meta.url), 'utf8') + readFileSync(new URL('../../space/web/assets/css/shell/shell.css', import.meta.url), 'utf8'));
+  const shell = (readFileSync(new URL('../../space/web/assets/shell/css/tokens.css', import.meta.url), 'utf8') + readFileSync(new URL('../../space/web/assets/shell/css/shell.css', import.meta.url), 'utf8'));
   assert.equal(palettes.presets.length, 25);
   for (const { id } of palettes.presets) {
     assert.ok(shell.includes(`:root[data-palette="${id}"] {`), id);

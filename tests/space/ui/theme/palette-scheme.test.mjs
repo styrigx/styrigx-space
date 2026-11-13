@@ -25,7 +25,7 @@ for (const p of Object.values(DATA.presets)) {
 const MODES = (id) => [DATA.presets[id].mode];
 /** 同模式的参照套（语义色、danger 等固定色比较用）：浅套 = dustyblue，深套 = terra */
 const REF = (m) => DATA.presets[m === 'light' ? 'dustyblue' : 'terra'][m];
-const CSS = readFileSync(path.join(REPO, 'space/web/assets/css/input.css'), 'utf8');
+const CSS = readFileSync(path.join(REPO, 'space/web/assets/shell/css/input.css'), 'utf8');
 const V3 = JSON.parse(readFileSync(path.join(REPO, 'tests/fixtures/palette-v0.3.json'), 'utf8'));
 const hueDist = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
 const hue = (h) => hexToOklch(h).h;

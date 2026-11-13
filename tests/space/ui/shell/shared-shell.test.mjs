@@ -1,6 +1,6 @@
 /**
  * 共享外壳（2026-11 合站后主站和三个子站同一个 Hugo 站，子站直接用主站的 partial / JS；space/scripts/gen-shell.mjs 只生成
- *   space/web/assets/css/shell/{tokens,shell}.css 和 space/web/data/shell/{nav,palettes}.json 四个派生文件）：
+ *   space/web/assets/shell/css/{tokens,shell}.css 和 space/web/data/shell/{nav,palettes}.json 四个派生文件）：
  * 生成物必须和源头一致；外壳 CSS 只用色彩角色，不写死颜色；导航项 / 图标齐全；顶栏标记 topbar.html 四站一份（2026-11-04 P5-1）。
  */
 import { test } from 'node:test';
@@ -59,7 +59,7 @@ test('宽屏平铺（Gray 2026-11-07；2026-11 PR-A 起内容区回 1080）：�
 });
 
 test('外壳 CSS 段只用 --sgx-* 角色：没有十六进制颜色、没有旧 --m-* 令牌', () => {
-  const css = readFileSync(path.join(REPO, 'space/web/assets/css/input.css'), 'utf8');
+  const css = readFileSync(path.join(REPO, 'space/web/assets/shell/css/input.css'), 'utf8');
   for (const n of SHELL_REGIONS) {
     const r = extractRegion(css, n).replace(/\/\*[\s\S]*?\*\//g, '');
     assert.doesNotMatch(r, /#[0-9a-fA-F]{3,8}\b/, n);

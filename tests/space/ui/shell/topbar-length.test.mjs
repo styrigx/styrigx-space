@@ -137,7 +137,7 @@ test('手机开「桌面版网站」（2026-11-07 录屏：S23 Ultra 视口 980�
 });
 
 test('外壳 CSS（顶栏 v3，2026-11 UI 重设计 PR-1）：顶栏贴顶通栏，内容宽一个 token --sgx-content-w（1080），左右内边距 --sgx-tb-pad（页边距 / 安全区 / 居中余量取大），上限按 100% 不用 100vw；横向不滚；页名不在顶栏显示', () => {
-  const shell = read('space/web/assets/css/shell/shell.css');
+  const shell = read('space/web/assets/shell/css/shell.css');
   const code = shell.replace(/\/\*[\s\S]*?\*\//g, '');
   assert.match(code, /--sgx-content-w: 1080px;/);
   assert.match(code, /--sgx-tb-pad: max\(var\(--sgx-page-m\), env\(safe-area-inset-left, 0px\), env\(safe-area-inset-right, 0px\), \(100% - var\(--sgx-content-w\)\) \/ 2\);/);
@@ -160,7 +160,7 @@ test('外壳 CSS（顶栏 v3，2026-11 UI 重设计 PR-1）：顶栏贴顶通栏
 
 test('各站自己的样式不再按 layout-* 类改 --sgx-content-max / 顶栏宽（只有外壳一处）', () => {
   const files = [
-    'space/web/assets/css/input.css',
+    'space/web/assets/shell/css/input.css',
     'space/web/assets/curio/css/input.css',
     'space/web/assets/daymark/css/input.css',
     'space/web/assets/blog/css/blog/one-ui.css',

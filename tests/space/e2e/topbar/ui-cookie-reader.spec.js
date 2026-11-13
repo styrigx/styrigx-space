@@ -14,8 +14,8 @@ test.use({ viewport: { width: 412, height: 915 } });
 const REPO = path.join(__dirname, '../../../..');
 const SHELL_FILES = {
   'nav.json': 'space/web/data/shell/nav.json',
-  'tokens.css': 'space/web/assets/css/shell/tokens.css',
-  'shell.css': 'space/web/assets/css/shell/shell.css',
+  'tokens.css': 'space/web/assets/shell/css/tokens.css',
+  'shell.css': 'space/web/assets/shell/css/shell.css',
   'ui-cookie-read.js': 'space/web/assets/shell/js/prefs/ui-cookie-read.js',
   'favicon.js': 'space/web/assets/shell/js/ui/favicon.js',
 };

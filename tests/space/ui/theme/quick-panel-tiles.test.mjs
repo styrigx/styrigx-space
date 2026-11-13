@@ -25,7 +25,7 @@ const tbJs = rd('space/web/assets/shell/js/topbar/topbar-panel.js');
 import { existsSync } from 'node:fs';
 const qpJs = rd('space/web/assets/shell/js/topbar/quick-panel.js');
 const setJs = rd('space/web/assets/shell/js/apps/space.js');
-const css = rd('space/web/assets/css/input.css');
+const css = rd('space/web/assets/shell/css/input.css');
 const feats = rd('space/web/data/features.yaml');
 
 test('顶栏 v3 控件（四站同一套）：外观面板 = PALETTE（2026-11-12 调色板 v4 删 MODE 三段）；NAVIGATE = lang / layout 分段 + terminal（v5 S6 去掉 lock；v6 P4 拿掉 share）；没有按站开关、没有减弱动效和字体大小', () => {

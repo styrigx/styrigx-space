@@ -59,15 +59,15 @@ test('没有搜索；快捷面板只来自共享外壳（本站不自己写）�
   assert.equal(existsSync(path.join(REPO, 'space/web/layouts/partials/daymark/sgx-qp.html')), false);
   assert.equal(existsSync(path.join(REPO, 'space/web/assets/daymark/js/sgx/shell/capsule-kb.js')), false);
   /* 快捷面板样式只在 @sgx-shell 同步段里（共享外壳 shell.css），本站自己的段不写 */
-  const own = css.slice(css.indexOf('@import "../../css/shell/shell.css";'));
-  assert.ok(css.indexOf('@import "../../css/shell/shell.css";') > 0);
+  const own = css.slice(css.indexOf('@import "../../shell/css/shell.css";'));
+  assert.ok(css.indexOf('@import "../../shell/css/shell.css";') > 0);
   assert.doesNotMatch(css, /\.bk-cap/);
   assert.doesNotMatch(own, /\.sgx-qp/);
 });
 
 test('没有版权页脚（© / Powered by），样式也删干净', () => {
   assert.doesNotMatch(base, /<footer|©|Powered by/);
-  assert.doesNotMatch(css.slice(css.indexOf('@import "../../css/shell/shell.css";')), /(^|[\s,}])footer\b|sgx-powered|sgx-tb-me/);
+  assert.doesNotMatch(css.slice(css.indexOf('@import "../../shell/css/shell.css";')), /(^|[\s,}])footer\b|sgx-powered|sgx-tb-me/);
 });
 
 test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚本、Giscus 配置和样式', async () => {
@@ -76,7 +76,7 @@ test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚
     assert.equal(existsSync(new URL('../../' + f, import.meta.url)), false, f);
   }
   assert.doesNotMatch(read('space/web/hugo.yaml'), /guestbook|giscus/i);
-  assert.doesNotMatch(css.slice(css.indexOf('@import "../../css/shell/shell.css";')), /dm-gb-|giscus|guestbook/);
+  assert.doesNotMatch(css.slice(css.indexOf('@import "../../shell/css/shell.css";')), /dm-gb-|giscus|guestbook/);
 });
 
 test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主站共享外壳的 nav.json（顶栏 v3：主页 / 博客 / 奇趣 / 日刻；05 旷野 2026-11-12 删除），模板不写死项；日刻是当前项；主站项走 https://styrigx.com', () => {

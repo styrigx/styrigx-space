@@ -6,7 +6,7 @@ space/web/public/
 space/web/resources/
 space/web/.hugo_build.lock
 space/web/hugo_stats.json
-space/web/assets/css/main.css
+space/web/assets/shell/css/main.css
 space/web/data/tailwind.json
 
 # 子站样式（space/scripts/build-css.cjs 顺带构建；主站和三个子站是同一个 Hugo 站）

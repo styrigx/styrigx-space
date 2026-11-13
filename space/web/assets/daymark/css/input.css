@@ -116,8 +116,8 @@ html, body {
 @supports (overflow-x: clip) {
   html, body { overflow-x: clip; }
 }
-@import "../../css/shell/tokens.css";
-@import "../../css/shell/shell.css";
+@import "../../shell/css/tokens.css";
+@import "../../shell/css/shell.css";
 
 /* ===== 日刻本站样式（2026-10-24 跟进主站 PR-G 主题）=====
    三层规则同主站 docs/design/palette.md：

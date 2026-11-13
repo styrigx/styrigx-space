@@ -175,7 +175,7 @@ test('旷野状态卡 403（已登录不在 status 组）留着凭据记录区�
   const src = rd('space/web/assets/shell/js/apps/space-status.js');
   assert.match(src, /root\.toggleAttribute\('data-lock-perm', status === 403\)/);
   assert.match(src, /setState\('locked'\);\n\s+root\.removeAttribute\('data-lock-perm'\);/, 'exit / lock 回访客清掉');
-  const css = rd('space/web/assets/css/input.css');
+  const css = rd('space/web/assets/shell/css/input.css');
   assert.match(css, /\.st-wrap\[data-state="locked"\]:not\(\[data-lock-perm\]\) \.st-audit-wrap \{ display: none; \}/);
   assert.doesNotMatch(css, /\.st-wrap\[data-state="locked"\] \.st-audit-wrap \{ display: none; \}/);
 });

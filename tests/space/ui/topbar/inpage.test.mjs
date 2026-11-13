@@ -1,4 +1,4 @@
-/* 内容页共用件（共享外壳 @inpage 段，gen-shell 抽成 assets/css/shell/shell.css；原 segtabs.test.mjs，对齐 PR-C2 改名）：
+/* 内容页共用件（共享外壳 @inpage 段，gen-shell 抽成 assets/shell/css/shell.css；原 segtabs.test.mjs，对齐 PR-C2 改名）：
    - 页头 sgx-ph.html（2026-11 对齐 PR-C 取代 sgx-page-hero.html；合站后四站直接用主站这一份）
    - 对齐 PR-C 共用件（chips / 文章行 / 分页条 / 两窗）、对齐 PR-C2 共用件（下划线 tab .sgx-ctab、grep、命令链 .sgx-cmd、封面卡 .sgx-cc、排序、条目页 .sgx-item / .sgx-spec）
    - 段式标签 sgx-segtabs.html / 平铺入口 sgx-entries.html 在对齐 PR-C2 退役（文件、样式、gen-shell 核对都删了）
@@ -10,7 +10,7 @@ import { SHELL_REGIONS } from '../../../../space/scripts/gen-shell.mjs';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
 const has = (p) => existsSync(new URL('../../../../' + p, import.meta.url));
-const shell = rd('space/web/assets/css/shell/shell.css');
+const shell = rd('space/web/assets/shell/css/shell.css');
 
 test('共享外壳：inpage 段进 shell.css；段式标签 / 平铺入口退役（对齐 PR-C2：组件、样式段、gen-shell 区段都删了）', () => {
   assert.ok(SHELL_REGIONS.includes('inpage'));
@@ -59,7 +59,7 @@ test('页头 .sgx-ph（2026-11 对齐 PR-C，设计稿 .hero.ph）：$ 命令 ·
   assert.ok(!has('space/web/layouts/partials/sgx-page-hero.html'), 'sgx-page-hero.html 退役');
   /* 2026-11 合站：三个子站的样式表直接 @import 这份 shell.css（不再同步副本） */
   for (const site of ['blog', 'curio', 'daymark']) {
-    assert.match(rd(`space/web/assets/${site}/css/input.css`), /@import ['"]\.\.\/\.\.\/css\/shell\/shell\.css['"];/, site + ' 引入共享外壳 shell.css');
+    assert.match(rd(`space/web/assets/${site}/css/input.css`), /@import ['"]\.\.\/\.\.\/shell\/css\/shell\.css['"];/, site + ' 引入共享外壳 shell.css');
   }
 });
 

@@ -18,7 +18,7 @@
 ```
 palette-scheme.js
   → node space/scripts/gen-palettes.mjs --roles → space/web/data/palette-roles.json + input.css 的 @gen-palettes 段
-  → node space/scripts/gen-shell.mjs           → space/web/assets/css/shell/tokens.css + space/web/data/shell/palettes.json
+  → node space/scripts/gen-shell.mjs           → space/web/assets/shell/css/tokens.css + space/web/data/shell/palettes.json
 ```
 
 0.3 快捷面板的色块与预览从 `palette-roles.json` 取值（`layouts/partials/palette-tile-vars.html`），与页面角色同一份数据。四站直接使用同一份生成物，没有副本。
@@ -163,7 +163,7 @@ palette-scheme.js
 
 合成底审计（单测 `tests/space/ui/theme/palette-scheme.test.mjs`）：玻璃卡、顶栏、抽屉 = 材质（surface 88%）叠在 `bg-1..7` 任一档（最浅、最深都算）上核对对比度。
 
-## 6. 导出 token 全目录（`space/web/data/shell/palettes.json` / `space/web/assets/css/shell/tokens.css`）
+## 6. 导出 token 全目录（`space/web/data/shell/palettes.json` / `space/web/assets/shell/css/tokens.css`）
 
 主站组件只引用 Shell + Semantic；共享外壳**完整导出**下面这些（25 套，每套一段 `:root[data-palette]`，值与 `tokens.css` 同名 `--sgx-*` 变量一致），子站按需索取。
 `palettes.json` 每套 `{ mode, tokens }`，顶层带 **`rulesVersion: "palette-rules-2"`**（本文这套用法规则的版本；3.0 起删 `schemeVersion`）。
@@ -185,7 +185,7 @@ palette-scheme.js
 
 ## 7. 子站
 
-子站与主站是同一个 Hugo 站：样式表 `@import` 主站的 `assets/css/shell/tokens.css` / `shell.css`，模板读 `site.Data.shell.palettes`，MUST NOT 自己定义主题色。当前色板由 `sgx-ui` cookie 带到子站首帧，深浅随调色板（SGX-SPEC-003）；子站不再加载自定义色引擎。子站按 `rulesVersion` 判断用法规则是否更新。
+子站与主站是同一个 Hugo 站：样式表 `@import` 主站的 `assets/shell/css/tokens.css` / `shell.css`，模板读 `site.Data.shell.palettes`，MUST NOT 自己定义主题色。当前色板由 `sgx-ui` cookie 带到子站首帧，深浅随调色板（SGX-SPEC-003）；子站不再加载自定义色引擎。子站按 `rulesVersion` 判断用法规则是否更新。
 
 ## 8. 改调色板
 

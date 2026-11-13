@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
-@source "../../layouts";
-@source "../../content";
+@source "../../../layouts";
+@source "../../../content";
 /* 合站（2026-11）：子站的模板 / 内容 / 资源在同一个 Hugo 站里，样式各自一份（space/scripts/build-css.cjs 一并构建），主站不扫它们 */
-@source not "../../layouts/{blog,curio,daymark}";
-@source not "../../layouts/partials/{blog,curio,daymark}";
-@source not "../../content/{blog,curio,daymark,tags}";
-@source not "../{blog,curio,daymark}";
-@source not "../../static/{blog,curio,daymark}";
-@source not "../../data/{curio,daymark}";
-@source not "../../i18n";
+@source not "../../../layouts/{blog,curio,daymark}";
+@source not "../../../layouts/partials/{blog,curio,daymark}";
+@source not "../../../content/{blog,curio,daymark,tags}";
+@source not "../../{blog,curio,daymark}";
+@source not "../../../static/{blog,curio,daymark}";
+@source not "../../../data/{curio,daymark}";
+@source not "../../../i18n";
 
 @custom-variant dark (&:where(.dark, .dark *));
 /* 悬停只给鼠标 / 触控板（2026-10-23 PR-D，和 input.css 同一条规则）：Tailwind 默认的 hover: 是 @media (hover: hover)，这里再加 pointer: fine */

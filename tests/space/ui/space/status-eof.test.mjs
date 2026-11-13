@@ -19,7 +19,7 @@ test('status.html：more soon 之后紧跟 -- EOF --（.sgx-eof，读屏不念�
 });
 
 test('input.css：EOF 用 .sgx-eof 的终端文字样式，只收上边距', () => {
-  const s = rd('space/web/assets/css/input.css');
+  const s = rd('space/web/assets/shell/css/input.css');
   assert.match(s, /\.sgx-eof \{ margin: 28px 0 0; font-family: var\(--sgx-font-mono\);/);
   assert.match(s, /\.sgx-eof\.status-eof-end \{ margin-top: 6px; \}/);
 });

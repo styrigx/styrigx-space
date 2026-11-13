@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 
 const yaml = readFileSync(new URL('../../../../space/web/data/palettes.yaml', import.meta.url), 'utf8');
 const feats = readFileSync(new URL('../../../../space/web/data/features.yaml', import.meta.url), 'utf8');
-const css = readFileSync(new URL('../../../../space/web/assets/css/input.css', import.meta.url), 'utf8');
+const css = readFileSync(new URL('../../../../space/web/assets/shell/css/input.css', import.meta.url), 'utf8');
 
 const ids = [...yaml.matchAll(/^\s*- id: ([a-z]+)$/gm)].map((m) => m[1]);
 const custom = ids.filter((id) => id !== 'dustyblue');
