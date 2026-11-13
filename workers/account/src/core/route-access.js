@@ -11,7 +11,7 @@
  * 4. 删除两级（定稿 §十一、Muse 复盘 4）：单条内容删除（del: 'item'）归写组；批量 / 结构删除（del: 'bulk'）只属 root。
  * 5. 原来要再验证（reauth / sudo -v / sudo root reauth，即 STEPUP 的继任者）的操作，v6 一律改成 sudo 每次重验 = root 档。
  * 6. retire：v6 割接后要删的旧入口（P3 / P4）；它们在 P1–P3 照旧按老规则跑（旧会话判定不变），这里写的是新会话的档。
- * 7. decided：盘点时拿不准、由 Gray 定稿的条目（2026-11-11；私密库 styrigx/space-tasks 的 v6-route-inventory.md「已定」汇总）。
+ * 7. decided：盘点时拿不准、由 Gray 定稿的条目（2026-11-11；docs/architecture/v6-route-inventory.md「已定」汇总）。
  * 8. rescue：救援会话能走的路由（白名单）。一条路由有多个 action 时，rescueActions 列出救援能用的那几个（没列 = 整条都能用）；
  *    判断用 rescueOf(method, path, { action })，结果交给 permits 的 opts.rescue（P2，定稿 v4 §三 / §九）。
  * 9. webmaster：站长档（= styrigx 的 uid；名片属于站长），root 由 permits 第 2 步放行（P2）。

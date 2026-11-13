@@ -40,7 +40,7 @@ ADR-0006。P1 只加新路径，旧会话 / 旧入口 / 旧命令全部不动；
 |---|---|
 | `migrations/0006_identity.sql` | 8 张身份表：`account_users`、`account_user_groups`、`account_user_password`（含 `pepper_id`）、`account_user_passkey`、`account_sessions`、`account_session_stack`、`account_user_audit`、`account_recovery_key` |
 | `src/core/groups.js` | uid（root 0、styrigx 1000）、组、styrigx 默认组、临时用户不进特权 / 写组（`canJoinGroup`）、**唯一的权限判断 `permits(identity, level, { rescue })`** |
-| `src/core/route-access.js` | 全站路由访问表 v6（public / user / 组名 / root，未列入拒绝；盘点文档 私密库 `styrigx/space-tasks` 的 `v6-route-inventory.md`） |
+| `src/core/route-access.js` | 全站路由访问表 v6（public / user / 组名 / root，未列入拒绝；盘点文档 `docs/architecture/v6-route-inventory.md`） |
 | `src/core/identity-session.js` | 新会话判定 `admitSession`：一次 D1 查询、只读；会话时长常量与续期节流 `shouldRenew` |
 | `src/core/users.js` | epoch bump（自改续命 / root 重置全作废）、加删组、期限（`expiryFromDate`：该日 00:00 Asia/Shanghai 起失效） |
 | `src/core/user-audit.js` | 身份审计（90 天） |
@@ -51,7 +51,7 @@ ADR-0006。P1 只加新路径，旧会话 / 旧入口 / 旧命令全部不动；
 | `src/core/identity-passkey.js`（P2） | v6 用户通行密钥：可发现凭据断言（不按用户列钥匙）、注册（user.name = 用户名）、ls / rm |
 | `src/core/user-admin.js`（P2） | useradd / userdel / usermod / passwd <名> / groups / who（护栏：拒删 root 与 styrigx、临时用户不进特权 / 写组、最后一个 wheel / sudoers 先警告） |
 
-数据迁移（凭据 → root / styrigx）的对照表见 私密库 `styrigx/space-tasks` 的 `v6-identity-migration.md`；生成脚本 `space/scripts/v6-identity-migrate.mjs` 已于 v6 P4 收尾删除（Gray 2026-11-11 20:11）。
+数据迁移（凭据 → root / styrigx）的对照表见 `docs/architecture/v6-identity-migration.md`；生成脚本 `space/scripts/v6-identity-migrate.mjs` 已于 v6 P4 收尾删除（Gray 2026-11-11 20:11）。
 
 ## 账号接口
 

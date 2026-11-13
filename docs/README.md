@@ -56,6 +56,8 @@
 | SGX-SPEC-003 | [`architecture/ui-cookie.md`](architecture/ui-cookie.md) | 规范 | 外观 cookie `sgx-ui` 契约（含博客读端） |
 | SGX-DES-001 | [`architecture/palette.md`](architecture/palette.md) | 规范 | 调色板与色彩角色 token |
 | SGX-DES-002 | [`architecture/ui-system.md`](architecture/ui-system.md) | 规范 | 终端风格 UI 系统：顶栏、AI 窗、Auto 控件、提示符规则 |
+| SGX-SPEC-004 | [`architecture/v6-route-inventory.md`](architecture/v6-route-inventory.md) | 规格 | v6 路由全量盘点：每条路由的档（public / user / 组 / root）；单测逐行比对路由表 |
+| SGX-SPEC-005 | [`architecture/v6-identity-migration.md`](architecture/v6-identity-migration.md) | 规格 | v6 数据迁移对照表：凭据 → root / styrigx、pepper 来源、userHandle |
 | — | [`architecture/archive/ops/`](architecture/archive/ops/) | 归档 | 已执行的 v6 P4 迁移 SQL（7 个） |
 | ADR-0001 | [`decisions/ADR-0001-one-repo-one-site.md`](decisions/ADR-0001-one-repo-one-site.md) | 决策 | 子站并入一个仓库、一个 Hugo 站 |
 | ADR-0002 | [`decisions/ADR-0002-lock-screen.md`](decisions/ADR-0002-lock-screen.md) | 决策 | 锁屏方案演进：Turnstile → 临时钥匙 → 命令行进站 |

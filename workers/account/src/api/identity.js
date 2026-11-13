@@ -1,5 +1,5 @@
 /**
- * POST /api/identity —— v6 身份命令（P2，定稿 v4 §六 / §八 / §十；命令手册 私密库 styrigx/space-tasks 的 v6-identity-migration.md 与终端 P2b）。
+ * POST /api/identity —— v6 身份命令（P2，定稿 v4 §六 / §八 / §十；命令手册 docs/architecture/v6-identity-migration.md 与终端 P2b）。
  *
  * 请求：{ action, ... }，JSON，必须同源。每个 action 一档，档在 core/route-access.js 的 /api/identity 行（唯一权限来源），
  * 判断只经 core/groups.js permits（顺序：救援 → root → 档）；救援会话只放 rescueActions 里的几个。
