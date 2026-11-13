@@ -78,6 +78,7 @@ export const TERM_EN = {
   fetching: 'fetching {x}…',
   manIndex: 'manual pages · man <command> to read one',
   manNone: 'No manual entry for {x}',
+  manReq: 'Requires: ',
   manPager: 'q or esc to quit',
   notDir: '{c}: not a directory: {x}',
   usageFind: 'usage: find <keyword>',

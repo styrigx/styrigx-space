@@ -81,7 +81,7 @@ test('man：passkey 给 v6 普通用户与 root6 都列；AUTH 行 = 已上线 g
   assert.equal(zh.manBody.passkey.auth, zh.manBody.groups.auth.split('；')[0]);
   assert.equal(en.manBody.passkey.auth, en.manBody.groups.auth.split(';')[0]);
   const pg = rd('space/web/assets/common/js/frame/term/man/pages.js');
-  assert.match(pg, /passkey: \{ d: '[^']+', syn: \['passkey', 'passkey add', 'passkey rm <n>'\], auth: 'signed in' \}/, 'SYNOPSIS 同 main（passkey ls 进 SYNOPSIS 仍是待定项）');
+  assert.match(pg, /passkey: \{ d: '[^']+', syn: \['passkey \[add \| rm <n>\]'\], auth: 'signed in', see: \['passwd', 'device'\] \}/, 'SYNOPSIS 合并一行（man 手册规范 v1）');
 });
 
 /* ---------- 账号层（./cmd/keys.js） ---------- */

@@ -163,6 +163,7 @@ term:
   fetching: "正在取 {x}…"
   manIndex: "手册页 · man <命令> 查看一页"
   manNone: "没有 {x} 的手册页"
+  manReq: "需要："
   manPager: "q 或 esc 退出"
   notDir: "{c}: 不是目录：{x}"
   usageFind: "用法：find <关键词>"
@@ -234,6 +235,8 @@ manBody:
   passkey:
     auth: "已登录"
   device:
+    opt:
+      - "退出其他所有设备。"
     auth: "已登录"
   profile:
     desc:
@@ -251,7 +254,7 @@ manBody:
       - "on / off：off 的来源不拉、下载 404；链接或文件和成品都留着。on 当场拉一次。"
       - "update：立刻拉一次这个机场（只对机场源）。"
       - "map：列出源词。map <源词>：节点名含它就整条丢掉。map <源词> <目标词>：节点名含它就加目标国旗（ISO 3166-1 两位或三位国家码），同一源词再敲即改目标。map rm <源词> 删掉；map ls <源名> 列出该机场没加上国旗的节点。"
-      - "fp [值]：看或改加在每个机场节点上的 TLS 指纹：chrome（默认）、firefox、safari、ios、android、edge、360、qq、random、none。"
+      - "fp [<值>]：看或改加在每个机场节点上的 TLS 指纹：chrome（默认）、firefox、safari、ios、android、edge、360、qq、random、none。"
       - "key：粘贴 age1… X25519 公钥；保存后所有来源立刻重新加密。"
       - "token reset：换一个新令牌（已有令牌时先问 y/N）；旧地址全部立刻失效。"
     auth: "只有 root；show、key 和 token reset 不用再验证"
@@ -277,8 +280,10 @@ manBody:
       - "每个会话的身份路径（root via styrigx）和开始时间；不是 root 只看到自己的。"
   useradd:
     desc:
-      - "-e：到那一天 00:00（北京时间）起账号失效。-G：组，用逗号隔开。"
       - "印出一次性密码，只显示一次（24 小时内有效）；用户第一次登录必须改掉。"
+    opt:
+      - "到那一天 00:00（北京时间）起账号失效（YYYY-MM-DD）。"
+      - "要加入的组，用逗号隔开。"
     auth: "root，或 sudo useradd（sudoers）"
     notes:
       - "有期限的用户不能进 wheel、sudoers 和写组。"
@@ -288,7 +293,10 @@ manBody:
       - "root 和 styrigx 不能删。"
   usermod:
     desc:
-      - "-aG 加进这些组，-rG 移出；用户的会话作废，要重新登录。"
+      - "用户的会话作废，要重新登录。"
+    opt:
+      - "把用户加进这些组。"
+      - "把用户移出这些组。"
     auth: "root，或 sudo usermod（sudoers）"
     notes:
       - "移除 wheel 或 sudoers 的最后一个成员会先问一次。"

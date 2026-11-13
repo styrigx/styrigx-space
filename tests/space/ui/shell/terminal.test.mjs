@@ -211,12 +211,19 @@ test('man / man <命令>：交给全屏阅读页（S9：pager = 页名，不进�
   const sh = createShell({ act: fakeAct().act, storage: mem() });
   const idx = await run(sh, 'man');
   assert.equal(idx.pager, 'MAN(1)', '索引也进阅读页');
-  assert.equal(text(idx.out[0]), TERM_EN.manIndex);
+  assert.equal(text(idx.out[0]), TERM_EN.manIndex.replace(/<([^<>]+)>/g, '$1'), '参数下划线、不显示尖括号');
+  assert.deepEqual(idx.out[0].seg.find((s) => s[0] === 'u'), ['u', 'command']);
   for (const o of idx.out.slice(1)) assert.ok(!/undefined/.test(text(o)), text(o));
   const cd = await run(sh, 'man cd');
   assert.equal(cd.pager, 'CD(1)');
-  assert.deepEqual(cd.out.map(text).slice(0, 2), ['NAME', '    cd — change the current directory (use open to go there)']);
-  assert.ok(!cd.out.map(text).some((l) => /\(END\)|CD\(1\)/.test(l)), '页名在状态栏，不在正文里');
+  /* man 手册规范 v1（Gray 2026-11-14）：标准页眉三段，(END) 仍只在状态栏 */
+  assert.deepEqual(cd.out[0].seg, [['mhs', 'CD(1)'], ['mhs', 'General Commands Manual'], ['mhs', 'CD(1)']]);
+  assert.equal(cd.out[0].cls, 'mh');
+  assert.deepEqual(cd.out.map(text).slice(2, 4), ['NAME', '    cd — change the current directory (use open to go there)']);
+  assert.ok(!cd.out.map(text).some((l) => /\(END\)/.test(l)), '(END) 在状态栏，不在正文里');
+  assert.equal(cd.out.map(text).at(-1), '    ls(1), open(1), pwd(1)', 'SEE ALSO');
+  const man = (await run(sh, 'man man')).out;
+  assert.deepEqual(man.find((o) => text(o) === '    man [command]').seg, [['', '    man ['], ['u', 'command'], ['', ']']], 'SYNOPSIS 合并成一行，参数下划线');
   assert.equal((await run(sh, 'man cls')).pager, 'CLEAR(1)');
   const no = await run(sh, 'man nope');
   assert.equal(text(no.out[0]), 'No manual entry for nope');
@@ -428,7 +435,7 @@ test('man 节（en / zh）：键 = man 页的命令；英文表 = pages.js 英�
   for (const k of Object.keys(PAGES)) assert.equal(en[k], PAGES[k].d, 'en.man.' + k);
 });
 
-test('代理订阅：open ~/proxy = sub；ls ~/proxy 列来源 / 没登录提示；man sub 一页列全部子命令、有 AUTH 节；man sub-mv 没有了', async () => {
+test('代理订阅：open ~/proxy = sub；ls ~/proxy 列来源 / 没登录提示；man sub 一页列全部子命令、权限在 DESCRIPTION 末行、有 EXAMPLES；man sub-mv 没有了', async () => {
   const { act } = fakeAct();
   act.proxyList = () => Promise.resolve([{ name: 'Linkcube', type: 'airport', host: 'sub.example.com', nodes: 3, enabled: true, error: '' }, { name: 'Cloady', type: 'file', host: '', nodes: 1, enabled: false, error: '' }]);
   const { v, calls } = fakeLayers();
@@ -441,10 +448,12 @@ test('代理订阅：open ~/proxy = sub；ls ~/proxy 列来源 / 没登录提示
   assert.equal(text((await run(sh, 'ls proxy')).out[0]), '# sub · ~/account');
   const man = await run(sh, 'man sub');
   assert.equal(man.pager, 'SUB(1)');
-  assert.deepEqual(man.out.map(text).slice(0, 13), ['NAME', '    sub — proxy subscription: status, urls, sources, node words, fingerprint, key and token', '', 'SYNOPSIS',
-    '    sub', '    sub show [name]', '    sub add <name>', '    sub upload <name>', '    sub mv <old> <new>', '    sub rm <name>', '    sub on | off <name>', '    sub update <name>', '    sub map']);
+  assert.deepEqual(man.out.map(text).slice(2, 16), ['NAME', '    sub — proxy subscription: status, urls, sources, node words, fingerprint, key and token', '', 'SYNOPSIS',
+    '    sub', '    sub show [name]', '    sub add | upload | rm | on | off | update name', '    sub mv old new', '    sub map [word [target]]', '    sub map rm word', '    sub map ls name', '    sub fp [value]', '    sub key', '    sub token reset']);
   assert.ok(!man.out.map(text).some((l) => /sub enable|sub disable|enable \/ disable/.test(l)), 'enable / disable 改回 on / off，没有旧名');
-  assert.ok(man.out.map(text).includes('AUTH'));
+  assert.ok(!man.out.map(text).includes('AUTH'), 'AUTH 并进 DESCRIPTION');
+  assert.ok(man.out.map(text).includes('    Requires: root only; show, key and token reset need no reauth'));
+  assert.ok(man.out.map(text).includes('EXAMPLES'));
   assert.ok(!man.out.map(text).some((l) => /sub-refresh|sub-link|only this once/.test(l)), '没有旧命令、没有「只显示一次」');
   assert.equal((await run(sh, 'man sub-mv')).out[0].cls, 'err');
 });

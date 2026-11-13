@@ -63,7 +63,7 @@ test('访客（nobody）：man 列 find 不列 ask；root 看全部（分段：r
   /* man find 一页 */
   const pg = await shell().sh.exec('man find');
   assert.equal(pg.pager, 'FIND(1)', 'S9：交给全屏阅读页，页名在状态栏');
-  assert.deepEqual(pg.out.map(text), ['NAME', '    find — search the four sites’ public pages by keyword', '', 'SYNOPSIS', '    find <keyword>']);
+  assert.deepEqual(pg.out.map(text).slice(2, 7), ['NAME', '    find — search the four sites’ public pages by keyword', '', 'SYNOPSIS', '    find keyword'], 'man 规范：页眉后接 NAME；下划线参数不显示尖括号');
 });
 
 test('访客敲 ask：不开 AI，提示先 su、搜关键词用 find（中文照 Gray 定的句子；割接起命令是 su，同 AI 窗口「su 登录后可用」）', () => {
