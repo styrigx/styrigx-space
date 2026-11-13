@@ -4,7 +4,7 @@
  * - 断言用可发现凭据（allowCredentials 为空）：不按用户名列钥匙，所以不会透露某个用户有哪些验证方式（防枚举，定稿 v4 §十）。
  *   验完按 credential_id 找到 uid，再和要登录的那个用户比；对不上 / 找不到 → 同一个 verify 错误。
  * - userHandle：断言带回的 userHandle 必须等于这把钥匙的 user_handle 或 legacy_handle（迁移照抄，逐字节；RP 不变）。
- * - 注册：user.id = 这个用户已有钥匙的 user_handle（第一把时新生成 32 字节随机，同 docs/tasks/v6-identity-migration.md §3）；user.name / displayName = 用户名
+ * - 注册：user.id = 这个用户已有钥匙的 user_handle（第一把时新生成 32 字节随机，同 私密库 styrigx/space-tasks 的 v6-identity-migration.md §3）；user.name / displayName = 用户名
  *   （密码管理器里 styrigx / root 分得开，定稿 v4 §二）。UV 必须。
  * - 通行密钥不计入用户名冷却（core/identity-auth.js）。
  *

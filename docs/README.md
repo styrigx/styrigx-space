@@ -39,7 +39,7 @@
 |---|---|---|
 | `architecture/` | 规范与设计（系统、仓库结构、各站、调色板、UI、契约） | 只放最新，平铺不分子目录；旧版进 `architecture/archive/` |
 | `architecture/archive/` | 旧版归档 | `ops/`：已执行的 v6 P4 迁移 SQL（文件里的旧路径注释不改） |
-| `tasks/` | 任务书与设计稿定稿，留作样本 | 按原文件名收，不改名、不改内容 |
+| （私密库） | 任务书与设计稿定稿不放公开库，统一放私密库 `styrigx/space-tasks` 根目录 | 按原文件名收，不改名、不改内容 |
 | `decisions/` | 历史决策（ADR） | 编号顺延，不复用 |
 | `guides/` | 指南：贡献约定、运维、术语表 | `contributing/`、`operations/` |
 | `assets/` | 图片 | 文件名小写加连字符 |
@@ -57,18 +57,6 @@
 | SGX-DES-001 | [`architecture/palette.md`](architecture/palette.md) | 规范 | 调色板与色彩角色 token |
 | SGX-DES-002 | [`architecture/ui-system.md`](architecture/ui-system.md) | 规范 | 终端风格 UI 系统：顶栏、AI 窗、Auto 控件、提示符规则 |
 | — | [`architecture/archive/ops/`](architecture/archive/ops/) | 归档 | 已执行的 v6 P4 迁移 SQL（7 个） |
-| SGX-SPEC-004 | [`tasks/v6-route-inventory.md`](tasks/v6-route-inventory.md) | 草案 | v6 路由全量盘点：每条路由的档（public / user / 组 / root） |
-| SGX-SPEC-005 | [`tasks/v6-identity-migration.md`](tasks/v6-identity-migration.md) | 草案 | v6 数据迁移对照表：凭据 → root / styrigx、pepper 来源、userHandle |
-| — | [`tasks/space-architecture-standardization-draft-v1.12.md`](tasks/space-architecture-standardization-draft-v1.12.md) | 定稿 | space 架构规范 v1.12 |
-| — | [`tasks/directory-rename-draft-v1.7.md`](tasks/directory-rename-draft-v1.7.md) | 定稿 | 目录改名定稿 v1.7 |
-| — | [`tasks/清理章程 v2 定稿.md`](<tasks/清理章程 v2 定稿.md>) | 定稿 | 全仓清理章程 v2 |
-| — | [`tasks/styrigx-redesign.pdf`](tasks/styrigx-redesign.pdf) | 定稿 | 改版设计稿（2026-11-07） |
-| — | [`tasks/NAMING-V2.md`](tasks/NAMING-V2.md) | 定稿 | 账号命名 v2（2026-11-08） |
-| — | [`tasks/SPACE-V3.md`](tasks/SPACE-V3.md) | 定稿 | 进站命名 v3（2026-11-09，含锁屏与盾牌那轮决定） |
-| — | [`tasks/终端统一设计稿-v1.5.txt`](tasks/终端统一设计稿-v1.5.txt) | 定稿 | 终端统一设计稿 v1.5（2026-11-09） |
-| — | [`tasks/term-design-v5.md`](tasks/term-design-v5.md) | 定稿 | 终端设计 v5（2026-11-10） |
-| — | [`tasks/v6-身份统一方案-最终稿-v5.6.md`](tasks/v6-身份统一方案-最终稿-v5.6.md) | 定稿 | v6 身份统一方案定稿 v5.6 |
-| — | [`tasks/proxy-sub-design-final.md`](tasks/proxy-sub-design-final.md) | 定稿 | 代理订阅服务设计稿 v1.10 |
 | ADR-0001 | [`decisions/ADR-0001-one-repo-one-site.md`](decisions/ADR-0001-one-repo-one-site.md) | 决策 | 子站并入一个仓库、一个 Hugo 站 |
 | ADR-0002 | [`decisions/ADR-0002-lock-screen.md`](decisions/ADR-0002-lock-screen.md) | 决策 | 锁屏方案演进：Turnstile → 临时钥匙 → 命令行进站 |
 | ADR-0003 | [`decisions/ADR-0003-account-v3.md`](decisions/ADR-0003-account-v3.md) | 决策 | 账号与进站 V3：门归网站、账号管授权 |
