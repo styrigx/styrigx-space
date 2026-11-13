@@ -9,9 +9,9 @@
  *                                          + 调色板派生 token（tag / chart）+ 组件别名层
  *   space/web/assets/shell/css/shell.css   顶栏（全大椭圆）、快捷面板 + AI 窗口、页头 / 子页共用件、宽屏平铺：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
  *                                          （子站样式表 @import 这两份：assets/blog/css/input.css、assets/curio/css/input.css、assets/daymark/css/input.css）
- *   space/web/data/shell/nav.json          快捷面板导航页的项（space/web/data/shell-nav.json）+ 用到的图标 SVG（space/web/layouts/partials/icon.html）
+ *   space/web/data/shell/nav.json          快捷面板导航页的项（space/web/data/shell-nav.json）+ 用到的图标 SVG（space/web/layouts/partials/shell/icon.html）
  *                                          + me.email：对外联系邮箱（space/web/data/profile.yaml 的 email；子站 AI 窗口「联系我」的默认值）
- *                                          + 字标 SVG wordmark（space/web/layouts/partials/shell-wordmark.html）；子站模板读 site.Data.shell.nav
+ *                                          + 字标 SVG wordmark（space/web/layouts/partials/shell/shell-wordmark.html）；子站模板读 site.Data.shell.nav
  *   space/web/data/shell/palettes.json     预设 id / 名字 / 分组 / 种子 / 背景色 / 6 前景 + 每套亮暗的 Shell + Semantic token 值（含 bg-1..7、chart-1..6）
  *                                          + 默认值 + 子站自定义色缓存版本号；子站模板读 site.Data.shell.palettes
  * 另外：space/web/assets/shell/js/prefs/ui-cookie-read.js 的 @ui-cookie-presets 段（预设 id → 种子 + 引擎版本）由本脚本按 palette-roles.json 就地重写。
@@ -41,11 +41,11 @@ const SRC = {
   css: path.join(REPO, 'space/web/assets/shell/css/input.css'),
   nav: path.join(REPO, 'space/web/data/shell-nav.json'),
   profile: path.join(REPO, 'space/web/data/profile.yaml'),
-  icons: path.join(REPO, 'space/web/layouts/partials/icon.html'),
-  wordmark: path.join(REPO, 'space/web/layouts/partials/shell-wordmark.html'),
-  topbar: path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'),
-  pageHeader: path.join(REPO, 'space/web/layouts/partials/sgx-ph.html'),
-  footer: path.join(REPO, 'space/web/layouts/partials/sgx-footer.html'),
+  icons: path.join(REPO, 'space/web/layouts/partials/shell/icon.html'),
+  wordmark: path.join(REPO, 'space/web/layouts/partials/shell/shell-wordmark.html'),
+  topbar: path.join(REPO, 'space/web/layouts/partials/shell/shell-topbar.html'),
+  pageHeader: path.join(REPO, 'space/web/layouts/partials/shell/sgx-ph.html'),
+  footer: path.join(REPO, 'space/web/layouts/partials/shell/sgx-footer.html'),
   topbarJs: path.join(REPO, 'space/web/assets/shell/js/topbar/topbar-panel.js'),
   terminal: path.join(REPO, 'space/web/assets/shell/js/term/terminal.js'),
   modalSheet: path.join(REPO, 'space/web/assets/shell/js/ui/modal-sheet.js'),
@@ -86,7 +86,7 @@ export function extractIcon(html, name) {
   return m[1];
 }
 
-/** 抽屉头字标（2026-10-21）：partials/shell-wordmark.html 是单行内联 SVG（不含模板语法），子站把它放进 .sgx-drawer-brand 代替 brand 文字 */
+/** 抽屉头字标（2026-10-21）：partials/shell/shell-wordmark.html 是单行内联 SVG（不含模板语法），子站把它放进 .sgx-drawer-brand 代替 brand 文字 */
 export function readWordmark() {
   const svg = readFileSync(SRC.wordmark, 'utf8').trim();
   if (!/^<svg class="sgx-wordmark"[^>]* role="img" aria-label="Styrigx">[\s\S]*<\/svg>$/.test(svg) || svg.includes('\n')) throw new Error('shell-wordmark.html 必须是单行 <svg class="sgx-wordmark" … role="img" aria-label="Styrigx">');
@@ -351,9 +351,9 @@ export function renderAll() {
  */
 export const SHELL_FILES = Object.freeze({
   ...OUT,
-  'topbar.html': 'space/web/layouts/partials/shell-topbar.html',
-  'page-header.html': 'space/web/layouts/partials/sgx-ph.html',
-  'footer.html': 'space/web/layouts/partials/sgx-footer.html',
+  'topbar.html': 'space/web/layouts/partials/shell/shell-topbar.html',
+  'page-header.html': 'space/web/layouts/partials/shell/sgx-ph.html',
+  'footer.html': 'space/web/layouts/partials/shell/sgx-footer.html',
   'topbar.js': 'space/web/assets/shell/js/topbar/topbar-panel.js',
   'terminal.js': 'space/web/assets/shell/js/term/terminal.js',
   'modal-sheet.js': 'space/web/assets/shell/js/ui/modal-sheet.js',
@@ -364,8 +364,8 @@ export const SHELL_FILES = Object.freeze({
   'layout-mode.js': 'space/web/assets/shell/js/ui/layout-mode.js',
   'lang-path.js': 'space/web/assets/shell/js/i18n/lang-path.js',
   'lang-boot.js': 'space/web/assets/shell/js/i18n/lang-boot.js',
-  'lang-path.html': 'space/web/layouts/partials/sgx-lang-path.html',
-  'tr.html': 'space/web/layouts/partials/sgx-tr.html',
+  'lang-path.html': 'space/web/layouts/partials/shell/sgx-lang-path.html',
+  'tr.html': 'space/web/layouts/partials/shell/sgx-tr.html',
   'i18n-en.yaml': 'space/web/data/sgx-shell-i18n/en.yaml',
   'i18n-zh.yaml': 'space/web/data/sgx-shell-i18n/zh.yaml',
   'favicon.js': 'space/web/assets/shell/js/ui/favicon.js',

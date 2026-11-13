@@ -119,7 +119,7 @@ test('眼睛：文案可由 data-eye-show / data-eye-hide 传入；旧 function 
 test('眼睛：EYE_OFF_SVG 带斜线、EYE_SVG 不带；icon.html 有 eye/eye-off 条目且路径一致', () => {
   assert.ok(EYE_OFF_SVG.includes('<line'), 'EYE_OFF_SVG 应含斜线');
   assert.ok(!EYE_SVG.includes('<line'), 'EYE_SVG 不应含斜线');
-  const icon = read('space/web/layouts/partials/icon.html');
+  const icon = read('space/web/layouts/partials/shell/icon.html');
   assert.ok(icon.includes('eq $name "eye"'), 'icon.html 应有 eye 条目');
   assert.ok(icon.includes('eq $name "eye-off"'), 'icon.html 应有 eye-off 条目');
   assert.ok(icon.includes('M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z'), 'icon.html eye 应为现有睁眼路径');

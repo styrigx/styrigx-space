@@ -5,12 +5,12 @@
 
 {{/* ---------- 站点（data/sites.yaml；名字 / 副标题在字符串表 sites.<id>，按语言取，缺键回退英文） ---------- */}}
 {{ range $l := $langs }}
-  {{ $tr := partialCached "sgx-tr.html" $l $l }}
+  {{ $tr := partialCached "shell/sgx-tr.html" $l $l }}
   {{ range $s := site.Data.sites }}
     {{ $id := printf "site-%s" $s.id }}
     {{ if eq $l "en" }}{{ $id = printf "site-%s-en" $s.id }}{{ end }}
     {{ $st := index $tr.sites $s.id }}
-    {{ $items = $items | append (dict "id" $id "type" "site" "lang" $l "title" $st.title "subtitle" ($st.sub | default "") "url" (printf "https://styrigx.com%s" (partial "sgx-lang-path.html" (dict "path" $s.path "lang" $l))) "cover" "" "addedAt" "") }}
+    {{ $items = $items | append (dict "id" $id "type" "site" "lang" $l "title" $st.title "subtitle" ($st.sub | default "") "url" (printf "https://styrigx.com%s" (partial "shell/sgx-lang-path.html" (dict "path" $s.path "lang" $l))) "cover" "" "addedAt" "") }}
   {{ end }}
 {{ end }}
 
@@ -19,12 +19,12 @@
 {{/* 名字 / 副标题在字符串表 filesIndex.app.<key> */}}
 {{ $apps := slice (dict "key" "settings" "path" "settings/") }}
 {{ range $l := $langs }}
-  {{ $tr := partialCached "sgx-tr.html" $l $l }}
+  {{ $tr := partialCached "shell/sgx-tr.html" $l $l }}
   {{ range $a := $apps }}
     {{ $id := printf "app-%s" $a.key }}
     {{ if eq $l "en" }}{{ $id = printf "app-%s-en" $a.key }}{{ end }}
     {{ $at := index $tr.filesIndex.app $a.key }}
-    {{ $items = $items | append (dict "id" $id "type" "app" "lang" $l "title" $at.title "subtitle" $at.sub "url" (print (partial "sgx-lang-path.html" (dict "path" "/" "lang" $l)) $a.path) "cover" "" "addedAt" "") }}
+    {{ $items = $items | append (dict "id" $id "type" "app" "lang" $l "title" $at.title "subtitle" $at.sub "url" (print (partial "shell/sgx-lang-path.html" (dict "path" "/" "lang" $l)) $a.path) "cover" "" "addedAt" "") }}
   {{ end }}
 {{ end }}
 

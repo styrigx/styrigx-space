@@ -1,7 +1,7 @@
 /**
  * 个人资料的默认值回退（2026-11-08 修，Gray 截图：子站上账号下拉头部大字是写死的 Styrigx、个人资料层四项「未填写」）：
  * - lib/profile.js cleanProfile / effectiveProfile：空串（含只有空白）当没设置，回退站点默认值（data/profile.yaml）
- * - 四站都输出 #sgx-profile-default（以前只有主站 baseof）：主站 / 奇趣 / 日刻 baseof、博客 topnav 都用 partials/sgx-profile-default.html
+ * - 四站都输出 #sgx-profile-default（以前只有主站 baseof）：主站 / 奇趣 / 日刻 baseof、博客 topnav 都用 partials/shell/sgx-profile-default.html
  * - shell/account/window.js 头部不再写死 'Styrigx' 回退
  * 运行：node --test tests/space/ui/account/profile-defaults.test.mjs
  */
@@ -27,11 +27,11 @@ test('null / 缺字段 → 默认值；改过的值盖住默认值', () => {
 });
 
 test('四站都输出 #sgx-profile-default（同一个片段，读 data/profile.yaml）', () => {
-  const part = rd('space/web/layouts/partials/sgx-profile-default.html');
+  const part = rd('space/web/layouts/partials/shell/sgx-profile-default.html');
   assert.match(part, /id="sgx-profile-default"/);
   assert.match(part, /site\.Data\.profile/);
   for (const f of ['space/web/layouts/_default/baseof.html', 'space/web/layouts/curio/baseof.html', 'space/web/layouts/daymark/baseof.html', 'space/web/layouts/partials/blog/topnav.html']) {
-    assert.match(rd(f), /partial "sgx-profile-default\.html"/, f);
+    assert.match(rd(f), /partial "shell\/sgx-profile-default\.html"/, f);
     assert.doesNotMatch(rd(f), /<script id="sgx-profile-default"/, f + '：不再各写一份');
   }
 });

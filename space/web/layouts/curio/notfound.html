@@ -1,5 +1,5 @@
 {{ define "main" }}
-{{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
+{{ $lang := .Lang }}{{ $tr := partialCached "shell/sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
 <main class="cu-wrap cu-narrow pb-16!">
   <section class="text-center py-16">
     <p class="text-6xl font-extrabold text-m-on-surface-variant/40 mb-4">404</p>

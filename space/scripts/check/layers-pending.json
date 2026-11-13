@@ -31,24 +31,6 @@
     "space/web/data/sites.yaml",
     "space/web/data/space-cats.yaml",
     "space/web/data/sync-items.yaml",
-    "space/web/data/version.yaml",
-    "space/web/layouts/partials/icon.html",
-    "space/web/layouts/partials/palette-tile-vars.html",
-    "space/web/layouts/partials/sgx-build-sha.html",
-    "space/web/layouts/partials/sgx-envps.html",
-    "space/web/layouts/partials/sgx-footer.html",
-    "space/web/layouts/partials/sgx-icon-sprite.html",
-    "space/web/layouts/partials/sgx-js-batch.html",
-    "space/web/layouts/partials/sgx-lang-path.html",
-    "space/web/layouts/partials/sgx-page-lang.html",
-    "space/web/layouts/partials/sgx-personal.html",
-    "space/web/layouts/partials/sgx-ph.html",
-    "space/web/layouts/partials/sgx-profile-default.html",
-    "space/web/layouts/partials/sgx-tr.html",
-    "space/web/layouts/partials/shell-nav-href.html",
-    "space/web/layouts/partials/shell-topbar.html",
-    "space/web/layouts/partials/shell-wordmark.html",
-    "space/web/layouts/partials/space-i18n.html",
-    "space/web/layouts/partials/status-i18n.html"
+    "space/web/data/version.yaml"
   ]
 }

@@ -11,7 +11,7 @@
  *     incidents: [{ id, site, started_at, ended_at|null, cause }] }
  * 日期（days[].day、today）是北京时间 YYYY-MM-DD；时间戳是毫秒。页面上的时间一律按北京时间显示（和监测的日期口径一致）。
  *
- * 文案：t(key) / fmt(key, vars) 来自页面里的 #sgx-i18n-status（partials/status-i18n.html，i18n/i18n.js loadI18n）。
+ * 文案：t(key) / fmt(key, vars) 来自页面里的 #sgx-i18n-status（partials/shell/status-i18n.html，i18n/i18n.js loadI18n）。
  */
 import { esc } from '../core/util.js';
 

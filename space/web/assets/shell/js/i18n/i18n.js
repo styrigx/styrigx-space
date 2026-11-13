@@ -1,6 +1,6 @@
 /**
  * @fileoverview 界面文案（语言包化 2026-11-07）：页面里的 <script id="sgx-i18n-<表>" type="application/json"> 扁平字典 {"key": "文案"}。
- * 字典由模板从字符串表 data/i18n/<语言>.yaml 的 js.<表> 输出，已经是「英文表 ← 页面语言表」的合并（partials/sgx-tr.html），
+ * 字典由模板从字符串表 data/i18n/<语言>.yaml 的 js.<表> 输出，已经是「英文表 ← 页面语言表」的合并（partials/shell/sgx-tr.html），
  * 所以缺键的语言拿到的是英文；JS 不再认识任何语言，也不按 <html lang> 二选一。加一种语言 = 加一份 yaml，这里不用改。
  * 旧形状 {"key": {"zh": …, "en": …}} 不再支持（模板都已改成扁平字典）。
  */

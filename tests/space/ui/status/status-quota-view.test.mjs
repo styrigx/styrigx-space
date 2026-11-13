@@ -13,7 +13,7 @@ import {
 } from '../../../../space/web/assets/shell/js/status/status-view.js';
 import fx from '../../../fixtures/status-summary.cjs';
 
-/* 文案读主站字符串表 js.status（语言包化 2026-11-07：partials/status-i18n.html 输出 $tr.js.status），和页面上一致 */
+/* 文案读主站字符串表 js.status（语言包化 2026-11-07：partials/shell/status-i18n.html 输出 $tr.js.status），和页面上一致 */
 const DICT = jsDict('status');
 
 function mk(en) {

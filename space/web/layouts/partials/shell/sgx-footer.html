@@ -7,7 +7,7 @@
      lang      页面语言；langs [{code short}]（hugo.yaml languages）；here 本页地址；langHref 另一种语言的同一页
      nav       shell-nav.json（items：id path origin；links：github / x）；site 当前项 id；mainOrigin 主站项地址前缀（子站传 https://styrigx.com）
      name      版权行的名字（data/profile.yaml name，个人信息、不翻译）；year 年份
-     sha       构建短 SHA（partials/sgx-build-sha.html：CI 的 SGX_BUILD_SHA；本地 dev = 不显示）
+     sha       构建短 SHA（partials/shell/sgx-build-sha.html：CI 的 SGX_BUILD_SHA；本地 dev = 不显示）
      email     （不再使用，2026-11-09 页脚去掉「联系」；调用方仍可传）；rss 博客 RSS 地址（当前语言） */ -}}
 {{- $t := .tr -}}
 {{- $lang := .lang | default "en" -}}

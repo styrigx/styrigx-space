@@ -16,7 +16,7 @@ const index = read('space/web/layouts/daymark/section.html');
 const css = read('space/web/assets/daymark/css/input.css');
 
 test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 shell-topbar.html；中间 = 页名胶囊（首页 = 站名）；右边九宫格 · 快捷设置 · AI（PR-4b，头像在 AI 窗口头部）；没有抽屉、右圆分享', () => {
-  assert.match(base, /\{\{ partial "shell-topbar\.html" \(dict\n/);
+  assert.match(base, /\{\{ partial "shell\/shell-topbar\.html" \(dict\n/);
   assert.match(base, /"site" "daymark"/);
   /* P4-3 PR-4b 定稿：页名胶囊只显示页名——首页 = 站名（data-sgx-titles = [站名, 后两个分区名]，脚本按 hash 换），其他页（404）= 页名；顶栏没有分段滑块 */
   assert.match(base, /\{\{ if \$isHome \}\}\n\{\{ \$titles := slice \(\$tr\.site\.name\) \(\$tr\.baseof\.trove\) \(\$tr\.baseof\.flavors\) \}\}/);
@@ -90,10 +90,10 @@ test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主
   assert.match(base, /"nav" \$shellNav\n/);
   assert.match(base, /"mainOrigin" "https:\/\/styrigx\.com"/);
   /* 2026-11-12：logo 四站统一回主站首页（同主站 sgx-lang-path，英文 /、中文 /zh/），不再回本站首页 */
-  assert.match(base, /"home" \(partial "sgx-lang-path\.html" \(dict "path" "\/" "lang" \.Lang\)\)/);
+  assert.match(base, /"home" \(partial "shell\/sgx-lang-path\.html" \(dict "path" "\/" "lang" \.Lang\)\)/);
   assert.doesNotMatch(base, /"home" \(site\.GetPage/);
   /* 项、页脚、当前项高亮都在共享外壳 partial 里（range .nav.items / with .nav.footer / eq .id $.site） */
-  const tb = read('space/web/layouts/partials/shell-topbar.html');
+  const tb = read('space/web/layouts/partials/shell/shell-topbar.html');
   assert.match(tb, /range \.nav\.items/);
   assert.match(tb, /if eq \.id \$\.site \}\} aria-current="page"/);
   /* 导航页不放搜索框（定案第 2 条） */

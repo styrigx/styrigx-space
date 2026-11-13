@@ -17,8 +17,8 @@ const { files: generated } = renderAll();
 /* 派生文件 + 子站直接用的源文件（合站前这些都在 shared/shell 里有一份副本） */
 const files = {
   ...generated,
-  'topbar.html': readFileSync(path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'), 'utf8'),
-  'footer.html': readFileSync(path.join(REPO, 'space/web/layouts/partials/sgx-footer.html'), 'utf8'),
+  'topbar.html': readFileSync(path.join(REPO, 'space/web/layouts/partials/shell/shell-topbar.html'), 'utf8'),
+  'footer.html': readFileSync(path.join(REPO, 'space/web/layouts/partials/shell/sgx-footer.html'), 'utf8'),
   'i18n-en.yaml': readFileSync(path.join(REPO, 'space/web/data/sgx-shell-i18n/en.yaml'), 'utf8'),
   'i18n-zh.yaml': readFileSync(path.join(REPO, 'space/web/data/sgx-shell-i18n/zh.yaml'), 'utf8'),
 };
@@ -94,7 +94,7 @@ test('nav.json（顶栏 v3 NAVIGATE / tmux 页脚，2026-11 UI 重设计 PR-1）
   assert.ok(!nav.items.some((i) => i.id === 'wild' || /wild/.test(i.path)), '没有旷野项');
   // 2026-10-21：书签项换成子站 奇趣 Curio（主站书签功能下线）
   const curio = nav.items.find((i) => i.id === 'curio');
-  // 合并 PR3：三站和主站同在 styrigx.com（导航里子站互相是相对地址 /curio/，见 partials/shell-topbar.html）
+  // 合并 PR3：三站和主站同在 styrigx.com（导航里子站互相是相对地址 /curio/，见 partials/shell/shell-topbar.html）
   assert.deepEqual([curio.icon, curio.origin, curio.path], ['nav-curio', 'https://styrigx.com', '/curio/']);
   // 语言包化（2026-11-07）：nav.json 不再带任何语言的文字，名字在外壳字符串表 i18n-<语言>.yaml 的 nav.<id>.title
   assert.ok(!/"(zh|en|subzh|suben)"\s*:/.test(files['nav.json']), 'nav.json 不带 zh / en 文本');
@@ -192,8 +192,8 @@ test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽�
   assert.match(s, /#site-nav \.sgx-tb-pill \{ display: none; \}/);
   assert.doesNotMatch(s, /--sgx-tb-acts-w|--sgx-tb-logo-w|\.sgx-tb-pill::before/, '旧胶囊居中弹簧删了');
   assert.doesNotMatch(s, /\.sgx-tb-nav\b|\.sgx-tb-end\b|\.sgx-tb-gbtn\b|\.sgx-drawer|\.sgx-tb-me\b|\.sgx-tb-mark\b|sgx-tb-tab/);
-  // 标记：topbar.html = 主站 partials/shell-topbar.html 原样
-  const src = readFileSync(path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'), 'utf8');
+  // 标记：topbar.html = 主站 partials/shell/shell-topbar.html 原样
+  const src = readFileSync(path.join(REPO, 'space/web/layouts/partials/shell/shell-topbar.html'), 'utf8');
   assert.equal(files['topbar.html'], src);
   assert.doesNotMatch(src.replace(/\{\{-? \/\*[\s\S]*?\*\/ -?\}\}/g, ''), /\bpartial |site\.Data|hugo\.Data|resources\.Get/, '只用参数，不调别的 partial / 数据');
   const header = src.slice(src.indexOf('<header id="site-nav" class='), src.indexOf('</header>'));
@@ -217,14 +217,14 @@ test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽�
   /* 主站中间：只有页名（状态页是「状态」），没有标签；v3 顶栏不显示，标记照给 */
   assert.match(base, /\{\{ \$center := printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/);
   assert.doesNotMatch(base.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, ''), /topbar-tabs|\$tabCur/);
-  assert.match(base, /\{\{ partial "shell-topbar\.html" \(dict/);
-  assert.match(base, /\{\{ partial "sgx-footer\.html" \(dict/);
+  assert.match(base, /\{\{ partial "shell\/shell-topbar\.html" \(dict/);
+  assert.match(base, /\{\{ partial "shell\/sgx-footer\.html" \(dict/);
   assert.doesNotMatch(base, /sgx-drawer|sgx-tb-nav|topbar-end\.html|sgx-about-foot/);
   assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials/topbar-end.html')), 'topbar-end.html 已删');
 });
 
 test('NAVIGATE / 外观 / 页脚（顶栏 v3）：NAVIGATE 五项 + lang / layout 分段（v5 S6 去掉 lock；v6 P4 拿掉 share）+ STATUS 占位 + systemctl status · esc 关闭；外观 = PALETTE 列表（v4 删 MODE 三段）；tmux 页脚', () => {
-  const src = readFileSync(path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'), 'utf8');
+  const src = readFileSync(path.join(REPO, 'space/web/layouts/partials/shell/shell-topbar.html'), 'utf8');
   const navd = src.slice(src.indexOf('<dialog id="sgx-nav"'), src.indexOf('<dialog id="sgx-qp"'));
   const order = ['sgx-nav-h', 'class="sgx-nav-list"', 'data-qp-langs', 'data-qp-seg="layout"', 'data-nav-status', 'sgx-nav-flink', 'data-nav-close'].map((k) => navd.indexOf(k));
   assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), '头 → 五项 → lang → layout → STATUS → systemctl status → esc');
@@ -240,7 +240,7 @@ test('NAVIGATE / 外观 / 页脚（顶栏 v3）：NAVIGATE 五项 + lang / layou
   assert.match(qpd, /data-qp-reset aria-disabled="true"/);
   assert.doesNotMatch(src, /data-qp="(dark|system|lang)"|sgx-qp-lang-opts|sgx-qp-tile/, '旧快捷面板磁贴 / 语言下拉删了');
   const foot = files['footer.html'];
-  assert.equal(foot, readFileSync(path.join(REPO, 'space/web/layouts/partials/sgx-footer.html'), 'utf8'));
+  assert.equal(foot, readFileSync(path.join(REPO, 'space/web/layouts/partials/shell/sgx-footer.html'), 'utf8'));
   assert.doesNotMatch(foot.replace(/\{\{-? \/\*[\s\S]*?\*\/ -?\}\}/g, ''), /\bpartial |site\.Data|hugo\.Data|resources\.Get/, '页脚只用参数');
   assert.match(foot, /<span class="sgx-foot-ses" translate="no">space<\/span>/);
   assert.match(foot, /\{\{ \$k \}\}:\{\{ index \$t\.foot\.win \.id \}\}/, '窗口 0:home …');
@@ -265,7 +265,7 @@ test('P4-2b：搜索层整套删除——没有 search.js、shell.css 没有 sea
 });
 
 test('AI 窗口头部（2026-11 PR-5 按设计稿 ai-v1）：G 徽标 · Gray AI / 副标题 · 模型 · 新对话 · 历史 · ×，没有头像；底部邮箱由参数 email 来；锁屏界面删了（v5 S5）', () => {
-  const src = readFileSync(path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'), 'utf8');
+  const src = readFileSync(path.join(REPO, 'space/web/layouts/partials/shell/shell-topbar.html'), 'utf8');
   const head = src.slice(src.indexOf('<div class="sgx-ai-head">'), src.indexOf('<div class="sgx-ai-models"'));
   const order = ['sgx-ai-badge', 'sgx-ai-title', 'data-ai-model', 'data-ai-clear', 'data-ai-history', 'data-ai-close'].map((k) => head.indexOf(k));
   assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), 'G → Gray AI → 模型 → 新对话 → 历史 → ×');

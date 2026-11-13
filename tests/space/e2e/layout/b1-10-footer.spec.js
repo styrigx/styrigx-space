@@ -1,5 +1,5 @@
 /**
- * B1-10｜页脚（2026-11 UI 重设计 PR-1 重写：tmux 页脚，四站同一个 partials/sgx-footer.html）
+ * B1-10｜页脚（2026-11 UI 重设计 PR-1 重写：tmux 页脚，四站同一个 partials/shell/sgx-footer.html）
  *
  * 取代 2026-10-22 起「版权只在关于本站显示」：现在每页底部都有一个 tmux 页脚 footer.sgx-foot：
  *   第一行 状态栏 = 会话 space · 窗口 0:home 1:blog …（当前窗口带 *）· 右边 状态 / 语言 / CST 时钟；

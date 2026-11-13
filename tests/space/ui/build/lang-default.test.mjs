@@ -68,7 +68,7 @@ test('systemLang：zh 开头 = 中文，其余（含取不到）= 英文', () =>
 
 test('共享外壳：lang-path.js / lang-path.html 只有主站一份（2026-11 合站后子站直接用，没有副本）', () => {
   assert.match(rd('space/web/assets/shell/js/i18n/lang-path.js'), /export function langPath\(/);
-  assert.ok(existsSync(path.join(REPO, 'space/web/layouts/partials/sgx-lang-path.html')));
+  assert.ok(existsSync(path.join(REPO, 'space/web/layouts/partials/shell/sgx-lang-path.html')));
   for (const s of SITES) {
     assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials', s, 'sgx-lang-path.html')), s + ' 没有 sgx-lang-path.html 副本');
     assert.ok(!existsSync(path.join(REPO, 'space/web/assets', s, 'js/lib/lang-path.js')), s + ' 没有 lang-path.js 副本');
@@ -76,7 +76,7 @@ test('共享外壳：lang-path.js / lang-path.html 只有主站一份（2026-11 
 });
 
 test('外壳顶栏的导航前缀和 langPath 同一规则（外壳 partial 不能调别的 partial，只能展开）', () => {
-  const tpl = rd('space/web/layouts/partials/shell-topbar.html');
+  const tpl = rd('space/web/layouts/partials/shell/shell-topbar.html');
   assert.doesNotMatch(tpl, /printf "\/en%s"|printf "%sen\/"/, '顶栏不许再拼 /en');
   // 语言包化（2026-11-07）：前缀不写死 zh，按页面语言代码展开（英文无前缀，其他语言 /<语言>/…、子站 /<站>/<语言>/）
   assert.match(tpl, /if ne \$lang "en"/);
