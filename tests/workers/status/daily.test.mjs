@@ -73,25 +73,25 @@ test('scheduled：41 分那轮在 03:41 CST 清理到期用户 + 照常叫每小
   for (const mode of [{}, { throws: true }, { fail: true }]) {
     const log = [];
     const at = cst(2026, 11, 11, 3);
-    const env = { JOB_DAYMARK: hourlySvc(log, 'd'), JOB_CURIO: hourlySvc(log, 'c'), JOB_AI: hourlySvc(log, 'a'), JOB_ACCOUNT: accountJanitor(log, mode) };
+    const env = { JOB_ATLAS: hourlySvc(log, 't'), JOB_AI: hourlySvc(log, 'a'), JOB_ACCOUNT: accountJanitor(log, mode) };
     const waits = [];
     await quiet(async () => {
       await worker.scheduled({ cron: USAGE_CRON, scheduledTime: at }, env, { waitUntil: (p) => waits.push(p) });
       await Promise.all(waits);
     });
     assert.equal(waits.length, 1);
-    assert.deepEqual(log.slice().sort(), ['a:' + at, 'c:' + at, 'd:' + at, 'expire:' + at].sort(), JSON.stringify(mode));
+    assert.deepEqual(log.slice().sort(), ['a:' + at, 't:' + at, 'expire:' + at].sort(), JSON.stringify(mode));
   }
 });
 
 test('scheduled：别的小时的 41 分、每分钟那轮都不清理', async () => {
   const log = [];
-  const env = { JOB_DAYMARK: hourlySvc(log, 'd'), JOB_CURIO: hourlySvc(log, 'c'), JOB_AI: hourlySvc(log, 'a'), JOB_ACCOUNT: accountJanitor(log) };
+  const env = { JOB_ATLAS: hourlySvc(log, 't'), JOB_AI: hourlySvc(log, 'a'), JOB_ACCOUNT: accountJanitor(log) };
   const waits = [];
   await worker.scheduled({ cron: USAGE_CRON, scheduledTime: cst(2026, 11, 11, 4) }, env, { waitUntil: (p) => waits.push(p) });
   await Promise.all(waits);
   assert.equal(log.filter((x) => x.startsWith('expire')).length, 0);
-  assert.equal(log.length, 3, '每小时任务照常');
+  assert.equal(log.length, 2, '每小时任务照常（atlas、ai）');
   const w2 = [];
   await quiet(async () => {
     await worker.scheduled({ cron: '* * * * *', scheduledTime: cst(2026, 11, 11, 3) }, { JOB_ACCOUNT: accountJanitor(log) }, { waitUntil: (p) => w2.push(p) });

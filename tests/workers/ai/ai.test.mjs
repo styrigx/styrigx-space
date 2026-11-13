@@ -393,7 +393,7 @@ test('wrangler.toml：没有公开地址、绑定 AI、索引 KV、Vectorize、�
   for (const v of ['AI_MODELS', 'AI_MAX_TOKENS = "1024"', 'AI_CONTEXT_HITS = "6"', 'AI_RECALL_MIN_SCORE = "0.42"', 'AI_GEMINI_SEARCH = "1"']) assert.ok(toml.includes(v), v);
   /* 2026-11 AI 语义召回 */
   assert.match(toml, /\[\[vectorize\]\]\s*\nbinding = "VECTORIZE"\s*\nindex_name = "styrigx-ai-recall"/);
-  assert.match(toml, /\[\[services\]\]\s*\nbinding = "CURIO"\s*\nservice = "styrigx-curio-core"\s*\nentrypoint = "CurioReader"/);
+  assert.match(toml, /\[\[services\]\]\s*\nbinding = "CURIO"\s*\nservice = "styrigx-atlas-core"\s*\nentrypoint = "CurioReader"/);
   assert.equal((toml.match(/\[\[services\]\]/g) || []).length, 1, '只绑奇趣的只读入口，不绑账号 / 网关');
   assert.doesNotMatch(toml, /styrigx-account|AccountService|AccountVerifier/);
   assert.match(toml, /\[placement\]\s*\nregion = "gcp:us-east4"/);

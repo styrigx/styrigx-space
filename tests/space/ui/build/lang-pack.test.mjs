@@ -313,9 +313,10 @@ test('全仓不再按语言二选一写文案（语言包化第二部分）：�
   /* 白名单（不是界面文案）：
      - workers/curio-core/src/api：收藏的名字 / 简介是内容，库里本来就是 name_zh / name_en 两列（导入导出照列取；导入的「未归类」分类名两列都写）
      - workers/daymark-core/src/search-index.js：按语言拼地址和索引 id（语言路由，不是文案）
+     - workers/atlas-core/src/curio/api、src/daymark/search-index.js：上面两份逐字平移的副本（2026-11-14 Atlas 后端合并，旧目录下线时删旧条）
      - workers/ai/src/core/prompt.js：AI 的系统提示词按语言各一份（提示词是给模型的，不是界面）
      - space/web/assets/common/js/ui/palette-scheme.js：调色板名 / 情绪描述（调色板数据，与 gen-palettes 同一份，另行整理） */
-  const ALLOW = /^(workers\/curio-core\/src\/api\/|workers\/daymark-core\/src\/search-index\.js$|workers\/ai\/src\/core\/prompt\.js$|space\/web\/assets\/common\/js\/ui\/palette-scheme\.js$)/;
+  const ALLOW = /^(workers\/(curio-core\/src|atlas-core\/src\/curio)\/api\/|workers\/(daymark-core\/src|atlas-core\/src\/daymark)\/search-index\.js$|workers\/ai\/src\/core\/prompt\.js$|space\/web\/assets\/common\/js\/ui\/palette-scheme\.js$)/;
   const SKIP = /^(tests\/|dist\/)|\/vendor\/|\/public\/|\/node_modules\//;
   const TERN = /(?<![\w.$])(?:en|isEn|isZh|zh|ctx\.en|opts\.en)\s*\?(?![.?])/;
   const ZHOBJ = /\{\s*zh\s*:/;

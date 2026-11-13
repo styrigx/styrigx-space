@@ -15,7 +15,7 @@
   "scripts": {
     "build:css": "node space/scripts/build/build-css.cjs --minify",
     "build": "node space/scripts/build/build-css.cjs --minify && hugo --minify --cleanDestinationDir -s space/web",
-    "test:sites": "node --test tests/blog/*.test.mjs tests/curio/*.test.mjs tests/daymark/*.test.mjs tests/workers/curio-core/*.test.mjs tests/workers/daymark-core/*.test.mjs"
+    "test:sites": "node --test tests/blog/*.test.mjs tests/curio/*.test.mjs tests/daymark/*.test.mjs tests/workers/curio-core/*.test.mjs tests/workers/daymark-core/*.test.mjs tests/workers/atlas-core/*.test.mjs"
   },
   "version": "3.0.0",
   "devDependencies": {
