@@ -111,7 +111,7 @@ test('complete：第三个词（S9）：sub token → reset、profile set → �
   assert.deepEqual(complete('sub t'), { line: 'sub token ', options: [] }, 'token 还有第三个词：补完加空格');
   assert.deepEqual(complete('sub token '), { line: 'sub token reset', options: [] });
   assert.deepEqual(complete('sub token r'), { line: 'sub token reset', options: [] });
-  assert.deepEqual(complete('sub u'), { line: 'sub update', options: [] });
+  assert.deepEqual(complete('sub upd'), { line: 'sub update', options: [] });
   assert.deepEqual(complete('sub map '), { line: 'sub map ', options: ['rm', 'ls'] });
   assert.deepEqual(complete('sub f'), { line: 'sub fp', options: [] });
   assert.deepEqual(complete('profile s'), { line: 'profile set ', options: [] });
