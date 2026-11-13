@@ -15,7 +15,7 @@
  * 共享外壳组件：只许 import term/**（终端统一 T1，gen-common 核对）。
  */
 import { parse } from './core/parse.js';
-import { KH_EN, shellSection, flatStrings } from './core/strings.js';
+import { KH_EN, frameSection, flatStrings } from './core/strings.js';
 import { createRegistry } from './core/registry.js';
 import { completeLine, ghostOf } from './core/complete.js';
 import { createHistory } from './core/history.js';
@@ -97,7 +97,7 @@ export const TERM_EN = {
  * @param {Document} [doc] @returns {Record<string, string>}
  */
 export function termStrings(doc) {
-  return Object.assign({}, TERM_EN, shellSection(doc, 'term'));
+  return Object.assign({}, TERM_EN, frameSection(doc, 'term'));
 }
 
 /** 打错命令时拿来比的真命令（命令名 + 几个常用的整句） */
@@ -268,7 +268,7 @@ export function mountTerminal(root, sh, opts) {
   if (!out || !form || !input || !psEl || !hint) return null;
   const inp = input;
   const outEl = out;
-  const SP = flatStrings(shellSection(doc, 'space'));
+  const SP = flatStrings(frameSection(doc, 'space'));
   /** 输入行自己要的几句（秘密输入 / 命名的读屏名、^C、没有这个选项）：外壳字符串表 space 节 @param {string} k */
   const t = function (k) { return SP[k] || ''; };
 
@@ -371,7 +371,7 @@ export function mountTerminal(root, sh, opts) {
     });
     scrollEnd();
   }
-  const khS = shellSection(doc, 'kh');
+  const khS = frameSection(doc, 'kh');
   /** 全屏阅读页（man）：盖住正文和按键提示行；退出后焦点还给输入行 */
   const pg = createPager({
     root: /** @type {HTMLElement} */ (root),

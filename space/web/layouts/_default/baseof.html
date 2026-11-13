@@ -163,11 +163,11 @@ __sgxLayoutWatch(__applyLayout);
 {{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿）。主页 = 「主页 / Home」，其他页 = 页名；不再有顶栏标签（topbar-tabs 删除）。
    手机布局不显示（共享外壳 CSS 按 data-sgx-layout），桌面布局按整条顶栏居中。 */}}
 {{ $center := printf "<span class=\"sgx-tb-title\">%s</span>" (htmlEscape $pageName) }}
-{{ $shellNav := index site.Data.common.frame "nav-source" }}
+{{ $frameNav := index site.Data.common.frame "nav-source" }}
 {{ $tbIcons := dict }}
 {{ range (slice "tb-palette" "tb-shield" "tb-term" "tb-grid" "tb-music" "tb-chat" "lock" "tb-undo" "share" "tb-send" "tb-newchat" "tb-history") }}{{ $tbIcons = merge $tbIcons (dict . (partial "common/icon.html" .)) }}{{ end }}
-{{ range $shellNav.items }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "common/icon.html" .icon)) }}{{ end }}
-{{ range $shellNav.footer }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "common/icon.html" .icon)) }}{{ end }}
+{{ range $frameNav.items }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "common/icon.html" .icon)) }}{{ end }}
+{{ range $frameNav.footer }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "common/icon.html" .icon)) }}{{ end }}
 {{ $tbPal := slice }}
 {{ range (index site.Data.common "palette-source").palettes }}{{ $tbPal = $tbPal | append (dict "id" .id "style" (partial "common/frame/palette-tile-vars.html" (dict "id" .id "full" false))) }}{{ end }}
 {{/* 字符串表（语言包化）：当前页面语言叠在英文上；语言选择器选项来自 hugo.yaml languages（label = 语言自己的名字） */}}
@@ -184,7 +184,7 @@ __sgxLayoutWatch(__applyLayout);
   "langs" $tbLangs
   "home" (partial "common/lang-path.html" (dict "path" "/" "lang" $pageLang))
   "center" $center
-  "nav" $shellNav
+  "nav" $frameNav
   "site" $navSite
   "icons" $tbIcons
   "wordmark" (partial "common/frame/wordmark.html" .)
@@ -229,7 +229,7 @@ __sgxLayoutWatch(__applyLayout);
   "langs" $tbLangs
   "here" .RelPermalink
   "langHref" $otherLangHref
-  "nav" $shellNav
+  "nav" $frameNav
   "site" $navSite
   "name" site.Data.common.profile.name
   "year" now.Year

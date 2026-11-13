@@ -9,7 +9,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { renderAll, OUT, SHELL_REGIONS, extractRegion } from '../../../../space/scripts/gen/gen-common.mjs';
+import { renderAll, OUT, FRAME_REGIONS, extractRegion } from '../../../../space/scripts/gen/gen-common.mjs';
 import yaml from 'js-yaml';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -60,7 +60,7 @@ test('宽屏平铺（Gray 2026-11-07；2026-11 PR-A 起内容区回 1080）：�
 
 test('外壳 CSS 段只用 --sgx-* 角色：没有十六进制颜色、没有旧 --m-* 令牌', () => {
   const css = readFileSync(path.join(REPO, 'space/web/assets/common/css/input.css'), 'utf8');
-  for (const n of SHELL_REGIONS) {
+  for (const n of FRAME_REGIONS) {
     const r = extractRegion(css, n).replace(/\/\*[\s\S]*?\*\//g, '');
     assert.doesNotMatch(r, /#[0-9a-fA-F]{3,8}\b/, n);
     assert.doesNotMatch(r, /var\(--m-/, n);
@@ -163,7 +163,7 @@ test('palette-list.json：22 套七色调色板（每项带 group / bg / 6 前�
 });
 
 test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽屉；v5 S6 顶栏 E；顶栏 v6 加音乐、盾牌挪到分隔线前）：通栏 [字标 ❯ Styrigx_][页名（不显示）][外观 · 四格 · 音乐 · 盾牌 · | · >_ · 头像] + 进度条 + AI 浮钮；同一份标记四站共用', () => {
-  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'inpage', 'wide', 'terminal', 'music']); // music：2026-11 第 7 步共用播放器样式进共享外壳
+  assert.deepEqual(FRAME_REGIONS, ['topbar-frame', 'panel', 'inpage', 'wide', 'terminal', 'music']); // music：2026-11 第 7 步共用播放器样式进共享外壳
   const s = files['frame.css'];
   // 贴顶通栏：top 0、left 0 / right 0、底边 1px 线、毛玻璃材质；内容宽一个 token（1080）
   assert.match(s, /\.sgx-topbar \{ position: fixed; top: 0; left: 0; right: 0;[^}]*display: grid; grid-template-columns: auto minmax\(0, 1fr\) auto;[^}]*padding: env\(safe-area-inset-top, 0px\) var\(--sgx-tb-pad\) 0; border-bottom: 1px solid var\(--sgx-term-line\);[^}]*background: var\(--sgx-tb-mat\);/);

@@ -86,8 +86,8 @@ test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主
   assert.deepEqual(nav.items.map((i) => trZh.nav[i.id].title), ['主页', '博客', '奇趣', '日刻']); /* 顶栏 v3 NAVIGATE 01–04 */
   assert.deepEqual(nav.footer, []);
   assert.equal(nav.me.href, 'https://styrigx.com/account/');
-  assert.match(base, /\{\{ \$shellNav := site\.Data\.common\.frame\.nav \}\}/); /* 合站：直接读主站 data/common/frame/nav.json，没有副本 */
-  assert.match(base, /"nav" \$shellNav\n/);
+  assert.match(base, /\{\{ \$frameNav := site\.Data\.common\.frame\.nav \}\}/); /* 合站：直接读主站 data/common/frame/nav.json，没有副本 */
+  assert.match(base, /"nav" \$frameNav\n/);
   assert.match(base, /"mainOrigin" "https:\/\/styrigx\.com"/);
   /* 2026-11-12：logo 四站统一回主站首页（同主站 sgx-lang-path，英文 /、中文 /zh/），不再回本站首页 */
   assert.match(base, /"home" \(partial "common\/lang-path\.html" \(dict "path" "\/" "lang" \.Lang\)\)/);

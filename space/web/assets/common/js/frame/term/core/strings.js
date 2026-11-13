@@ -9,7 +9,7 @@
  * @param {string} sec 例如 'term'、'kh'、'ai'、'space'
  * @returns {Record<string, any>}
  */
-export function shellSection(doc, sec) {
+export function frameSection(doc, sec) {
   try {
     const d = doc || (typeof document !== 'undefined' ? document : null);
     const el = d && d.getElementById ? d.getElementById('sgx-i18n-frame') : null;

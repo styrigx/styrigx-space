@@ -31,7 +31,7 @@
  *   长网址不当链接文字：同一条回答里有 [标题](同一地址) 就用那个标题，否则显示「域名/…」。
  *   event: sources（gemini 联网来源）→ 在回答末尾追加「来源」一段（- [标题](地址)），随回答存进历史。
  */
-import { KH_EN, shellSection } from '../term/core/strings.js';
+import { KH_EN, frameSection } from '../term/core/strings.js';
 
 export const AI_API = '/api/ai';
 export const HISTORY_KEY = 'sgx-ai-history';
@@ -82,8 +82,8 @@ const STR_EN = {
   sug3: "What devices do you use?"
 };
 /** @param {Document} doc @returns {Record<string, string>} */
-function shellStr(doc) {
-  return Object.assign({}, STR_EN, shellSection(doc, 'ai'));
+function frameStr(doc) {
+  return Object.assign({}, STR_EN, frameSection(doc, 'ai'));
 }
 
 /** @typedef {{role: 'user'|'assistant', text: string, ts: number, error?: boolean, rate?: 'up'|'down'}} Msg */
@@ -422,7 +422,7 @@ export async function readSse(body, on) {
 export function mountAiChat(dlg, opts) {
   const o = opts || {};
   const doc = dlg.ownerDocument;
-  const t = shellStr(doc);
+  const t = frameStr(doc);
   const list = /** @type {HTMLElement} */ (dlg.querySelector('[data-ai-list]'));
   const form = /** @type {HTMLFormElement} */ (dlg.querySelector('[data-ai-form]'));
   const input = /** @type {HTMLTextAreaElement} */ (dlg.querySelector('[data-ai-in]'));
@@ -467,7 +467,7 @@ export function mountAiChat(dlg, opts) {
     const el = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-kh]'));
     if (!el) return;
     /** @type {Record<string, string>} */
-    const K = Object.assign({ ai: KH_EN.ai, back: KH_EN.back, backAria: KH_EN.backAria }, shellSection(doc, 'kh'));
+    const K = Object.assign({ ai: KH_EN.ai, back: KH_EN.back, backAria: KH_EN.backAria }, frameSection(doc, 'kh'));
     el.textContent = '';
     if (coarse()) {
       if (!o.close) { el.hidden = true; return; }

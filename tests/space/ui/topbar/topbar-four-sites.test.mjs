@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { shellFiles } from '../../../../space/scripts/gen/gen-common.mjs';
+import { frameFiles } from '../../../../space/scripts/gen/gen-common.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -37,7 +37,7 @@ function callArgs(site) {
 }
 
 test('标记单一来源：四站都用主站 frame/topbar.html 和 topbar/panel.js（2026-11 合站后没有子站副本）', () => {
-  assert.equal(shellFiles()['topbar.html'], SRC);
+  assert.equal(frameFiles()['topbar.html'], SRC);
   for (const s of SUBS) {
     assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials', s, 'frame/topbar.html')), s + ' 没有顶栏标记副本');
     assert.ok(!existsSync(path.join(REPO, 'space/web/assets', s, 'js/sgx/shell/topbar.js')), s + ' 没有顶栏 JS 副本');

@@ -1,5 +1,5 @@
 import { fill } from '../../core/out.js';
-import { shellSection } from '../../core/strings.js';
+import { frameSection } from '../../core/strings.js';
 
 /**
  * man [命令]：不带参数是索引（这个身份能用的命令；定稿 v5.5 §四按 root → 站长 → 普通用户 → 访客分段），带参数是那一页。结果交给终端窗口的全屏阅读页（S9，less 式：q / esc / ‹ 返回 退出，
@@ -16,8 +16,8 @@ export default {
     return import('../../man/pages.js').then(function (m) {
       /** @type {Record<string, {d: string, syn: string[], desc?: string[], auth?: string, notes?: string[]}>} */
       const P = m.PAGES;
-      const D = shellSection(null, 'man');
-      const B = shellSection(null, 'manBody');
+      const D = frameSection(null, 'man');
+      const B = frameSection(null, 'manBody');
       /** @param {string} n */
       const desc = function (n) { return typeof D[n] === 'string' ? D[n] : P[n].d; };
       if (!want) {

@@ -99,7 +99,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
 /* F 基准 1（日期和时间弹层）P4-2c 随日期和时间设置一起删除 */
 
 /** 快捷面板 / AI 窗口截图的共同准备：手机、减弱动效、中文、固定字体和时间，旷野子页 /status/（P4-3 PR-4b 前是 /display/，显示页已删除） */
-async function shellShotPage(pg) {
+async function frameShotPage(pg) {
   await pg.setViewportSize(VIEWPORTS.mobile);
   await blockExternalRequests(pg);
   await pg.emulateMedia({ reducedMotion: 'reduce' });
@@ -129,15 +129,15 @@ async function openNavPanel(pg) {
 
 /* 导航面板（2026-11-07 PR-4b 2/2 起是九宫格面板，不再是快捷面板第 1 页；文件名沿用）：设置子页上点顶栏九宫格，面板落下，主站当前项高亮 */
 test('baseline-quick-panel-nav-open', async ({ page: pg }) => {
-  await shellShotPage(pg);
+  await frameShotPage(pg);
   await openNavPanel(pg);
   if (SHOTS) await expect(pg).toHaveScreenshot('baseline-quick-panel-nav-open.png', { animations: 'disabled' });
 });
 
 /* 盾牌（v5 S6 顶栏 E）：v6 P4（定稿 v5.2 §十三）起旧的「退出进站会话 [y/N]」随旧进站会话删除；已登录（v6 身份）点盾牌 = 只打开终端（截图名照旧） */
 test('baseline-shield-open', async ({ page: pg }) => {
-  await shellShotPage(pg);
-  /* 替身挂在 shellShotPage（blockExternalRequests）之后：后挂的先匹配 */
+  await frameShotPage(pg);
+  /* 替身挂在 frameShotPage（blockExternalRequests）之后：后挂的先匹配 */
   await mockAccount(pg, { user: V6_USER('styrigx') });
   await pg.reload({ waitUntil: 'domcontentloaded' });
   await waitPageReady(pg);
@@ -152,7 +152,7 @@ test('baseline-shield-open', async ({ page: pg }) => {
 
 /* 外观面板（2026-11 PR-1：MODE + PALETTE；分享 / 立即锁定搬进 NAVIGATE，四站同一套，主站也有分享） */
 test('baseline-quick-panel-open', async ({ page: pg }) => {
-  await shellShotPage(pg);
+  await frameShotPage(pg);
   await openQuickPanel(pg);
   await expect(pg.locator('#sgx-qp [data-qp-seg="mode"]')).toHaveCount(0); /* 调色板 v4：没有 MODE */
   await expect(pg.locator('#sgx-qp [data-qp-palette]').first()).toBeVisible();
@@ -162,7 +162,7 @@ test('baseline-quick-panel-open', async ({ page: pg }) => {
 
 /* AI 窗口打开（2026-11-04 P5-1，方案 5.5）：空状态（没有历史），落在顶栏下方，和快捷面板同一种形式 */
 test('baseline-ai-panel-open', async ({ page: pg }) => {
-  await shellShotPage(pg);
+  await frameShotPage(pg);
   await pg.click('.sgx-tb-ai');
   await expect(pg.locator('#sgx-ai.is-open')).toBeVisible({ timeout: 10000 });
   await expect(pg.locator('#sgx-ai')).toHaveAttribute('data-state', 'open');

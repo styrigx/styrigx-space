@@ -14,8 +14,8 @@ import { fileURLToPath } from 'node:url';
 import { createHistory } from '../../../../space/web/assets/common/js/frame/term/core/history.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const SHELL = path.join(REPO, 'space/web/assets/common/js');
-const rd = (f) => readFileSync(path.join(SHELL, f), 'utf8');
+const COMMON_JS = path.join(REPO, 'space/web/assets/common/js');
+const rd = (f) => readFileSync(path.join(COMMON_JS, f), 'utf8');
 
 test('历史：落盘键、草稿、只在内存', () => {
   const m = new Map();
@@ -36,7 +36,7 @@ test('历史：落盘键、草稿、只在内存', () => {
 test('宿主：只剩全站终端（一份历史 sgx-term-hist）；tty1 / tty3 / tty5 的表和宿主删了；S9 账号卡片没有自己的历史', () => {
   for (const f of ['term/cmds/index-tty1.js', 'term/cmds/index-tty2.js', 'term/cmds/index-tty3.js', 'term/cmds/index-tty5.js', 'space/entry.js', 'space/shield.js', 'space/term.js', 'space/tempkeys.js', 'account/term.js',
     'space/layer.js', 'space/commands.js', 'space/reset.js', 'space/unlock.js']) {
-    assert.ok(!existsSync(path.join(SHELL, f)), f + ' 删了');
+    assert.ok(!existsSync(path.join(COMMON_JS, f)), f + ' 删了');
   }
   assert.match(rd('frame/term/terminal.js'), /const HIST_KEY = 'sgx-term-hist';/);
   assert.doesNotMatch(rd('frame/account/window.js'), /histKey|createInputLine/);

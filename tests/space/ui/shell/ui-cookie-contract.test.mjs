@@ -11,7 +11,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { renderContract, FIXTURE } from '../../../../space/scripts/gen/gen-ui-cookie-contract.mjs';
-import { shellFiles, READER_SRC } from '../../../../space/scripts/gen/gen-common.mjs';
+import { frameFiles, READER_SRC } from '../../../../space/scripts/gen/gen-common.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const READER = readFileSync(READER_SRC, 'utf8');
@@ -173,7 +173,7 @@ test('读端是 ES5 经典脚本：没有箭头函数 / let / const / 模板串 
 });
 
 test('共享外壳带上读端 / 图标（2026-11 合站后子站直接用主站源文件；契约夹具只有 tests/fixtures 一份）', () => {
-  const files = shellFiles();
+  const files = frameFiles();
   assert.equal(files['ui-cookie-read.js'], READER);
   assert.equal(files['favicon.js'], readFileSync(path.join(REPO, 'space/web/assets/common/js/ui/favicon.js'), 'utf8'));
   assert.equal(files['favicon.svg'], readFileSync(path.join(REPO, 'space/web/static/favicon.svg'), 'utf8'));

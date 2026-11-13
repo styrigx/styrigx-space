@@ -8,7 +8,7 @@
  *
  * 读屏：按键文字是装饰（aria-hidden），「‹ 返回」是真按钮（有名字，读屏能点）。
  */
-import { KH_EN, shellSection } from '../core/strings.js';
+import { KH_EN, frameSection } from '../core/strings.js';
 
 /** 英文底（源文本）：终端统一 T1 起放在 term/core/strings.js，这里转出 */
 export { KH_EN };
@@ -18,7 +18,7 @@ export { KH_EN };
  * @param {Document} [doc] @returns {Record<string, string>}
  */
 export function khStrings(doc) {
-  return Object.assign({}, KH_EN, shellSection(doc, 'kh'));
+  return Object.assign({}, KH_EN, frameSection(doc, 'kh'));
 }
 
 /**

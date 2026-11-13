@@ -22,18 +22,18 @@ const ZOOM_MAX = 8; /* 最大放大到「刚好盖满」的 8 倍 */
 const en = document.documentElement.lang === 'en';
 /** 文案在字符串表 js.core.av*（语言包化 2026-11-07） */
 /** 子站（博客 / 奇趣 / 日刻）没有 #sgx-i18n-core：退到外壳字符串表 account.profile.avatar.*（2026-11-08 账号终端在四个站都能换头像） */
-let shellAv0 = /** @type {Record<string,string>|null} */ (null);
-function shellAv(/** @type {string} */ key) {
-  if (!shellAv0) {
+let frameAv0 = /** @type {Record<string,string>|null} */ (null);
+function frameAv(/** @type {string} */ key) {
+  if (!frameAv0) {
     try {
       const el = document.getElementById('sgx-i18n-frame');
       const j = el && el.textContent ? JSON.parse(el.textContent) : null;
-      shellAv0 = (j && j.account && j.account.profile && j.account.profile.avatar) || {};
-    } catch (e) { shellAv0 = {}; }
+      frameAv0 = (j && j.account && j.account.profile && j.account.profile.avatar) || {};
+    } catch (e) { frameAv0 = {}; }
   }
-  return (shellAv0 && shellAv0[key]) || '';
+  return (frameAv0 && frameAv0[key]) || '';
 }
-const TXT = new Proxy(/** @type {Record<string,string>} */ ({}), { get: function (_o, k) { if (typeof k !== 'string') return undefined; const key = 'av' + k.charAt(0).toUpperCase() + k.slice(1); return ct(key) || shellAv(k); } });
+const TXT = new Proxy(/** @type {Record<string,string>} */ ({}), { get: function (_o, k) { if (typeof k !== 'string') return undefined; const key = 'av' + k.charAt(0).toUpperCase() + k.slice(1); return ct(key) || frameAv(k); } });
 
 /** 当前是不是自定义头像（看 ETag） */
 /** 有没有自定义头像：进页面时查一次，换 / 删之后直接改 */

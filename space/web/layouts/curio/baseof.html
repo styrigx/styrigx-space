@@ -71,7 +71,7 @@ __sgxLayoutWatch(__applyLayout);
    JS：js/sgx/topbar-host.js（共享外壳 topbar.js + modal-sheet.js + ai.js + prefs-write.js）。外观和语言跟主站（sgx-ui cookie，见 ui-inherit-run.js）。 */}}
 {{ $pageName := .Title }}
 {{ if $is404 }}{{ $pageName = $tr.baseof.pageNotFound }}{{ end }}
-{{ $shellNav := site.Data.common.frame.nav }}
+{{ $frameNav := site.Data.common.frame.nav }}
 {{ $center := "" }}
 {{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿；顶栏不再有分区页签）。P4-3 奇趣拆页起每个分区是独立子页：
    首页 = 站名，子页（发现 / 设备 / 游戏 / 电影 / 音乐）= 子页名（内容文件的 title）；桌面布局显示、手机布局不显示（共享外壳 PR-4b 机制）。
@@ -99,16 +99,16 @@ __sgxLayoutWatch(__applyLayout);
   "langs" $tbLangs
   "home" (partial "common/lang-path.html" (dict "path" "/" "lang" .Lang))
   "center" $center
-  "nav" $shellNav
+  "nav" $frameNav
   "site" "curio"
-  "icons" $shellNav.icons
-  "wordmark" $shellNav.wordmark
+  "icons" $frameNav.icons
+  "wordmark" $frameNav.wordmark
   "mainOrigin" "https://styrigx.com"
-  "acct" (partial "common/lang-path.html" (dict "path" $shellNav.me.href "lang" .Lang))
-  "avatar" $shellNav.me.avatar
+  "acct" (partial "common/lang-path.html" (dict "path" $frameNav.me.href "lang" .Lang))
+  "avatar" $frameNav.me.avatar
   "name" site.Data.common.profile.name
   "nick" site.Data.common.profile.nickname
-  "email" $shellNav.me.email
+  "email" $frameNav.me.email
   "langHref" $langHref
   "security" (printf "%s#sec" (partial "common/lang-path.html" (dict "path" "https://styrigx.com/" "lang" .Lang)))
   "status" (partial "common/lang-path.html" (dict "path" "https://styrigx.com/status/" "lang" .Lang))
@@ -127,13 +127,13 @@ __sgxLayoutWatch(__applyLayout);
   "langs" $tbLangs
   "here" .RelPermalink
   "langHref" $langHref
-  "nav" $shellNav
+  "nav" $frameNav
   "site" "curio"
   "mainOrigin" "https://styrigx.com"
   "name" site.Data.common.profile.name
   "year" now.Year
   "sha" (partial "common/build-sha.html" .)
-  "email" $shellNav.me.email
+  "email" $frameNav.me.email
   "rss" (partial "common/lang-path.html" (dict "path" "https://styrigx.com/blog/rss.xml" "lang" .Lang))
 ) }}
 {{/* 顶栏：快捷面板 + AI 窗口（共享外壳 topbar.js 等，js/sgx/topbar-host.js 打包；2026-11-04 P5-1 取代 topbar.js（抽屉）、share-host.js（右圆分享）、search-host.js（抽屉底栏搜索）） */}}
