@@ -19,7 +19,7 @@
 | 字段表、版本、编解码、读端 `SgxUI` | `space/web/assets/shell/js/prefs/ui-cookie-read.js` |
 | 写端 `syncUiCookie()` | `space/web/assets/shell/js/prefs/prefs-write.js`（`prefs/ui-cookie.js` 只转导出） |
 | 首帧语言跳转 | `space/web/assets/shell/js/i18n/lang-boot.js` |
-| 契约夹具 | `tests/fixtures/ui-cookie-contract.json`（`space/scripts/gen-ui-cookie-contract.mjs` 跑真写端生成） |
+| 契约夹具 | `tests/fixtures/ui-cookie-contract.json`（`space/scripts/gen/gen-ui-cookie-contract.mjs` 跑真写端生成） |
 
 ## 2. 不变式
 
@@ -102,10 +102,10 @@ sgx-ui=<base64url(UTF-8 JSON)>; Domain=styrigx.com; Path=/; Max-Age=34560000; Sa
 4. 重新生成并核对：
 
 ```bash
-node space/scripts/gen-ui-cookie-contract.mjs
-node space/scripts/gen-shell.mjs
-node space/scripts/gen-ui-cookie-contract.mjs --check
-node space/scripts/gen-shell.mjs --check
+node space/scripts/gen/gen-ui-cookie-contract.mjs
+node space/scripts/gen/gen-shell.mjs
+node space/scripts/gen/gen-ui-cookie-contract.mjs --check
+node space/scripts/gen/gen-shell.mjs --check
 node --test tests/space/ui/shell/ui-cookie-contract.test.mjs
 ```
 

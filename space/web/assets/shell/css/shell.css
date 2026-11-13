@@ -1,4 +1,4 @@
-/* 由 space/scripts/gen-shell.mjs 从 space/web/assets/shell/css/input.css 的 @shell 标记段 生成，勿手改；主站和子站同一个 Hugo 站，子站样式表直接 @import。 */
+/* 由 space/scripts/gen/gen-shell.mjs 从 space/web/assets/shell/css/input.css 的 @shell 标记段 生成，勿手改；主站和子站同一个 Hugo 站，子站样式表直接 @import。 */
 /* 依赖 tokens.css 的 --sgx-* 角色；不进任何 @layer。 */
 /* ---- topbar-frame ---- */
 /* 跨页 View Transitions（2.4.0 D；2026-11-09 Gray 批：搬进共享外壳，四站同站跳转都做，只淡入淡出）：

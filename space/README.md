@@ -1,7 +1,7 @@
 # space/：Platform 骨架契约
 
 > 依据：《space 目录架构规范 v1.11（定稿）》，Gray 2026-11-13 定。
-> 本文件是 Platform（Space）内部目录与依赖的**唯一出处**。旧文档（`docs/architecture/overview.md` §6–7 的 L0–L6、`docs/architecture/repo-structure.md`）和旧规则（`scripts/check-layers.mjs`）与本文件冲突的，以本文件为准，旧的那边跟着改。
+> 本文件是 Platform（Space）内部目录与依赖的**唯一出处**。旧文档（`docs/architecture/overview.md` §6–7 的 L0–L6、`docs/architecture/repo-structure.md`）和旧规则（`scripts/check/check-layers.mjs`）与本文件冲突的，以本文件为准，旧的那边跟着改。
 > 能用脚本检查的规矩都由 `check-layers.mjs` 在 CI 里拦，不靠自觉。
 
 ## 0. 三级命名与架构关系
@@ -73,7 +73,7 @@ space/
    ├─ lib/                      共享脚本库
    ├─ blog/  curio/  daymark/   各产品脚本
    ├─ build/                    构建类（build-css、build-search-index）
-   ├─ check/                    检查类（check-frontend、check-layers、check-worker-routes、kv-budget、health-gate、verify-core-routes）
+   ├─ check/                    检查类（check-frontend、check-layers 与它的 retired-names.json、check-worker-routes、kv-budget、health-gate、verify-core-routes）
    ├─ gen/                      生成类（gen-csp、gen-palettes、gen-shell、gen-ui-cookie-contract）
    └─ deploy/                   部署类（deploy-rollback 与它的 json、ci-local.sh）
 ```
@@ -128,7 +128,7 @@ space/
 
 ## 4. 检查
 
-`scripts/check-layers.mjs`（挪 scripts/ 时进 `scripts/check/`）拦这几类，CI 必过：
+`scripts/check/check-layers.mjs` 拦这几类，CI 必过：
 
 | 规则 | 拦什么 |
 |---|---|
@@ -153,7 +153,7 @@ space/
 
 | 文件 / 引用 | 违反哪条 | 原因 | 加入日期 / PR |
 |---|---|---|---|
-| （暂无） | | | |
+| `web/assets/jsconfig.json` | 26（落点） | 横跨整个 `assets/` 的 JS 路径配置：`baseUrl` 为 `.`（即 `assets/` 本身），覆盖 Platform 的 `shell/js/` 和 curio、daymark、blog 的 `js/`；放进任一层都会断掉其它层的路径解析 | 2026-11-13 #450 |
 
 ## 6. 迁移（进行中）
 
@@ -166,8 +166,8 @@ space/
 | 2 | 拆 `lib/` 和 shell 平铺文件，按 §1.1 分组 | 已合（#446） |
 | 3 | `assets/css/` → `assets/shell/css/` | 已合（#447） |
 | 4 | `layouts/partials/` 的 Platform 部分 → `partials/shell/` | 已合（#448） |
-| 5 | `data/` 的 Platform 部分 → `data/shell/`；`palettes.yaml` 改名 `data/shell/palette-source.yaml`，避开和 `data/shell/palettes.json` 撞键 | 进行中 |
-| 6 | `scripts/` 根目录 → `build/`、`check/`、`gen/`、`deploy/`；`space/` 外面（`package.json`、`.github/workflows/`、workers 的 README / wrangler.toml 注释 / `csp-hashes.js` 文件头）只改路径字符串、不改逻辑，PR 里逐个列出 | 未开始 |
+| 5 | `data/` 的 Platform 部分 → `data/shell/`；`palettes.yaml` 改名 `data/shell/palette-source.yaml`，避开和 `data/shell/palettes.json` 撞键 | 已合（#449） |
+| 6 | `scripts/` 根目录 → `build/`、`check/`、`gen/`、`deploy/`；`space/` 外面（`package.json`、`.github/workflows/`、workers 的 README / wrangler.toml 注释 / `csp-hashes.js` 文件头）只改路径字符串、不改逻辑，PR 里逐个列出 | 进行中 |
 | 7 | 共用播放器进 Platform，路由 `/curio/music/player/` 不变：播放器文案和 `.mp-*` 样式一起进 Platform，页面外壳改用 Platform 的 partial，外观不变，截图逐像素对照；脚本网址从 `/curio/js/…` 变成 `/shell/js/…` | 未开始 |
 | 8 | 旧文档对齐：overview.md §6–7、repo-structure.md 改为指向本文件 | 未开始 |
 

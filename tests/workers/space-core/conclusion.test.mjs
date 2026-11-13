@@ -15,7 +15,7 @@ import { authD1For, makeKV } from '../_harness.mjs';
 const GW = '../../../workers/space-core/src/';
 const mod = await import(GW + 'core/conclusion.js');
 const { ACCOUNT_CONCLUSION_HEADERS, ACCOUNT_CONCLUSION_PREFIX, stripAccountConclusion, writeV6PrivateConclusion } = mod;
-const layers = await import('../../../space/scripts/check-layers.mjs');
+const layers = await import('../../../space/scripts/check/check-layers.mjs');
 
 test('导出：结论头常量、前缀、stripAccountConclusion / writeV6PrivateConclusion（v6 P4 起旧账号结论的白名单函数删除，conclusionFor 随应用授权删除）', () => {
   assert.deepEqual(Object.keys(mod).sort(), [

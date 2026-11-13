@@ -26,7 +26,7 @@ enabled = true
 head_sampling_rate = 1
 
 # 路由：没有（账号拆分 PR3 删掉原来的 4 条 styrigx.com/api/avatar*、/api/prefs*、/api/wellbeing*、/avatar/*；方案第 4 节）。
-# 这几条路径归网关的 styrigx.com/*，在网关转发表 workers/space-core/src/router.js FORWARDING 里；space/scripts/check-worker-routes.mjs 核对本 Worker 没有任何路由。
+# 这几条路径归网关的 styrigx.com/*，在网关转发表 workers/space-core/src/router.js FORWARDING 里；space/scripts/check/check-worker-routes.mjs 核对本 Worker 没有任何路由。
 # 部署后要在 Cloudflare 后台核对 styrigx.com 的 Workers Routes 里已经没有指向 styrigx-account 的路由（残留就手删；残留期间默认 fetch 也只回 404）。
 
 [vars]

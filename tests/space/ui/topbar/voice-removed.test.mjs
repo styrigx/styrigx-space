@@ -32,5 +32,5 @@ test('语音搜索删干净：没有 voice.js / voice-sheet.js、SpeechRecogniti
   const css = rd('space/web/assets/shell/css/input.css');
   assert.doesNotMatch(css, /sgx-cap-mic|sgx-vs-|sgx-mic-pulse/);
   assert.doesNotMatch(rd('space/web/data/shell/features.yaml'), /voice|speech|mic/i);
-  assert.doesNotMatch(rd('space/scripts/check-layers.mjs'), /'voice/);
+  assert.doesNotMatch(rd('space/scripts/check/check-layers.mjs'), /'voice/);
 });

@@ -9,14 +9,14 @@
  *   期望值是这里按契约写死的，不是拿读端自己算的（读端改错了，单测会和夹具对不上）。
  * - 共享外壳（gen-shell.mjs）把夹具原样带给子站，子站仓库可以跑同一套断言。
  *
- * 用法：node space/scripts/gen-ui-cookie-contract.mjs          重新生成
- *       node space/scripts/gen-ui-cookie-contract.mjs --check  只核对（写端产出变了 / 夹具被手改 → exit 1）
+ * 用法：node space/scripts/gen/gen-ui-cookie-contract.mjs          重新生成
+ *       node space/scripts/gen/gen-ui-cookie-contract.mjs --check  只核对（写端产出变了 / 夹具被手改 → exit 1）
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 export const FIXTURE = path.join(REPO, 'tests/fixtures/ui-cookie-contract.json');
 const WRITER = path.join(REPO, 'space/web/assets/shell/js/prefs/ui-cookie.js');
 const ROLES = path.join(REPO, 'space/web/data/shell/palette-roles.json');
@@ -165,7 +165,7 @@ export async function renderContract() {
     ...HANDMADE.map((c) => ({ name: c.name, source: 'handmade', cookie: c.cookie, read: c.read, ...expectations(c.read) })),
   ];
   const doc = {
-    _generated: 'styrigx-space space/scripts/gen-ui-cookie-contract.mjs ← space/web/assets/shell/js/prefs/ui-cookie.js（写端真实产出）；勿手改',
+    _generated: 'styrigx-space space/scripts/gen/gen-ui-cookie-contract.mjs ← space/web/assets/shell/js/prefs/ui-cookie.js（写端真实产出）；勿手改',
     _doc: 'cookie = sgx-ui 的值（document.cookie 里 sgx-ui= 后面那段）。read = SgxUI.read() 的期望（null = 当没有 cookie）；light / dark = 系统浅 / 深色时 SgxUI.resolve() 和 SgxUI.apply() 后 <html> 的期望（v4 起两者相同：深浅只由调色板决定）。root.dark / reduced-motion = class；fontSize = style.fontSize；data-palette null = 不写。',
     now: NOW,
     cases,
@@ -178,7 +178,7 @@ if (isMain) {
   const text = await renderContract();
   if (process.argv.includes('--check')) {
     if (!existsSync(FIXTURE) || readFileSync(FIXTURE, 'utf8') !== text) {
-      console.error('tests/fixtures/ui-cookie-contract.json 和写端产出不一致；运行 node space/scripts/gen-ui-cookie-contract.mjs');
+      console.error('tests/fixtures/ui-cookie-contract.json 和写端产出不一致；运行 node space/scripts/gen/gen-ui-cookie-contract.mjs');
       process.exit(1);
     }
     console.log('ui-cookie contract in sync:', JSON.parse(text).cases.length, 'cases');

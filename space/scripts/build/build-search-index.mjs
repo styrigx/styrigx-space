@@ -16,15 +16,15 @@
  *   - 功能开关的副标题 = 所在旷野子页的面包屑 + 页名（「旷野 › 显示」）
  * 格式见 workers/ai/src/core/rank.js 顶部。deploy.yml 的 deploy-ai-worker 把它写进 KV。
  *
- * 用法：node space/scripts/build-search-index.mjs [--out <文件>]（默认 space/web/public/search-index.json）
+ * 用法：node space/scripts/build/build-search-index.mjs [--out <文件>]（默认 space/web/public/search-index.json）
  */
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { langPath, stripLang } from '../web/assets/shell/js/i18n/lang-path.js';
+import { langPath, stripLang } from '../../web/assets/shell/js/i18n/lang-path.js';
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const PUB = path.join(REPO, 'space/web/public');
 const ORIGIN = 'https://styrigx.com';
 /** 面包屑分隔 */

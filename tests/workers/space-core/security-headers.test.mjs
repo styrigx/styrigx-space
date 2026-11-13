@@ -22,7 +22,7 @@ const SH = await import(REPO + '/workers/space-core/src/lib/security-headers.js'
 const { INLINE_SCRIPT_HASHES } = await import(REPO + '/workers/space-core/src/lib/csp-hashes.js');
 const worker = (await import(REPO + '/workers/space-core/src/app.js')).default;
 const { parseHeaders, headersFor, matchPattern } = await import(REPO + '/space/scripts/lib/pages-headers.mjs');
-const gen = await import(REPO + '/space/scripts/gen-csp.mjs');
+const gen = await import(REPO + '/space/scripts/gen/gen-csp.mjs');
 
 
 function makeKv() {
@@ -447,7 +447,7 @@ test('模板：会执行的内联脚本只在 baseof（6 段：P4-3 PR-4c 加了
 /* ---------------- 各 Worker 各自一份（2026-10-30 起没有共享目录）：值必须一致 ---------------- */
 
 test('账号 Worker 自己的 security-headers.js、csp-hashes.js 与 space-core 那份值相同（gen-csp 一起生成；分享链接 L2 起并进 space-core，没有自己的一份）', async () => {
-  const gen = await import(REPO + '/space/scripts/gen-csp.mjs');
+  const gen = await import(REPO + '/space/scripts/gen/gen-csp.mjs');
   for (const dir of ['/workers/account/src/lib/']) {
     const other = await import(REPO + dir + 'security-headers.js');
     assert.deepEqual(other.mainSiteHeaderList(), SH.mainSiteHeaderList(), dir);

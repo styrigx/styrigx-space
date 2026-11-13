@@ -17,8 +17,8 @@
  * 另外：space/web/assets/shell/js/prefs/ui-cookie-read.js 的 @ui-cookie-presets 段（预设 id → 种子 + 引擎版本）由本脚本按 palette-roles.json 就地重写。
  * 子站直接用的那几个 partial / JS 仍按原来的约束核对（只用参数、不 import 等），违反就失败。
  *
- * 用法：node space/scripts/gen-shell.mjs          重新生成
- *       node space/scripts/gen-shell.mjs --check  只核对（不一致 exit 1，单测 / CI 用）
+ * 用法：node space/scripts/gen/gen-shell.mjs          重新生成
+ *       node space/scripts/gen/gen-shell.mjs --check  只核对（不一致 exit 1，单测 / CI 用）
  */
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -26,9 +26,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { renderBlock } from './gen-palettes.mjs';
-import { DEFAULT_ID, GROUPS } from '../web/assets/shell/js/ui/palette-scheme.js';
+import { DEFAULT_ID, GROUPS } from '../../web/assets/shell/js/ui/palette-scheme.js';
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 /** 派生文件 → 仓库里的位置（同一个 Hugo 站里，子站直接引用） */
 export const OUT = Object.freeze({
   'tokens.css': 'space/web/assets/shell/css/tokens.css',
@@ -65,7 +65,7 @@ export const SHELL_REGIONS = ['topbar-frame', 'panel', 'inpage', 'wide', 'termin
    都要是不含模板语法的完整内联 SVG（P4-2 删搜索层时 ai-search 随 nav.json 的 search 项一起删了） */
 export const EXTRA_ICONS = ['tb-palette', 'tb-shield', 'tb-term', 'tb-grid', 'tb-music', 'tb-chat', 'lock', 'tb-undo', 'tb-send', 'tb-newchat', 'tb-history'];
 const HEAD = (src) =>
-  `/* 由 space/scripts/gen-shell.mjs 从 ${src} 生成，勿手改；主站和子站同一个 Hugo 站，子站样式表直接 @import。 */\n`;
+  `/* 由 space/scripts/gen/gen-shell.mjs 从 ${src} 生成，勿手改；主站和子站同一个 Hugo 站，子站样式表直接 @import。 */\n`;
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 
@@ -95,7 +95,7 @@ export function readWordmark() {
   return svg;
 }
 
-const PRESETS_BEGIN = '  /* @ui-cookie-presets:begin（space/scripts/gen-shell.mjs 按 space/web/data/shell/palette-roles.json + palette-scheme.js 生成，勿手改） */';
+const PRESETS_BEGIN = '  /* @ui-cookie-presets:begin（space/scripts/gen/gen-shell.mjs 按 space/web/data/shell/palette-roles.json + palette-scheme.js 生成，勿手改） */';
 const PRESETS_END = '  /* @ui-cookie-presets:end */';
 
 /** ui-cookie-read.js 的 @ui-cookie-presets 段：预设 id → 种子（= palettes.json 的顺序）+ 深套 id 列表（DARK，首帧据此设 dark 类）+ 每套底色（BG） */
@@ -166,7 +166,7 @@ function renderNav() {
   if (typeof prof.email !== 'string' || !prof.email) throw new Error('space/web/data/shell/profile.yaml 缺 email');
   nav.me = Object.assign({}, nav.me || {}, { email: prof.email });
   return (
-    JSON.stringify({ _generated: 'styrigx-space space/scripts/gen-shell.mjs ← space/web/data/shell/shell-nav.json + profile.yaml（me.email）+ icon.html + shell-wordmark.html；勿手改', ...nav, wordmark, icons }, null, 2) +
+    JSON.stringify({ _generated: 'styrigx-space space/scripts/gen/gen-shell.mjs ← space/web/data/shell/shell-nav.json + profile.yaml（me.email）+ icon.html + shell-wordmark.html；勿手改', ...nav, wordmark, icons }, null, 2) +
     '\n'
   );
 }
@@ -301,7 +301,7 @@ function renderPalettes(data) {
   return (
     JSON.stringify(
       {
-        _generated: 'styrigx-space space/scripts/gen-shell.mjs ← space/web/data/shell/palette-roles.json；勿手改',
+        _generated: 'styrigx-space space/scripts/gen/gen-shell.mjs ← space/web/data/shell/palette-roles.json；勿手改',
         default: DEFAULT_ID,
         /* 子站据此判断自己消费的是哪一版调色板用法规则（docs/design/palette.md）；规则变了手动加一 */
         rulesVersion: RULES_VERSION,
@@ -391,7 +391,7 @@ if (isMain) {
     }
     if (readFileSync(SRC.reader, 'utf8') !== reader) bad.push('space/web/assets/shell/js/prefs/ui-cookie-read.js 的 @ui-cookie-presets 段');
     if (bad.length) {
-      console.error('共享外壳派生文件和源头不一致：' + bad.join('、') + '；运行 node space/scripts/gen-shell.mjs');
+      console.error('共享外壳派生文件和源头不一致：' + bad.join('、') + '；运行 node space/scripts/gen/gen-shell.mjs');
       process.exit(1);
     }
     console.log('shared shell in sync:', Object.values(OUT).join(', '));

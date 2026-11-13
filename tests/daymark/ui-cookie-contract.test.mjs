@@ -28,7 +28,7 @@ function rootState(html) {
 const plain = (o) => JSON.parse(JSON.stringify(o));
 
 test('夹具来自主站写端：覆盖默认 terra、深套 lake / 浅套 dustyblue、旧撞色、旧 mode / accent 残留、旧 v1 / v2、theme 别名、lang、未知版本、乱码（2026-11-12 调色板 v4）', () => {
-  assert.match(fx._generated, /styrigx-space space\/scripts\/gen-ui-cookie-contract\.mjs/);
+  assert.match(fx._generated, /styrigx-space space\/scripts\/gen\/gen-ui-cookie-contract\.mjs/);
   assert.equal(fx.cases.length, 36);
   const names = fx.cases.map((c) => c.name).join('|');
   for (const k of ['默认 terra', '湖蓝 lake', '雾霾蓝 dustyblue', '旧撞色 xforest', '旧 sgx-theme-mode 残留', '旧自定义主题色残留', '旧 v1', '旧 v2', 'theme 别名', 'lang en', 'lang zh', 'lang system', 'lang 大写', '未知版本 v3 带 lang', '未知版本', '版本是字符串', '没有 v', '乱码']) {

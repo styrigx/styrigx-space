@@ -2,7 +2,7 @@
 
 @source "../../../layouts";
 @source "../../../content";
-/* 合站（2026-11）：子站的模板 / 内容 / 资源在同一个 Hugo 站里，样式各自一份（space/scripts/build-css.cjs 一并构建），主站不扫它们 */
+/* 合站（2026-11）：子站的模板 / 内容 / 资源在同一个 Hugo 站里，样式各自一份（space/scripts/build/build-css.cjs 一并构建），主站不扫它们 */
 @source not "../../../layouts/{blog,curio,daymark}";
 @source not "../../../layouts/partials/{blog,curio,daymark}";
 @source not "../../../content/{blog,curio,daymark,tags}";

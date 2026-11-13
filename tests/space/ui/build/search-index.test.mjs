@@ -1,5 +1,5 @@
 /**
- * 主站全站索引 space/scripts/build-search-index.mjs（P4-3 PR-2：副标题 = 完整面包屑、text = 页面设置行文字，AI 才说得出路径；
+ * 主站全站索引 space/scripts/build/build-search-index.mjs（P4-3 PR-2：副标题 = 完整面包屑、text = 页面设置行文字，AI 才说得出路径；
  * PR-4b：子页去掉 settings 一层；2026-11-12 起分类只有状态页 /status/，它的子页面包屑最上一级是状态页，账号页独立）
  * - pageText：<main> 里的分组标题、设置行标题和说明、行所在 <a> 的地址；脚本 / 图标不算，「正在读取…」占位不要
  * - build(pub)：临时目录里的假产物（CI 单测这一步还没构建，靠它跑）
@@ -14,7 +14,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-const S = await import(pathToFileURL(path.join(REPO, 'space/scripts/build-search-index.mjs')).href);
+const S = await import(pathToFileURL(path.join(REPO, 'space/scripts/build/build-search-index.mjs')).href);
 
 const HTML = `<html><head><title>安全 | Styrigx</title></head><body><nav><span class="block font-medium">顶栏不算</span></nav>
 <main id="sgx-main"><script>var x = '<span class="block font-medium">脚本不算</span>';</script>

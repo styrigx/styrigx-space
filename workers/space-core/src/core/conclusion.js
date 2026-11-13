@@ -4,7 +4,7 @@
  *   writeV6PrivateConclusion(headers) 先剥再写 1；stripAccountConclusion(headers) 只剥。浏览器带来的同名头在 app.js 第一步
  *   （core/lock-identity.js stripInternalHeaders，剥所有 x-styrigx-*）就已经剥掉，写之前这里再剥一次。
  *
- * 网关里不出现账号票名（space/scripts/check-layers.mjs 规则 16）。不 import 任何东西。
+ * 网关里不出现账号票名（space/scripts/check/check-layers.mjs 规则 16）。不 import 任何东西。
  */
 
 /** 账号结论头（方案 2.3.1）；v6 P4 起只写 session（device / scopes / reauth 随旧账号会话删除，名字留着给剥头用） */

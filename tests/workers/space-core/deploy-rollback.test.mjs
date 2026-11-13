@@ -1,5 +1,5 @@
 /**
- * main 部署的自动回滚：space/scripts/deploy-rollback.mjs（记线上版本 / 部署后核对 / 回滚）和 deploy.yml 里的接线。
+ * main 部署的自动回滚：space/scripts/deploy/deploy-rollback.mjs（记线上版本 / 部署后核对 / 回滚）和 deploy.yml 里的接线。
  * （放在 tests/workers/space-core/ 下，同 kv-budget.test.mjs：CI 的单元测试 glob 已经包含这个目录。）
  */
 import { test } from 'node:test';
@@ -13,7 +13,7 @@ import {
   parseDeploymentStatus, pagesCanonicalId, isSafeId, parseArgs,
   workerSnapshot, workerVerify, workerRollback, pollLive, pagesSnapshot, pagesRollback,
   workerNameFromToml, floorFor, checkFloor, versionAboveFloor,
-} from '../../../space/scripts/deploy-rollback.mjs';
+} from '../../../space/scripts/deploy/deploy-rollback.mjs';
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const require = createRequire(import.meta.url);

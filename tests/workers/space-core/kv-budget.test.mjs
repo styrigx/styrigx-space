@@ -1,5 +1,5 @@
 /**
- * passkey-e2e 的预览状态：space/scripts/kv-budget.mjs（清预览 D1 只清干扰本次运行的表、每次运行估算）和 deploy.yml 里的接线。
+ * passkey-e2e 的预览状态：space/scripts/check/kv-budget.mjs（清预览 D1 只清干扰本次运行的表、每次运行估算）和 deploy.yml 里的接线。
  *
  * 2026-10-27 起网关认证状态全部在 D1 styrigx-auth-gateway(-preview)，不再绑定 KV：清预览只碰 D1，估算里 KV 操作全为 0。
  * PR 运行走本地模拟器（tests/space/e2e/helpers/preview-emulator.cjs），真实预览只在 main 的 push / 手动运行上跑。
@@ -10,7 +10,7 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import * as budget from '../../../space/scripts/kv-budget.mjs';
+import * as budget from '../../../space/scripts/check/kv-budget.mjs';
 import { REALM_LOCK } from '../../../workers/space-core/src/core/realms.js';
 
 const { PER_RUN_ESTIMATE, RESET_D1_TABLES, d1DatabaseId, previewD1Id } = budget;
@@ -20,7 +20,7 @@ const yaml = require('js-yaml');
 
 test('kv-budget.mjs 只管 D1：不再导出 KV 清理（selectResetKeys / RESET_EXACT / RESET_PREFIXES），源码不调 KV REST', () => {
   for (const n of ['selectResetKeys', 'RESET_EXACT', 'RESET_PREFIXES']) assert.equal(budget[n], undefined, n);
-  const src = readFileSync(path.join(REPO, 'space/scripts/kv-budget.mjs'), 'utf8').split('\n').filter((l) => !/^\s*(\*|\/\/|\/\*)/.test(l)).join('\n');
+  const src = readFileSync(path.join(REPO, 'space/scripts/check/kv-budget.mjs'), 'utf8').split('\n').filter((l) => !/^\s*(\*|\/\/|\/\*)/.test(l)).join('\n');
   assert.doesNotMatch(src, /storage\/kv|kv\/namespaces/, '不调 KV REST');
   assert.match(src, /\/d1\/database\//);
 });
@@ -80,7 +80,7 @@ test('deploy.yml：没有 KV 预算闸、不清 KV；清预览 D1 用 kv-budget.
   for (const later of ['Deploy to preview', PREVIEW_RUN]) {
     assert.ok(idx(later) > reset, later + ' 必须在清预览 D1 之后');
   }
-  assert.match(job.steps[reset].run, /^node space\/scripts\/kv-budget\.mjs reset-preview\s*$/);
+  assert.match(job.steps[reset].run, /^node space\/scripts\/check\/kv-budget\.mjs reset-preview\s*$/);
 });
 
 test('deploy.yml：只改文档 / 样式才跳过；不再复用 PR 运行的结果（PR 测的是模拟器，不能顶替 main 上的真实预览）', () => {

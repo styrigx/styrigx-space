@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkTermImports } from '../../../../space/scripts/gen-shell.mjs';
+import { checkTermImports } from '../../../../space/scripts/gen/gen-shell.mjs';
 import * as S from '../../../../space/web/assets/shell/js/term/core/strings.js';
 import * as P from '../../../../space/web/assets/shell/js/term/core/parse.js';
 import * as KH from '../../../../space/web/assets/shell/js/term/view/keyhint.js';

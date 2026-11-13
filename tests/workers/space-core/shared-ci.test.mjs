@@ -97,6 +97,6 @@ test('visual 分 2 片：matrix.shard=[1,2]、fail-fast 关、带 CJK 字体、�
   for (const s of v.steps) assert.equal(s['continue-on-error'], undefined, s.name);
   assert.ok(wf.jobs.quality.needs.includes('visual'));
   /* 本地复现某一片：ci-local.sh 的 visual 组认 VISUAL_SHARD */
-  assert.match(read('space/scripts/ci-local.sh'), /VISUAL_SHARD[\s\S]*--shard=\$\{VISUAL_SHARD%\/2\}\/2/);
+  assert.match(read('space/scripts/deploy/ci-local.sh'), /VISUAL_SHARD[\s\S]*--shard=\$\{VISUAL_SHARD%\/2\}\/2/);
 });
 

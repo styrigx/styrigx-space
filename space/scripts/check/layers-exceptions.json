@@ -1,4 +1,11 @@
 {
   "_doc": "例外表（space/README.md §5、check-layers 规则 27）：规范实在处理不了的情况。每条 {rule: 23–26, file, ref?（只针对这一条引用）, reason（必填，说清楚原因）, since}；同一条也写进 space/README.md §5 的例外表。用不上的例外会报错。",
-  "exceptions": []
+  "exceptions": [
+    {
+      "rule": 26,
+      "file": "space/web/assets/jsconfig.json",
+      "reason": "横跨整个 assets/ 的 JS 路径配置：baseUrl \".\" 即 assets/ 本身，覆盖 Platform 的 shell/js/ 与 curio、daymark、blog 各产品的 js/；放进任一层（如 assets/shell/）都会断掉其它层的路径解析，只能留在 assets/ 根。",
+      "since": "2026-11-13 #450"
+    }
+  ]
 }

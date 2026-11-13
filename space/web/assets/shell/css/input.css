@@ -1,13 +1,13 @@
 /* ===== 级联分层（@layer）
    顺序：tw < reset < tokens < sgx-base < sgx-components < sgx-utilities < overrides < 不分层。
-   - Tailwind（tw-input.css）由 space/scripts/build-css.cjs 单独构建，整份产物包进 @layer tw { }，排在所有自定义层之前；
+   - Tailwind（tw-input.css）由 space/scripts/build/build-css.cjs 单独构建，整份产物包进 @layer tw { }，排在所有自定义层之前；
      Tailwind 4 产物自带的 theme / base / components / utilities 层因此成为 tw 的子层。
      （两步构建最初是为了 Tailwind 3 会把 @media 变体提升到层外；升到 4 以后是否还必须两步没有重新验证，构建暂不改。）
    - 自定义层用 sgx- 前缀，不和 Tailwind 的 base / components / utilities 同名；
    - overrides 承接原来靠 !important 硬压的规则（!important 只留在减弱动效里）；
    - 同一层内保持原文件相对顺序，层分配沿文件自上而下只升不降，避免优先级翻转。
    - 不分层的部分（有意为之，优先于所有层）：文件开头的 View Transitions；文件末尾 overrides（续）之后的一段——
-     共享外壳的 @shell 区块（space/scripts/gen-shell.mjs 原样抽给子站，子站里同样不分层），以及必须压过外壳规则的主站规则
+     共享外壳的 @shell 区块（space/scripts/gen/gen-shell.mjs 原样抽给子站，子站里同样不分层），以及必须压过外壳规则的主站规则
      （主站 layout 层、顶栏三栏、快捷面板、头像裁剪、输入方式）。往这一段加规则前先确认确实要压过所有层。 ===== */
 @layer tw, reset, tokens, sgx-base, sgx-components, sgx-utilities, overrides;
 
@@ -150,9 +150,9 @@
      以后所有组件只用 --sgx-* 角色，不再按组件写死颜色或单独 color-mix。
 
      来源（2026-10-23 PR-G 七色调色板）：22 套，每套 = 1 个背景色 + 6 个前景撞色（定稿 palette-v0.3；规格由 palette-scheme.js 的 THEMES →
-     themeSpec() 算出，node space/scripts/gen-palettes.mjs --roles 重建 JSON；全部对比度检查通过：正文 ≥4.5:1，控件 ≥3:1）。原来的单色 / 撞色两组合并，x* 撞色 id 已删除
+     themeSpec() 算出，node space/scripts/gen/gen-palettes.mjs --roles 重建 JSON；全部对比度检查通过：正文 ≥4.5:1，控件 ≥3:1）。原来的单色 / 撞色两组合并，x* 撞色 id 已删除
      （旧值 x<id> 迁到 <id>）。
-     - 预设：值在 space/web/data/shell/palette-roles.json，由 space/scripts/gen-palettes.mjs 生成进下面 @gen-palettes 两行标记之间，
+     - 预设：值在 space/web/data/shell/palette-roles.json，由 space/scripts/gen/gen-palettes.mjs 生成进下面 @gen-palettes 两行标记之间，
        不要手改（改 JSON 后重跑脚本；单测会核对两边一致）。<html data-palette="…"> 选预设（baseof 内联脚本读 localStorage
        sgx-palette；子站读 sgx-ui cookie 的 pal）；默认 terra（陶土）不写 data-palette，所以 terra 写在 :root 上。
      - 2026-11-12 调色板 v4：没有深浅模式，也没有自定义颜色。每套只有一个模式（底色 OKLCH L ≥ 0.6 = 浅套，其余深套），
@@ -201,7 +201,7 @@
     --sgx-tag-bg: var(--sgx-fg-4-tint);
     --sgx-tag-fg: var(--sgx-fg-4-ink);
   }
-  /* @gen-palettes:begin（space/scripts/gen-palettes.mjs 由 space/web/data/shell/palette-roles.json 生成，勿手改） */
+  /* @gen-palettes:begin（space/scripts/gen/gen-palettes.mjs 由 space/web/data/shell/palette-roles.json 生成，勿手改） */
   /* 樱桃 · Cherry（cherry，深套）：背景樱桃；前景 抹茶 / 冰川蓝 / 琥珀 / 极光青 / 兰紫 / 莓果 */
   :root[data-palette="cherry"] {
     --sgx-seed: #86ad3f;
@@ -4797,7 +4797,7 @@
    放在 @layer 外：要压过同样不分层的 .sgx-topbar { view-transition-name }。只主站（锁屏只在主站），不进共享外壳。 */
 body.sgx-entry #site-nav { visibility: hidden; }
 body.sgx-entry #site-nav .sgx-topbar { view-transition-name: none; }
-/* @shell:begin topbar-frame（共享外壳：space/scripts/gen-shell.mjs 原样抽到 space/web/shared/shell/shell.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
+/* @shell:begin topbar-frame（共享外壳：space/scripts/gen/gen-shell.mjs 原样抽到 space/web/shared/shell/shell.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
 /* 跨页 View Transitions（2.4.0 D；2026-11-09 Gray 批：搬进共享外壳，四站同站跳转都做，只淡入淡出）：
    同源跨文档跳转自动交叉淡化 180ms（渐进增强，不支持的浏览器忽略）；顶栏挂 view-transition-name 保持不动。
    系统「减弱动效」时连 @view-transition 都不声明（完全不做过渡）；本站「减弱动效」开关（.reduced-motion）只能把动画清零。 */
@@ -5067,7 +5067,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 /* @shell:end wide */
 /* 底部停靠栏高度（main 底部留白用；原地搜索层已在 P4-2 删除） */
 :root { --sgx-bottom-dock-h: 56px; }
-/* @shell:begin panel（共享外壳：space/scripts/gen-shell.mjs 原样抽到 space/web/shared/shell/shell.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
+/* @shell:begin panel（共享外壳：space/scripts/gen/gen-shell.mjs 原样抽到 space/web/shared/shell/shell.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
 /* 快捷面板 + AI 窗口（2026-11-04 P5-1，四个站同一套；标记在共享外壳 topbar.html，主站 topbar/quick-panel.js、子站共享外壳 topbar.js 开关）：
    非模态 <dialog>（show()，不进顶层），fixed 铺满「顶栏下沿以下」的区域：dialog 本身就是遮罩（is-open 时 --sgx-scrim），
    z-index 45 = 盖住正文，但在顶栏 #site-nav（50）下面——顶栏不被遮罩压暗、图标照常可点（再点关闭）。两个窗口互斥。

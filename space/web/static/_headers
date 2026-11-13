@@ -6,10 +6,10 @@
 # 没列出的路径（页面 HTML、files-index.json、RSS 等）用 Pages 默认的 max-age=0, must-revalidate；
 # 页面经网关回源后网关一律改成 private, no-store（防浏览器缓存绕过锁屏）。
 #
-# 安全头（/* 那一段）由 space/scripts/gen-csp.mjs 生成，值的唯一来源是
+# 安全头（/* 那一段）由 space/scripts/gen/gen-csp.mjs 生成，值的唯一来源是
 # workers/space-core/src/lib/security-headers.js；网关、账号 Worker、分享 Worker 发的是同一套。
 
-# @gen-security-headers start（space/scripts/gen-csp.mjs 按 workers/space-core/src/lib/security-headers.js 生成，别手改）
+# @gen-security-headers start（space/scripts/gen/gen-csp.mjs 按 workers/space-core/src/lib/security-headers.js 生成，别手改）
 /*
   Strict-Transport-Security: max-age=31536000
   X-Content-Type-Options: nosniff

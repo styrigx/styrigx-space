@@ -1,5 +1,5 @@
 /**
- * @fileoverview 保守的 CSS 压缩（space/scripts/build-css.cjs --minify 用，2026-10-24 PR3）。
+ * @fileoverview 保守的 CSS 压缩（space/scripts/build/build-css.cjs --minify 用，2026-10-24 PR3）。
  *
  * 只做两件事：删注释、把空白收成最少。不合并规则、不改写颜色 / 简写、不调顺序、不动引号里的字符串，
  * 所以压缩前后每条规则的选择器、每条声明的属性和值（按 token 看）完全一样——

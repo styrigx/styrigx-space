@@ -69,5 +69,5 @@ __sgxLayoutWatch(__applyLayout);
 @font-face{font-family:'Maple Mono';font-style:normal;font-weight:700;font-display:swap;src:url('{{ "blog/fonts/maple-mono-latin-700.woff2" | relURL }}') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
 </style>
 {{- $css := resources.Get "blog/css/main.css" -}}
-{{- if not $css }}{{ errorf "space/web/assets/blog/css/main.css 不存在：先跑 node space/scripts/build-css.cjs（顺带构建博客样式，Tailwind 4 CLI）" }}{{ end }}
+{{- if not $css }}{{ errorf "space/web/assets/blog/css/main.css 不存在：先跑 node space/scripts/build/build-css.cjs（顺带构建博客样式，Tailwind 4 CLI）" }}{{ end }}
 <link rel="stylesheet" href="{{ ($css | minify | fingerprint).RelPermalink }}">

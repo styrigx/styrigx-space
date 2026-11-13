@@ -25,7 +25,7 @@
  *           = error    D1 REST 鉴权失败（401 / 403）等不会自己好的错误 → 退出码 1，不等
  *
  * 用法（仓库根目录）：
- *   node space/scripts/health-gate.mjs --sites ai [--since <毫秒>] [--settle 15] [--timeout 300] [--interval 15]
+ *   node space/scripts/check/health-gate.mjs --sites ai [--since <毫秒>] [--settle 15] [--timeout 300] [--interval 15]
  *                                [--confirm 2] [--baseline-until <毫秒>[,<毫秒>...]]
  *   --since 不给 = 现在 + settle 秒（给刚部署的版本留传播时间）；--baseline-until 给多个取最小（最早开始部署的那个 job）。
  * 环境变量：CLOUDFLARE_API_TOKEN、CLOUDFLARE_ACCOUNT_ID（同 status 部署那一步）；CF_API_BASE（默认 https://api.cloudflare.com/client/v4，测试用）。
@@ -35,7 +35,7 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { d1DatabaseId } from './kv-budget.mjs';
-import { TARGETS } from '../../workers/status/src/targets.js';
+import { TARGETS } from '../../../workers/status/src/targets.js';
 
 const DEFAULT_API = 'https://api.cloudflare.com/client/v4';
 /** 部署前基线往回看多久（巡检每分钟一轮，10 分钟足够拿到最近一次） */
@@ -241,7 +241,7 @@ async function main() {
   const token = process.env.CLOUDFLARE_API_TOKEN;
   const account = process.env.CLOUDFLARE_ACCOUNT_ID;
   if (!token || !account) { process.stdout.write('::error::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set\n'); setOutput('verdict', 'error'); setOutput('failed', ''); return 1; }
-  const toml = readFileSync(fileURLToPath(new URL('../../workers/status/wrangler.toml', import.meta.url)), 'utf8');
+  const toml = readFileSync(fileURLToPath(new URL('../../../workers/status/wrangler.toml', import.meta.url)), 'utf8');
   const database = d1DatabaseId(toml, 'D1_UPTIME_MONITOR');
   if (!database) { process.stdout.write('::error::D1_UPTIME_MONITOR database_id not found in workers/status/wrangler.toml\n'); return 1; }
   const since = args.since != null ? args.since : Date.now() + args.settle * 1000;

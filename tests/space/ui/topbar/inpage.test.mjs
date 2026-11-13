@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
-import { SHELL_REGIONS } from '../../../../space/scripts/gen-shell.mjs';
+import { SHELL_REGIONS } from '../../../../space/scripts/gen/gen-shell.mjs';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
 const has = (p) => existsSync(new URL('../../../../' + p, import.meta.url));
@@ -18,7 +18,7 @@ test('共享外壳：inpage 段进 shell.css；段式标签 / 平铺入口退役
   assert.match(shell, /\.sgx-ph-title \{/);
   assert.doesNotMatch(shell, /\.sgx-segs|\.sgx-ents|\.sgx-ent-/, '段式标签 / 平铺入口样式删除');
   for (const f of ['sgx-segtabs.html', 'sgx-entries.html']) assert.ok(!has('space/web/layouts/partials/' + f), f + ' 已删除');
-  assert.doesNotMatch(rd('space/scripts/gen-shell.mjs'), /renderSegtabs|renderEntries|'segtabs\.html'|'entries\.html'/);
+  assert.doesNotMatch(rd('space/scripts/gen/gen-shell.mjs'), /renderSegtabs|renderEntries|'segtabs\.html'|'entries\.html'/);
 });
 
 test('对齐 PR-C2 共用件（设计稿 tb4.html pg=curio / citem / day）：下划线 tab、grep、命令链、封面卡（桌面 3 栏 150px / 手机 2 栏 90px）、排序、条目页两栏（桌面 1fr 1fr、图 420 / 手机 220）、虚线 spec 表', () => {

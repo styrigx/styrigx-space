@@ -30,7 +30,7 @@
 | `src/core/` | `config.js`（票 / 纪元 / cookie / challenge 用途 / rp）、`session.js`、`reauth.js`、`reset.js`、`password.js`、`password-limit.js`、`passkey.js`、`recovery-key.js`、`devices.js`、`audit.js` |
 | `src/lib/` | `ticket.js`（签 / 验票）、`db.js`（D1_ACCOUNT；表只由 migrations 建）、`webauthn.js`、`gateway.js`、`attempt-limit.js`、`crypto.js`、`cookies.js`、`http.js`、`avatar.js`、`profile.js`、`security-headers.js`、`csp-hashes.js` |
 
-不 import 网关或任何别的 Worker（`space/scripts/check-layers.mjs` 规则 14）；退役的旧名字一个都不许出现（规则 22，名单在 `space/scripts/retired-names.json`）。
+不 import 网关或任何别的 Worker（`space/scripts/check/check-layers.mjs` 规则 14）；退役的旧名字一个都不许出现（规则 22，名单在 `space/scripts/check/retired-names.json`）。
 
 ## v6 身份（P1，分步割接中）
 
@@ -71,7 +71,7 @@ ADR-0006。P1 只加新路径，旧会话 / 旧入口 / 旧命令全部不动；
 
 ## 路由
 
-没有公开路由（第一道保险）：`wrangler.toml` 没有任何 `[[routes]]` / `route`（`[env.preview]` 只写 `routes = []`），`workers_dev = false`、`preview_urls = false`。`space/scripts/check-worker-routes.mjs` 核对 0 条路由，`check-layers.mjs` 规则 17 禁止这个 toml 出现非空的 routes。
+没有公开路由（第一道保险）：`wrangler.toml` 没有任何 `[[routes]]` / `route`（`[env.preview]` 只写 `routes = []`），`workers_dev = false`、`preview_urls = false`。`space/scripts/check/check-worker-routes.mjs` 核对 0 条路由，`check-layers.mjs` 规则 17 禁止这个 toml 出现非空的 routes。
 
 浏览器请求只能先进网关：网关验进站会话、剥掉外来的 `x-styrigx-*` / `x-sgx-*` 头，再经 `ACCOUNT` 转进 `AccountService`。网关转发表 `workers/space-core/src/router.js` 的 `FORWARDING` 按前缀转 `/api/account`，子路径不用改网关。
 
@@ -107,7 +107,7 @@ Secrets Store（`src/secrets.js` 换成字符串，60 秒缓存）：
 
 D1 `styrigx-account`，迁移在 `migrations/`：`0001_wellbeing.sql`、`0002_settings_sync.sql`、`0003_account_auth.sql`、`0004_app_grant.sql`（历史，不动）、`0006_identity.sql`（v6 P1：8 张身份表，只建表）、`0005_account_tables.sql`（命名 v2：账号行搬进 `account_*`、去掉 realm 列；`user_handle`、通行密钥的 `credential_id` / 公钥逐字节照抄；账号密码换新 pepper 后不复制，要重设一次；旧表只删 `realm='account'` 的行——预览库里网关的锁屏行也在这些表里）。部署 job `deploy-account-worker` 先跑 `d1 migrations apply styrigx-account --remote`，再部署，再冒烟。
 
-- 部署顺序：搜索、聊天 → 监测 → **账号** ∥ 短链 → 网关 → Pages。回滚下限：`space/scripts/deploy-rollback-floor.json` 要求目标版本带 `D1_ACCOUNT`（不退回读旧表的版本）。
+- 部署顺序：搜索、聊天 → 监测 → **账号** ∥ 短链 → 网关 → Pages。回滚下限：`space/scripts/deploy/deploy-rollback-floor.json` 要求目标版本带 `D1_ACCOUNT`（不退回读旧表的版本）。
 - 预览：不部署单独的预览 Worker。`[env.preview]` 只登记测试资源（`styrigx-test-preview`，迁移记录表 `d1_migrations_account`）；预览里的账号代码由组合入口 `tests/space/e2e/helpers/preview-worker.js` 在进程内跑。
 - 生产库 `styrigx-account` 里 8 张空的旧表（`epoch`、`password`、`passkey`、`user_handle`、`challenge`、`attempt_limit`、`device`、`audit`）等 P4 由 Gray 确认后 DROP；预览库的旧表等锁屏那一轮。
 - 测试：`tests/workers/account/`（按文件名对应：`api-<入口>.test.mjs`、`session.test.mjs`、`reset.test.mjs`、`recovery-key.test.mjs`、`rp.test.mjs`、`migration-0005.test.mjs`……）。

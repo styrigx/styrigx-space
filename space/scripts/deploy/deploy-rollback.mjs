@@ -11,12 +11,12 @@
  *      （部署在上传阶段就失败了 → 线上没变 → 什么都不做）；不是就退回去，再查一遍确认线上就是记下的版本。job 照样红。
  *
  * 用法（工作目录 = Worker 目录，wrangler 读那里的 wrangler.toml 拿 Worker 名字）：
- *   node space/scripts/deploy-rollback.mjs worker-snapshot                记下线上版本 → $GITHUB_OUTPUT version=<id|空>
- *   node space/scripts/deploy-rollback.mjs worker-verify [--previous <id>] 部署后：线上是一个版本吃 100% 流量，且不是部署前那个
- *   node space/scripts/deploy-rollback.mjs worker-rollback --to <id>      线上不是 <id> 就 wrangler rollback <id>，再核对
- *   node space/scripts/deploy-rollback.mjs pages-snapshot --project <名字>  → $GITHUB_OUTPUT deployment=<id|空>
- *   node space/scripts/deploy-rollback.mjs pages-rollback --project <名字> --to <id>
- * 回滚下限（space/scripts/deploy-rollback-floor.json，按 Worker 名）：worker-snapshot 记下的版本必须满足下限（带齐要求的绑定、
+ *   node space/scripts/deploy/deploy-rollback.mjs worker-snapshot                记下线上版本 → $GITHUB_OUTPUT version=<id|空>
+ *   node space/scripts/deploy/deploy-rollback.mjs worker-verify [--previous <id>] 部署后：线上是一个版本吃 100% 流量，且不是部署前那个
+ *   node space/scripts/deploy/deploy-rollback.mjs worker-rollback --to <id>      线上不是 <id> 就 wrangler rollback <id>，再核对
+ *   node space/scripts/deploy/deploy-rollback.mjs pages-snapshot --project <名字>  → $GITHUB_OUTPUT deployment=<id|空>
+ *   node space/scripts/deploy/deploy-rollback.mjs pages-rollback --project <名字> --to <id>
+ * 回滚下限（space/scripts/deploy/deploy-rollback-floor.json，按 Worker 名）：worker-snapshot 记下的版本必须满足下限（带齐要求的绑定、
  *   创建时间不早于 notBefore），否则记成空 = 这次失败不自动回滚；worker-rollback 动手前再查一遍。用来挡住「退回存储迁移之前的代码」。
  *   读版本详情用 `wrangler versions view <id> --json`（同一个 token，Workers Scripts 读）。
  * 环境变量：CLOUDFLARE_API_TOKEN、CLOUDFLARE_ACCOUNT_ID（同部署那一步的 token，不另加 secret）；

@@ -25,12 +25,12 @@ env:
   WRANGLER_VERSION: '4.152.0'
 
 # 自动回滚（main 部署）：Pages 和 9 个 Worker（合并 PR3 起含 curio-core / daymark-core）的 job 部署前记下线上版本（step id live），部署 / 冒烟 / 部署后核对失败
-# 就退回那个版本（space/scripts/deploy-rollback.mjs；Worker 用 wrangler rollback，Pages 用回滚 API），job 照样红。
+# 就退回那个版本（space/scripts/deploy/deploy-rollback.mjs；Worker 用 wrangler rollback，Pages 用回滚 API），job 照样红。
 # 只用各 job 部署本来就用的那把 token，不加 secret、不加权限。第一次部署（没有旧版本）/ 记录失败 → 不回滚，同以前。
 # 不回滚：D1 迁移（只进不退，迁移要写成兼容旧代码）、KV 数据（搜索索引）、Secrets Store、路由 / 自定义域名、已部署的其他 job。
-# 回滚下限：space/scripts/deploy-rollback-floor.json。线上版本低于下限（网关 / 账号 Worker 是 #226 之前的 KV 版本）就不记、不自动回滚，
+# 回滚下限：space/scripts/deploy/deploy-rollback-floor.json。线上版本低于下限（网关 / 账号 Worker 是 #226 之前的 KV 版本）就不记、不自动回滚，
 # 免得退回读旧 KV 的代码；以后存储改成旧代码读不懂的格式时在那里加一行。
-# 健康闸门第二阶段（2026-10-28，space/scripts/health-gate.mjs）：ai 没有公开地址（P4-2 起取代 search / chat），第一阶段只能核对版本换上了。
+# 健康闸门第二阶段（2026-10-28，space/scripts/check/health-gate.mjs）：ai 没有公开地址（P4-2 起取代 search / chat），第一阶段只能核对版本换上了。
 # status 部署并核对后，等 styrigx-status 在部署之后跑的巡检（D1 styrigx-status 的 status_checks 表，经服务绑定测 ai 的 /healthz），
 # 连续 2 次失败（部署前就在失败的不算）→ status job 红：status 自己按原样回滚，rollback-ai-worker
 # 用 ai 环境原有的 token 把 ai 退回部署前版本；网关 / Pages / 账号 / 分享都等 status，不会部署。
@@ -56,7 +56,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Build CSS
-        run: node space/scripts/build-css.cjs --minify
+        run: node space/scripts/build/build-css.cjs --minify
 
       - name: Unit tests (workers + ui)
         # tests/workers/** 与 tests/space/ui/**（按功能分子目录；引号里的 glob 由 node --test 自己展开，含子目录）的全部单元测试；新加的测试文件自动纳入，不用再改这里。
@@ -76,11 +76,11 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Assert no legacy secret / variable names
-        # 旧名字不许回到代码里：名单在 space/scripts/retired-names.json 的 legacy（SGX_ED25519_* → SGX_LOCK_*，SGX_STEPUP_KEY 已删，
+        # 旧名字不许回到代码里：名单在 space/scripts/check/retired-names.json 的 legacy（SGX_ED25519_* → SGX_LOCK_*，SGX_STEPUP_KEY 已删，
         # OWNER_KEY → SGX_ROOT_KEY；账号命名 v2：SGX_ACCOUNT_ROOT_KEY → SGX_ACCOUNT_RECOVERY_KEY，D1_ACCOUNT_AUTH → D1_ACCOUNT）。
         # 账号 Worker / 账号前端的完整退役名单由 check-layers 规则 22 查。不扫 tests/：改名守卫测试里会故意写旧名字；也不扫名单文件本身。
         run: |
-          pattern="$(node -e "process.stdout.write(require('./space/scripts/retired-names.json').legacy.join('|'))")"
+          pattern="$(node -e "process.stdout.write(require('./space/scripts/check/retired-names.json').legacy.join('|'))")"
           test -n "$pattern"
           if grep -rnE "$pattern" --include="*.js" --include="*.mjs" --include="*.cjs" --include="*.html" workers/ space/scripts/ space/web/assets/ space/web/layouts/; then
             echo "::error::legacy secret / variable name found (see above)"
@@ -99,7 +99,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Build CSS
-        run: node space/scripts/build-css.cjs --minify
+        run: node space/scripts/build/build-css.cjs --minify
 
       - name: Space core Worker bundle check (styrigx-space-core, dry-run)
         # 主站后端代码全在 workers/space-core/src/（进站 v3 L2 起含分享链接）；只打包不部署，import 断了 CI 就红
@@ -142,23 +142,23 @@ jobs:
 
       - name: Shared shell derived files in sync (palette-roles / input.css @shell / shell-nav)
         # 2026-11 合站：子站直接用主站的外壳源文件（没有副本、没有 sync-shell）；gen-shell 只生成派生文件，改了源头忘了重新生成 → 红
-        run: node space/scripts/gen-shell.mjs --check
+        run: node space/scripts/gen/gen-shell.mjs --check
 
       - name: Palettes in sync (input.css @gen-palettes ← palette 定义)
-        run: node space/scripts/gen-palettes.mjs --check
+        run: node space/scripts/gen/gen-palettes.mjs --check
 
       - name: UI cookie contract in sync (tests/fixtures/ui-cookie-contract.json)
-        run: node space/scripts/gen-ui-cookie-contract.mjs --check
+        run: node space/scripts/gen/gen-ui-cookie-contract.mjs --check
 
       - name: Layer boundary check (SGX 3.0 分层规范)
         # 依赖方向（docs/architecture/overview.md）：前端 lib ← auth ← shell ← apps ← entries；lib 不含鉴权接口；
         # Worker 之间：每个 Worker 只 import 自己目录下的文件，没有 workers/shared；网关不许出现账号鉴权标识；账号 Worker 不许有路由（规则 14–17）；Worker 骨架防回退（规则 18–21，见 workers/README.md）；
         # 相对 import 解析不到文件也算失败；前端禁止 sgx-space-session（cookie 名）/sgx-lock-shown；禁止用 storage 存解锁状态
-        run: node space/scripts/check-layers.mjs
+        run: node space/scripts/check/check-layers.mjs
 
       - name: Frontend guard (无原生弹窗 / 无废弃 token 变量)
         # assets/js/ 和 shared/shell/ 禁止 prompt/confirm/alert（裸调用、window./globalThis./self./top.、window['alert']），禁止独立 token 变量（已废弃的内存鉴权 token 机制）
-        run: node space/scripts/check-frontend.mjs
+        run: node space/scripts/check/check-frontend.mjs
 
       - name: Build site (生产构建，锁屏启用；主站 + blog / curio / daymark 同一次构建)
         # 这一份就是要上线的 Pages 产物（main 上传 artifact 给 build-and-deploy / deploy-ai-worker 复用，不再各自重建），
@@ -170,16 +170,16 @@ jobs:
           SGX_BUILD_SHA: ${{ github.sha }}
 
       - name: CSP hashes in sync (内联脚本 sha256 ← 生产构建；space/web/static/_headers 安全头 ← security-headers.js)
-        # 改了模板里的内联脚本就要重新生成：hugo --minify -s space/web && node space/scripts/gen-csp.mjs
-        run: node space/scripts/gen-csp.mjs --check
+        # 改了模板里的内联脚本就要重新生成：hugo --minify -s space/web && node space/scripts/gen/gen-csp.mjs
+        run: node space/scripts/gen/gen-csp.mjs --check
 
       - name: 前端技术名词检查（生产构建的 HTML 里不许出现后端变量名）
-        # 用户可见文案不得出现后端变量名（名单在 space/scripts/retired-names.json 的 html：OWNER_KEY / SESSION_SECRET / SGX_ROOT_KEY /
+        # 用户可见文案不得出现后端变量名（名单在 space/scripts/check/retired-names.json 的 html：OWNER_KEY / SESSION_SECRET / SGX_ROOT_KEY /
         # SGX_SPACE_RECOVERY_KEY / SGX_ACCOUNT_ROOT_KEY / SGX_ACCOUNT_RECOVERY_KEY / SGX_ACCOUNT_PASSWORD_PEPPER / SGX_SPACE_PASSWORD_PEPPER / TURNSTILE_SECRET）；
         # 后端变量名只许出现在 workers/ 与注释里，不许进 space/web/public/ HTML。
         # 2026-11 合站：只查主站页面（子站 /blog/ /curio/ /daymark/ 不在范围里，同合站前；博客白皮书正文会如实写这些名字）
         run: |
-          pattern="$(node -e "process.stdout.write(require('./space/scripts/retired-names.json').html.join('|'))")"
+          pattern="$(node -e "process.stdout.write(require('./space/scripts/check/retired-names.json').html.join('|'))")"
           test -n "$pattern"
           if grep -rlE "$pattern" space/web/public/ --include="*.html" | grep -vE '^space/web/public/(blog|curio|daymark)/'; then
             echo "FAIL: 技术变量名出现在 HTML 产物中"
@@ -208,7 +208,7 @@ jobs:
       - name: Build search index (site:space, from the production build)
         # PR 上也跑（不需密钥、几秒）：#217 只在 main 跑这步，输出目录不存在的问题合并后才暴露
         run: |
-          node space/scripts/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-space.json"
+          node space/scripts/build/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-space.json"
           test -s "$RUNNER_TEMP/search-index/search-space.json"
 
       - name: Subsite unit tests (blog / curio / daymark pages + curio-core / daymark-core)
@@ -287,7 +287,7 @@ jobs:
           retention-days: 1
 
       - name: Check worker routes (每个页面都过网关；账号 Worker 没有路由，账号路径在网关转发表里)
-        run: node space/scripts/check-worker-routes.mjs
+        run: node space/scripts/check/check-worker-routes.mjs
 
       - name: Subsite generated files in sync (curio seed SQL, blog code tokens)
         # curio：workers/curio-core/migrations/0002_seed.sql ← space/scripts/curio/data/seed.json；blog：code-tokens.css ← 色彩角色。
@@ -328,7 +328,7 @@ jobs:
           cjk-fonts: 'true'
 
       - name: Build CSS
-        run: node space/scripts/build-css.cjs --minify
+        run: node space/scripts/build/build-css.cjs --minify
 
       - name: Download site-atlas-production
         id: prod
@@ -465,7 +465,7 @@ jobs:
           cjk-fonts: 'true'
 
       - name: Build CSS
-        run: node space/scripts/build-css.cjs --minify
+        run: node space/scripts/build/build-css.cjs --minify
 
       - name: Rebuild for visual / Lighthouse (测试构建，锁屏禁用)
         # 视觉回归和 Lighthouse 用锁屏禁用的构建，避免锁屏干扰
@@ -520,7 +520,7 @@ jobs:
           cjk-fonts: 'false'
 
       - name: Build CSS
-        run: node space/scripts/build-css.cjs --minify
+        run: node space/scripts/build/build-css.cjs --minify
 
       - name: Rebuild for visual / Lighthouse (测试构建，锁屏禁用)
         # 视觉回归和 Lighthouse 用锁屏禁用的构建，避免锁屏干扰
@@ -700,7 +700,7 @@ jobs:
           exit $ok
 
       - name: Setup Node
-        # 提前到这里：下面的清预览 D1 用 node 跑 space/scripts/kv-budget.mjs（ESM）。
+        # 提前到这里：下面的清预览 D1 用 node 跑 space/scripts/check/kv-budget.mjs（ESM）。
         # 模拟器的 D1 要 node:sqlite（Node 22 起有）
         if: steps.gate.outputs.run == 'true'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -723,15 +723,15 @@ jobs:
 
       - name: Reset preview D1 (state that would change this run)
         # 每次运行换了两把根密钥、pepper 和 Ed25519 钥匙对。2026-10-27 起网关的认证状态全部在 D1（不再绑定 KV），
-        # 开跑前只清预览 D1（测试专用库 styrigx-test-preview）里会改变本次起始状态的表（space/scripts/kv-budget.mjs RESET_D1_TABLES）：
+        # 开跑前只清预览 D1（测试专用库 styrigx-test-preview）里会改变本次起始状态的表（space/scripts/check/kv-budget.mjs RESET_D1_TABLES）：
         # 账号的密码、通行密钥（「账号未设置」）和输错计数（attempt_limit / account_attempt_limit：会 429）。
-        # 审计不清：只是过期就不认的行。网关旧进站表（passkey / password 等）v6 P4 收尾起不再清（运行时 0 读写，逐条理由见 space/scripts/kv-budget.mjs）。
+        # 审计不清：只是过期就不认的行。网关旧进站表（passkey / password 等）v6 P4 收尾起不再清（运行时 0 读写，逐条理由见 space/scripts/check/kv-budget.mjs）。
         # 库 id 只认 space/web/wrangler.toml [env.preview] 的 D1_SPACE，且断言它不是正式网关的库。D1 REST 要这个 token 有 D1 编辑。
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         env:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
-        run: node space/scripts/kv-budget.mjs reset-preview
+        run: node space/scripts/check/kv-budget.mjs reset-preview
 
       - name: Setup Hugo (shared action; version + extended defined only in .github/actions/setup-hugo)
         if: steps.gate.outputs.run == 'true'
@@ -747,7 +747,7 @@ jobs:
 
       - name: Build CSS
         if: steps.gate.outputs.run == 'true'
-        run: node space/scripts/build-css.cjs --minify
+        run: node space/scripts/build/build-css.cjs --minify
 
       - name: Build site
         if: steps.gate.outputs.run == 'true'
@@ -999,14 +999,14 @@ jobs:
           if grep -q "X-SGX-Runtime" space/web/public/_worker.js; then echo "::error::gateway bundle in production Pages build"; exit 1; fi
 
       - name: Record live Pages production deployment (rollback target)
-        # 部署前记下生产当前的 deployment（项目的 canonical_deployment；space/scripts/deploy-rollback.mjs）。还没有生产部署 / 记录失败 → 空，
+        # 部署前记下生产当前的 deployment（项目的 canonical_deployment；space/scripts/deploy/deploy-rollback.mjs）。还没有生产部署 / 记录失败 → 空，
         # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（Cloudflare Pages 编辑，已有）
         id: live
         continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node space/scripts/deploy-rollback.mjs pages-snapshot --project styrigx-space
+        run: node space/scripts/deploy/deploy-rollback.mjs pages-snapshot --project styrigx-space
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -1139,7 +1139,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.deployment }}
-        run: node space/scripts/deploy-rollback.mjs pages-rollback --project styrigx-space --to "$PREVIOUS"
+        run: node space/scripts/deploy/deploy-rollback.mjs pages-rollback --project styrigx-space --to "$PREVIOUS"
 
   deploy-status-worker:
     # 站点监测 styrigx-status（workers/status）：先于网关部署（网关的服务绑定 STATUS 指向它，它不在就部署不了）。
@@ -1158,7 +1158,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_STATUS_DEPLOY
-    # 健康闸门的结论（space/scripts/health-gate.mjs）：verdict = pass / fail / binding / timeout / error；failed = 确认失败的站（逗号分隔）
+    # 健康闸门的结论（space/scripts/check/health-gate.mjs）：verdict = pass / fail / binding / timeout / error；failed = 确认失败的站（逗号分隔）
     outputs:
       health_verdict: ${{ steps.health.outputs.verdict }}
       health_failed: ${{ steps.health.outputs.failed }}
@@ -1181,7 +1181,7 @@ jobs:
           command: d1 migrations apply styrigx-status --remote
 
       - name: Record live Worker version (rollback target)
-        # 部署前记下线上 100% 流量的版本（space/scripts/deploy-rollback.mjs）。灰度中 / 记录失败 → 记成空，
+        # 部署前记下线上 100% 流量的版本（space/scripts/deploy/deploy-rollback.mjs）。灰度中 / 记录失败 → 记成空，
         # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（读部署状态只要 Workers Scripts，已有）
         id: live
         continue-on-error: true
@@ -1189,7 +1189,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy status Worker (styrigx-status)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -1208,10 +1208,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
       - name: Post-deploy health gate (status checks of ai after this deploy)
-        # 健康闸门第二阶段（space/scripts/health-gate.mjs）：等新部署的 status 每分钟巡检（经服务绑定测 ai 的 /healthz）写进 D1 status_checks，
+        # 健康闸门第二阶段（space/scripts/check/health-gate.mjs）：等新部署的 status 每分钟巡检（经服务绑定测 ai 的 /healthz）写进 D1 status_checks，
         # 只认部署之后的；连续 2 次失败 → 红。最多等 5 分钟（巡检不跑 = status 自己有问题，同样红）。
         # 红了：下面一步把 status 退回部署前版本；verdict = fail 时 rollback-ai-worker 退回 ai；
         # 网关 / Pages / 账号 / 分享都等这个 job，不会部署。部署前就在失败的站只打 warning。
@@ -1221,7 +1221,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           BASELINE_UNTIL: ${{ needs.deploy-ai-worker.outputs.started_at }}
-        run: node space/scripts/health-gate.mjs --sites ai --baseline-until "$BASELINE_UNTIL"
+        run: node space/scripts/check/health-gate.mjs --sites ai --baseline-until "$BASELINE_UNTIL"
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)
         # 前面任何一步失败且记到了部署前版本：线上已经不是那个版本就 wrangler rollback 回去并核对；线上没变（上传阶段就失败）什么都不做。
@@ -1232,7 +1232,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-ai-worker:
     # 站内对话助手 styrigx-ai（workers/ai，P4-1）：先于网关部署（网关的服务绑定 AI_SERVICE 指向它，它不在就部署不了）。
@@ -1283,7 +1283,7 @@ jobs:
           test -s "$RUNNER_TEMP/search-blog.json"
 
       - name: Record live Worker version (rollback target)
-        # 部署前记下线上 100% 流量的版本（space/scripts/deploy-rollback.mjs）。灰度中 / 记录失败 → 记成空，
+        # 部署前记下线上 100% 流量的版本（space/scripts/deploy/deploy-rollback.mjs）。灰度中 / 记录失败 → 记成空，
         # 只打 warning、不拦部署：空 = 这次失败不自动回滚
         id: live
         continue-on-error: true
@@ -1291,7 +1291,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AI_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Record deploy start
         # 毫秒时间戳（UTC）：status 的健康闸门（监测项 ai）把这之前的最近一次巡检当「部署前」
@@ -1338,7 +1338,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AI_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
       - name: Upload search index to KV (site:space)
         # P4-2：原在 deploy-search-worker，search-index 退役后并到这里（同一把 token、同一个 KV styrigx-space-core）
@@ -1370,7 +1370,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AI_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   rollback-ai-worker:
     # 健康闸门（deploy-status-worker 的 Post-deploy health gate）确认 ai 在部署后失败 → 退回 deploy-ai-worker 记下的部署前版本。
@@ -1397,7 +1397,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AI_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ needs.deploy-ai-worker.outputs.previous }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-proxy-rules-worker:
     # 规则集反代 + 代理订阅 styrigx-proxy-rules（workers/proxy-rules）：独立部署，不等也不挡网关和 Pages。
@@ -1433,7 +1433,7 @@ jobs:
           command: d1 migrations apply styrigx-proxy --remote
 
       - name: Record live Worker version (rollback target)
-        # 部署前记下线上 100% 流量的版本（space/scripts/deploy-rollback.mjs）。灰度中 / 记录失败 → 记成空，
+        # 部署前记下线上 100% 流量的版本（space/scripts/deploy/deploy-rollback.mjs）。灰度中 / 记录失败 → 记成空，
         # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（读部署状态只要 Workers Scripts，已有）
         id: live
         continue-on-error: true
@@ -1441,7 +1441,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy proxy rules Worker (styrigx-proxy-rules)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -1492,7 +1492,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-curio-core:
     # 奇趣接口 Worker styrigx-curio-core（workers/curio-core；合并 PR3 起由本仓库部署，styrigx-atlas 仓库不再部署）。
@@ -1529,14 +1529,14 @@ jobs:
           command: d1 migrations apply styrigx-curio-core --remote
 
       - name: Record live Worker version (rollback target)
-        # 部署前记下线上 100% 流量的版本（space/scripts/deploy-rollback.mjs）。记录失败 → 空，只打 warning、不拦部署：空 = 这次失败不自动回滚
+        # 部署前记下线上 100% 流量的版本（space/scripts/deploy/deploy-rollback.mjs）。记录失败 → 空，只打 warning、不拦部署：空 = 这次失败不自动回滚
         id: live
         continue-on-error: true
         working-directory: workers/curio-core
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy 奇趣 core Worker (styrigx-curio-core)
         # wrangler deploy 按 wrangler.toml 的 [[routes]] 整体覆盖线上路由：只有主域名路由（旧图志域名的路由在这一步被摘掉）
@@ -1554,7 +1554,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
       - name: Smoke test production (styrigx.com/curio/api/* lands on this Worker)
         # 只发不带 cookie 的只读请求。这时网关可能还是旧版本：接口路由比网关的通配更具体，新旧网关下回答相同。
@@ -1588,7 +1588,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-daymark-core:
     # 日刻接口 Worker styrigx-daymark-core（workers/daymark-core；合并 PR3 起由本仓库部署，styrigx-atlas 仓库不再部署）。
@@ -1625,14 +1625,14 @@ jobs:
           command: d1 migrations apply styrigx-daymark-core --remote
 
       - name: Record live Worker version (rollback target)
-        # 部署前记下线上 100% 流量的版本（space/scripts/deploy-rollback.mjs）。记录失败 → 空，只打 warning、不拦部署：空 = 这次失败不自动回滚
+        # 部署前记下线上 100% 流量的版本（space/scripts/deploy/deploy-rollback.mjs）。记录失败 → 空，只打 warning、不拦部署：空 = 这次失败不自动回滚
         id: live
         continue-on-error: true
         working-directory: workers/daymark-core
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy 日刻 core Worker (styrigx-daymark-core)
         # wrangler deploy 按 wrangler.toml 的 [[routes]] 整体覆盖线上路由：只有主域名路由（旧图志域名的路由在这一步被摘掉）
@@ -1650,7 +1650,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
       - name: Smoke test production (styrigx.com/daymark/api/* lands on this Worker)
         # 只发不带 cookie 的只读请求。这时网关可能还是旧版本：接口路由比网关的通配更具体，新旧网关下回答相同。
@@ -1683,7 +1683,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-space-core:
     # 站点核心 Worker styrigx-space-core（workers/space-core；进站 v3 L2 起取代 styrigx-auth-gateway，并入分享链接 styrigx-share）：main 上真部署。
@@ -1741,7 +1741,7 @@ jobs:
           exit $ok
 
       - name: Record live Worker version (rollback target)
-        # 部署前记下线上 100% 流量的版本（space/scripts/deploy-rollback.mjs）。灰度中 / 记录失败 → 记成空，
+        # 部署前记下线上 100% 流量的版本（space/scripts/deploy/deploy-rollback.mjs）。灰度中 / 记录失败 → 记成空，
         # 只打 warning、不拦部署：空 = 这次失败不自动回滚代码版本。
         id: live
         continue-on-error: true
@@ -1749,7 +1749,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy space core Worker (styrigx-space-core)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -1764,7 +1764,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node space/scripts/verify-core-routes.mjs
+        run: node space/scripts/check/verify-core-routes.mjs
 
       - name: Smoke test production /api/* and pages (must be served by the Worker)
         # passkey-e2e 只测预览，测不到生产这条路，所以部署后直接打线上。
@@ -1869,7 +1869,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-account-worker:
     # 账号 Worker styrigx-account（workers/account）：完整的账号系统——账号密码 / 通行密钥 / 恢复密钥 / 设备 / session / reauth / reset /
@@ -1912,7 +1912,7 @@ jobs:
           command: d1 migrations apply styrigx-account --remote
 
       - name: Record live Worker version (rollback target)
-        # 部署前记下线上 100% 流量的版本（space/scripts/deploy-rollback.mjs）。灰度中 / 记录失败 → 记成空，
+        # 部署前记下线上 100% 流量的版本（space/scripts/deploy/deploy-rollback.mjs）。灰度中 / 记录失败 → 记成空，
         # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（读部署状态只要 Workers Scripts，已有）
         id: live
         continue-on-error: true
@@ -1920,7 +1920,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy account Worker (styrigx-account)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -1938,7 +1938,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
       - name: Smoke test production (forged identity headers never reach the account APIs)
         # 只发不带 cookie 的只读请求。这时网关可能还是旧版本、账号的 4 条旧路由可能还在（见上），所以每条只断言「碰不到接口」：
@@ -1978,5 +1978,5 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 

@@ -1,4 +1,4 @@
-# 主站门内子页（单数据源）：子页标题（layouts/_default/sub.html、baseof 页名）、搜索索引（space/scripts/build-search-index.mjs）共用
+# 主站门内子页（单数据源）：子页标题（layouts/_default/sub.html、baseof 页名）、搜索索引（space/scripts/build/build-search-index.mjs）共用
 # （数字健康区域 lib/wb-area.js v6 P4 随数字健康删除）。
 # id 即地址（/<id>/，中文 /zh/<id>/）；名字 / 副标题在字符串表 data/shell/i18n/<语言>.yaml 的 spaceCats.<id>.title / sub。
 # 2026-11 对齐 PR-B（设计稿 tb4.html）：主页不再有分类入口（旧 sgx-entries 平铺行删除）——

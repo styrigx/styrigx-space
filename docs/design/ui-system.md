@@ -16,7 +16,7 @@
 2.1 **终端风格**。交互以命令行与「提示符 + 命令 + 输出」的形式呈现：全站终端、账号窗口、首页 hero 与 about 卡、AI 窗的消息回显都遵循同一套提示符规则（§7）。等宽字体用 `--sgx-font-mono`。
 
 2.2 **没有弹层**。验证、确认、选择都在命令行或行内完成：
-- MUST NOT 使用原生 `alert` / `confirm` / `prompt`（`space/scripts/check-frontend.mjs` 规则 1）。
+- MUST NOT 使用原生 `alert` / `confirm` / `prompt`（`space/scripts/check/check-frontend.mjs` 规则 1）。
 - 底部弹层 `openSheet(` 只许出现在白名单（`SHEET_ALLOW`，现只有 `ui/sheet.js`），新调用一律拦下（规则 3）；选项改行内展开单选。
 - 每个终端状态（终端各层、reset、账号窗口）MUST 有退出路径（`^C`、`exit`、`‹ 返回`）。
 

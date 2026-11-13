@@ -35,7 +35,7 @@
     {{ if not $ver.ui }}{{ errorf "data/shell/version.yaml 缺少 ui 字段" }}{{ end }}
     {{ if not $ver.sgx }}{{ errorf "data/shell/version.yaml 缺少 sgx 字段" }}{{ end }}
     {{ $twVer := "4.x" }}
-    {{/* data/shell/tailwind.json 由 space/scripts/build-css.cjs 从根目录 package-lock.json 生成（不进仓库） */}}
+    {{/* data/shell/tailwind.json 由 space/scripts/build/build-css.cjs 从根目录 package-lock.json 生成（不进仓库） */}}
     {{ with site.Data.shell.tailwind }}{{ with .version }}{{ $twVer = . }}{{ end }}{{ end }}
     {{ $commit := getenv "GITHUB_SHA" }}{{ $commitShort := "local" }}
     {{ if gt (len $commit) 7 }}{{ $commitShort = slicestr $commit 0 7 }}{{ else if ne $commit "" }}{{ $commitShort = $commit }}{{ end }}

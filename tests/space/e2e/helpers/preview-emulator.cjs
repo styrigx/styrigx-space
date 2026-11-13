@@ -6,7 +6,7 @@
  *    （.github/workflows/deploy.yml「Start local preview emulator」，固定 --port 8788、--account-pepper 每次现生成；
  *    main 的 push / 手动运行仍打真实预览站）；
  * 2. 统计一次运行到底花了多少 KV 操作（读 / 写 / 删 / 列），按「谁发的」（网关 = 预览站上的应用代码；
- *    rest = 测试进程和 CI 步骤经 Cloudflare REST 发的）和键前缀分开。space/scripts/kv-budget.mjs 里的
+ *    rest = 测试进程和 CI 步骤经 Cloudflare REST 发的）和键前缀分开。space/scripts/check/kv-budget.mjs 里的
  *    每次运行估算就按这里量出来的数定。
  *
  * 模拟的东西：
@@ -25,7 +25,7 @@
  *   /__kv/stats 的 d1 一栏按语句类型（select / insert / update / delete / other）记数。
  * - Cloudflare KV REST：/client/v4/accounts/<a>/storage/kv/namespaces/<id>/values/<key>（GET/PUT/DELETE）、/keys（列表，
  *   prefix / cursor / limit）、/bulk/delete（POST，按 Cloudflare 的计费口径每个键算一次删除）；D1 REST 只有
- *   /client/v4/accounts/<a>/d1/database/<id>/query（POST { sql, params }：space/scripts/kv-budget.mjs 清预览 D1、e2e helper 清限速用）。测试进程用
+ *   /client/v4/accounts/<a>/d1/database/<id>/query（POST { sql, params }：space/scripts/check/kv-budget.mjs 清预览 D1、e2e helper 清限速用）。测试进程用
  *   SGX_TEST_CF_API=http://127.0.0.1:<port>/client/v4 指过来。
  * - /__kv/stats（GET）：当前计数；/__kv/stats/reset（POST）清零计数（不清数据）；/__kv/dump（GET）：全部键和过期时间。
  *
@@ -261,7 +261,7 @@ function cfJson(result, extra) {
 }
 async function cfRest(req) {
   const u = new URL(req.url);
-  /* D1 REST（space/scripts/kv-budget.mjs reset-preview 清 RESET_D1_TABLES）：POST .../d1/database/<id>/query { sql, params? } */
+  /* D1 REST（space/scripts/check/kv-budget.mjs reset-preview 清 RESET_D1_TABLES）：POST .../d1/database/<id>/query { sql, params? } */
   if (/^\/client\/v4\/accounts\/[^/]+\/d1\/database\/[^/]+\/query$/.test(u.pathname) && req.method === 'POST') {
     const q = await req.json();
     try {

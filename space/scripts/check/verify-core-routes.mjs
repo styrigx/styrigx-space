@@ -5,7 +5,7 @@
  *   （进站 v3 L2 起 /s/*、/api/share 由整站路由接；v6 P4 分享短链整套删除，这两条旧路由仍不许回来）。
  * 只读，不改任何路由。进站 v3 L2 的一次性路由接管（plan / takeover / restore，原 route-takeover.mjs）在 L3 删旧 Worker 后去掉，见 git 历史（PR #337）。
  *
- * 用法：node space/scripts/verify-core-routes.mjs
+ * 用法：node space/scripts/check/verify-core-routes.mjs
  * 环境变量：CLOUDFLARE_API_TOKEN（同部署那一步：styrigx-space-core-deploy，有 styrigx.com 的 Workers Routes 编辑）；
  *   CLOUDFLARE_ACCOUNT_ID（区域查询带上 account.id，同 wrangler）；CF_ZONE_ID（可选，给了就不查区域）；
  *   CF_API_BASE（默认 https://api.cloudflare.com/client/v4，测试用）；ZONE_NAME（默认 styrigx.com）。

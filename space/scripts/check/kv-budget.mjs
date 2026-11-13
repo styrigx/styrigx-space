@@ -7,13 +7,13 @@
  * 文件名沿用（CI 和文档都按这个名字引用）。
  *
  * 用法（CI 的 passkey-e2e job；本地可配 CF_API_BASE 指向 tests/space/e2e/helpers/preview-emulator.cjs）：
- *   node space/scripts/kv-budget.mjs reset-preview   清预览 D1 的 RESET_D1_TABLES（库 id 从 space/web/wrangler.toml 读，见 previewD1Id）
- *   node space/scripts/kv-budget.mjs estimate        打印每次运行的估算
+ *   node space/scripts/check/kv-budget.mjs reset-preview   清预览 D1 的 RESET_D1_TABLES（库 id 从 space/web/wrangler.toml 读，见 previewD1Id）
+ *   node space/scripts/check/kv-budget.mjs estimate        打印每次运行的估算
  * 环境变量：CF_ACCOUNT_ID、CF_API_TOKEN（要 D1 编辑）；CF_API_BASE（默认 https://api.cloudflare.com/client/v4）。
  */
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
-import { REALM_LOCK } from '../../workers/space-core/src/core/realms.js';
+import { REALM_LOCK } from '../../../workers/space-core/src/core/realms.js';
 
 /**
  * 一次 passkey-e2e 运行的用量估算（上限）。KV：网关和测试都不再碰 KV，全为 0。
@@ -62,7 +62,7 @@ export function previewD1Id(repo) {
 
 async function resetPreviewD1() {
   const account = need('CF_ACCOUNT_ID');
-  const repo = fileURLToPath(new URL('../..', import.meta.url)).replace(/\/+$/, '');
+  const repo = fileURLToPath(new URL('../../..', import.meta.url)).replace(/\/+$/, '');
   let id;
   try {
     id = previewD1Id(repo);
@@ -124,7 +124,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   }
   else if (cmd === 'estimate') console.log(JSON.stringify({ perRun: PER_RUN_ESTIMATE }));
   else {
-    console.error('usage: node space/scripts/kv-budget.mjs reset-preview | estimate');
+    console.error('usage: node space/scripts/check/kv-budget.mjs reset-preview | estimate');
     process.exit(2);
   }
 }
