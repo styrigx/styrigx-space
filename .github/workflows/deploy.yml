@@ -141,7 +141,7 @@ jobs:
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-daymark-core-dist
 
       - name: Atlas Worker bundle check (styrigx-atlas, dry-run)
-        # Atlas 后端合并 PR1（2026-11-14）：奇趣 + 日刻合成一个 Worker；还不部署、不挂路由，只打包核对（D1 id 是占位，dry-run 不连 Cloudflare）
+        # Atlas 后端合并 PR1（2026-11-14）：奇趣 + 日刻合成一个 Worker；还不部署、不挂路由，只打包核对（dry-run 不连 Cloudflare）
         working-directory: workers/atlas
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-atlas-dist
 

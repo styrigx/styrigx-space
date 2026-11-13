@@ -5,7 +5,7 @@ Atlas：内容层的接口 Worker（Space = 平台底座，Atlas = 内容层）�
 ## 现在在哪一步
 
 **PR1：只有代码，不部署、不挂路由。** 线上仍由 `styrigx-curio-core`、`styrigx-daymark-core` 服务。后续（每个生产动作先经 Gray 点头）：
-建 D1 / R2 `styrigx-atlas` 并填 `wrangler.toml` 里的占位 id → 拷数据（逐表核行数、对象数）→ 部署不挂路由冒烟 → 切换（短暂只读、补拷增量、路由与 status / ai 的服务绑定改指 Atlas、CI 换 deploy-atlas）→ 观察 → 报清单下线旧 Worker / D1 / R2 和 `workers/curio-core`、`workers/daymark-core`。
+（已建 D1 / R2 `styrigx-atlas`，2026-11-14）→ 拷数据（逐表核行数、对象数）→ 部署不挂路由冒烟 → 切换（短暂只读、补拷增量、路由与 status / ai 的服务绑定改指 Atlas、CI 换 deploy-atlas）→ 观察 → 报清单下线旧 Worker / D1 / R2 和 `workers/curio-core`、`workers/daymark-core`。
 
 ## 入口
 
