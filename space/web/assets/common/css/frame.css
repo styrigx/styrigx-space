@@ -1088,6 +1088,10 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-term-man-body:focus { outline: none; }
 .sgx-term-man-body .sgx-term-h { font-weight: 600; color: var(--sgx-text-primary); }
 .sgx-term-man-in { padding-left: 4ch; }
+/* man 手册规范 v1（Gray 2026-11-14，man-pages(7)）：参数下划线（不写尖括号）；页眉左中右三段，窄屏折行；选项说明再缩进一级 */
+.sgx-term-man-body .sgx-term-u { text-decoration: underline; text-underline-offset: 2px; }
+.sgx-term-man-body .sgx-term-mh { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 2ch; color: var(--sgx-text-secondary); }
+.sgx-term-man-body .sgx-term-m2 { padding-left: 8ch; }
 .sgx-term-man-bar { flex: none; display: flex; align-items: center; gap: 12px; min-height: 36px; padding: 0 6px 0 14px; background: var(--sgx-text-primary); color: var(--sgx-surface); font-size: 12px; }
 .sgx-term-man-st { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sgx-term-man-q { flex: none; opacity: .75; }

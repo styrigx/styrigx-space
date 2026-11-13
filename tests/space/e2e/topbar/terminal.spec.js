@@ -86,7 +86,9 @@ test('man（S9 全屏阅读页，less 式）：访客的索引只列通用命令
   await expect(man).toBeVisible();
   await expect(home(page).locator('[data-term-body]')).toBeHidden();
   await expect(home(page).locator('[data-term-man-st]')).toContainText('MAN(1)');
-  await expect(body).toContainText('手册页 · man <命令> 查看一页');
+  /* man 手册规范 v1：参数下划线、不显示尖括号 */
+  await expect(body).toContainText('手册页 · man 命令 查看一页');
+  await expect(body.locator('.sgx-term-u').first()).toHaveText('命令');
   const lines = await body.locator('.sgx-term-ln').allTextContents();
   const names = lines.filter((l) => / — /.test(l)).map((l) => l.split(' — ')[0]);
   expect(names).toEqual(['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme', 'find']);
@@ -102,6 +104,8 @@ test('man（S9 全屏阅读页，less 式）：访客的索引只列通用命令
   await expect(home(page).locator('[data-term-man-st]')).toContainText('SUDO(1)');
   await expect(body).toContainText('输自己的凭据，用 root 权限执行一条命令');
   await expect(body).not.toContainText('sudo styrigx');
+  await expect(body.locator('.sgx-term-mh')).toHaveText(/SUDO\(1\)\s*General Commands Manual\s*SUDO\(1\)/);
+  await expect(body).toContainText('SEE ALSO');
   /* esc 只退阅读页，不关终端窗口 */
   await page.keyboard.press('Escape');
   await expect(man).toBeHidden();

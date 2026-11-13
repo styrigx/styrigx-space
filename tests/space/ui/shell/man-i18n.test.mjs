@@ -16,10 +16,10 @@ import { createShell } from '../../../../space/web/assets/common/js/frame/term/t
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const TR = Object.fromEntries(['en', 'zh'].map((l) => [l, /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/frame/i18n/' + l + '.yaml'), 'utf8')))]));
-const SECS = ['desc', 'auth', 'notes'];
+const SECS = ['desc', 'auth', 'notes', 'opt'];
 const CJK = /[\u4e00-\u9fff]/;
 /** @param {any} v @returns {string[]} */
-const lines = (v) => (Array.isArray(v) ? v : v == null ? [] : [v]);
+const lines = (v) => (Array.isArray(v) ? v.map((x) => (Array.isArray(x) ? x[1] : x)) : v == null ? [] : [v]);
 
 test('en.yaml manBody = pages.js 英文底（同样的页、同样的节、逐行相同）', () => {
   const withBody = Object.keys(PAGES).filter((n) => SECS.some((k) => /** @type {any} */ (PAGES)[n][k]));
@@ -53,7 +53,7 @@ function zhPage() {
   /** @type {any} */ (globalThis).document = { getElementById: (id) => (id === 'sgx-i18n-frame' ? el : null) };
 }
 
-test('中文页 man <命令>：阅读页里的正文（DESCRIPTION / AUTH / NOTES 以下）每一行都是中文，没有英文底', async () => {
+test('中文页 man <命令>：阅读页里的正文（DESCRIPTION 含「需要：」末行 / OPTIONS 说明 / NOTES）每一行都是中文，没有英文底', async () => {
   zhPage();
   const who = { get: () => /** @type {any} */ ('root'), on() {} };
   const sh = createShell({ act: /** @type {any} */ ({}), storage: null, who, str: TR.zh.term });
@@ -62,14 +62,15 @@ test('中文页 man <命令>：阅读页里的正文（DESCRIPTION / AUTH / NOTE
       const r = await sh.exec('man ' + n);
       assert.equal(r.pager, n.toUpperCase() + '(1)');
       const txt = r.out.map((o) => o.seg.map((s) => s[1]).join(''));
-      const name = txt[1];
+      const name = txt[txt.indexOf('NAME') + 1];
       assert.ok(CJK.test(name), n + ' NAME：' + name);
       let inBody = false;
-      for (const l of txt) {
-        if (/^(DESCRIPTION|AUTH|NOTES)$/.test(l)) { inBody = true; continue; }
-        if (/^[A-Z]+$/.test(l)) { inBody = false; continue; }
-        if (inBody && l.trim()) assert.ok(CJK.test(l), 'man ' + n + ' 正文没翻：' + l);
-      }
+      txt.forEach((l, i) => {
+        if (/^(DESCRIPTION|NOTES)$/.test(l)) { inBody = true; return; }
+        if (/^[A-Z ]+$/.test(l)) { inBody = false; return; }
+        if ((inBody || r.out[i].cls === 'm2') && l.trim()) assert.ok(CJK.test(l), 'man ' + n + ' 正文没翻：' + l);
+      });
+      if (/** @type {any} */ (PAGES)[n].auth) assert.ok(txt.some((l) => l.startsWith('    需要：')), 'man ' + n + ' 需要：');
     }
   } finally {
     delete /** @type {any} */ (globalThis).document;

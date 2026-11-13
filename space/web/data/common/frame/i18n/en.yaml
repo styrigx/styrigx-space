@@ -170,6 +170,7 @@ term:
   fetching: "fetching {x}…"
   manIndex: "manual pages · man <command> to read one"
   manNone: "No manual entry for {x}"
+  manReq: "Requires: "
   manPager: "q or esc to quit"
   notDir: "{c}: not a directory: {x}"
   usageFind: "usage: find <keyword>"
@@ -238,6 +239,8 @@ manBody:
   passkey:
     auth: "signed in"
   device:
+    opt:
+      - "sign out every other device."
     auth: "signed in"
   profile:
     desc:
@@ -255,7 +258,7 @@ manBody:
       - "on / off: an off source isn't fetched and 404s; its link or file and output are kept. on fetches once right away."
       - "update: fetch one airport now (airports only)."
       - "map: list source words. map <word>: drop every node whose name has it. map <word> <target>: put the target's flag (ISO 3166-1 code, two or three letters) on nodes whose name has it; the same word again changes the target. map rm <word> removes it; map ls <name> lists that airport's nodes that got no flag."
-      - "fp [value]: show or set the TLS fingerprint added to every airport node: chrome (default), firefox, safari, ios, android, edge, 360, qq, random, none."
+      - "fp [<value>]: show or set the TLS fingerprint added to every airport node: chrome (default), firefox, safari, ios, android, edge, 360, qq, random, none."
       - "key: paste an age1… X25519 public key; every source is re-encrypted right after."
       - "token reset: makes a new token (asks y/N when one exists); every old url stops working at once."
     auth: "root only; show, key and token reset need no reauth"
@@ -281,8 +284,10 @@ manBody:
       - "Each session’s identity path (root via styrigx) and when it started; you see only your own unless you are root."
   useradd:
     desc:
-      - "-e: the account stops working at 00:00 (Beijing time) on that date. -G: groups, comma separated."
       - "Prints a one-time password once (expires in 24 h); the user must change it at first sign-in."
+    opt:
+      - "the account stops working at 00:00 (Beijing time) on that date (YYYY-MM-DD)."
+      - "the groups to join, comma separated."
     auth: "root, or sudo useradd (sudoers)"
     notes:
       - "A user with an expiry can’t join wheel, sudoers or the write groups."
@@ -292,7 +297,10 @@ manBody:
       - "root and styrigx can’t be deleted."
   usermod:
     desc:
-      - "-aG adds the groups, -rG removes them; the user’s sessions end and it signs in again."
+      - "The user’s sessions end and it signs in again."
+    opt:
+      - "add the user to these groups."
+      - "remove the user from these groups."
     auth: "root, or sudo usermod (sudoers)"
     notes:
       - "Removing the last member of wheel or sudoers asks first."
