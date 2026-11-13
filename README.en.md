@@ -68,7 +68,7 @@ Shared by all four sites:
 
 - **AI floating card (Gray AI)** — opened from the bottom-right button; a floating card on phones. It first recalls from the site index (keywords + semantic vectors + read-only Curio queries), then a model streams the answer, rendered as Markdown; conversations stay on the device. The default model is Gemma 4 on Workers AI; a signed-in account can pick GPT-OSS 20B or Gemini ([ADR-0004](docs/decisions/ADR-0004-ai-models.md)).
 - **Lock screen (space entry V3)** — a terminal lock screen, `entry@space:~$`, command `sudo styrigx`, unlocked with the unlock password or a passkey; temporary keys and share links work too. The shield in the top bar manages space credentials, temporary keys, share links and lock-now.
-- **Account (V3)** — the avatar in the top bar opens the account terminal, signed in with the account password / account passkey. It handles authorization (writing to Curio and Daymark, settings sync, avatar and profile, …) and is a separate set of tickets from space entry: "the door belongs to the site, the account grants permissions" ([SGX-SEC-001](docs/security/account-v3.md)).
+- **Account (V3)** — the avatar in the top bar opens the account terminal, signed in with the account password / account passkey. It handles authorization (writing to Curio and Daymark, settings sync, avatar and profile, …) and is a separate set of tickets from space entry: "the door belongs to the site, the account grants permissions" ([ADR-0003](docs/decisions/ADR-0003-account-v3.md)).
 
 ## Tech stack
 
@@ -159,7 +159,7 @@ GitHub Actions ([`deploy.yml`](.github/workflows/deploy.yml)):
 - **main** — Workers deploy in dependency order (AI, status, account → site core → Curio / Daymark APIs; the rule-set proxy in parallel), Pages last; every step has post-deploy checks and a smoke test, and rolls back to the pre-deploy version on failure.
 - Every deploy job uses its own least-privilege deploy token, kept in a GitHub environment restricted to `main`; the repository holds no secrets.
 
-Details: [SGX-OPS-001 CI and deployment](docs/operations/deploy.md).
+Details: [SGX-OPS-001 CI and deployment](docs/guides/operations/deploy.md).
 
 ## Documentation
 
@@ -167,12 +167,12 @@ The specifications live in [`docs/`](docs/README.md) (written in Chinese); the i
 
 | Document | What it covers |
 |---|---|
-| [Glossary](docs/glossary.md) | Site, space-entry and account terms |
+| [Glossary](docs/guides/glossary.md) | Site, space-entry and account terms |
 | [System overview](docs/architecture/overview.md) | Request paths, Worker responsibilities, layering rules |
-| [Main site](docs/architecture/sites/space.md) · [Blog](docs/architecture/sites/blog.md) · [Curio and Daymark](docs/architecture/sites/curio-daymark.md) | Pages and code locations per site |
-| [Terminal-style UI system](docs/design/ui-system.md) · [Palette](docs/design/palette.md) | Interface rules |
-| [CI and deployment](docs/operations/deploy.md) | Check jobs, deploy order, rollback |
-| [PRs and commits](docs/contributing/pr-and-commits.md) · [Writing posts](docs/contributing/blog-writing.md) | Contribution conventions |
+| [Main site](docs/architecture/space.md) · [Blog](docs/architecture/blog.md) · [Curio and Daymark](docs/architecture/curio-daymark.md) | Pages and code locations per site |
+| [Terminal-style UI system](docs/architecture/ui-system.md) · [Palette](docs/architecture/palette.md) | Interface rules |
+| [CI and deployment](docs/guides/operations/deploy.md) | Check jobs, deploy order, rollback |
+| [PRs and commits](docs/guides/contributing/pr-and-commits.md) · [Writing posts](docs/guides/contributing/blog-writing.md) | Contribution conventions |
 | [ADR-0001](docs/decisions/ADR-0001-one-repo-one-site.md) · [ADR-0002](docs/decisions/ADR-0002-lock-screen.md) · [ADR-0003](docs/decisions/ADR-0003-account-v3.md) · [ADR-0004](docs/decisions/ADR-0004-ai-models.md) | Decision records: one site, lock screen, account V3, AI models |
 
 ## License
