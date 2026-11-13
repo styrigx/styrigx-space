@@ -501,7 +501,7 @@ export const ALLOWED_PLACES = Object.freeze([
   /^space\/web\/assets\/common\/js\/tsconfig\.json$/,
   /^space\/web\/assets\/(?:blog|curio|daymark)\/(?:css|js)\/.+/,
   /^space\/web\/layouts\/[^/]+$/,
-  /^space\/web\/layouts\/(?:_default|shell|blog|curio|daymark)\/.+/,
+  /^space\/web\/layouts\/(?:_default|common|blog|curio|daymark)\/.+/,
   /^space\/web\/layouts\/partials\/(?:common|blog|curio|daymark)\/.+/,
   /^space\/web\/data\/(?:common|blog|curio|daymark)\/.+/,
   /^space\/scripts\/(?:lib|build|check|gen|deploy|blog|curio|daymark)\/.+/,

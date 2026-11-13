@@ -60,7 +60,7 @@ const SRC = {
 };
 export const READER_SRC = SRC.reader;
 /** frame.css 里按这个顺序拼 input.css 的标记段 */
-export const SHELL_REGIONS = ['topbar-frame', 'panel', 'inpage', 'wide', 'terminal'];
+export const SHELL_REGIONS = ['topbar-frame', 'panel', 'inpage', 'wide', 'terminal', 'music'];
 /* 导航项以外外壳要用的图标（2026-11-04 P5-1；2026-11 顶栏 v3；v5 S6 顶栏 E）：顶栏（盾牌、外观调色盘、四格 NAVIGATE、>_ 终端）、AI 浮钮、NAVIGATE 的 lock、外观面板恢复默认、AI 发送 / 新对话 / 历史。
    都要是不含模板语法的完整内联 SVG（P4-2 删搜索层时 ai-search 随 nav.json 的 search 项一起删了） */
 export const EXTRA_ICONS = ['tb-palette', 'tb-shield', 'tb-term', 'tb-grid', 'tb-music', 'tb-chat', 'lock', 'tb-undo', 'tb-send', 'tb-newchat', 'tb-history'];

@@ -1,13 +1,15 @@
 {{ define "main" }}
-{{ $lang := .Lang }}{{ $tr := partialCached "common/tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}{{ $t := $tr.player }}
-{{/* 奇趣 › 音乐 › 播放器（/curio/music/player/，中文 /curio/zh/music/player/；音乐分层方案 v1.13 第二步 2b，功能见 §7.1 播放层）：
+{{ $lang := partial "common/page-lang.html" . }}{{ $tr := partialCached "common/tr.html" $lang $lang }}{{ $t := $tr.player }}
+{{/* 共用播放器页（/curio/music/player/，中文 /curio/zh/music/player/；音乐分层方案 v1.13 第二步 2b，功能见 §7.1 播放层）：
+   2026-11 第 7 步（规范 v1.12 §3.5、D2）从 layouts/curio/ 搬进 Platform：套主站 baseof（顶栏 / 页脚亮 curio 靠内容页 navSite: curio），
+   样式在共享外壳 @shell music（主站 main.css），文案在 data/common/i18n 的 player / js.curioPlayer；路由不变（内容文件仍在 content/curio/，type: common）。
    独立小播放器页，桌面 / DeX 由入口用 window.open 开成小窗，手机是新标签页（入口是 2c）；主标签页随便跳，歌不断。music-player.js 画。
    - 声音、签令牌、续签、切曲、防同时响、播放模式都在共用核 music-core.js（奇趣音乐页同一份）；本页不管上传 / 删除（留在奇趣音乐页）。
    - 正在播（封面小图 + 歌名 + 歌手 + 专辑）、歌词（当前一句，点一下展开全部）、进度、播放控制、随机、倍速 1 / 1.25 / 1.5 / 2、音量 + 静音、
      曲目列表、可收起的专辑列表、Media Session（锁屏 / 耳机键）。
    - 没进站（网关标记 data-sgx-lock-session="locked"）或签令牌 401（登录过期）：给一句提示 + 「登录」（发 sgx:sudo），不静默卡住。
    noindex（baseof），不进站点地图 / 全站搜索。 */}}
-<main id="cu-main" class="cu-wrap mp-wrap" data-cu-page="player">
+<div class="mp-wrap" data-cu-page="player">
   <h1 class="sr-only">{{ $t.title }}</h1>
   <section id="mp-app" class="mp-app hidden" aria-label="{{ $t.title }}">
     <div class="mp-now">
@@ -51,15 +53,11 @@
   </section>
   <p id="mp-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant"></p>
   <p class="it-loading text-center py-16 text-sm text-m-on-surface-variant">{{ $t.loading }}</p>
-</main>
+</div>
 <audio id="mp-audio" preload="metadata"></audio>
-
-{{ partial "curio/common.html" (dict "tr" $tr "lang" $lang) }}
-{{ end }}
-
-{{ define "pagejs" }}
-<script src="{{ (resources.Get "curio/js/curio.js" | minify | fingerprint).RelPermalink }}"></script>
+<script id="sgx-i18n-curioPlayer" type="application/json">{{ $tr.js.curioPlayer | jsonify | safeJS }}</script>
 {{/* 播放共用核（奇趣音乐页同一份），要在 music-player.js 之前 */}}
-<script src="{{ (resources.Get "curio/js/music-core.js" | minify | fingerprint).RelPermalink }}"></script>
-<script src="{{ (resources.Get "curio/js/music-player.js" | minify | fingerprint).RelPermalink }}"></script>
+<script src="{{ (resources.Get "common/js/music/music-core.js" | resources.Copy "js/music/music-core.js" | minify | fingerprint).RelPermalink }}"></script>
+<script src="{{ (resources.Get "common/js/music/music-player.js" | resources.Copy "js/music/music-player.js" | minify | fingerprint).RelPermalink }}"></script>
 {{ end }}
+

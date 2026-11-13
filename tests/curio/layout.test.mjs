@@ -173,15 +173,21 @@ test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js �
   assert.ok(!hasId(music, 'mu-denied'), 'v5 S3：没有「仅本人可见」卡');
   assert.equal((music.match(/class="mu-ic-lock"/g) || []).length, 2, '播放整张 / 播放键各带一个锁标（只看模式）');
   assert.match(music, /id="mu-app" class="hidden"/);
-  assert.ok(music.indexOf('js/curio.js') < music.indexOf('js/music-core.js'), '共用核在 curio.js 之后');
-  assert.ok(music.indexOf('js/music-core.js') < music.indexOf('js/curio-music.js'), '共用核（第二步 2a）在 curio-music.js 之前');
+  // 2026-11 第 7 步：共用核进 Platform（assets/common/js/music/，对外 /js/music/）
+  assert.match(music, /resources\.Get "common\/js\/music\/music-core\.js" \| resources\.Copy "js\/music\/music-core\.js"/);
+  assert.ok(music.indexOf('js/curio.js') < music.indexOf('js/music/music-core.js'), '共用核在 curio.js 之后');
+  assert.ok(music.indexOf('js/music/music-core.js') < music.indexOf('js/curio-music.js'), '共用核（第二步 2a）在 curio-music.js 之前');
 });
 
-test('弹出播放器页（音乐第二步 2b）：地址 /curio/music/player/、/curio/zh/music/player/；部件都在；脚本 curio.js → music-core.js → music-player.js；不管上传 / 删除', () => {
-  const player = page('player');
+test('弹出播放器页（音乐第二步 2b；2026-11 第 7 步进 Platform）：地址 /curio/music/player/、/curio/zh/music/player/；部件都在；脚本 music-core.js → music-player.js，不再借奇趣的 curio.js；不管上传 / 删除', () => {
+  const player = read('space/web/layouts/common/player.html');
+  assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/curio/player.html')), '奇趣下没有播放器模板了');
   assert.match(read('space/web/content/curio/music-player.md'), /^url: \/curio\/music\/player\/$/m);
   assert.match(read('space/web/content/curio/music-player.zh.md'), /^url: \/curio\/zh\/music\/player\/$/m);
-  for (const f of ['music-player.md', 'music-player.zh.md']) assert.match(read('space/web/content/curio/' + f), /^layout: player$/m);
+  for (const f of ['music-player.md', 'music-player.zh.md']) {
+    const c = read('space/web/content/curio/' + f);
+    assert.match(c, /^type: common$/m); assert.match(c, /^layout: player$/m); assert.match(c, /^navSite: curio$/m);
+  }
   for (const id of ['mp-app', 'mp-cover', 'mp-title', 'mp-artist', 'mp-album', 'mp-note', 'mp-signin', 'mp-lyrics', 'mp-seek', 'mp-time', 'mp-dur',
     'mp-shuffle', 'mp-prev', 'mp-toggle', 'mp-next', 'mp-speed', 'mp-mute', 'mp-volume', 'mp-tracks', 'mp-albums-btn', 'mp-albums', 'mp-audio']) {
     assert.ok(hasId(player, id), id);
@@ -189,8 +195,10 @@ test('弹出播放器页（音乐第二步 2b）：地址 /curio/music/player/�
   assert.match(player, /id="mp-app" class="mp-app hidden"/);
   assert.equal((player.match(/class="mu-ic-lock"/g) || []).length, 1, '播放键带锁标（没进站 / 登录过期）');
   for (const id of ['mu-upload', 'mu-up-wrap', 'mu-album-del']) assert.ok(!hasId(player, id), '播放器不管理：' + id);
-  const a = player.indexOf('js/curio.js'), b = player.indexOf('js/music-core.js'), c = player.indexOf('js/music-player.js');
-  assert.ok(a > 0 && a < b && b < c, '共用核在 music-player.js 之前');
+  assert.doesNotMatch(player, /curio\/js\/|partial "curio\//, 'Platform 页不引产品的脚本 / partial（规则 23）');
+  const b = player.indexOf('js/music/music-core.js'), c = player.indexOf('js/music/music-player.js');
+  assert.ok(b > 0 && b < c, '共用核在 music-player.js 之前');
+  assert.match(player, /<script id="sgx-i18n-curioPlayer"/);
 });
 
 test('不被收录、外观和语言跟主站（ui-inherit-run 在样式前）', () => {

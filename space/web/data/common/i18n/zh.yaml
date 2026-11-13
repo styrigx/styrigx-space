@@ -20,7 +20,44 @@ home:
 index:
   noLineForToday: 今天还没有句子
   tapToKeepOne: 点开日刻，记下一句
+# 共用播放器页（layouts/common/player.html；2026-11 第 7 步从 data/curio/i18n 搬来）
+player:
+  title: 播放器
+  nowPlaying: 正在播放
+  nothing: 选一张专辑开始播放
+  lyrics: 歌词
+  position: 进度
+  previous: 上一首
+  play: 播放
+  pause: 暂停
+  next: 下一首
+  shuffle: 随机播放
+  speed: 倍速
+  volume: 音量
+  mute: 静音
+  albums: 专辑
+  tracks: 曲目
+  signIn: 登录
+  loading: 加载中…
 js:
+  # 共用播放器（/curio/music/player/，music-player.js 读 #sgx-i18n-curioPlayer；2026-11 第 7 步从 data/curio/i18n 搬来，表名不改）
+  curioPlayer:
+    tracks: '{n} 首'
+    failed: 出了点问题，请再试一次。
+    loadFail: "error: 列表没能加载  # 刷新重试"
+    expired: 登录已过期，重新登录后才能继续听。
+    locked: 登录后可听。
+    noPermission: 当前用户没有听歌的权限。
+    empty: 还没有专辑。
+    play: 播放
+    pause: 暂停
+    mute: 静音
+    unmute: 取消静音
+    shuffleOn: 随机播放：开
+    shuffleOff: 随机播放：关
+    speed: 倍速 {s}×
+    showLyrics: 展开全部歌词
+    hideLyrics: 收起歌词
   core:
     pkCancelled: 已取消
     pkTimeout: 超时，请重试
