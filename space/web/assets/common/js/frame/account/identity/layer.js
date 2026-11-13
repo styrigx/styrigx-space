@@ -1,5 +1,5 @@
 /**
- * @fileoverview 全站终端里的 v6 身份层（P2b，定稿 v4 §六 / §七 / §八；命令手册 docs/specs/v6-identity-migration.md）。
+ * @fileoverview 全站终端里的 v6 身份层（P2b，定稿 v4 §六 / §七 / §八；命令手册 docs/tasks/v6-identity-migration.md）。
  *
  * 终端命令（term/cmds/ident、keys/sudo.js、base/exit.js、keys/lock.js、acct passwd）在有 v6 新会话或用 v6 写法时调这里：
  * su <用户> / su root、sudo <命令>、exit、lock、whoami、groups、who、useradd / userdel / usermod、passwd / passwd <名>；P3 救援入口 rescue（§九）。

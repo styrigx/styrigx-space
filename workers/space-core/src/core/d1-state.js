@@ -5,7 +5,7 @@
  *
  * v6 P4（定稿 v5.2 §十三）起进站签发删除：纪元、锁屏通行密钥、解锁密码、user handle、challenge、设备的读写都删了，
  * 运行时只剩 attempt_limit（AI 全站总闸）与 audit 有读写。旧进站 8 张表的建表语句也删了（定稿 v5.4 §十一，Gray 11-11 19:52、20:11），
- * 生产库里的表由 docs/ops/v6-p4-drop-space-legacy.sql 在部署绿后 drop。
+ * 生产库里的表由 docs/architecture/archive/ops/v6-p4-drop-space-legacy.sql 在部署绿后 drop。
  *
  * 读主库（安全读的硬性要求）：网关不开 D1 read replication，也不用 D1 session API。
  * （tests/workers/space-core/d1-state.test.mjs 扫网关源码核对：任何地方出现 session API 调用就失败。）

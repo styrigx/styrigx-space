@@ -30,7 +30,7 @@ export const PER_RUN_ESTIMATE = Object.freeze({ read: 0, write: 0, delete: 0, li
  * 不清的表，以及为什么不影响本次运行：
  * - audit：只追加的审计（7 天后不认），只有 /api/space-audit 读，passkey 组不测它。
  * - 网关旧进站 8 张表：v6 P4 起运行时 0 读写、建表语句已删（定稿 v5.4 §十一），不再清
- *   （生产由 docs/ops/v6-p4-drop-space-legacy.sql 在部署绿后 drop）。
+ *   （生产由 docs/architecture/archive/ops/v6-p4-drop-space-legacy.sql 在部署绿后 drop）。
  */
 export const RESET_D1_TABLES = Object.freeze(['attempt_limit', 'account_passkey', 'account_password', 'account_attempt_limit']);
 

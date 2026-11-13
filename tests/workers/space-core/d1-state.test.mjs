@@ -26,7 +26,7 @@ function statements(sql) {
   return sql.split('\n').map((l) => l.replace(/--.*$/, '')).join(' ').split(';').map((x) => x.replace(/\s+/g, ' ').replace(/\( /g, '(').replace(/ \)/g, ')').trim()).filter(Boolean);
 }
 
-/** 旧进站 8 张表（定稿 v5.4 §十一：建表语句删了，生产在部署绿后由 docs/ops/v6-p4-drop-space-legacy.sql drop） */
+/** 旧进站 8 张表（定稿 v5.4 §十一：建表语句删了，生产在部署绿后由 docs/architecture/archive/ops/v6-p4-drop-space-legacy.sql drop） */
 const LEGACY8 = ['epoch', 'passkey', 'password', 'user_handle', 'challenge', 'device', 'kv_migration', 'lock_reset_switch'];
 
 test('SCHEMA 只剩运行时读写的 attempt_limit 与 audit（含索引），每条与 migrations/0001_baseline.sql 里的同一条一致；旧进站 8 张表、tempkey、分享表都不在代码兜底里；全部幂等；两个迁移文件', async () => {
@@ -40,7 +40,7 @@ test('SCHEMA 只剩运行时读写的 attempt_limit 与 audit（含索引），�
   for (const s of SCHEMA) assert.doesNotMatch(s, /tempkey|share_link|share_fail/, '代码兜底不建 tempkey / 分享表');
   for (const t of LEGACY8) for (const s of SCHEMA) assert.doesNotMatch(s, new RegExp('EXISTS ' + t + ' '), 'v6 P4 收尾：代码兜底不再建 ' + t + '（Gray 11-11 19:52、20:11）');
   /* drop SQL 文件列着这 8 张 */
-  const drop = statements(readFileSync(new URL('../../../docs/ops/v6-p4-drop-space-legacy.sql', import.meta.url), 'utf8'));
+  const drop = statements(readFileSync(new URL('../../../docs/architecture/archive/ops/v6-p4-drop-space-legacy.sql', import.meta.url), 'utf8'));
   assert.deepEqual(drop, LEGACY8.map((t) => 'DROP TABLE IF EXISTS ' + t));
   /* 运行时两张表都有 realm 列 */
   const db = makeAuthD1();
