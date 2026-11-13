@@ -13,6 +13,7 @@
  *   - 防同时响：共用核的 BroadcastChannel「sgx-music」，奇趣页开播这边自动停，反过来一样。
  *   - 登录过期提示：签令牌 401（没进站 / 进站过期，listen 档拒）→ 一句提示 +「登录」（发 sgx:sudo，顶栏终端预填 su ；第 7 步进 Platform 前是借 curio.js 的 SgxCurioUI.sudo，同一个事件），
  *     403 → 没有权限；都不静默卡住。页面带网关标记 data-sgx-lock-session="locked" 时一打开就提示。
+ *   - 单窗口（2c）：窗口名 sgx-music-player，顶栏音乐图标（topbar/panel.js mountMusic）按这个名字找，已开就切过来不重开。
  * 地址可带 ?album=<编号> 先显示那张专辑（入口 2c 用得上），没有就第一张。
  */
 (function(){
@@ -55,6 +56,12 @@ var $ = function(s){ return doc.querySelector(s); };
 var lang = doc.documentElement.lang || 'en';
 var T = readDict(doc, 'curioPlayer'), tr = makeTr(T, lang);
 var baseTitle = doc.title;
+/* 2c 单窗口：本页的窗口名 = 顶栏入口找的那个（topbar/panel.js MUSIC_WIN）；被拦退路是本标签页直接跳过来的，离开时清掉名字，
+   免得这个标签页走到别的页后还被当成播放器 */
+var WIN = 'sgx-music-player';
+try { G.name = WIN; } catch (e) {}
+G.addEventListener('pageshow', function(){ try { G.name = WIN; } catch (e) {} });
+G.addEventListener('pagehide', function(){ try { if (!G.opener) G.name = ''; } catch (e) {} });
 var store = null;
 try { store = G.localStorage; } catch (e) { store = null; }
 
