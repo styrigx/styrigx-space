@@ -214,7 +214,7 @@ test('前台空闲计时（Page Visibility）：可见时累计、隐藏不计�
 });
 
 test('接线：头像 = whoami（访客 → su ；站长 / root → 账号页；普通用户只作装饰，定稿 v5.5 §七；root 叠 #、站长叠 $ 角标）；身份层进终端的 layers；登录标记首帧问 whoami', () => {
-  const tp = rd('space/web/assets/common/js/frame/topbar/topbar-panel.js');
+  const tp = rd('space/web/assets/common/js/frame/topbar/panel.js');
   assert.match(tp, /if \(!u\) return avGuest\(\) \? GUEST_LINE : '';\n\s*return '';/);
   assert.doesNotMatch(tp, /return u\.wheel \? 'su root' : 'profile'/);
   assert.doesNotMatch(tp, /'\/avatar\/u' \+ u\.uid/, 'P4-3：头像一份，归站长（定稿 v5.5 §七），不再按 uid 取');

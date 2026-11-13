@@ -1,5 +1,5 @@
 /**
- * 奇趣接上顶栏（2026-11-04 P5-1 全大椭圆，四站同一个；标记是共享外壳 partials/sgx-shell-topbar.html）。
+ * 奇趣接上顶栏（2026-11-04 P5-1 全大椭圆，四站同一个；标记是共享外壳 partials/common/frame/topbar.html）。
  * 开合 / 互斥 / 导航面板 / 快捷设置 / 磁贴都在共享外壳 topbar.js（四站同一套，P4-3 PR-4b）；这里把依赖传进去：
  * - 状态机 modal-sheet.js；外观写端 prefs-write.js（写 localStorage + sgx-ui cookie，同源后主站同步生效，定案第 5 条）；
  * - 语言行（跟随系统 / 中文 / English）：写偏好，实际语言变了就去语言行的 data-href（另一种语言的同一页）；布局行写 sgx-layout；
@@ -7,9 +7,9 @@
  * - AI 窗口内容 ai.js（v6 P4 起「分享本页」磁贴随分享短链删除）。
  * 取代原来的 topbar.js（导航抽屉）、share-host.js（右圆分享）。
  */
-import { mountTopbar } from '../../../common/js/frame/topbar/topbar-panel.js';
+import { mountTopbar } from '../../../common/js/frame/topbar/panel.js';
 import { modalSheet } from '../../../common/js/ui/modal-sheet.js';
-import { mountAiChat } from '../../../common/js/frame/ai/ai-panel.js';
+import { mountAiChat } from '../../../common/js/frame/ai/panel.js';
 import { mountAccountWindow, layerFromPath } from '../../../common/js/frame/account/window.js';
 import { mountAccountLayer } from '../../../common/js/frame/account/cmd/layer.js';
 import { mountIdentityLayer } from '../../../common/js/frame/account/identity/layer.js';

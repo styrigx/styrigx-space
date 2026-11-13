@@ -1,7 +1,7 @@
 /**
  * @fileoverview 顶栏弹出层的开合状态机（快捷面板 #sgx-qp、AI 窗口 #sgx-ai 共用；2026-11-04 P5-1 导航抽屉删除）。
  *
- * 共享外壳组件：gen-shell 原样复制成 space/web/shared/shell/modal-sheet.js，子站的 topbar.js / ai.js 由调用方把 modalSheet 传进去用。
+ * 共享外壳组件：gen-common 原样复制成 space/web/shared/shell/modal-sheet.js，子站的 topbar.js / ai.js 由调用方把 modalSheet 传进去用。
  * 所以本文件不 import 任何东西（减弱动效判断自己写）。
  *
  * dlg.dataset.state：closed → opening → open → closing → closed。

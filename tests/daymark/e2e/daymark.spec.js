@@ -447,7 +447,7 @@ test('主题跟主站 sgx-ui cookie：pal 换预设（深浅跟着调色板）�
   const ind = () => page.evaluate(() => getComputedStyle(document.querySelector('.sgx-tb-ai')).backgroundColor);
   await page.goto('/daymark/zh/');
   const base = await ind(); /* 没有 cookie：默认 terra */
-  const matchaSeed = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', '..', 'space/web/data/common/palettes.json'), 'utf8')).presets.find((p) => p.id === 'matcha').seed;
+  const matchaSeed = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', '..', 'space/web/data/common/palette-list.json'), 'utf8')).presets.find((p) => p.id === 'matcha').seed;
   await set({ v: 2, mode: 'dark', pal: 'matcha', accent: matchaSeed });
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-palette', 'matcha');

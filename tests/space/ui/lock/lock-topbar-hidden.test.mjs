@@ -35,7 +35,7 @@ test('input.css：锁屏界面开着时藏页面顶栏 + 去掉顶栏 view-trans
   }
 });
 
-test('input.css：规则不在共享外壳段里（锁屏只在主站，不进 shell.css）', () => {
+test('input.css：规则不在共享外壳段里（锁屏只在主站，不进 frame.css）', () => {
   const re = /\/\* @shell:begin ([\w-]+)[\s\S]*?\/\* @shell:end \1 \*\//g;
   let m;
   while ((m = re.exec(css))) {

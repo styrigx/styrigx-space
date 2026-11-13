@@ -1,5 +1,5 @@
 {{ define "main" }}
-{{ $lang := .Lang }}{{ $tr := partialCached "common/sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
+{{ $lang := .Lang }}{{ $tr := partialCached "common/tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
 {{/* 奇趣 › 发现（/curio/finds/，中文 /curio/zh/finds/）：内容同奇趣首页（partials/curio/finds-main.html） */}}
 {{ partial "curio/finds-main.html" (dict "page" . "tr" $tr "lang" $lang "home" false) }}
 {{ end }}

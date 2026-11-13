@@ -15,7 +15,7 @@
    另外三件首帧前的事也在这里（四站同一份、同一个时机：外观预读之后、样式表生效之前），见文件末尾：
    - 手动桌面 + 手机屏 → viewport 改成固定 980 宽（__sgxViewportSync）；
    - 首帧底色：color-scheme / theme-color / 最低优先级的 html 底色跟着本站深浅色走，不跟系统（__sgxFirstPaint）；
-   - 环境提示符：首帧写 <html data-sgx-account-session="out">（__sgxAccountPs；root 由 topbar-panel.js 问过 whoami 后改 in）。 */
+   - 环境提示符：首帧写 <html data-sgx-account-session="out">（__sgxAccountPs；root 由 topbar/panel.js 问过 whoami 后改 in）。 */
 function __sgxUaMobile(){
   try{
     var n=navigator,u=n.userAgentData;
@@ -122,8 +122,8 @@ function __sgxFirstPaint(){
 }
 /* 环境提示符首帧（进站 v3 L1，SPACE-V3「环境提示符规则」）：除锁屏 / 盾牌 / reset 终端 / 账号下拉外，全站提示符谁登录显示谁，和终端提示符一致
    （Gray 2026-11-11 22:46；nobody：nobody@space:~$；out：<名>@space:~$；in：root@space:~#）。v6 的登录标记 sgx-id 只说「有 v6 会话」，
-   不说是谁（日常态是 styrigx，定稿 v5.2 §二），所以首帧：没有标记 = nobody，有标记 = out（名字先是 styrigx）；是谁由 topbar/topbar-panel.js 问过 whoami 后改
-   （同 term/core/who.js：服务端说了算，前端不猜）。CSS（shell.css .sgx-envps-*、.sgx-ai-msg::before）只读这个属性；只是显示，不放行任何东西。
+   不说是谁（日常态是 styrigx，定稿 v5.2 §二），所以首帧：没有标记 = nobody，有标记 = out（名字先是 styrigx）；是谁由 topbar/panel.js 问过 whoami 后改
+   （同 term/core/who.js：服务端说了算，前端不猜）。CSS（frame.css .sgx-envps-*、.sgx-ai-msg::before）只读这个属性；只是显示，不放行任何东西。
    已经有值就不动。 */
 function __sgxAccountPs(){
   try{

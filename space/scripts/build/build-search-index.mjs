@@ -156,7 +156,7 @@ export function build(pub = PUB) {
     const text = joinText([rowSub.get(x.url) || '', ...(pg ? pg.heads : []), ...(pg ? pg.rows.flatMap((r) => [r.title, r.sub]) : [])]);
     if (text) x.text = text;
   }
-  /* 功能开关：名字 / 选项文字读字符串表 data/common/i18n/<语言>.yaml 的 features.<id>（语言包化 2026-11-07；缺键回退英文，同 partials/common/sgx-tr.html） */
+  /* 功能开关：名字 / 选项文字读字符串表 data/common/i18n/<语言>.yaml 的 features.<id>（语言包化 2026-11-07；缺键回退英文，同 partials/common/tr.html） */
   const feats = /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/features.yaml'), 'utf8'))).features || [];
   const i18nDir = path.join(REPO, 'space/web/data/common/i18n');
   const langs = readdirSync(i18nDir).filter((f) => /^[a-z]{2,3}\.yaml$/.test(f)).map((f) => f.slice(0, -5));

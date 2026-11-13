@@ -68,7 +68,7 @@ test('sudo passkey（v6）交给身份层，身份层先回 rootCreds（定稿 �
   assert.deepEqual(old.calls, []);
   assert.equal(text(sh('nobody').exec('sudo styrigx', old.v).out[0]), 'usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who', '旧写法：sudo 用法');
   for (const lang of ['en', 'zh']) {
-    const t = yaml.load(rd('space/web/data/common/sgx-shell-i18n/' + lang + '.yaml'));
+    const t = yaml.load(rd('space/web/data/common/frame/i18n/' + lang + '.yaml'));
     assert.ok(t.identity.rootCreds, lang + ' rootCreds 已上线');
   }
 });
@@ -76,8 +76,8 @@ test('sudo passkey（v6）交给身份层，身份层先回 rootCreds（定稿 �
 test('man：passkey 给 v6 普通用户与 root6 都列；AUTH 行 = 已上线 groups 的同类写法「已登录」（中英）', async () => {
   const names = async (w) => (await sh(w).exec('man')).out.slice(1).map((o) => o.seg[0][1]);
   for (const w of ['u:styrigx', 'u:root']) assert.ok((await names(w)).includes('passkey'), w);
-  const zh = yaml.load(rd('space/web/data/common/sgx-shell-i18n/zh.yaml'));
-  const en = yaml.load(rd('space/web/data/common/sgx-shell-i18n/en.yaml'));
+  const zh = yaml.load(rd('space/web/data/common/frame/i18n/zh.yaml'));
+  const en = yaml.load(rd('space/web/data/common/frame/i18n/en.yaml'));
   assert.equal(zh.manBody.passkey.auth, zh.manBody.groups.auth.split('；')[0]);
   assert.equal(en.manBody.passkey.auth, en.manBody.groups.auth.split(';')[0]);
   const pg = rd('space/web/assets/common/js/frame/term/man/pages.js');

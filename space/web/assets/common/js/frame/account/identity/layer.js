@@ -6,7 +6,7 @@
  * 前台空闲计时（Page Visibility）：root 层前台空闲 15 分钟 → POST idle 弹回普通用户；页面隐藏 / 锁屏时暂停计时。
  * 输出 / 输入模式 / 秘密输入走终端的输入行（term/view/layer-ctx.js）；后端只在 ./api.js。旧入口（sudo styrigx / sudo root / lock passwd …）不经这里。
  *
- * 只 import lib/、auth/、shell/（check-layers 规则 3）。文案在外壳字符串表 identity 节（sgx-shell-i18n），四个站同一份。
+ * 只 import lib/、auth/、shell/（check-layers 规则 3）。文案在外壳字符串表 identity 节（frame/i18n），四个站同一份。
  */
 import { esc } from '../../../core/util.js';
 import { flatStrings, shellSection } from '../../term/core/strings.js';

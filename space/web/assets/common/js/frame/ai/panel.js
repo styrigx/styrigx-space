@@ -1,7 +1,7 @@
 /**
  * @fileoverview AI 窗口的内容（2026-11-04 P5-1，第 4 件前端，方案 5.5）：站内对话助手，四个站同一份。
- * 共享外壳组件：gen-shell 原样复制成 space/web/shared/shell/ai.js；窗口的开合 / 互斥由 topbar.js（主站 topbar/topbar-panel.js）管，这里只管窗口里面。
- * 只许 import term/**（终端统一 T1，gen-shell 核对）：外壳字符串表读取、按键提示行英文底用 term/core/strings.js。
+ * 共享外壳组件：gen-common 原样复制成 space/web/shared/shell/ai.js；窗口的开合 / 互斥由 topbar.js（主站 topbar/panel.js）管，这里只管窗口里面。
+ * 只许 import term/**（终端统一 T1，gen-common 核对）：外壳字符串表读取、按键提示行英文底用 term/core/strings.js。
  *
  * - 问：POST /api/ai（同源，credentials: same-origin）{ q, lang, history } → text/event-stream：event delta…（回答分段）→ done（2026-11-06 起不再有 event hits，不显示来源卡片：链接只出现在模型写的正文里）；
  *   出错时 event error。响应头 X-Styrigx-AI-Scope: private | public 只用来在底部小字说明「包含私密内容 / 仅公开内容」。
@@ -48,7 +48,7 @@ export const PROFILE_KEY = 'sgx-profile';
 /** 邮箱格式（与主站 prefs/profile.js EMAIL_RE 同一条） */
 const EMAIL_RE = /^[^\s@<>()",;:\\]+@[^\s@<>()",;:\\]+\.[^\s@<>()",;:\\.]{2,}$/;
 
-/** 请人进站（= auth/sudo.js SUDO_EVENT；本文件只许 import term/**，抄一份）：顶栏终端预填 su （v6 割接；topbar-panel.js 接） @param {Document} doc */
+/** 请人进站（= auth/sudo.js SUDO_EVENT；本文件只许 import term/**，抄一份）：顶栏终端预填 su （v6 割接；topbar/panel.js 接） @param {Document} doc */
 function askSudo(doc) {
   try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {}
 }
@@ -795,7 +795,7 @@ export function mountAiChat(dlg, opts) {
     if (histBtn) histBtn.setAttribute('aria-expanded', String(v));
   }
   function setBusy(/** @type {boolean} */ v) {
-    /* 顶栏头像外圈的弧转快一档（等回答时；topbar-panel.js mountAvBusy 收 sgx-busy 事件，2026-11-09） */
+    /* 顶栏头像外圈的弧转快一档（等回答时；topbar/panel.js mountAvBusy 收 sgx-busy 事件，2026-11-09） */
     if (v !== busy) { try { doc.dispatchEvent(new CustomEvent('sgx-busy', { detail: v })); } catch (e) {} }
     busy = v;
     if (send) {

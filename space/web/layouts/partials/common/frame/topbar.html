@@ -1,5 +1,5 @@
 {{- /* 顶栏单一来源（2026-11-04 P5-1；2026-11 UI 重设计 PR-1 顶栏 v3，设计稿 tb4.html / tb-v3 / prog-v1 / nav-v2）：四个站同一个顶栏 + NAVIGATE 面板 + 外观面板 + AI 窗口。
-   主站（baseof.html）和三个子站（blog/topnav.html、curio/daymark baseof.html）都直接调这一份；space/scripts/gen/gen-shell.mjs 核对它只用参数：
+   主站（baseof.html）和三个子站（blog/topnav.html、curio/daymark baseof.html）都直接调这一份；space/scripts/gen/gen-common.mjs 核对它只用参数：
    不能调用任何别的 partial、不能读 site.Data，要用的东西全由调用方传进来（站点自己的页名 / 标签、图标、色板都是参数）。
    结构：<header id="site-nav"> 通栏 .sgx-topbar（底边一条 1px 线，内容宽 = --sgx-content-w，1080）=
      [字标 ❯ + SVG 字标 Styrigx + _（光标 1.05s 闪；2026-11 PR-2 起不再是等宽文字 styrigx :~$）] [.sgx-tb-pill：页名（v3 不显示，标记留着给子站脚本 / 锁屏抄）] [盾牌 · 外观 · 四格（NAVIGATE）· 分隔 · >_（终端）· 头像（账号窗口）]（v5 S6 顶栏 E）；
@@ -9,15 +9,15 @@
      #sgx-ai  AI 窗口：头部 Gray AI · 新对话 · 历史 · 头像（账号页），底部「仅公开内容 · 联系我」（邮箱 = 参数 email）。
    参数（dict）：
      lang        页面语言代码（en / zh …）
-     tr          共享外壳字符串表（partials/common/sgx-tr.html 返回值的 .shell；当前语言叠在英文上，缺键回退英文）——外壳不写任何语言的文案
+     tr          共享外壳字符串表（partials/common/tr.html 返回值的 .shell；当前语言叠在英文上，缺键回退英文）——外壳不写任何语言的文案
      langs       语言分段的选项：[{code name short}]（hugo.yaml languages：name = 该语言自己的名字，short = 分段上的短名 EN / 中文，不翻译）
      home        logo 链接：一律回主站首页（2026-11-12 起四站统一，英文 /、中文 /zh/；调用方用 sgx-lang-path 拼 path "/"）
      center      中间的 HTML（页名 .sgx-tb-title / 阅读进度，调用方渲染好；v3 顶栏不显示，见上）；pillClass 中间容器的额外 class
      headerClass / headerAttrs  <header> 的额外 class / 属性（博客：data-sgx-topbar-root data-mode）
-     nav         shell-nav.json（items：id icon origin path hint；名字在 tr.nav.<id>.title）；site 当前项的 nav id（NAVIGATE「开」态、计数 01/04）
+     nav         frame/nav-source.json（items：id icon origin path hint；名字在 tr.nav.<id>.title）；site 当前项的 nav id（NAVIGATE「开」态、计数 01/04）
      mainOrigin  主站项（origin 为 styrigx.com、不是子站的项）地址前缀：主站不传（同源相对 /）；子站传 https://styrigx.com
      icons       图标 SVG（名字 → SVG 串）：tb-palette tb-shield tb-term（终端）tb-grid（NAVIGATE 四格）tb-music（音乐）tb-chat lock tb-undo share tb-send tb-newchat tb-history
-     wordmark    字标 SVG（partials/common/shell-wordmark.html；子站经 nav.json 的 wordmark）：顶栏左边 ❯ + 字标 + 闪烁下划线光标（2026-11 PR-2 起取代等宽文字 styrigx :~$）
+     wordmark    字标 SVG（partials/common/frame/wordmark.html；子站经 nav.json 的 wordmark）：顶栏左边 ❯ + 字标 + 闪烁下划线光标（2026-11 PR-2 起取代等宽文字 styrigx :~$）
      security    盾牌链接（没 JS / 中键时的去处：主站首页 #sec，当前语言；普通点击打开终端 #sgx-term，按身份徽章预填：访客 su 、普通用户 exit、站长 su root、root exit，定稿 v5.5 §七）
      music       音乐图标链接（音乐方案第一步，2026-11-13）：奇趣音乐页 /curio/music/（当前语言）；第二步改成弹出播放器
      status      NAVIGATE 底部「systemctl status」链接与 STATUS 区跳转按钮：主站状态页 /status/（当前语言）
@@ -25,7 +25,7 @@
      name / nick 账号下拉头部的姓名 / 昵称默认值（data/common/profile.yaml；运行时 topbar.js 再用本机缓存 sgx-profile 覆盖）
      email       对外联系邮箱（AI 窗口底部「联系我」的 mailto；主站传 data/common/profile.yaml 的 email，子站传 nav.json 的 me.email；
                  运行时 ai.js 再用本机缓存 sgx-profile 里改过的邮箱覆盖）
-     langHref    另一种语言的同一页（选了另一种语言时去这里；主站不传时由 shell/topbar-panel.js 按路径算）
+     langHref    另一种语言的同一页（选了另一种语言时去这里；主站不传时由 topbar/panel.js 按路径算）
      pal         调色板色块：[{id style}]（style = --pt-* 变量串；名字在 tr.palette.<id>） */ -}}
 {{- $lang := .lang | default "en" -}}
 {{- $t := .tr -}}
@@ -38,7 +38,7 @@
     <div class="sgx-tb-acts">
       {{- /* 顶栏 v6（Gray 2026-11-13 定稿）：外观 · 四格（NAVIGATE）· 音乐 · 盾牌 | >_ 终端 · 头像（原 v5 S6 顶栏 E：盾牌 · 外观 · 四格 | >_ · 头像）。
          音乐：先只有图标样式（aria-disabled，点了没反应），功能等音乐方案的完整任务接上。
-         盾牌：仍是链接（没 JS / 中键去首页 #sec）；不开任何窗口，是吉祥物兼状态标志：普通点击由 topbar-panel.js 接——打开终端、按身份预填（v6 P4-3 起盾牌 = 身份徽章四档，定稿 v5.5 §七；旧的「退出进站会话 [y/N]」随旧会话删除）。
+         盾牌：仍是链接（没 JS / 中键去首页 #sec）；不开任何窗口，是吉祥物兼状态标志：普通点击由 topbar/panel.js 接——打开终端、按身份预填（v6 P4-3 起盾牌 = 身份徽章四档，定稿 v5.5 §七；旧的「退出进站会话 [y/N]」随旧会话删除）。
          >_：打开全站终端 #sgx-term（同 Ctrl / ⌘ K）。头像：仍是链接（没 JS 去 /account/）；已进站点了开账号窗口 #sgx-acct，没进站是死按钮（aria-disabled，纯吉祥物，Gray 17:23） */}}
       <button type="button" class="sgx-tb-btn sgx-tb-quick" aria-label="{{ $t.topbar.theme }}" title="{{ $t.topbar.theme }}" aria-haspopup="dialog" aria-controls="sgx-qp" aria-expanded="false">{{ index $i "tb-palette" | safeHTML }}</button>
       <button type="button" class="sgx-tb-btn sgx-tb-grid" aria-label="{{ $t.topbar.sites }}" title="{{ $t.topbar.sites }}" aria-haspopup="dialog" aria-controls="sgx-nav" aria-expanded="false">{{ index $i "tb-grid" | safeHTML }}</button>
@@ -59,7 +59,7 @@
       <ul class="sgx-nav-list">
         {{- range $k, $it := .nav.items }}
         {{- $sub := in (slice "blog" "curio" "daymark") .id }}
-        {{- /* 语言前缀同 sgx-lang-path.html / lib/lang-path.js（外壳只用参数、不调用别的模板，这里照同一规则展开；tests/space/ui/build/lang-default.test.mjs 对表）：英文无前缀，其他语言主站 /<语言>/…、子站 /<站>/<语言>/ */ -}}
+        {{- /* 语言前缀同 lang-path.html / lib/lang-path.js（外壳只用参数、不调用别的模板，这里照同一规则展开；tests/space/ui/build/lang-default.test.mjs 对表）：英文无前缀，其他语言主站 /<语言>/…、子站 /<站>/<语言>/ */ -}}
         {{- $p := .path }}{{ if ne $lang "en" }}{{ if $sub }}{{ $p = printf "%s%s/" .path $lang }}{{ else }}{{ $p = printf "/%s%s" $lang .path }}{{ end }}{{ end }}
         {{- if not $sub }}{{ if ne .origin "https://styrigx.com" }}{{ $p = printf "%s%s" .origin $p }}{{ else }}{{ $p = printf "%s%s" ($.mainOrigin | default "") $p }}{{ end }}{{ end }}
         <li><a class="sgx-nav-tile" href="{{ $p }}" data-nav="{{ .id }}"{{ if eq .id $.site }} aria-current="page"{{ end }}><em class="sgx-nav-no" aria-hidden="true">{{ printf "%02d" (add $k 1) }}</em><span class="sgx-nav-name">{{ (index $t.nav .id).title }}</span><span class="sgx-nav-hint" aria-hidden="true" translate="no">{{ .hint }}</span></a></li>
@@ -70,7 +70,7 @@
       <span class="sgx-nav-pfk" id="sgx-nav-lang-k">{{ $t.topbar.langKey }}</span>
       {{- /* 语言分段 EN | Auto | 中文（Gray 2026-11-09 13:44：Auto 在中间；配置里的每种语言，短名用它自己的写法，不翻译、translate="no"）：
            选中即保存（sgx-lang），明确选的语言和本页不同就去另一种语言的同一页；Auto = data-qp-lang="system"（跟随浏览器语言，同一个 key 的 'system' 值），
-           只在主站首页（/ ↔ /zh/）换过去，深链不动。初始 aria-checked 全 false，开面板时 topbar-panel.js paintNav 按偏好点亮 */}}
+           只在主站首页（/ ↔ /zh/）换过去，深链不动。初始 aria-checked 全 false，开面板时 topbar/panel.js paintNav 按偏好点亮 */}}
       <div class="sgx-nav-seg" role="radiogroup" aria-labelledby="sgx-nav-lang-k" data-qp-langs{{ with .langHref }} data-href="{{ . }}"{{ end }}>
         {{- range $i, $l := sort .langs "code" }}{{ if eq $i 1 }}<button type="button" role="radio" data-qp-lang="system" aria-checked="false" aria-label="{{ $t.topbar.langAuto }}" translate="no">{{ $t.topbar.auto }}</button>{{ end }}<button type="button" role="radio" data-qp-lang="{{ $l.code }}" lang="{{ $l.code }}" aria-checked="false" aria-label="{{ $l.name }}" translate="no">{{ $l.short | default $l.name }}</button>{{ end }}
       </div>
@@ -80,7 +80,7 @@
         {{- range slice (dict "v" "phone" "t" $t.topbar.phone) (dict "v" "auto" "t" $t.topbar.auto) (dict "v" "desktop" "t" $t.topbar.desktop) }}<button type="button" data-v="{{ .v }}" aria-pressed="false">{{ .t }}</button>{{ end }}
       </div>
     </div>
-    {{- /* STATUS（2026-11 PR-A 接真数据，设计稿 nav-v2「● 全部在线」+ 各服务延迟）：topbar-panel.js mountStatus 取 GET /api/status（主站监测，进门会话）——
+    {{- /* STATUS（2026-11 PR-A 接真数据，设计稿 nav-v2「● 全部在线」+ 各服务延迟）：topbar/panel.js mountStatus 取 GET /api/status（主站监测，进门会话）——
        space / blog / curio / daymark 同一个 Pages、同一条网关链路 = 主站那一项；gray-ai = AI 那一项；auth = 网关自己（这一问的往返时间）。
        拿不到（没进门 / 出错）：点是灰的、延迟空着，头部写 statusPending。数据也写进 tmux 页脚的 ● n/6。
        头部右边一个跳转按钮（2026-11-12）：去状态页（.status 参数，同页脚 systemctl status ›；英文 /status/、中文 /zh/status/）。 */}}
@@ -114,7 +114,7 @@
       <span class="sgx-ai-badge" aria-hidden="true" translate="no">G</span>
       <span class="sgx-ai-tt"><p class="sgx-ai-title" translate="no">Gray AI</p><small class="sgx-ai-sub">{{ $t.topbar.aiSub }}</small></span>
       {{- /* 模型（设计稿 ai-v1 的「Gemma 4 ▾」）：显示当前生效的模型；登了账号（canChoose）点开在头部下面展开单选，选中写 sgx-ai-model（同账号页 AI 模型一行）；
-         没进站（v5 S3）：同一个矩形只显示锁标 data-ai-model-lock（.is-locked，ai-panel.js setLocked） */}}
+         没进站（v5 S3）：同一个矩形只显示锁标 data-ai-model-lock（.is-locked，ai/panel.js setLocked） */}}
       <button type="button" class="sgx-ai-model" data-ai-model aria-expanded="false" aria-controls="sgx-ai-models" aria-label="{{ $t.topbar.model }}" hidden><span data-ai-model-lock aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span><span data-ai-model-name translate="no"></span><i aria-hidden="true">▾</i></button>
       <button type="button" class="sgx-ai-hbtn" data-ai-clear aria-label="{{ $t.topbar.newChat }}" title="{{ $t.topbar.newChat }}">{{ index $i "tb-newchat" | safeHTML }}</button>
       <button type="button" class="sgx-ai-hbtn" data-ai-history aria-expanded="false" aria-label="{{ $t.topbar.history }}" title="{{ $t.topbar.history }}">{{ index $i "tb-history" | safeHTML }}</button>
@@ -135,7 +135,7 @@
 {{- /* 账号卡片（头像点开；S9 起只展示，没有命令行）：已登录 = 个人资料 › · 设备 › · 账号安全 › · 应用授权 › · 退出登录；没登录账号 = 一行 sudo root。
    点一行 = 收起卡片、打开终端 #sgx-term、预填 profile / device / passkey / app / exit / sudo root；v5 S6 起没进站（访客 / 分享链接会话）头像是死按钮。
    内容由 shell/account/window.js 画（文案在 .shell.account，四站同一份）；这里只放面板骨架和没 JS 时的一行字。
-   旧地址 /account/* 由 static/_redirects 301 到本语言首页 #acct=<子页>，topbar-panel.js 在终端里预填对应命令。 */ -}}
+   旧地址 /account/* 由 static/_redirects 301 到本语言首页 #acct=<子页>，topbar/panel.js 在终端里预填对应命令。 */ -}}
 <dialog id="sgx-acct" class="sgx-qp sgx-pop sgx-acct" aria-label="{{ $t.topbar.account }}" data-acct-state="">
   <div class="sgx-qp-sheet" tabindex="-1" autofocus>
     <div class="sgx-nav-h sgx-pop-gh"><span translate="no"><b aria-hidden="true">$</b> ACCOUNT</span><span translate="no">login</span></div>

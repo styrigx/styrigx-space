@@ -14,9 +14,10 @@ import { initScrollFx } from '../../ui/scrollfx.js';
 import { initLock } from '../../auth/guard.js';
 import { on as featOn } from '../../features/features.js';
 import { normPalette } from '../../prefs/prefs.js';
-import { paintPalette } from '../../prefs/prefs-write.js';
+import { paintPalette, syncUiCookie } from '../../prefs/prefs-write.js';
 import { toast } from '../../ui/toast.js';
-import { syncUiCookie } from '../../prefs/ui-cookie.js';
+/* 字段表 / 版本 / 编解码和子站读端共用一份（prefs/ui-cookie-read.js，经典脚本，挂 window.SgxUI）：先于写端被调用前加载（原 prefs/ui-cookie.js 垫片里的这句，v1.6 删垫片时原样挪来） */
+import '../../prefs/ui-cookie-read.js';
 import { initCloudSync, bindSessionSync } from '../../prefs/cloud-sync.js';
 import { openSheet, closeSheet } from '../../ui/sheet.js';
 import { initFavicon } from '../../ui/favicon.js';

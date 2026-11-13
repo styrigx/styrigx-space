@@ -59,7 +59,7 @@ fi
 if want build; then
   begin build
   step build "build-css" css
-  for c in "gen/gen-shell.mjs --check" "gen/gen-palettes.mjs --check" "gen/gen-ui-cookie-contract.mjs --check" "check/check-layers.mjs" "check/check-frontend.mjs"; do
+  for c in "gen/gen-common.mjs --check" "gen/gen-palettes.mjs --check" "gen/gen-ui-cookie-contract.mjs --check" "check/check-layers.mjs" "check/check-frontend.mjs"; do
     step build "$c" bash -c "node space/scripts/$c >/dev/null"
   done
   step build "生产构建（主站 + 三个子站）" bash -c 'hugo --minify --cleanDestinationDir -s space/web >/dev/null'

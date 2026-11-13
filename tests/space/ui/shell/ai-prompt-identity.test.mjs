@@ -25,7 +25,7 @@ function contentOf(s, sel) {
   return m[1].replace(/^var\(--sgx-ps-user, "([^"]*)"\) "([^"]*)"$/, '<$1>$2').replace(/^"([^"]*)"$/, '$1');
 }
 
-for (const f of ['space/web/assets/common/css/input.css', 'space/web/assets/common/css/shell.css']) {
+for (const f of ['space/web/assets/common/css/input.css', 'space/web/assets/common/css/frame.css']) {
   test(`${f}：AI 窗口提问行谁登录显示谁（访客 nobody / <名> / root #），回答行始终 grayai@space:~$ --reply`, () => {
     const s = read(f);
     assert.equal(contentOf(s, '.sgx-ai-msg[data-role="user"]::before'), 'nobody@space:~$ --ask');
@@ -49,7 +49,7 @@ test('<html data-sgx-account-session>：首帧没有登录标记 nobody、有标
   const lm = read('space/web/assets/common/js/ui/layout-mode.js');
   assert.doesNotMatch(lm, /sgx-account-signed-in=1\(/, '旧标记的正则没了');
   assert.match(lm, /setAttribute\('data-sgx-account-session',\/\(\?:\^\|;\\s\*\)sgx-id=1\(\?:;\|\$\)\/\.test\(document\.cookie\|\|''\)\?'out':'nobody'\)/);
-  const tp = read('space/web/assets/common/js/frame/topbar/topbar-panel.js');
+  const tp = read('space/web/assets/common/js/frame/topbar/panel.js');
   assert.match(tp, /de\.setAttribute\('data-sgx-account-session', !nm \? 'nobody' : nm === 'root' \? 'in' : 'out'\);/);
   assert.match(tp, /de\.style\.setProperty\('--sgx-ps-user', '"' \+ nm \+ '"'\);/);
   assert.match(tp, /querySelectorAll\('\.sgx-envps-u'\)/);

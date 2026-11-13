@@ -6,7 +6,7 @@
  * 要输入、选择的都在终端里原地做完；输出 / 输入模式走终端的输入行（term/view/layer-ctx.js）。后端只在 ../api.js。
  * v6 P4（定稿 v5.2 §十三）起旧账号会话（sudo root 登录 / sudo root reauth / sudo root reset、GET /api/account 状态、登录标记 sgx-account-signed-in）删除。
  *
- * 只 import lib/、auth/、shell/（check-layers 规则 3）。文案在外壳字符串表 account.*（sgx-shell-i18n），四个站同一份。
+ * 只 import lib/、auth/、shell/（check-layers 规则 3）。文案在外壳字符串表 account.*（frame/i18n），四个站同一份。
  */
 import { esc } from '../../../core/util.js';
 import { toast } from '../../../ui/toast.js';
@@ -21,7 +21,7 @@ import { mountProfile } from './profile.js';
 import { mountAuthErr } from './auth-err.js';
 
 /**
- * @typedef {Object} TermLink 终端那一头（topbar-panel.js 给）
+ * @typedef {Object} TermLink 终端那一头（topbar/panel.js 给）
  * @property {(after?: () => void) => void} close 收起终端窗口
  * @property {() => boolean} shown 终端窗口开着
  */

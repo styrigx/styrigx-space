@@ -1,5 +1,5 @@
 {
-  "_generated": "styrigx-space space/scripts/gen/gen-shell.mjs ← space/web/data/common/palette-roles.json；勿手改",
+  "_generated": "styrigx-space space/scripts/gen/gen-common.mjs ← space/web/data/common/palette-roles.json；勿手改",
   "default": "terra",
   "rulesVersion": "palette-rules-2",
   "groups": [

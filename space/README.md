@@ -51,7 +51,7 @@ space/
 ├─ web/                         唯一的 Hugo 站
 │  ├─ assets/
 │  │  ├─ common/                Platform
-│  │  │  ├─ css/                入口 CSS 与外壳样式（shell.css、tokens.css、input.css、tw-input.css）
+│  │  │  ├─ css/                入口 CSS 与外壳样式（frame.css、tokens.css、input.css、tw-input.css）
 │  │  │  └─ js/                 库按功能分组，外壳在 frame/ 下（见 §1.1），含共用播放器 music-core.js、music-player.js
 │  │  ├─ blog/   css/  js/      博客
 │  │  ├─ curio/  css/  js/      奇趣（音乐浏览界面在这，播放器不在）
@@ -66,7 +66,7 @@ space/
 │  │  └─ index.html  404.html  alias.html  …   根模板（归 Platform）
 │  ├─ content/                  按产品分
 │  ├─ data/
-│  │  ├─ common/                Platform 数据（i18n、sgx-shell-i18n、调色板、功能开关、站点、导航、版本号……）
+│  │  ├─ common/                Platform 数据（i18n、frame/i18n、调色板、功能开关、站点、导航、版本号……）
 │  │  └─ blog/  curio/  daymark/
 │  ├─ i18n/  static/  archetypes/  hugo.yaml
 └─ scripts/
@@ -74,7 +74,7 @@ space/
    ├─ blog/  curio/  daymark/   各产品脚本
    ├─ build/                    构建类（build-css、build-search-index）
    ├─ check/                    检查类（check-frontend、check-layers 与它的 retired-names.json、check-worker-routes、kv-budget、health-gate、verify-core-routes）
-   ├─ gen/                      生成类（gen-csp、gen-palettes、gen-shell、gen-ui-cookie-contract）
+   ├─ gen/                      生成类（gen-csp、gen-palettes、gen-common、gen-ui-cookie-contract）
    └─ deploy/                   部署类（deploy-rollback 与它的 json、ci-local.sh）
 ```
 
@@ -86,19 +86,19 @@ space/
 
 | 组 | 落点 | 放什么 |
 |---|---|---|
-| `core/` | `js/core/` | 无依赖的小工具：util、b64、events、sgx、key-names；页面跳转的统一入口 diag-jumptrace |
+| `core/` | `js/core/` | 无依赖的小工具：util、b64、events、sgx、key-names；页面跳转的统一入口 navigate |
 | `i18n/` | `js/i18n/` | i18n、lang-boot、lang-path |
 | `prefs/` | `js/prefs/` | prefs、prefs-write、storage、cloud-sync、profile、ui-cookie、ui-cookie-read |
 | `ui/` | `js/ui/` | toast、dialog-behavior、layout-mode、palette-scheme、scheduler；外壳的 modal-sheet、sheet、vk、scrollfx、favicon |
 | `features/` | `js/features/` | features、feat-flags.d.ts |
 | `auth/` | `js/auth/` | 原 `js/auth/` 三个文件 + sudo + 进站守卫 guard（原 `shell/space/guard.js`） |
 | `music/` | `js/music/` | 共用播放器：music-core、music-player（第 7 步定） |
-| `topbar/` | `js/frame/topbar/` | 顶栏：topbar-panel、head-buttons、quick-panel |
+| `topbar/` | `js/frame/topbar/` | 顶栏：panel、head-buttons、quick-panel |
 | `nav/` | `js/frame/nav/` | nav、navhistory、layout |
 | `term/` | `js/frame/term/` | 终端：原 `shell/term/` 整个子目录 + terminal、suggest |
-| `ai/` | `js/frame/ai/` | ai-panel |
+| `ai/` | `js/frame/ai/` | panel |
 | `apps/` | `js/frame/apps/` | 首页、状态页（daymark-today 是首页卡片，跟首页走）；全站公共启动 core（只有页面入口用它）；页面入口在 `apps/entries/` |
-| `status/` | `js/frame/status/` | uptime、status-view |
+| `status/` | `js/frame/status/` | uptime、view |
 | `account/` | `js/frame/account/` | 账号卡片、账号命令层；identity 并进 `account/identity/` |
 
 **分层**（check-layers 规则 1–4、6，下层不许 import 上层；层名按组名，`frame/` 下按 `frame/` 下一级目录，`account/identity/` 算 `account`）：基础层 `core/ i18n/ prefs/ ui/ features/ status/` 只引基础层，且不许有鉴权接口；`auth/` 只引基础层和自己；功能组 `term/ account/ nav/ ai/ topbar/ music/` 可引基础层、`auth/` 和彼此，不许引 `apps/`；`apps/` 不许引 `apps/entries/`。**common 的库不许依赖外壳**（规则 28）：`js/` 下 `frame/` 以外的文件不许 import `frame/` 下的文件。`assets/common/js/` 下只允许上表这些落点（规则 26），另加根目录的 `tsconfig.json`。
@@ -165,7 +165,7 @@ space/
 | 2 | 拆 `lib/` 和 shell 平铺文件，按 §1.1 分组 | 已合（#446） |
 | 3 | `assets/css/` → `assets/common/css/` | 已合（#447） |
 | 4 | `layouts/partials/` 的 Platform 部分 → `partials/common/` | 已合（#448） |
-| 5 | `data/` 的 Platform 部分 → `data/common/`；`palettes.yaml` 改名 `data/common/palette-source.yaml`，避开和 `data/common/palettes.json` 撞键 | 已合（#449） |
+| 5 | `data/` 的 Platform 部分 → `data/common/`；`palettes.yaml` 改名 `data/common/palette-source.yaml`，避开和 `data/common/palette-list.json` 撞键 | 已合（#449） |
 | 6 | `scripts/` 根目录 → `build/`、`check/`、`gen/`、`deploy/`；`space/` 外面（`package.json`、`.github/workflows/`、workers 的 README / wrangler.toml 注释 / `csp-hashes.js` 文件头）只改路径字符串、不改逻辑，PR 里逐个列出 | 已合（#450） |
 | 6.5 | 目录改名（目录改名定稿 v1.6）：`shell/` → `common/`（assets、partials、data 三处）；common 分库与外壳 `frame/`，加规则 28；common 三处文件名审查 | 进行中（#451） |
 | 7 | 共用播放器进 Platform，路由 `/curio/music/player/` 不变：播放器文案和 `.mp-*` 样式一起进 Platform，页面外壳改用 Platform 的 partial，外观不变，截图逐像素对照；脚本网址从 `/curio/js/…` 变成 `/shell/js/…` | 未开始 |

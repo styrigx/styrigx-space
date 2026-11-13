@@ -2,7 +2,7 @@
  * 割接 2f 补测：v6 passkey ls 的行格式（Gray 11-11 16:18 / 16:2x：设备名一段先保留，行格式维持线上现状，待 Gray 定）——
  * `[n] <名字> · <密码管理器> · 创建 MM-DD · 上次使用 MM-DD`；provider 为空 → 不出那一段；没用过 → 「未使用」。
  * 字段来自服务端 passkey-list（workers/account/src/core/passkey.js passkeyView：name / provider / createdAt / lastUsedAt，经 identity-passkey.js v6PasskeyViews 带 n）；
- * 文案用账号层已有的键 account.keys.passkey.created / lastUsed / neverUsed / provider.*（sgx-shell-i18n zh / en），日期用 cmd/keys.js mmdd。
+ * 文案用账号层已有的键 account.keys.passkey.created / lastUsed / neverUsed / provider.*（frame/i18n zh / en），日期用 cmd/keys.js mmdd。
  * 运行：node --test tests/space/ui/shell/v6-passkey-ls-row.test.mjs
  */
 import { test } from 'node:test';
@@ -15,7 +15,7 @@ import { mountAuthErr } from '../../../../space/web/assets/common/js/frame/accou
 import { mountKeys, mmdd } from '../../../../space/web/assets/common/js/frame/account/cmd/keys.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const acct = (lang) => yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/sgx-shell-i18n/' + lang + '.yaml'), 'utf8')).account;
+const acct = (lang) => yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/frame/i18n/' + lang + '.yaml'), 'utf8')).account;
 const settle = () => new Promise((r) => setTimeout(r, 0));
 const strip = (s) => s.replace(/<[^>]+>/g, '');
 

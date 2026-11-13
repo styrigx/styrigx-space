@@ -17,7 +17,7 @@ const baseof = readFileSync(path.join(REPO, 'space/web/layouts/_default/baseof.h
 const start = baseof.indexOf('/* 用户偏好预读：在渲染前应用，避免闪烁 */');
 assert.ok(start > 0, '找到预读脚本');
 const end = baseof.indexOf('})();', start) + '})();'.length;
-/* 调色板 v4：PAL = id → [是否深套, 底色]（模板由 shell/palettes.json 生成） */
+/* 调色板 v4：PAL = id → [是否深套, 底色]（模板由 shell/palette-list.json 生成） */
 const PAL_TPL = /\{\{ \$palMeta \| jsonify \| safeJS \}\}/;
 assert.match(baseof.slice(start, end), PAL_TPL);
 const SRC = baseof.slice(start, end).replace(PAL_TPL, '{"dustyblue":[0,"#ebf1f5"],"forest":[1,"#001c0f"],"lake":[1,"#01172b"],"terra":[1,"#161412"]}');

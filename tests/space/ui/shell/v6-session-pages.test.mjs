@@ -60,11 +60,11 @@ test('v6 P4：终端 share 命令删了（定稿 §二 分享短链整套删除�
 
 test('403 forbidden 文案：AI 窗口有自己的一句，不再落到「会话过期」或「服务不可用」（v6 P4：分享磁贴不再生成短链、钥匙层删了）', async () => {
   assert.equal(existsSync(path.join(REPO, 'space/web/assets/common/js/shell/share-button.js')), false, 'v6 P4：分享磁贴拿掉（Gray 11-11 17:47）');
-  const AI = await import('../../../../space/web/assets/common/js/frame/ai/ai-panel.js');
+  const AI = await import('../../../../space/web/assets/common/js/frame/ai/panel.js');
   assert.equal(AI.errKey(403, { error: 'forbidden' }), 'forbidden');
   assert.equal(AI.errKey(401, {}), 'unauthorized');
   for (const lang of ['en', 'zh']) {
-    const t = yaml.load(rd('space/web/data/common/sgx-shell-i18n/' + lang + '.yaml'));
+    const t = yaml.load(rd('space/web/data/common/frame/i18n/' + lang + '.yaml'));
     assert.ok(t.ai.forbidden && t.term.needRoot6, lang);
     assert.equal(t.share, undefined, lang + ' 分享磁贴的文案整节删了');
     const st = yaml.load(rd('space/web/data/common/i18n/' + lang + '.yaml'));

@@ -140,9 +140,9 @@ jobs:
         working-directory: workers/daymark-core
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-daymark-core-dist
 
-      - name: Shared shell derived files in sync (palette-roles / input.css @shell / shell-nav)
-        # 2026-11 合站：子站直接用主站的外壳源文件（没有副本、没有 sync-shell）；gen-shell 只生成派生文件，改了源头忘了重新生成 → 红
-        run: node space/scripts/gen/gen-shell.mjs --check
+      - name: Shared shell derived files in sync (palette-roles / input.css @shell / frame/nav-source)
+        # 2026-11 合站：子站直接用主站的外壳源文件（没有副本、没有 sync-shell）；gen-common 只生成派生文件，改了源头忘了重新生成 → 红
+        run: node space/scripts/gen/gen-common.mjs --check
 
       - name: Palettes in sync (input.css @gen-palettes ← palette 定义)
         run: node space/scripts/gen/gen-palettes.mjs --check

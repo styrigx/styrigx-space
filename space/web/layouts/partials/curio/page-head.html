@@ -7,11 +7,11 @@
      cmds（命令链：{id, k 命令, d 说明, href 可选（有就是链接）, dl 可选（下载）}）、grep（默认 true；音乐页 false） */ -}}
 {{- $tr := .tr -}}{{- $lang := .lang -}}{{- $p := .page -}}{{- $cur := .id -}}
 {{- $cmd := cond (.home | default false) "ls curio/" (printf "ls curio/%s/" $cur) -}}
-{{ partial "common/sgx-ph.html" (dict "cmd" $cmd "title" $tr.site.name "desc" $tr.site.description "path" $p.File.Path) }}
+{{ partial "common/frame/page-head.html" (dict "cmd" $cmd "title" $tr.site.name "desc" $tr.site.description "path" $p.File.Path) }}
 <div class="sgx-ctab" id="cu-tabs">
   <nav class="sgx-ctab-tabs" aria-label="{{ $tr.list.tabs }}">
   {{- range (slice "finds" "devices" "games" "movies" "music") }}
-    <a class="sgx-ctab-a" href="{{ partial "common/sgx-lang-path.html" (dict "path" (printf "/curio/%s/" .) "lang" $lang) }}" data-ctab="{{ . }}" title="{{ (index $tr.entries .).title }}"{{ if eq . $cur }} aria-current="page"{{ end }} translate="no">{{ . }}/<i data-cu-count="{{ . }}"></i></a>
+    <a class="sgx-ctab-a" href="{{ partial "common/lang-path.html" (dict "path" (printf "/curio/%s/" .) "lang" $lang) }}" data-ctab="{{ . }}" title="{{ (index $tr.entries .).title }}"{{ if eq . $cur }} aria-current="page"{{ end }} translate="no">{{ . }}/<i data-cu-count="{{ . }}"></i></a>
   {{- end }}
   </nav>
   {{- if ne .grep false }}

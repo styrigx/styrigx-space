@@ -18,7 +18,7 @@ import { listedFor } from '../../../../space/web/assets/common/js/frame/term/cor
 import { pathOf } from '../../../../space/web/assets/common/js/frame/term/cmds/ui/find.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-const ZH = yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/sgx-shell-i18n/zh.yaml'), 'utf8')).term;
+const ZH = yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/frame/i18n/zh.yaml'), 'utf8')).term;
 
 function mem() {
   const m = new Map();
@@ -134,7 +134,7 @@ test('访客判断只看服务端（core/who.js，v6 P4 起只问 whoami）：�
 });
 
 test('文案：en / zh 都有 find / ask 提示的键', () => {
-  const en = yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/sgx-shell-i18n/en.yaml'), 'utf8')).term;
+  const en = yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/frame/i18n/en.yaml'), 'utf8')).term;
   for (const k of ['usageFind', 'findNone', 'findDown', 'findLimited', 'askLocked']) {
     assert.equal(en[k], TERM_EN[k], 'en.' + k);
     assert.ok(typeof ZH[k] === 'string' && ZH[k] && ZH[k] !== TERM_EN[k], 'zh.' + k);

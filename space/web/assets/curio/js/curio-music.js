@@ -126,7 +126,7 @@ function toast(m){ if (UI) UI.toast(m); }
 var viewOnly = doc.documentElement.getAttribute('data-sgx-lock-session') === 'locked';
 /** 写的权限（GET /api/music 回的 canWrite：账号 + curio.write） */
 var canWrite = false;
-/** 请人进站：顶栏终端预填 su （curio.js SgxCurioUI.sudo → sgx:sudo，topbar/topbar-panel.js 接） */
+/** 请人进站：顶栏终端预填 su （curio.js SgxCurioUI.sudo → sgx:sudo，topbar/panel.js 接） */
 function askSudo(){ if (UI && UI.sudo) UI.sudo(); }
 /** 本页接口：401 = 没进站（切到只看模式 + 请人进站，抛 sgxLocked，调用方不再报错）；其它错误带 code 抛出 */
 function req(method, url, body, type){

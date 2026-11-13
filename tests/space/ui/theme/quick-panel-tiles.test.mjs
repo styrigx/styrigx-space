@@ -5,7 +5,7 @@
  *   点它走 setPalette('lake')（与点色块同一条路，自定义主题色一起清掉）。
  * - 磁贴 / 行 / 恢复默认 = 中性玻璃（--sgx-qp-glass，2026-10-23 PR-G 修订；不再铺 --m-secondary-container）。
  * - 2026-10-24 PR4：顶部「快捷面板」标题和齿轮（全部设置）删除；dialog 用 aria-label 保留读屏名字。
- * - 2026-11-04 P5-1：快捷面板标记搬进顶栏单一来源 partials/common/shell-topbar.html（四站共用），分两页（导航 / 快捷设置）；
+ * - 2026-11-04 P5-1：快捷面板标记搬进顶栏单一来源 partials/common/frame/topbar.html（四站共用），分两页（导航 / 快捷设置）；
  *   磁贴按 tiles 参数输出，主站 = dark / system / lang / lock（+ 调色板、布局两行），没有分享；样式进 @shell panel 段，只用 --sgx-* 角色。
  * - 2026-11-07 P4-3 PR-4b（Gray 定稿）：快捷面板只有一页、四站同一套（没有 tiles 参数）：磁贴 深色 / 跟随系统 / 分享本页 / 立即锁定（两行 2×2），
  *   语言整行（行内展开单选），调色板、布局；导航搬到九宫格面板 #sgx-nav。
@@ -18,10 +18,10 @@ import { readFileSync } from 'node:fs';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
 const base = rd('space/web/layouts/_default/baseof.html');
-const tb = rd('space/web/layouts/partials/common/shell-topbar.html');
+const tb = rd('space/web/layouts/partials/common/frame/topbar.html');
 const qpHtml = tb.slice(tb.indexOf('<dialog id="sgx-qp"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-qp"')));
 const navHtml = tb.slice(tb.indexOf('<dialog id="sgx-nav"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-nav"')));
-const tbJs = rd('space/web/assets/common/js/frame/topbar/topbar-panel.js');
+const tbJs = rd('space/web/assets/common/js/frame/topbar/panel.js');
 import { existsSync } from 'node:fs';
 const qpJs = rd('space/web/assets/common/js/frame/topbar/quick-panel.js');
 const setJs = rd('space/web/assets/common/js/frame/apps/space.js');
@@ -56,11 +56,11 @@ test('七色调色板（PR-G）：外观面板 22 行色板 / 设置页 22 个 .
   assert.doesNotMatch(qpHtml, /swatch-clash|"group" "mono"|"group" "clash"/);
   /* 外观面板（2026-11 PR-A 照稿）：PALETTE 标题行右侧一行小字命令 reset，读屏念「恢复默认」 */
   assert.match(qpHtml, /<button type="button" class="sgx-th-reset" data-qp-reset aria-disabled="true" aria-label="\{\{ \$t\.topbar\.reset \}\}"/);
-  assert.match(rd('space/web/data/common/sgx-shell-i18n/zh.yaml'), /\n  reset: 恢复默认\n/);
+  assert.match(rd('space/web/data/common/frame/i18n/zh.yaml'), /\n  reset: 恢复默认\n/);
   /* 对齐 PR-C：风格页 /theme/ 退役——色板 / 恢复默认只在外观弹层，旷野页模块不再管调色板网格 */
   assert.ok(!existsSync(new URL('../../../../space/web/layouts/partials/setcat-theme.html', import.meta.url)), 'setcat-theme.html 已删');
   assert.doesNotMatch(setJs, /palette-reset|pal-tile|setPalette/);
-  /* 快捷面板的逻辑在 topbar-panel.js（四站共用，依赖由 quick-panel.js 传入） */
+  /* 快捷面板的逻辑在 topbar/panel.js（四站共用，依赖由 quick-panel.js 传入） */
   assert.match(tbJs, /P\.setPalette\(P\.DEFAULT_PALETTE\)/);
   assert.match(tbJs, /p === P\.DEFAULT_PALETTE \? 'true' : 'false'/);
   assert.match(qpJs, /DEFAULT_PALETTE,/);

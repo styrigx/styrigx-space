@@ -547,7 +547,7 @@ test('check-layers 23/24：Platform 不依赖产品、产品之间不互相引�
     [W + 'assets/curio/css/y.css']: '',
     [W + 'layouts/index.html']: '{{ partial "curio/x.html" . }}{{ $j := resources.Get "daymark/js/d.js" }}{{ site.Data.blog.i18n }}{{ partial "common/ok.html" . }}',
     [W + 'layouts/partials/common/ok.html']: '{{ index site.Data "curio" }}',
-    [W + 'layouts/partials/curio/x.html']: '{{ partial "blog/p.html" . }}{{ partial "common/ok.html" . }}{{ site.Data.common.nav }}{{ site.Data.curio.i18n }}',
+    [W + 'layouts/partials/curio/x.html']: '{{ partial "blog/p.html" . }}{{ partial "common/ok.html" . }}{{ site.Data.common.frame.nav }}{{ site.Data.curio.i18n }}',
   });
   try {
     const { errors } = layers.checkSpace(root, { files: [] });
@@ -588,7 +588,7 @@ test('check-layers 26：落点白名单 + 待迁移表（只许删不许加）',
   try {
     const files = [
       W + 'assets/common/js/core/moved.js', W + 'assets/curio/js/ok.js', W + 'layouts/index.html', W + 'layouts/shell/player.html',
-      W + 'layouts/partials/common/p.html', W + 'data/common/nav.json', 'space/scripts/build/build-css.cjs', 'space/README.md',
+      W + 'layouts/partials/common/p.html', W + 'data/common/frame/nav.json', 'space/scripts/build/build-css.cjs', 'space/README.md',
       W + 'assets/js/old.js',
       W + 'assets/js/new.js', W + 'assets/curio/x.js', W + 'layouts/partials/loose.html', W + 'data/loose.yaml', 'space/scripts/loose.mjs',
       W + 'static/anything.txt', W + 'content/blog/a.md',

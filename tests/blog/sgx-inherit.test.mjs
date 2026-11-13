@@ -19,7 +19,7 @@ const READER = readFileSync(new URL('../../space/web/assets/common/js/prefs/ui-c
 /* 模块那一半（entries/inherit.ts：数字健康、自定义色引擎）v6 P4 / 调色板 v4 先后删完，文件已删 */
 const HEAD = readFileSync(new URL('../../space/web/layouts/partials/blog/head.html', import.meta.url), 'utf8');
 const palettes = JSON.parse(
-  readFileSync(new URL('../../space/web/data/common/palettes.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../space/web/data/common/palette-list.json', import.meta.url), 'utf8'),
 );
 const fx = JSON.parse(readFileSync(new URL('../fixtures/ui-cookie-contract.json', import.meta.url), 'utf8'));
 const SEEDS = Object.fromEntries(palettes.presets.map((p) => [p.id, p.seed]));
@@ -174,8 +174,8 @@ test('内联读端 = 共享外壳 ui-cookie-read.js 原样，和本仓库色板�
   assert.ok(U, 'window.SgxUI');
   assert.deepEqual([...U.VERSIONS], [1, 2]);
   assert.equal(U.DEFAULT_PAL, palettes.default);
-  assert.deepEqual([...U.DARK], palettes.presets.filter((p) => p.mode === 'dark').map((p) => p.id), '读端深套表 = palettes.json');
-  assert.deepEqual({ ...U.PRESETS }, SEEDS, '读端预设种子 = palettes.json');
+  assert.deepEqual([...U.DARK], palettes.presets.filter((p) => p.mode === 'dark').map((p) => p.id), '读端深套表 = palette-list.json');
+  assert.deepEqual({ ...U.PRESETS }, SEEDS, '读端预设种子 = palette-list.json');
   assert.match(partial, /resources\.Get "common\/js\/prefs\/ui-cookie-read\.js"/);
   assert.doesNotMatch(partial, /data-sgx-seed|dataset\.sgxSeed|ui\.theme/);
 });
@@ -338,7 +338,7 @@ test('博客 head 不再加载 inherit.ts / palette-scheme.js（自定义色引�
   assert.doesNotMatch(HEAD, /#fdfdf9/);
 });
 test('共享外壳副本含 22 套预设（v4 起每套一段）和顶栏 / 快捷面板样式（2026-11-04 P5-1 抽屉删了）', () => {
-  const shell = (readFileSync(new URL('../../space/web/assets/common/css/tokens.css', import.meta.url), 'utf8') + readFileSync(new URL('../../space/web/assets/common/css/shell.css', import.meta.url), 'utf8'));
+  const shell = (readFileSync(new URL('../../space/web/assets/common/css/tokens.css', import.meta.url), 'utf8') + readFileSync(new URL('../../space/web/assets/common/css/frame.css', import.meta.url), 'utf8'));
   assert.equal(palettes.presets.length, 25);
   for (const { id } of palettes.presets) {
     assert.ok(shell.includes(`:root[data-palette="${id}"] {`), id);

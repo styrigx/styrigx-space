@@ -14,7 +14,7 @@ import { createShell } from '../../../../space/web/assets/common/js/frame/term/t
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
 
-const FE_AT = { 'terminal.js': 'frame/term/terminal.js', 'ai-panel.js': 'frame/ai/ai-panel.js', 'suggest.js': 'frame/term/suggest.js' };
+const FE_AT = { 'terminal.js': 'frame/term/terminal.js', 'ai/panel.js': 'frame/ai/panel.js' };
 test('状态 → 提示键：命令行由宿主给；选择 / 秘密 / 起名 / 能中断的等待各一句；不能中断的等待和进站完成不显示', () => {
   assert.equal(khKeyFor('cmd', 'cmdDrawer'), 'cmdDrawer');
   assert.equal(khKeyFor('cmd', 'cmdLayer'), 'cmdLayer');
@@ -27,15 +27,15 @@ test('状态 → 提示键：命令行由宿主给；选择 / 秘密 / 起名 / 
 });
 
 test('文案：外壳字符串表 en / zh 都有 kh 节，键和英文底一一对应；英文表 = 英文底；触屏出口是「‹ 返回」', () => {
-  const en = yaml.load(read('space/web/data/common/sgx-shell-i18n/en.yaml')).kh;
-  const zh = yaml.load(read('space/web/data/common/sgx-shell-i18n/zh.yaml')).kh;
+  const en = yaml.load(read('space/web/data/common/frame/i18n/en.yaml')).kh;
+  const zh = yaml.load(read('space/web/data/common/frame/i18n/zh.yaml')).kh;
   assert.deepEqual(Object.keys(en).sort(), Object.keys(KH_EN).sort());
   assert.deepEqual(Object.keys(zh).sort(), Object.keys(KH_EN).sort());
   for (const k of Object.keys(KH_EN)) assert.equal(en[k], KH_EN[k], 'en.' + k);
   assert.equal(zh.back, '‹ 返回');
   assert.equal(zh.pick, '[n] 选择 · enter 默认项 · esc 返回 · ^C 退出');
-  /* 终端统一 T1：terminal.js / ai-panel.js 不再抄英文底，和 keyhint.js 同用 shell/term/core/strings.js 的 KH_EN */
-  for (const f of ['terminal.js', 'ai-panel.js']) {
+  /* 终端统一 T1：terminal.js / ai/panel.js 不再抄英文底，和 keyhint.js 同用 shell/term/core/strings.js 的 KH_EN */
+  for (const f of ['terminal.js', 'ai/panel.js']) {
     const src = read('space/web/assets/common/js/' + (FE_AT[f] || f));
     assert.match(src, /^import \{ KH_EN, shellSection(, flatStrings)? \} from '(?:\.\/|\.\.\/term\/)core\/strings\.js';$/m, f + ' 用公共件');
     assert.doesNotMatch(src, /cmdHome: '|ai: 'enter send/, f + ' 不再抄英文底');
@@ -48,7 +48,7 @@ test('每个终端窗口都有提示行（v5 S5：锁屏 / 盾牌的终端并进
   assert.doesNotMatch(aw, /data-at-kh|createInputLine/, 'S9：账号卡片没有命令行和提示行');
   /* v5 S7：主页首屏不再嵌终端（换成 neofetch about 卡），主页也用终端窗口 #sgx-term */
   assert.doesNotMatch(read('space/web/layouts/index.html'), /data-sgx-term="home"|data-term-kh/);
-  const tb = read('space/web/layouts/partials/common/shell-topbar.html');
+  const tb = read('space/web/layouts/partials/common/frame/topbar.html');
   assert.match(tb, /<p class="sgx-kh sgx-term-kh" data-term-kh hidden><\/p>\n  <\/div>\n<\/dialog>/);
   assert.match(tb, /<p class="sgx-kh sgx-ai-kh" data-ai-kh hidden><\/p>\n    <p class="sgx-ai-foot">/);
   /* 出口：终端窗口的「‹ 返回」= esc 同一条路（先退出当前命令 / reset 层），最外层关窗口 */

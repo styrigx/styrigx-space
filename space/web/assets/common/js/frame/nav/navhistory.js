@@ -5,7 +5,7 @@
  * 保留系统返回需要的「直接打开子页插入一条主页历史」和 healRoot()（桌面版 / 移动版切换修复）。
  */
 import { on } from '../../core/events.js';
-import { sgxReplace } from '../../core/diag-jumptrace.js';
+import { sgxReplace } from '../../core/navigate.js';
 import { langPath } from '../../i18n/lang-path.js';
 import { i18nTable, pageLang } from '../../i18n/i18n.js';
 /** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上） */

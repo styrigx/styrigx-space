@@ -10,7 +10,7 @@
 <main class="oui-archive-wrap blog-list">
   {{- /* 2026-11 对齐 PR-C：页头同全站 .sgx-ph（$ grep -l "#标签" blog/* · #标签_ · 共 n 篇），文章行同博客首页（partials/blog/post-rows.html） */ -}}
   {{- $all := partial "common/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) }}
-  {{ partial "common/sgx-ph.html" (dict "cmd" (printf "grep -l \"#%s\" blog/*" .Title) "title" (printf "#%s" .Title) "desc" (i18n "tagNote" (dict "Count" (len $posts))) "path" .RelPermalink) }}
+  {{ partial "common/frame/page-head.html" (dict "cmd" (printf "grep -l \"#%s\" blog/*" .Title) "title" (printf "#%s" .Title) "desc" (i18n "tagNote" (dict "Count" (len $posts))) "path" .RelPermalink) }}
   {{ partial "blog/post-rows.html" (dict "posts" $posts "home" (site.GetPage "/blog").RelPermalink "cf" (partial "blog/cat-field.html" $all)) }}
 </main>
 {{ partial "blog/footer.html" . }}

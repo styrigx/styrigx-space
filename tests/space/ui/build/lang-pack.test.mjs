@@ -22,7 +22,7 @@ const EN_ONLY = /^(site\.name|js\.[\w]+\.[\w]+_(zero|one|two|few|many))$/;
 
 test('各站字符串表：每种语言的键都是英文表的子集；英文以外缺的键只能是品牌名（其余都要有译文）', () => {
   for (const site of SITES) {
-    for (const kind of ['i18n', 'sgx-shell-i18n']) {
+    for (const kind of ['i18n', 'frame/i18n']) {
       const langs = tableLangs(site, kind);
       assert.ok(langs.includes('en'), `${site} ${kind} 必须有 en.yaml（英文是源文本）`);
       const en = new Set(flatKeys(rawTable(site, 'en', kind)));
@@ -38,13 +38,13 @@ test('各站字符串表：每种语言的键都是英文表的子集；英文�
   }
 });
 
-test('外壳字符串表只有主站一份（2026-11 合站后子站直接读 data/common/sgx-shell-i18n，没有副本）', () => {
-  for (const s of ['blog', 'curio', 'daymark']) assert.ok(!existsSync(path.join(REPO, 'space/web/data', s, 'sgx-shell-i18n')), s);
-  assert.ok(tableLangs('space', 'sgx-shell-i18n').includes('en'));
+test('外壳字符串表只有主站一份（2026-11 合站后子站直接读 data/common/frame/i18n，没有副本）', () => {
+  for (const s of ['blog', 'curio', 'daymark']) assert.ok(!existsSync(path.join(REPO, 'space/web/data', s, 'frame/i18n')), s);
+  assert.ok(tableLangs('space', 'frame/i18n').includes('en'));
 });
 
-test('缺键回退英文：sgx-tr.html 是「英文表 ← 页面语言表」的合并，测试工具同一规则；不认识的语言整份回退英文', () => {
-  const tpl = rd('space/web/layouts/partials/common/sgx-tr.html');
+test('缺键回退英文：tr.html 是「英文表 ← 页面语言表」的合并，测试工具同一规则；不认识的语言整份回退英文', () => {
+  const tpl = rd('space/web/layouts/partials/common/tr.html');
   assert.match(tpl, /merge \(index \$d "en" \| default dict\) \(index \$d \$lang \| default dict\)/);
   assert.match(tpl, /merge \(index \$s "en" \| default dict\) \(index \$s \$lang \| default dict\)/);
   /* 合并规则本身 */

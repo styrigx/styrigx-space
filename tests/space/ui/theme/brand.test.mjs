@@ -1,6 +1,6 @@
 /**
  * 品牌资源（2026-10-21；2026-11-04 P5-1 字标从抽屉头搬到顶栏左端 logo）：顶栏字标、标签页图标、分享卡片。
- * - 字标 partials/common/shell-wordmark.html：单行内联 SVG，role=img + aria-label=Styrigx，字母 / 圆点分两条路径，进共享外壳 nav.json
+ * - 字标 partials/common/frame/wordmark.html：单行内联 SVG，role=img + aria-label=Styrigx，字母 / 圆点分两条路径，进共享外壳 nav.json
  * - 外壳 CSS：字母跟 --sgx-text-primary、圆点跟 --sgx-primary；顶栏 logo 里字标高 20px（宽高比 5924 / 2010），窄屏换主题色圆点
  * - favicon.svg / favicon.ico（16 / 32 / 48）/ og.png（1200×630）在 space/web/static；baseof.html 引用它们并写分享卡片 meta
  * - shell/favicon.js：换色只换两个 fill，认不出的 SVG 不动
@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { shellFiles, readWordmark } from '../../../../space/scripts/gen/gen-shell.mjs';
+import { shellFiles, readWordmark } from '../../../../space/scripts/gen/gen-common.mjs';
 import { toHex, recolor } from '../../../../space/web/assets/common/js/ui/favicon.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -29,15 +29,15 @@ test('字标：单行 SVG、可访问名 Styrigx、字母 / 圆点两条路径�
   assert.equal(nav.wordmark, svg);
   const base = rd('space/web/layouts/_default/baseof.html').toString();
   /* P5-1：字标进顶栏单一来源 shell-topbar 的 logo（主站传 partial 结果，子站传 nav.json 的 wordmark） */
-  assert.match(base, /"wordmark" \(partial "common\/shell-wordmark\.html" \.\)/);
+  assert.match(base, /"wordmark" \(partial "common\/frame\/wordmark\.html" \.\)/);
   /* 2026-11 顶栏 v3 PR-2（Gray 2026-11-08）：logo = ❯ + SVG 字标（参数 .wordmark）+ 闪烁光标；不再有等宽文字 styrigx :~$ */
-  const tb = rd('space/web/layouts/partials/common/shell-topbar.html').toString();
+  const tb = rd('space/web/layouts/partials/common/frame/topbar.html').toString();
   assert.match(tb, /<a class="sgx-tb-logo" href="\{\{ \.home \}\}" aria-label="\{\{ \$t\.topbar\.home \}\}"><span class="sgx-tb-ps" aria-hidden="true">❯<\/span><span class="sgx-tb-name" aria-hidden="true" translate="no">\{\{ \.wordmark \| safeHTML \}\}<\/span><span class="sgx-tb-cu" aria-hidden="true"><\/span><\/a>/);
   assert.doesNotMatch(tb, /sgx-tb-tl/);
 });
 
 test('外壳 CSS（顶栏 v3 · PR-2）：❯ 主题色、SVG 字标（字母正文色、圆点跟主题色，手机 20 / 桌面 23px 高）、光标主题色 1.05 秒步进闪；窄屏也是完整字标', () => {
-  const s = shellFiles()['shell.css'];
+  const s = shellFiles()['frame.css'];
   assert.match(s, /\.sgx-tb-logo \{[^}]*font-family: var\(--sgx-font-mono\); font-size: 18px;/);
   assert.match(s, /\.sgx-tb-ps \{ color: var\(--sgx-primary\);/);
   assert.doesNotMatch(s, /\.sgx-tb-tl\b/, ':~$ 删了');
@@ -98,7 +98,7 @@ test('favicon.js：颜色转十六进制；只换默认两色，认不出的 SVG
 });
 
 test('PR-4b：PR-4a §6.1 的窄屏图标版 logo 删除（顶栏只用字标；标签页图标 favicon.svg 不受影响）', () => {
-  const tb = rd('space/web/layouts/partials/common/shell-topbar.html').toString();
+  const tb = rd('space/web/layouts/partials/common/frame/topbar.html').toString();
   assert.doesNotMatch(tb, /sgx-tb-mark|mk-bg|mk-fg/);
-  assert.doesNotMatch(shellFiles()['shell.css'], /\.sgx-tb-mark/);
+  assert.doesNotMatch(shellFiles()['frame.css'], /\.sgx-tb-mark/);
 });

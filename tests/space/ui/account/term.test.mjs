@@ -2,7 +2,7 @@
  * 账号（2026-11-08 账号 UI 改版，space/web/assets/common/js/frame/account/*；S9 起账号卡片只展示，操作都在全站终端的账号层 cmd/*）：
  * - commands.js：命令字、入口名 → 终端里怎么开、密码 / 恢复密钥提示
  * - 纯函数：agoText、mmdd、verifyKinds、三选一
- * - 字符串表：sgx-shell-i18n 的 account.* 中英键一致；代码里写死的每个键两种语言都有
+ * - 字符串表：frame/i18n 的 account.* 中英键一致；代码里写死的每个键两种语言都有
  * - 后端名字只在 api.js（等 acct-naming NAMING-V2 P2 换接口时只改一个文件）；root 只在 commands.js
  * - 旧账号整页删干净，/account/* 都 301 到本语言首页 #acct=<层>
  *
@@ -69,7 +69,7 @@ test('设备「上次活动」相对时间；会话开始时间', () => {
 function keysOf(o, pre) {
   return Object.entries(o || {}).flatMap(([k, v]) => (v && typeof v === 'object' ? keysOf(v, (pre ? pre + '.' : '') + k) : [(pre ? pre + '.' : '') + k]));
 }
-const TR = Object.fromEntries(['zh', 'en'].map((l) => [l, /** @type {any} */ (yaml.load(rd('space/web/data/common/sgx-shell-i18n/' + l + '.yaml')))]));
+const TR = Object.fromEntries(['zh', 'en'].map((l) => [l, /** @type {any} */ (yaml.load(rd('space/web/data/common/frame/i18n/' + l + '.yaml')))]));
 
 test('字符串表：account.* 中英键一致；旧的平铺 acct 节删了；代码里写死的键两种语言都有', () => {
   assert.equal(TR.zh.acct, undefined);
@@ -149,7 +149,7 @@ test('旧账号整页删干净；/account/*（reset 除外）都 301 到本语�
   assert.doesNotMatch(red, /^(?:\/zh)?\/account\/apps\//m, '/account/apps/ 不再 301');
   /* v6 P4（定稿 §十三，Gray 11-11 17:47）：旧地址 /account/reset/ 直接删——不跳转、不预填，同任何不存在的路径 404 */
   assert.doesNotMatch(red, /^(?:\/zh)?\/account\/reset\//m, '/account/reset/ 不再 301');
-  const tp = rd('space/web/assets/common/js/frame/topbar/topbar-panel.js');
+  const tp = rd('space/web/assets/common/js/frame/topbar/panel.js');
   assert.match(tp, /\/\^#acct\(\?:=\(\[a-z\]\*\)\)\?\$\//, '#acct=<层>（&app= 随应用授权删除，v6 P4）');
   assert.doesNotMatch(tp, /&app=\(/);
   assert.match(tp, /closest\('\[data-acct-open\]'\)/);

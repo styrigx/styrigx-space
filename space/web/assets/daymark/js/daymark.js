@@ -315,7 +315,7 @@ function esc(s){
 function reduced(){
   return doc.documentElement.classList.contains('reduced-motion') || !!(G.matchMedia && G.matchMedia('(prefers-reduced-motion: reduce)').matches);
 }
-/** 请人进站：顶栏终端预填 su （topbar/topbar-panel.js 接 sgx:sudo，= common/js/auth/sudo.js SUDO_EVENT） */
+/** 请人进站：顶栏终端预填 su （topbar/panel.js 接 sgx:sudo，= common/js/auth/sudo.js SUDO_EVENT） */
 function askSudo(){ try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {} }
 function getJSON(url){
   return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){

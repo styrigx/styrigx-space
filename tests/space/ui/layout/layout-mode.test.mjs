@@ -210,8 +210,8 @@ test('首帧底色（调色板 v4）：按 data-dark 写 color-scheme，底色 /
   assert.equal(lake.styles[0].textContent, '@layer sgx-first-paint{html{background-color:#01172b;color-scheme:dark}}');
 });
 
-test('读不到 theme-color 时首帧底色 = palettes.json 默认色板（terra）bg-1（换了默认调色板要跟着改）', () => {
-  const pal = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/common/palettes.json'), 'utf8'));
+test('读不到 theme-color 时首帧底色 = palette-list.json 默认色板（terra）bg-1（换了默认调色板要跟着改）', () => {
+  const pal = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/common/palette-list.json'), 'utf8'));
   const def = pal.presets.find((p) => p.id === pal.default);
   assert.match(lib, new RegExp("\\?pc:'" + def.tokens['bg-1'] + "'"));
   const r = withDoc({ dark: true, theme: 'bad' });

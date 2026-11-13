@@ -1,7 +1,7 @@
 /**
  * @fileoverview 打错命令时给最近的真命令（Gray 2026-11-09）：`command not found: X — did you mean Y?`。纯函数、不 import。
  * 终端统一 T1（设计稿 v1.5 §4）：唯一一份。站内终端 term/terminal.js、锁屏 / 盾牌（shell/space/*）、账号下拉（account/term.js）都用这里；
- * term/suggest.js 只转出（原有 import 路径不坏）。单测 tests/space/ui/shell/suggest.test.mjs。
+ * 单测 tests/space/ui/shell/suggest.test.mjs。
  */
 
 /** 编辑距离（Levenshtein） @param {string} a @param {string} b @returns {number} */

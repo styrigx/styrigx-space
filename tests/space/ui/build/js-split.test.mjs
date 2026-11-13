@@ -20,8 +20,8 @@ const base = rd('space/web/layouts/_default/baseof.html');
 const ENTRY_DIR = 'space/web/assets/common/js/frame/apps/entries';
 
 function batchList() {
-  const m = base.match(/partialCached "common\/sgx-js-batch\.html" \(dict "defines" \$featDefines "entries" \(slice ([^)]*)\)\)/);
-  assert.ok(m, 'baseof 用 partialCached 调 sgx-js-batch.html 并给出入口列表');
+  const m = base.match(/partialCached "common\/js-batch\.html" \(dict "defines" \$featDefines "entries" \(slice ([^)]*)\)\)/);
+  assert.ok(m, 'baseof 用 partialCached 调 js-batch.html 并给出入口列表');
   return [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
 }
 
@@ -85,7 +85,7 @@ test('baseof：modulepreload + 构建签名 + 入口加载失败只自动刷新�
   const head = base.slice(0, base.indexOf('</head>'));
   assert.ok(head.includes("localStorage.getItem('sgx-palette')"), '调色板（深浅）预读仍在 head 内联');
   assert.ok(!/<script[^>]*type="module"/.test(head), 'head 里不放 module 脚本');
-  const part = rd('space/web/layouts/partials/common/sgx-js-batch.html');
+  const part = rd('space/web/layouts/partials/common/js-batch.html');
   assert.ok(part.includes('js.Batch "js/sgx"') && part.includes('| fingerprint'), 'js.Batch 构建，入口 fingerprint（/js/* 是 immutable 缓存）');
 });
 
@@ -102,7 +102,7 @@ test('守卫在 core 里（frontend-js #6）：只带守卫，钥匙层 / 鉴权
   for (const f of ['shell/lock.js', 'shell/lock-guard.js', 'lib/lock-state.js', 'shell/space/entry.js', 'shell/space/shield.js', 'shell/space/tempkeys.js']) assert.ok(!existsSync(join(root, 'space/web/assets/common/js', f)), f + ' 已删');
   const guard = rd('space/web/assets/common/js/auth/guard.js');
   const staticImports = [...guard.matchAll(/^import [^\n]* from '([^']+)';$/gm)].map((m) => m[1]);
-  assert.deepEqual(staticImports, ['../core/diag-jumptrace.js'], '守卫只静态依赖 diag-jumptrace（v6 P4 起 state / paths 随钥匙层删了）');
+  assert.deepEqual(staticImports, ['../core/navigate.js'], '守卫只静态依赖 navigate（v6 P4 起 state / paths 随钥匙层删了）');
   assert.ok(!/from '\.\/(api|entry|session|reset|shield|layer)\.js'/.test(guard), '守卫不带 api / 通行密钥代码');
   assert.ok(!/\bimport\(/.test(guard.replace(/\/\*[\s\S]*?\*\//g, '')), '守卫不再按需加载锁屏界面');
   assert.ok(!guard.includes('sgx-entry-cover') && !guard.includes('showEntryCover'), '没有全页遮罩');

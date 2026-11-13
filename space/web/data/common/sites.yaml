@@ -1,6 +1,6 @@
 # 站点登记：全站内容索引 /files-index.json（index.filesindex.json → space/scripts/build/build-search-index.mjs）读 id / path；
 # 名字 / 副标题在字符串表 data/common/i18n/<语言>.yaml 的 sites.<id>.title / sub（语言包化 2026-11-07：原 sites.yaml 中文、en/sites.yaml 英文两份合成一份）；
-# 地址按语言由 sgx-lang-path.html 拼（英文无前缀，其他语言 /<语言>/）。icon / host / lock 目前没有读者
+# 地址按语言由 lang-path.html 拼（英文无前缀，其他语言 /<语言>/）。icon / host / lock 目前没有读者
 - id: space
   path: /
   icon: globe

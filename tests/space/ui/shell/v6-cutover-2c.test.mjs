@@ -1,7 +1,7 @@
 /**
  * 2c（v6 割接后续）：当前页 su / exit / lock 之后页面标记就地切——前端这一侧。
  * - 终端身份 term/core/who.js：pageStateFor（同网关 pageStateOf：旧进站会话或非救援 v6 身份 → valid）；setV6 之后通知 onV6 订阅者（refresh 不通知）
- * - 顶栏 topbar-panel.js switchPageSession：只在网关注入过标记时切，变了才发 window 'sgx:session' { ok, live: true }
+ * - 顶栏 topbar/panel.js switchPageSession：只在网关注入过标记时切，变了才发 window 'sgx:session' { ok, live: true }
  * - 各处接住 live 事件：守卫补绑自动回锁、AI 窗口解锁 / 上锁、服务状态卡重取 / 锁卡（源码约定）
  * - 奇趣 / 日刻「su 登录后可编辑」入口指向 su（data-sec-open，退路 #sec），中英文 i18n
  * 运行：node --test tests/space/ui/shell/v6-cutover-2c.test.mjs
@@ -13,7 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { pageStateFor, createWho } from '../../../../space/web/assets/common/js/frame/term/core/who.js';
-import { switchPageSession, SESSION_EVENT } from '../../../../space/web/assets/common/js/frame/topbar/topbar-panel.js';
+import { switchPageSession, SESSION_EVENT } from '../../../../space/web/assets/common/js/frame/topbar/panel.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -74,12 +74,12 @@ test('switchPageSession：locked → valid 就地切并发 live 事件；没变�
 });
 
 test('源码约定：顶栏订阅 who.onV6 → switchPageSession（登录了重取 NAVIGATE STATUS）；守卫 / AI 窗口 / 服务状态页 / 云同步接 live 事件', () => {
-  const tp = rd('space/web/assets/common/js/frame/topbar/topbar-panel.js');
+  const tp = rd('space/web/assets/common/js/frame/topbar/panel.js');
   assert.match(tp, /who\.onV6\(function \(\/\*\* @type \{'valid'\|'locked'\} \*\/ st\) \{\s*if \(switchPageSession\(doc, st\) && st === 'valid' && status\) status\(\);/);
   const g = rd('space/web/assets/common/js/auth/guard.js');
   assert.match(g, /addEventListener\(SESSION_EVENT, function \(\/\*\* @type \{any\} \*\/ e\) \{ if \(e && e\.detail && e\.detail\.live && e\.detail\.ok\) bindAutoLock\(\); \}\)/);
   assert.match(g, /function checkSessionForAutoLock\(\) \{[\s\S]{0,120}if \(pageState\(\) !== 'valid'\) return;/);
-  const ai = rd('space/web/assets/common/js/frame/ai/ai-panel.js');
+  const ai = rd('space/web/assets/common/js/frame/ai/panel.js');
   assert.match(ai, /if \(d\.ok\) \{ setLocked\(false\); loadModels\(\); \} else setLocked\(true\);/);
   const st = rd('space/web/assets/common/js/frame/apps/space-status.js');
   assert.match(st, /window\.addEventListener\('sgx:session'[\s\S]{0,260}if \(d\.ok\) \{ load\(\); return; \}\s*dropCache\(\);\s*data = null;\s*setState\('locked'\);/);

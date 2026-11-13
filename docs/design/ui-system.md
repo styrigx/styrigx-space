@@ -103,7 +103,7 @@
 
 7.4 AI 回答行的身份恒为 `grayai`，主机与符号跟随 §7.2：`grayai@space:~$ --reply` / `grayai@account:~# --reply`。
 
-7.5 实现：`term/core/who.js`（`PS_USER`、`PS_RESET`、`ps1`）、`shell/space/commands.js`（`PS_RESET`、`ENV_GUEST`、`ENV_ROOT`、`envPrompt`）、`account/commands.js`（`PS_GUEST`、`PS_ROOT`、`PS_RESET`）、`layouts/partials/common/sgx-envps.html`、`input.css` 的 `.sgx-ai-msg::before`。
+7.5 实现：`term/core/who.js`（`PS_USER`、`PS_RESET`、`ps1`）、`shell/space/commands.js`（`PS_RESET`、`ENV_GUEST`、`ENV_ROOT`、`envPrompt`）、`account/commands.js`（`PS_GUEST`、`PS_ROOT`、`PS_RESET`）、`layouts/partials/common/frame/env-prompt.html`、`input.css` 的 `.sgx-ai-msg::before`。
 
 ## 8. 细节约定
 

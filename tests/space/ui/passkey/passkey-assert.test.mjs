@@ -56,7 +56,7 @@ test('assertionOptions / assertionToJSON / isPasskeyCancel', () => {
 });
 
 test('全站的通行密钥断言都经 getPasskeyAssertion + assertionToJSON：没有别处手写 credentials.get / 断言序列化', () => {
-  /* 共享外壳的 shell/share-button.js 不在其列：子站原样复制、不能 import（gen-shell 强制），最小复验步骤只好自带一份断言 */
+  /* 共享外壳的 shell/share-button.js 不在其列：子站原样复制、不能 import（gen-common 强制），最小复验步骤只好自带一份断言 */
   /* v6 P4：旧进站（shell/space/api.js）和旧账号登录 / 再验证（shell/account/api.js）的断言随旧会话删了；只剩 v6 su / sudo（shell/identity/api.js passkeyProof） */
   const dir = join(ROOT, 'space/web/assets/common/js/auth');
   for (const f of ['guard.js']) {

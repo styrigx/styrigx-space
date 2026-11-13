@@ -24,7 +24,7 @@
 | 作业 | 内容 |
 |---|---|
 | `unit` | 构建 CSS 后 `node --test`：Worker 单测、主站前端单测 |
-| `build` | 旧 secret 名检查；8 个 Worker 的 `wrangler deploy --dry-run` 打包检查；生成物 `--check`（gen-shell、gen-palettes、gen-ui-cookie-contract、gen-csp）；check-layers、check-frontend；生产构建与产物检查；前端技术名词检查；搜索索引（`site:space`、`site:blog`）；子站单测；check-worker-routes；子站生成物同步；stylelint；产物上传给下游作业 |
+| `build` | 旧 secret 名检查；8 个 Worker 的 `wrangler deploy --dry-run` 打包检查；生成物 `--check`（gen-common、gen-palettes、gen-ui-cookie-contract、gen-csp）；check-layers、check-frontend；生产构建与产物检查；前端技术名词检查；搜索索引（`site:space`、`site:blog`）；子站单测；check-worker-routes；子站生成物同步；stylelint；产物上传给下游作业 |
 | `e2e-lock` | `SGX_TEST_SUITE=lock`（锁屏，含基线截图）、`edge`（真实站点核心 + 线上路由规则 + 虚拟认证器）、`credential`（真实 handler + 内存 D1）、lock-gate 关闭的构建 |
 | `e2e-sites` | 三个子站的 Playwright（并行） |
 | `visual` | 视觉回归，两片并行（`--shard=N/2`）；失败上传 `visual-diff-N` |

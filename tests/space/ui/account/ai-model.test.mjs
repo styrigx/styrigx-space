@@ -1,6 +1,6 @@
 /**
  * P4-2d 账号侧切换 AI 模型：纯函数部分（DOM 行为见 e2e（账号侧 AI 模型行 2026-11-08 已删）、quick-panel.spec.js「AI 窗口」）。
- * - shell/ai-panel.js：loadModel / clearModel（清掉并派发 sgx-settings-changed）/ isBadModel（只认 400 + error bad_model）。
+ * - ai/panel.js：loadModel / clearModel（清掉并派发 sgx-settings-changed）/ isBadModel（只认 400 + error bad_model）。
  * - 2026-11-08（Gray 04:45）：账号页「AI 模型」一行与 apps/account-ai.js 删除、账号下拉也没有模型行；模型只在 AI 窗口右上角切换（同一个键 sgx-ai-model）。
  * 运行：node --test tests/space/ui/account/ai-model.test.mjs
  */
@@ -16,7 +16,7 @@ globalThis.window = globalThis.window || {};
 globalThis.window.dispatchEvent = (e) => { events.push(e.type); return true; };
 globalThis.Event = globalThis.Event || class { constructor(type) { this.type = type; } };
 
-const AP = await import('../../../../space/web/assets/common/js/frame/ai/ai-panel.js');
+const AP = await import('../../../../space/web/assets/common/js/frame/ai/panel.js');
 
 function memStore(init) {
   const m = new Map(Object.entries(init || {}));
@@ -55,12 +55,12 @@ const LIST = { ok: true, default: '@cf/google/gemma-4-26b-a4b-it', canChoose: tr
 ] };
 
 test('AI 窗口头部模型胶囊（2026-11 PR-5 按设计稿 ai-v1）：GET /api/ai 读列表，选中写同一个键 sgx-ai-model 并派发 sgx-settings-changed；单选不用底部弹出窗口', () => {
-  const src = rd('space/web/assets/common/js/frame/ai/ai-panel.js');
+  const src = rd('space/web/assets/common/js/frame/ai/panel.js');
   assert.match(src, /doFetch\('\/api\/ai', \{ method: 'GET'/);
   assert.match(src, /store\(\)\.setItem\(MODEL_KEY, String\(m\.id\)\)/);
   assert.match(src, /setAttribute\('role', 'radio'\)/);
   assert.doesNotMatch(src, /openSheet\s*\(/);
-  const tb = rd('space/web/layouts/partials/common/shell-topbar.html');
+  const tb = rd('space/web/layouts/partials/common/frame/topbar.html');
   assert.match(tb, /data-ai-model aria-expanded="false" aria-controls="sgx-ai-models"/);
   assert.match(tb, /role="radiogroup"[^>]*data-ai-models hidden/);
 });
@@ -71,9 +71,9 @@ test('2026-11-08 Gray 04:45：账号页 / 账号下拉都没有 AI 模型行，a
   assert.ok(gone, 'account-ai.js 应已删除');
   /* 2026-11-08 账号页删了；账号终端（shell/account/）里也没有模型行 */
   for (const f of ['window.js', 'cmd/profile.js']) assert.doesNotMatch(rd('space/web/assets/common/js/frame/account/' + f), /account-ai|initAiModelRow|aiModel/);
-  const tb = rd('space/web/layouts/partials/common/shell-topbar.html');
+  const tb = rd('space/web/layouts/partials/common/frame/topbar.html');
   const acct = tb.slice(tb.indexOf('<dialog id="sgx-acct"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-acct"')));
   assert.doesNotMatch(acct, /\$t\.acct\.ai\b|"k" "ai"|data-acct-v="ai"/);
-  assert.doesNotMatch(rd('space/web/assets/common/js/frame/topbar/topbar-panel.js'), /val\('ai'/);
+  assert.doesNotMatch(rd('space/web/assets/common/js/frame/topbar/panel.js'), /val\('ai'/);
   assert.match(tb, /data-ai-model aria-expanded="false" aria-controls="sgx-ai-models"/);
 });

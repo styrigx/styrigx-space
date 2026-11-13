@@ -11,7 +11,7 @@ import { sandbox } from './ui-cookie-sandbox.mjs';
 
 const read = (p) => readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
 const fx = JSON.parse(read('tests/fixtures/ui-cookie-contract.json'));
-const palettes = JSON.parse(read('space/web/data/common/palettes.json'));
+const palettes = JSON.parse(read('space/web/data/common/palette-list.json'));
 
 /** <html> 状态，和夹具 root 同形 */
 function rootState(html) {
@@ -51,7 +51,7 @@ for (const c of fx.cases) {
   });
 }
 
-test('读端预设表 / 深套表 / 默认色板 = 共享外壳 palettes.json（默认 terra，深套）', () => {
+test('读端预设表 / 深套表 / 默认色板 = 共享外壳 palette-list.json（默认 terra，深套）', () => {
   const s = sandbox();
   assert.deepEqual(plain(s.U.PRESETS), Object.fromEntries(palettes.presets.map((p) => [p.id, p.seed])));
   assert.equal(Object.keys(s.U.PRESETS).length, 25);

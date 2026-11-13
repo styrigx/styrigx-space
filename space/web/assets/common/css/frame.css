@@ -1,4 +1,4 @@
-/* 由 space/scripts/gen/gen-shell.mjs 从 space/web/assets/common/css/input.css 的 @shell 标记段 生成，勿手改；主站和子站同一个 Hugo 站，子站样式表直接 @import。 */
+/* 由 space/scripts/gen/gen-common.mjs 从 space/web/assets/common/css/input.css 的 @shell 标记段 生成，勿手改；主站和子站同一个 Hugo 站，子站样式表直接 @import。 */
 /* 依赖 tokens.css 的 --sgx-* 角色；不进任何 @layer。 */
 /* ---- topbar-frame ---- */
 /* 跨页 View Transitions（2.4.0 D；2026-11-09 Gray 批：搬进共享外壳，四站同站跳转都做，只淡入淡出）：
@@ -13,7 +13,7 @@
 ::view-transition-group(sgx-topbar) { animation-duration: 180ms; }
 .reduced-motion::view-transition-group(*), .reduced-motion::view-transition-old(*), .reduced-motion::view-transition-new(*) { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
-/* 顶栏 v3（2026-11 UI 重设计 PR-1，设计稿 tb4.html / tb-v3 / prog-v1；四个站同一套，标记来自共享外壳 shell-topbar.html）：
+/* 顶栏 v3（2026-11 UI 重设计 PR-1，设计稿 tb4.html / tb-v3 / prog-v1；四个站同一套，标记来自共享外壳 frame/topbar.html）：
    通栏 .sgx-topbar（贴顶、全宽、底边 1px 线，毛玻璃材质）里 = [字标 .sgx-tb-logo ❯ styrigx :~$_] [.sgx-tb-pill 页名（v3 不显示）]
    [右边 .sgx-tb-acts（顶栏 v6）：外观 .sgx-tb-quick · 四格 .sgx-tb-grid（NAVIGATE）· 音乐 .sgx-tb-music · 盾牌 .sgx-tb-shield · 分隔 · >_ .sgx-tb-term（终端）· 头像 .sgx-tb-av]；
    底边 .sgx-tb-prog 滑页进度条；右下角 AI 浮钮 .sgx-tb-ai。内容宽只有一个 token：--sgx-content-w（1080）。
@@ -96,7 +96,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
   font-family: var(--sgx-font-mono); font-size: 18px; font-weight: 500; line-height: 1; white-space: nowrap; letter-spacing: 0;
   color: var(--sgx-text-primary); text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease; }
 .sgx-tb-ps { color: var(--sgx-primary); margin-right: .55em; }
-/* SVG 字标（2026-11 PR-2，Gray：取代等宽文字 styrigx :~$，桌面 / 手机一样，不再有窄屏收起）：partials/common/shell-wordmark.html，字母 currentColor = 正文色，
+/* SVG 字标（2026-11 PR-2，Gray：取代等宽文字 styrigx :~$，桌面 / 手机一样，不再有窄屏收起）：partials/common/frame/wordmark.html，字母 currentColor = 正文色，
    i 上的圆点跟主题色（不用 SVG 里写死的 fill）。高 --sgx-wm-h：手机 20px、桌面 23px；字标基线在 SVG 高度 78.5% 处（viewBox 70 -1578 5924 2010）。 */
 :root { --sgx-wm-h: 20px; }
 :root[data-sgx-layout="desktop"] { --sgx-wm-h: 23px; }
@@ -130,7 +130,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 /* 头像外圈（Gray 2026-11-09，参考 mahmad.me；13:41 返工：弧压在白环外沿线上，不再是环外另一圈）：
    照片 30px → 外面 2.5px 表面色实心环 → 环外沿 0.5px 浅灰细线（外径 36px）→ 整个圆盘下一层柔和投影（遮罩色 --sgx-scrim，亮暗主题都是暗影）；
    深色弧 = 1.5px 细线，外径 = 环外径（36px，压住细线，没有空隙），约 80°：顺时针转，前端最深、尾巴渐隐，外侧带一点虚影。
-   平时 2 秒一圈，.is-busy（加载 / 取数据 / AI 回答中，topbar-panel.js mountAvBusy）0.9 秒一圈。都是阴影 / 伪元素，不占位，按钮 40px、照片 30px 不变；
+   平时 2 秒一圈，.is-busy（加载 / 取数据 / AI 回答中，topbar/panel.js mountAvBusy）0.9 秒一圈。都是阴影 / 伪元素，不占位，按钮 40px、照片 30px 不变；
    弧用正文色（亮色主题是深色弧，暗色主题跟着变浅，才看得见），弧叠在照片环之上（z-index 2）。系统或本站「减弱动效」时弧停住不转。::after 留给触屏点击区。 */
 .sgx-tb-av { position: relative; }
 /* 没进站时头像是死按钮（v5 S6，aria-disabled，纯吉祥物）：外观不变，只是不当链接用 */
@@ -147,10 +147,10 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 :root[data-sgx-layout="desktop"] .sgx-tb-av::before { width: 40px; height: 40px; margin: -20px 0 0 -20px;
   -webkit-mask: radial-gradient(closest-side, transparent 17.3px, var(--sgx-text-primary) 17.7px, var(--sgx-text-primary) 19px, color-mix(in srgb, var(--sgx-text-primary) 30%, transparent) 19.4px, transparent 20px);
   mask: radial-gradient(closest-side, transparent 17.3px, var(--sgx-text-primary) 17.7px, var(--sgx-text-primary) 19px, color-mix(in srgb, var(--sgx-text-primary) 30%, transparent) 19.4px, transparent 20px); }
-/* 头像 = whoami（v6 P2b）：root 身份在头像右下角叠一个「#」（同提示符的 #）；只在有 v6 新会话且是 root 时由 topbar-panel.js 插入 */
+/* 头像 = whoami（v6 P2b）：root 身份在头像右下角叠一个「#」（同提示符的 #）；只在有 v6 新会话且是 root 时由 topbar/panel.js 插入 */
 .sgx-tb-av-mark { position: absolute; z-index: 3; right: 1px; bottom: 1px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; pointer-events: none;
   font: 700 10px/14px var(--sgx-font-mono); text-align: center; background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); box-shadow: 0 0 0 1.5px var(--sgx-surface); }
-/* 盾牌身份徽章（定稿 v5.5 §七：四档，盾越实身份越高；站长与 root 主题色，访客与普通用户灰色 = 平时的次要色）：topbar-panel.js paintShield 写 data-sgx-tier；
+/* 盾牌身份徽章（定稿 v5.5 §七：四档，盾越实身份越高；站长与 root 主题色，访客与普通用户灰色 = 平时的次要色）：topbar/panel.js paintShield 写 data-sgx-tier；
    部件见 partials/common/icon.html tb-shield（打勾 .sgx-sh-ok、小人 .sgx-sh-u、盾身 .sgx-sh-b）。没写档（本地 / 测试构建、还没问到身份）= 原样 */
 .sgx-tb-shield:is([data-sgx-tier="guest"], [data-sgx-tier="user"]) .sgx-sh-ok { display: none; }
 .sgx-tb-shield[data-sgx-tier="user"] .sgx-sh-u { display: inline; }
@@ -180,7 +180,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 /* AI 浮钮（右下角，56 × 56、圆角 18，主题实色；打开 AI 窗口时深一档）：在 #site-nav 里（z 50，盖过面板遮罩），右边距手机 16px、桌面 32px。
    离底（2026-11-08 PR-A，原来是 max(边距, 底部安全区)，滑到底会压住 tmux 页脚的状态栏和「联系」）：
    --sgx-ai-fab-b（手机 28px、桌面 40px）+ max(底部安全区, --sgx-foot-lift)。安全区是叠在基准上的（不再和边距取大）；
-   --sgx-foot-lift = 页脚露出视口多高（topbar/topbar-panel.js mountFootLift 按帧写到浮钮、博客回顶按钮、AI 窗口上，页脚不在视口里时 0），
+   --sgx-foot-lift = 页脚露出视口多高（topbar/panel.js mountFootLift 按帧写到浮钮、博客回顶按钮、AI 窗口上，页脚不在视口里时 0），
    页脚一露头浮钮就跟着往上让、始终停在页脚上沿之上 --sgx-ai-fab-b；和安全区取大是因为页脚自己已经垫过安全区，不重复算。
    回顶按钮（博客 .scroll-top-button）摞在浮钮上方、桌面 AI 窗口在浮钮上方 68px，都用同一个式子，所以一起移。 */
 .sgx-tb-ai { position: fixed; right: max(var(--sgx-ai-fab-m), env(safe-area-inset-right, 0px)); bottom: calc(var(--sgx-ai-fab-b) + max(env(safe-area-inset-bottom, 0px), var(--sgx-foot-lift, 0px))); z-index: 56;
@@ -206,7 +206,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 @keyframes sgx-tb-flow { to { background-position: 22px 0; } }
 .reduced-motion .sgx-tb-prog > i { animation: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-tb-prog > i { animation: none; } }
-/* tmux 页脚（foot-v1；四站同一个 partials/common/sgx-footer.html）：第一行 40px 状态栏（会话 space 实色块 · 窗口 · 右边 状态 / 语言 / CST 时钟），
+/* tmux 页脚（foot-v1；四站同一个 partials/common/frame/footer.html）：第一行 40px 状态栏（会话 space 实色块 · 窗口 · 右边 状态 / 语言 / CST 时钟），
    第二行 © 与链接；内容宽同顶栏（--sgx-tb-pad）。手机布局只显示当前窗口、不显示语言 */
 .sgx-foot { position: relative; z-index: 2; box-sizing: border-box; margin-top: 48px; padding: 0 var(--sgx-tb-pad) env(safe-area-inset-bottom, 0px);
   border-top: 1px solid var(--sgx-term-line); background: var(--sgx-surface-container-low); color: var(--sgx-text-secondary);
@@ -423,7 +423,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-nav-btn svg { width: 16px; height: 16px; flex: none; }
 .sgx-nav-btn[data-armed] { border-color: var(--sgx-primary); color: var(--sgx-primary); background: var(--sgx-term-sel); }
 @media (hover: hover) and (pointer: fine) { .sgx-nav-btn:hover { color: var(--sgx-text-primary); } }
-/* STATUS：六个单元两列（点 · 名 · 延迟）；没数据 = 灰点、延迟空着（2026-11 PR-A 接 /api/status，见 topbar-panel.js mountStatus） */
+/* STATUS：六个单元两列（点 · 名 · 延迟）；没数据 = 灰点、延迟空着（2026-11 PR-A 接 /api/status，见 topbar/panel.js mountStatus） */
 .sgx-nav-st { padding: 12px 20px 13px; border-top: 1px solid var(--sgx-term-line); font-size: 12px; }
 .sgx-nav-st-h { display: flex; justify-content: space-between; margin-bottom: 9px; font-size: 11px; letter-spacing: var(--sgx-track-label); color: var(--sgx-text-tertiary); }
 .sgx-nav-st-h b { font-weight: 400; letter-spacing: 0; color: var(--sgx-text-tertiary); }
@@ -455,7 +455,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-th-pals { display: flex; flex-direction: column; gap: 2px; max-height: min(320px, 50vh); overflow-y: auto; overscroll-behavior: contain; }
 .sgx-th-pal { --b2: var(--pt-b2); --f1: var(--pt-f1); --f2: var(--pt-f2); --f3: var(--pt-f3); --f4: var(--pt-f4); --f5: var(--pt-f5); --f6: var(--pt-f6); display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent;
   font: inherit; text-align: left; color: var(--sgx-text-secondary); cursor: pointer; }
-/* 色块（2026-11 PR-2 恢复 #311 之前快捷面板 .sgx-qp-sw 的样子）：该色板的 6 个前景色 f1–f6 一条横排小圆点（--pt-*，partials/common/palette-tile-vars.html） */
+/* 色块（2026-11 PR-2 恢复 #311 之前快捷面板 .sgx-qp-sw 的样子）：该色板的 6 个前景色 f1–f6 一条横排小圆点（--pt-*，partials/common/frame/palette-tile-vars.html） */
 .sgx-th-sw { display: grid; grid-template-columns: repeat(6, 9px); gap: 3px; flex: none; padding: 3px 4px; border-radius: 7px; background: var(--b2); }
 .sgx-th-sw u { display: block; width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1px color-mix(in srgb, var(--sgx-surface) 55%, transparent); }
 .sgx-th-sw u:nth-child(1) { background: var(--f1); } .sgx-th-sw u:nth-child(2) { background: var(--f2); } .sgx-th-sw u:nth-child(3) { background: var(--f3); }
@@ -571,7 +571,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-ai-msg[data-role="assistant"] { max-width: 100%; padding: 0; background: transparent; box-shadow: none; border-radius: 0; }
 /* 用户那一行 = 提问者的提示符 + --ask，回答前一行 = grayai 的提示符 + --reply（Gray 2026-11-09 第二版；只改文字，样式不变）：
    提问行谁登录显示谁，和终端提示符一致（Gray 2026-11-11 22:46，定稿 §十三「AI 窗口标签改读 v6 登录状态」）：
-   访客 nobody@space:~$ --ask；普通用户 / 站长 <名>@space:~$ --ask（名字在 --sgx-ps-user，topbar/topbar-panel.js 按 whoami 写）；root root@space:~# --ask。
+   访客 nobody@space:~$ --ask；普通用户 / 站长 <名>@space:~$ --ask（名字在 --sgx-ps-user，topbar/panel.js 按 whoami 写）；root root@space:~# --ask。
    回答行始终 grayai@space:~$ --reply */
 .sgx-ai-msg[data-role="user"]::before { content: "nobody@space:~$ --ask"; content: "nobody@space:~$ --ask" / ""; display: block; margin-bottom: 2px; font-family: var(--sgx-font-mono); font-size: 11px; line-height: 1.4; white-space: nowrap; color: var(--sgx-primary); }
 html[data-sgx-account-session="out"] .sgx-ai-msg[data-role="user"]::before { content: var(--sgx-ps-user, "styrigx") "@space:~$ --ask"; content: var(--sgx-ps-user, "styrigx") "@space:~$ --ask" / ""; }
@@ -635,7 +635,7 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { cont
    手机：悬浮终端卡片——左右留页边距（--sgx-page-m 12px，同 #319），上沿在顶栏下方 12px，下沿在底部安全区之上 12px（盖过浮钮，浮钮同时淡出缩小）；
    宽手机布局（平板竖屏）最宽 560、靠右贴浮钮一侧。背景轻微变暗（半档遮罩），页面看得见但点了只关窗口。键盘：--sgx-kb 抬 dialog 下沿，卡片随之变矮、输入框贴键盘上方。
    电脑：保持稿里浮钮上方 390 × 560 浮窗、不压暗页面，浮钮变成关闭态（图标换 ×）。
-   减弱动效：不缩放，只做 120ms 淡入淡出（topbar-panel.js 给 AI 窗口传 reducedMs）。
+   减弱动效：不缩放，只做 120ms 淡入淡出（topbar/panel.js 给 AI 窗口传 reducedMs）。
    手机屏 + 桌面布局（三星「桌面版网站」）：照 panel 段的规则不位移只淡入（device=phone 那条特异性更高，transform 归 none）。 */
 :root { --sgx-ai-ease: cubic-bezier(.2,.8,.2,1); }
 .sgx-ai.is-open { background-color: color-mix(in srgb, var(--sgx-scrim) 45%, transparent); }
@@ -671,7 +671,7 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { cont
 .sgx-ai-model[aria-disabled="true"] { cursor: default; }
 .sgx-ai-model[aria-disabled="true"] i { display: none; }
 .sgx-ai-model[aria-expanded="true"] { border-color: var(--sgx-primary); color: var(--sgx-primary); }
-/* 没进站（v5 S3）：同一个小矩形里只放锁标（ai-panel.js setLocked） */
+/* 没进站（v5 S3）：同一个小矩形里只放锁标（ai/panel.js setLocked） */
 .sgx-ai-model [data-ai-model-lock] { display: none; }
 .sgx-ai-model.is-locked { cursor: pointer; }
 .sgx-ai-model.is-locked [data-ai-model-lock] { display: inline-flex; }
@@ -765,7 +765,7 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-sh-code { font-family: var(--sgx-font-mono); font-size: 15px; font-weight: 500; letter-spacing: .08em; color: var(--sgx-text-primary); -webkit-user-select: all; user-select: all; overflow-wrap: anywhere; }
 /* ---- inpage ---- */
 /* 只用共享外壳 --sgx-* 角色（跟调色板、深浅色、自定义色），不写死颜色；不用 Tailwind 工具类（便于原样搬到子站）。
-   页头 .sgx-ph（2026-11 对齐 PR-C，设计稿 tb4.html 的 .hero.ph；partials/common/sgx-ph.html）：一行装饰提示符「styrigx@space:~$ <命令>」+ 等宽大标题 + 主题色「_」+ 一行说明，
+   页头 .sgx-ph（2026-11 对齐 PR-C，设计稿 tb4.html 的 .hero.ph；partials/common/frame/page-head.html）：一行装饰提示符「styrigx@space:~$ <命令>」+ 等宽大标题 + 主题色「_」+ 一行说明，
    两种布局都显示（取代 PR 309 段式标签时代「桌面视觉隐藏、手机 30px」的旧标题带）。手机 40px / 桌面 64px（同主页名字）。
    段式标签 / 平铺入口在对齐 PR-C2 退役（奇趣改 .sgx-ctab 下划线 tab，日刻改居中引句 + 三窗）。 */
 .sgx-ph { box-sizing: border-box; padding: 28px 0 4px; color: var(--sgx-text-primary); font-family: var(--sgx-font-mono); }
@@ -1040,7 +1040,7 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 :root[data-sgx-layout="desktop"] .sgx-term-dlg { padding-top: calc(var(--sgx-tb-h) + env(safe-area-inset-top, 0px) + max(24px, min(96px, 10vh))); }
 :root[data-sgx-layout="desktop"] .sgx-term-dlg .sgx-term { display: flex; flex-direction: column; width: min(1040px, 86vw); height: 72vh; }
 :root[data-sgx-layout="desktop"] .sgx-term--drawer .sgx-term-body { flex: 1 1 auto; height: auto; min-height: 0; }
-/* 键盘跟随（Gray 2026-11-12 16:37，topbar-panel.js 写 --sgx-kb / data-kb，只在触屏）：窗口下沿抬到键盘上方，正文让位、在窗里滚，输入行贴着键盘；收起恢复 */
+/* 键盘跟随（Gray 2026-11-12 16:37，topbar/panel.js 写 --sgx-kb / data-kb，只在触屏）：窗口下沿抬到键盘上方，正文让位、在窗里滚，输入行贴着键盘；收起恢复 */
 .sgx-term-dlg[data-kb] { padding-bottom: calc(var(--sgx-kb, 0px) + 8px); }
 .sgx-term-dlg[data-kb] .sgx-term { display: flex; flex-direction: column; max-height: var(--sgx-term-kb-max, 100%); }
 .sgx-term-dlg[data-kb] .sgx-term--drawer .sgx-term-body, .sgx-term-dlg[data-kb] .sgx-term-man { flex: 0 1 auto; min-height: 0; }
@@ -1067,7 +1067,7 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .reduced-motion .sgx-term-dlg .sgx-term, .reduced-motion .sgx-term-dlg::backdrop { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-term-dlg .sgx-term, .sgx-term-dlg::backdrop { transition: none; } }
 /* 环境提示符（进站 v3 L1，SPACE-V3「环境提示符规则」）：模板里静态的提示符三种都写——谁登录显示谁，和终端提示符一致（Gray 2026-11-11 22:46）：
-   .sgx-envps-n 访客 nobody@space:~$ / .sgx-envps-g 普通用户、站长 <名>@space:~$（名字 .sgx-envps-u，topbar/topbar-panel.js 按 whoami 写）/ .sgx-envps-r root root@space:~#；
+   .sgx-envps-n 访客 nobody@space:~$ / .sgx-envps-g 普通用户、站长 <名>@space:~$（名字 .sgx-envps-u，topbar/panel.js 按 whoami 写）/ .sgx-envps-r root root@space:~#；
    按 <html data-sgx-account-session>（nobody / out / in；layout-mode.js __sgxAccountPs 首帧前写好）只显示一种。AI 窗提问行读同一个属性。 */
 html[data-sgx-account-session="out"] .sgx-envps-n, html[data-sgx-account-session="in"] .sgx-envps-n,
 html:not([data-sgx-account-session="out"]) .sgx-envps-g, html:not([data-sgx-account-session="in"]) .sgx-envps-r { display: none; }

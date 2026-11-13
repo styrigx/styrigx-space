@@ -62,7 +62,7 @@ ai:
   stop: 停止
   sources: 来源
   newTab: （在新标签页打开）
-# 导航面板（九宫格）：站点名 + 副标题（space/web/data/common/shell-nav.json 只留 id / 图标 / 地址）
+# 导航面板（九宫格）：站点名 + 副标题（space/web/data/common/frame/nav-source.json 只留 id / 图标 / 地址）
 nav:
   label: "站点"
   home:

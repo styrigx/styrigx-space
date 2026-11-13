@@ -6,13 +6,13 @@
  * - 2c：v6 su / exit / lock 之后顶栏就地切标记（SESSION_EVENT live），这里切成 valid 时补绑自动回锁；标记是 locked 时自动回锁不查
  * v6 P4（定稿 v5.2 §十三：删 space-core 进站签发）起只认 v6 会话：不再问旧的 GET /api/lock-session-check，旧的进站 / 解锁流程删了。
  */
-import { sgxReload } from '../core/diag-jumptrace.js';
+import { sgxReload } from '../core/navigate.js';
 
 /** v6 身份接口（同 identity/api.js IDENTITY_API；守卫不 import 那边，那边带通行密钥代码） */
 const IDENTITY_API = '/api/identity';
 
 /** 页面标记变了的事件（window 上，detail { ok, live }）：首帧 initLock 发一次（没有 live）；2c 起 v6 su / exit / lock 之后
- *  顶栏（topbar-panel.js switchPageSession）就地切标记时发 live: true，云同步 / 名片 / AI 窗口 / 服务状态页各自接，不整页刷新 */
+ *  顶栏（topbar/panel.js switchPageSession）就地切标记时发 live: true，云同步 / 名片 / AI 窗口 / 服务状态页各自接，不整页刷新 */
 export const SESSION_EVENT = 'sgx:session';
 
 /** @returns {'valid'|'locked'|'unknown'} */

@@ -1,7 +1,7 @@
 /**
  * 顶栏长度统一（P4-3 再修，Gray 2026-11-06 立规⑥：顶栏一会长一会短是设计问题；P4-3 PR-4b Gray 2026-11-07 定稿布局只有手机 / 桌面）。
  * 规则只有一份：共享外壳 layout-mode.js __sgxLayout()（源头 space/web/assets/common/js/ui/layout-mode.js），四站 <head> 原样内联，写 <html data-sgx-layout="phone|desktop">；
- * 顶栏宽只在共享外壳 shell.css 按它定：手机布局 min(100% − 32, 640)；桌面布局按 <html data-sgx-device>（__sgxDevice()）分档——
+ * 顶栏宽只在共享外壳 frame.css 按它定：手机布局 min(100% − 32, 640)；桌面布局按 <html data-sgx-device>（__sgxDevice()）分档——
  * 手机设备 min(720, 100% − 48)，电脑 / 平板 min(clamp(720, 60vw, 960), 100% − 48)（Gray 2026-11-07），居中；上限按 100%（不含滚动条），vw 只在 clamp 中间项。
  * 本文件：① 四站 <head> 内联的是同一份 layout-mode.js、都调 __sgxLayout() 写属性、都按 matchMedia 重算；
  * ② 四站内联脚本在一整张 视口 × UA × 偏好 × 查询串 表上给出和主站一样的 data-sgx-layout；
@@ -137,7 +137,7 @@ test('手机开「桌面版网站」（2026-11-07 录屏：S23 Ultra 视口 980�
 });
 
 test('外壳 CSS（顶栏 v3，2026-11 UI 重设计 PR-1）：顶栏贴顶通栏，内容宽一个 token --sgx-content-w（1080），左右内边距 --sgx-tb-pad（页边距 / 安全区 / 居中余量取大），上限按 100% 不用 100vw；横向不滚；页名不在顶栏显示', () => {
-  const shell = read('space/web/assets/common/css/shell.css');
+  const shell = read('space/web/assets/common/css/frame.css');
   const code = shell.replace(/\/\*[\s\S]*?\*\//g, '');
   assert.match(code, /--sgx-content-w: 1080px;/);
   assert.match(code, /--sgx-tb-pad: max\(var\(--sgx-page-m\), env\(safe-area-inset-left, 0px\), env\(safe-area-inset-right, 0px\), \(100% - var\(--sgx-content-w\)\) \/ 2\);/);

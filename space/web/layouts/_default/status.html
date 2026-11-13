@@ -7,11 +7,11 @@
    不在 NAVIGATE 01–04 里（没有当前项，终端 cwd 为 ~）。noindex（门内页，见 baseof）。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-space-status.js" }}
-{{ $pageLang := partial "common/sgx-page-lang.html" . }}{{ $tr := partialCached "common/sgx-tr.html" $pageLang $pageLang }}
-{{ $ps := partial "common/sgx-envps.html" "~" }}
+{{ $pageLang := partial "common/page-lang.html" . }}{{ $tr := partialCached "common/tr.html" $pageLang $pageLang }}
+{{ $ps := partial "common/frame/env-prompt.html" "~" }}
 
 <div class="status-wrap">
-{{ partial "common/sgx-ph.html" (dict "cmd" "systemctl status" "title" .Title "desc" .Description "path" .File.Path) }}
+{{ partial "common/frame/page-head.html" (dict "cmd" "systemctl status" "title" .Title "desc" .Description "path" .File.Path) }}
 
   {{/* status：systemctl status space.target。#st-root 及其子节点 id 不变（apps/space-status.js、tests/space/e2e/space/space-status.spec.js 按 id 找）；
      状态 data-state：loading 骨架 · ready 有数据 · empty 还没有任何检查结果 · error 第一次就失败（之后刷新失败只在末行提示，保留旧数据）
@@ -51,10 +51,10 @@
           <p class="st-msg-sub trm-dim">{{ $tr.status.resultsShowUpAfter }}</p>
         </div>
 
-        {{/* 六个 unit（space / blog / curio / daymark / gray-ai / auth；lib/status-view.js renderUnits，口径同 NAVIGATE STATUS） */}}
+        {{/* 六个 unit（space / blog / curio / daymark / gray-ai / auth；frame/status/view.js renderUnits，口径同 NAVIGATE STATUS） */}}
         <ul id="st-units" class="st-units" role="list"></ul>
 
-        {{/* 每个监测项一行 + 近 90 天可用率条（lib/status-view.js renderSite）：加载中先放 3 行骨架（= 监测目标数），拿到数据后整块替换 */}}
+        {{/* 每个监测项一行 + 近 90 天可用率条（frame/status/view.js renderSite）：加载中先放 3 行骨架（= 监测目标数），拿到数据后整块替换 */}}
         <div id="st-uptime" class="st-block">
           <p class="trm-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ $ps }}</span> uptime --days 90</p>
           <div id="st-sites" class="st-sites">

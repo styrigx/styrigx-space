@@ -70,7 +70,7 @@ test('进站 v3 L1：安全页（security.html / security.js）删了，旧地�
   assert.match(red, /^\/security\/\s+\/#sec\s+301/m, '/security/ → /#sec 301');
   const base = readFileSync('space/web/layouts/_default/baseof.html', 'utf8');
   assert.ok(base.includes('"acct" $acctUrl'), '顶栏头像 / 账号下拉链到账号页');
-  const tb = readFileSync('space/web/layouts/partials/common/shell-topbar.html', 'utf8');
+  const tb = readFileSync('space/web/layouts/partials/common/frame/topbar.html', 'utf8');
   assert.ok(tb.includes('<a class="sgx-tb-av" href="{{ .acct }}"'), '顶栏头像用 acct 参数');
   assert.ok(tb.includes('<dialog id="sgx-acct"'), '账号下拉骨架');
   assert.ok(!tb.includes('sgx-pop-me-a'), '账号下拉模板里不再有去账号页的链接');

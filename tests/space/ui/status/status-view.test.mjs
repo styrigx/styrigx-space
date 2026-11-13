@@ -1,5 +1,5 @@
 /**
- * 服务状态（/status/，之前在账号页，2026-10-24 PR4 前是 /status/）渲染 / 格式函数（space/web/assets/common/js/frame/status/status-view.js）：北京时间、时长、可用率、每日色块、
+ * 服务状态（/status/，之前在账号页，2026-10-24 PR4 前是 /status/）渲染 / 格式函数（space/web/assets/common/js/frame/status/view.js）：北京时间、时长、可用率、每日色块、
  * 当前状态、横幅、站点卡和故障列表的 HTML。假数据：tests/fixtures/status-summary.cjs（Playwright 同一份）。
  * 运行：node --test tests/space/ui/status/status-view.test.mjs
  */
@@ -11,7 +11,7 @@ import {
   esc, bjDay, addDays, fmtDay, fmtBjTime, fmtDur, fmtAgo, fmtPct, pctOf, dayLevel, buildSlots, siteState, siteName, hostOf,
   causeText, lastText, isEmptySummary, bannerInfo, sortIncidents, slotText, uptime90, renderSite, renderIncidents, BAR_DAYS,
   UNITS, unitList, renderUnits,
-} from '../../../../space/web/assets/common/js/frame/status/status-view.js';
+} from '../../../../space/web/assets/common/js/frame/status/view.js';
 import fx from '../../../fixtures/status-summary.cjs';
 
 /* 文案读主站字符串表 js.status（语言包化 2026-11-07：partials/common/status-i18n.html 输出 $tr.js.status），和页面上一致 */

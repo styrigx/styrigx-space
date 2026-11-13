@@ -11,8 +11,8 @@ import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { parse, complete, ghost, normDir, cwdPath, fill, createShell, createWho, COMMANDS, ARGS, DIRS, TERM_EN } from '../../../../space/web/assets/common/js/frame/term/terminal.js';
 
-/* theme 的参数 = 调色板 id（2026-11-12 调色板 v4）：页面上来自共享读端 window.SgxUI.PRESETS，这里按 palettes.json 挂一个（取值时现读，import 之后挂也行） */
-const PAL = JSON.parse(readFileSync(new URL('../../../../space/web/data/common/palettes.json', import.meta.url), 'utf8')).presets.map((p) => p.id);
+/* theme 的参数 = 调色板 id（2026-11-12 调色板 v4）：页面上来自共享读端 window.SgxUI.PRESETS，这里按 palette-list.json 挂一个（取值时现读，import 之后挂也行） */
+const PAL = JSON.parse(readFileSync(new URL('../../../../space/web/data/common/palette-list.json', import.meta.url), 'utf8')).presets.map((p) => p.id);
 /** @type {any} */ (globalThis).SgxUI = { PRESETS: Object.fromEntries(PAL.map((id) => [id, '#000000'])) };
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
@@ -394,8 +394,8 @@ test('一个会话一份历史：缺省键 sgx-term-hist；AI 窗口里的 $ 命
 });
 
 test('文案：外壳字符串表 en / zh 都有 term 节，键和引擎英文底一一对应', () => {
-  const en = yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/sgx-shell-i18n/en.yaml'), 'utf8')).term;
-  const zh = yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/sgx-shell-i18n/zh.yaml'), 'utf8')).term;
+  const en = yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/frame/i18n/en.yaml'), 'utf8')).term;
+  const zh = yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/frame/i18n/zh.yaml'), 'utf8')).term;
   assert.deepEqual(Object.keys(en).sort(), Object.keys(TERM_EN).sort());
   assert.deepEqual(Object.keys(zh).sort(), Object.keys(TERM_EN).sort());
   for (const k of Object.keys(TERM_EN)) assert.equal(en[k], TERM_EN[k], 'en.' + k + ' 同引擎英文底');
@@ -420,8 +420,8 @@ test('共享外壳约束：terminal.js 只 import shell/term/**（终端统一 T
 
 test('man 节（en / zh）：键 = man 页的命令；英文表 = pages.js 英文底', async () => {
   const { PAGES } = await import('../../../../space/web/assets/common/js/frame/term/man/pages.js');
-  const en = yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/sgx-shell-i18n/en.yaml'), 'utf8')).man;
-  const zh = yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/sgx-shell-i18n/zh.yaml'), 'utf8')).man;
+  const en = yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/frame/i18n/en.yaml'), 'utf8')).man;
+  const zh = yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/frame/i18n/zh.yaml'), 'utf8')).man;
   assert.deepEqual(Object.keys(en).sort(), Object.keys(PAGES).sort());
   assert.deepEqual(Object.keys(zh).sort(), Object.keys(PAGES).sort());
   for (const k of Object.keys(PAGES)) assert.equal(en[k], PAGES[k].d, 'en.man.' + k);

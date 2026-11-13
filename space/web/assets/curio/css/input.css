@@ -7,8 +7,8 @@
 @source "../../../content/curio/**/*.md";
 @source "../js/**/*.js";
 /* 共享外壳（合站前是本站的副本，现在直接用主站的源文件）：顶栏等 partial + 外壳 JS */
-@source "../../../layouts/partials/common/{shell-topbar,sgx-ph,sgx-tr,sgx-lang-path}.html";
-@source "../../../assets/common/js/{frame/topbar/topbar-panel,ui/modal-sheet,frame/ai/ai-panel,ui/vk}.js";
+@source "../../../layouts/partials/common/{frame/topbar,frame/page-head,tr,lang-path}.html";
+@source "../../../assets/common/js/{frame/topbar/panel,ui/modal-sheet,frame/ai/panel,ui/vk}.js";
 @source "../../../assets/common/js/{ui/palette-scheme,prefs/prefs-write,prefs/ui-cookie-read,ui/layout-mode,i18n/lang-path,i18n/lang-boot}.js";
 
 /* 原 darkMode: 'class' */
@@ -117,7 +117,7 @@ html, body {
   html, body { overflow-x: clip; }
 }
 @import "../../common/css/tokens.css";
-@import "../../common/css/shell.css";
+@import "../../common/css/frame.css";
 /* ===== 本站自己的样式（cu- 前缀；bk- 是沿用的共用弹层组件）=====
    2026-10-24 跟进主站 PR-G 主题：三层 token —— Shell（光晕 / 顶栏 / 抽屉 / 内容底板 / 玻璃材质，中性，全主题一样）、
    Semantic（primary = 前景 1、secondary = 前景 2；选中、链接、边线、文字）、Component（只引用前两层）。
@@ -163,7 +163,7 @@ html, body {
 /* ===== 页面骨架、壁纸、主题过渡（同主站 base 层）===== */
 html { background: var(--sgx-bg-1); }
 body { background: transparent; }
-/* 2026-11 PR-A：光晕壁纸 #sgx-wallpaper 删掉；页面底 = --sgx-bg-1 + 44px 网格（共享外壳 shell.css body::before） */
+/* 2026-11 PR-A：光晕壁纸 #sgx-wallpaper 删掉；页面底 = --sgx-bg-1 + 44px 网格（共享外壳 frame.css body::before） */
 body { transition: background-color .4s ease, border-color .4s ease, color .4s ease; }
 h1, h2, h3 { letter-spacing: -0.02em; }
 /* 正文撑满一屏（没有页脚）；正文顶部 = 顶栏下沿 + 16px（同主站 main） */

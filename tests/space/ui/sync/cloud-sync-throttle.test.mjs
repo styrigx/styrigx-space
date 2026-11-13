@@ -281,7 +281,7 @@ test('强制入口（v6 P4：旧账号终端 session.js 删了）：su / exit / 
   assert.ok(!existsSync(path.join(ROOT, 'space/web/assets/common/js/frame/account/session.js')), '旧账号会话前端删了（定稿 v5.2 §十三 P4）');
   const cs = readFileSync(path.join(ROOT, 'space/web/assets/common/js/prefs/cloud-sync.js'), 'utf8');
   const core = readFileSync(path.join(ROOT, 'space/web/assets/common/js/frame/apps/core.js'), 'utf8');
-  const tp = readFileSync(path.join(ROOT, 'space/web/assets/common/js/frame/topbar/topbar-panel.js'), 'utf8');
+  const tp = readFileSync(path.join(ROOT, 'space/web/assets/common/js/frame/topbar/panel.js'), 'utf8');
   assert.match(tp, /new CustomEvent\(SESSION_EVENT, \{ detail: \{ ok: state === 'valid', live: true \} \}\)/, 'v6 命令后顶栏发 live');
   assert.match(cs, /if \(!d \|\| !d\.live\) return;\n\s+if \(d\.ok\) \{\n\s+okAt = 0;\n\s+initCloudSync\(\{ force: true \}\)/, '登录了强制拉');
   assert.match(core, /initCloudSync\(\)\.catch/);

@@ -1,6 +1,6 @@
 /**
  * 设置 → 服务状态页的「进站凭证使用记录」折叠区：
- * - 渲染（lib/status-view.js renderAudit，纯函数）：合计行、每条结果 / 北京时间 / IP 前缀、空状态、满 50 条提示、转义、坏数据跳过；
+ * - 渲染（frame/status/view.js renderAudit，纯函数）：合计行、每条结果 / 北京时间 / IP 前缀、空状态、满 50 条提示、转义、坏数据跳过；
  * - 源码守卫：模板里是默认收起的 <details>（不带 open）、没有内联脚本、中英文案齐全；
  *   apps/space-status.js 只在折叠区展开（toggle 且 open）时请求 GET /api/space-audit，页面加载和 60 秒刷新都不碰它；
  *   页面没有身份判断（进门 + 账号会话由网关和接口服务端保证）。
@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { jsDict, strings } from '../../../fixtures/strings.mjs';
 import { existsSync, readFileSync } from 'node:fs';
-import { renderAudit, AUDIT_MAX } from '../../../../space/web/assets/common/js/frame/status/status-view.js';
+import { renderAudit, AUDIT_MAX } from '../../../../space/web/assets/common/js/frame/status/view.js';
 import { AUDIT_SHOW } from '../../../../workers/space-core/src/api/space-audit.js';
 
 const read = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');

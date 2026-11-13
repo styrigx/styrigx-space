@@ -2,7 +2,7 @@
  * @fileoverview 主页（/，中文 /zh/）三节和首屏里要运行时取数的部分（2026-11 对齐 PR-B，设计稿 tb4.html）：
  * - [02] 奇趣 三个目录卡：计数 + 最近收藏 / 在用 / 在玩（/curio/api/links、/curio/api/items，进门即可读，私密的服务端不给）
  * - [03] 日刻 今日一句（apps/daymark-today.js，/daymark/api/today 公开只读）
- * - 首屏状态胶囊：接外壳 topbar/topbar-panel.js mountStatus 发的 sgx:status-cells（同一份 /api/status，不另取）
+ * - 首屏状态胶囊：接外壳 topbar/panel.js mountStatus 发的 sgx:status-cells（同一份 /api/status，不另取）
  * - hero：$ 行标语打字轮播（apps/home-typer.js）；# 行签名 motto 空值时整行隐藏（跟 sgx-profile-changed）
  * mountHome() 由 apps/entries/entry-space.js 在加载时调一次（先于 initCore，事件监听在外壳取数之前挂好）。
  */
@@ -111,7 +111,7 @@ export function mountHome(o) {
   const dm = document.getElementById('w-daymark');
   /* 等的时候那行「› fetching daymark…」：有结论（缓存画上 / 拉到 / 拉失败）就收起 */
   const dmWait = /** @type {HTMLElement|null} */ (document.querySelector('[data-dm-wait]'));
-  /* 等日刻时顶栏头像外圈的弧转快一档，有结论就恢复（只发一次 false；topbar-panel.js mountAvBusy） */
+  /* 等日刻时顶栏头像外圈的弧转快一档，有结论就恢复（只发一次 false；topbar/panel.js mountAvBusy） */
   let dmBusy = false;
   if (dm && dmWait && !dmWait.hidden) { dmBusy = true; document.dispatchEvent(new CustomEvent('sgx-busy', { detail: true })); }
   if (dm) mountDaymarkToday(dm, { en: lang === 'en', onSettled: function () {

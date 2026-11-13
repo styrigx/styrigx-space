@@ -3,8 +3,8 @@
  * 例如命令行「enter 执行 · esc 关闭」、选择「[n] 选择 · enter 默认项 · esc 返回 · ^C 退出」。
  * 触屏不显示按键（没有键盘），改成一个「‹ 返回」按钮，按下 = 这个状态的退出路径（同 esc）——每个终端状态都要有出口（Gray 2026-11-09）。
  *
- * 用在锁屏、盾牌（shell/space/term.js 的宿主）和账号下拉（account/term.js）。主页 / 抽屉终端（term/terminal.js）和 AI 窗口（ai/ai-panel.js）
- * 只许 import term/**，各自画几行，英文底同用 term/core/strings.js 的 KH_EN；文案同一张表：#sgx-i18n-shell 的 kh 节（data/common/sgx-shell-i18n/<语言>.yaml，缺键回退英文）。
+ * 用在锁屏、盾牌（shell/space/term.js 的宿主）和账号下拉（account/term.js）。主页 / 抽屉终端（term/terminal.js）和 AI 窗口（ai/panel.js）
+ * 只许 import term/**，各自画几行，英文底同用 term/core/strings.js 的 KH_EN；文案同一张表：#sgx-i18n-shell 的 kh 节（data/common/frame/i18n/<语言>.yaml，缺键回退英文）。
  *
  * 读屏：按键文字是装饰（aria-hidden），「‹ 返回」是真按钮（有名字，读屏能点）。
  */

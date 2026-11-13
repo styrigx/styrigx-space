@@ -57,14 +57,14 @@ space/web/
 │  ├─ js/             lib/ auth/ shell/ apps/ entries/（分层见 SGX-ARCH-001 §6）
 │  └─ blog/ curio/ daymark/   子站的 css/ 与 js/（发布路径 /<站>/css/…、/<站>/js/…）
 ├─ static/            原样复制：字体、_redirects、_headers、robots.txt、_worker.js；static/<站>/ 子站静态文件
-├─ data/              站点数据；shell/（nav.json、palettes.json，生成）；curio/ daymark/ 的 i18n 字符串表；version.yaml
+├─ data/              站点数据；shell/（nav.json、palette-list.json，生成）；curio/ daymark/ 的 i18n 字符串表；version.yaml
 ├─ i18n/              Hugo 字符串表（博客用）
 └─ public/            构建产物，不进仓库
 ```
 
 3.1 地址规则：主站与子站英文为默认语言；中文主站在 `/zh/`，子站中文在 `/<站>/zh/…`，由各页 front matter 的 `url` 给出，模板里有守卫，写错直接构建失败。
 
-3.2 生成物，MUST NOT 手改（CI 跑 `--check`）：`assets/common/css/main.css`、`assets/<站>/css/main.css`、`data/common/tailwind.json`（`build-css.cjs`）；`assets/common/css/tokens.css`、`shell.css`、`data/common/*.json`（`gen-shell.mjs`）；`data/common/palette-roles.json` 与 `input.css` 的 `@gen-palettes` 段（`gen-palettes.mjs`）；`static/_headers` 与 `workers/*/src/lib/csp-hashes.js`（`gen-csp.mjs`）。
+3.2 生成物，MUST NOT 手改（CI 跑 `--check`）：`assets/common/css/main.css`、`assets/<站>/css/main.css`、`data/common/tailwind.json`（`build-css.cjs`）；`assets/common/css/tokens.css`、`frame.css`、`data/common/*.json`（`gen-common.mjs`）；`data/common/palette-roles.json` 与 `input.css` 的 `@gen-palettes` 段（`gen-palettes.mjs`）；`static/_headers` 与 `workers/*/src/lib/csp-hashes.js`（`gen-csp.mjs`）。
 
 3.3 `static/_worker.js` 只把 `*.pages.dev` 301 回 `styrigx.com`。旧地址的 301 写在 `static/_redirects`。
 
@@ -81,7 +81,7 @@ hugo server -s space/web   # /、/blog/、/curio/、/daymark/ 一起
 | 脚本 | 用途 |
 |---|---|
 | `build-css.cjs` | 主站 CSS（Tailwind 4），顺带三个子站；`--main-only` 只构建主站 |
-| `gen-shell.mjs` | 外壳派生文件（tokens / shell.css、nav / palettes.json、`ui-cookie-read.js` 的 `@ui-cookie-presets` 段） |
+| `gen-common.mjs` | 外壳派生文件（tokens / frame.css、nav / palette-list.json、`ui-cookie-read.js` 的 `@ui-cookie-presets` 段） |
 | `gen-palettes.mjs` | 调色板角色（`--roles`） |
 | `gen-ui-cookie-contract.mjs` | `tests/fixtures/ui-cookie-contract.json` |
 | `gen-csp.mjs` | Report-Only CSP 的内联脚本哈希；只算主站页面 |

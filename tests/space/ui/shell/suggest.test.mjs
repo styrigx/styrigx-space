@@ -1,5 +1,5 @@
 /**
- * 打错命令时给最近的真命令（Gray 2026-11-09）：space/web/assets/common/js/frame/term/suggest.js，以及 shell/terminal.js 里抄的那一份。
+ * 打错命令时给最近的真命令（Gray 2026-11-09）：space/web/assets/common/js/frame/term/core/suggest.js，以及 shell/terminal.js 里抄的那一份。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { lev, suggest } from '../../../../space/web/assets/common/js/frame/term/suggest.js';
+import { lev, suggest } from '../../../../space/web/assets/common/js/frame/term/core/suggest.js';
 import { createShell } from '../../../../space/web/assets/common/js/frame/term/terminal.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
@@ -40,16 +40,15 @@ test('站内终端：hsitory → did you mean history（同一份算法）；不
   assert.equal(sh.exec('hsitory').out[0].cls, 'err');
   /* v5 S5：help 删了（man 取代）；不像就照旧 · try man */
   assert.equal(txt(sh.exec('xyzzy').out[0]), 'command not found: xyzzy · try man');
-  /* 终端统一 T1：只有一份实现（shell/term/core/suggest.js）；terminal.js 不再抄，shell/suggest.js 只转出 */
+  /* 终端统一 T1：只有一份实现（shell/term/core/suggest.js）；terminal.js 不再抄（term/suggest.js 转出垫片 v1.6 删了） */
   const src = read('space/web/assets/common/js/frame/term/terminal.js');
   assert.match(read('space/web/assets/common/js/frame/term/core/engine.js'), /^import \{ suggest \} from '\.\/suggest\.js';$/m, '站内终端的引擎用公共件（T3）');
   assert.doesNotMatch(src, /function (lev|suggest)\(/, 'terminal.js 不再抄 lev / suggest');
-  assert.match(read('space/web/assets/common/js/frame/term/suggest.js'), /export \{ lev, suggest \} from '\.\/core\/suggest\.js';/);
 });
 
 test('文案：term 有 didYouMean（en / zh）；space 节只剩输入行五句（P4-2）；锁屏 / 盾牌接上（S9：账号卡片没有命令行，account.common.didYouMean 删了）', () => {
   for (const l of ['en', 'zh']) {
-    const y = yaml.load(read(`space/web/data/common/sgx-shell-i18n/${l}.yaml`));
+    const y = yaml.load(read(`space/web/data/common/frame/i18n/${l}.yaml`));
     assert.match(y.term.didYouMean, /command not found: \{c\} — .*\{x\}/);
     assert.equal(y.space.common.didYouMean, undefined);
     assert.equal(y.account.common.didYouMean, undefined);

@@ -1,4 +1,4 @@
-/* 由 space/scripts/gen/gen-shell.mjs 从 space/web/data/common/palette-roles.json 生成，勿手改；主站和子站同一个 Hugo 站，子站样式表直接 @import。 */
+/* 由 space/scripts/gen/gen-common.mjs 从 space/web/data/common/palette-roles.json 生成，勿手改；主站和子站同一个 Hugo 站，子站样式表直接 @import。 */
 /* 25 套七色调色板：<html data-palette="<id>">（默认 terra 不写）；每套只有一个模式（浅套 / 深套由底色决定），深套时 <html class="dark">。 */
 /* 樱桃 · Cherry（cherry，深套）：背景樱桃；前景 抹茶 / 冰川蓝 / 琥珀 / 极光青 / 兰紫 / 莓果 */
 :root[data-palette="cherry"] {

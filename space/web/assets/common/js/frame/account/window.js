@@ -11,7 +11,7 @@
  * v6 P4（定稿 v5.2 §七「访客点击预填 su 」、§十三 删旧会话）起登录状态只看终端的 v6 身份（who.v6()），不再问旧的 GET /api/account、
  * 不再读写旧登录标记 cookie sgx-account-signed-in。
  *
- * 只 import lib/、shell/（check-layers 规则 3）。文案在外壳字符串表 account.*（sgx-shell-i18n），四个站同一份。
+ * 只 import lib/、shell/（check-layers 规则 3）。文案在外壳字符串表 account.*（frame/i18n），四个站同一份。
  */
 import { esc } from '../../core/util.js';
 import { readCache, effectiveProfile, profileDefaults, PROFILE_EVENT } from '../../prefs/profile.js';
@@ -21,7 +21,7 @@ import { layerFromPath } from './commands.js';
 /** 嵌套字符串表 → 点号键：终端统一 T1 起在 term/core/strings.js，这里转出 */
 export { flatStrings };
 
-/** 页面入口给的名字 → 怎么开（commands.js；topbar-panel.js 的 accountLayer） */
+/** 页面入口给的名字 → 怎么开（commands.js；topbar/panel.js 的 accountLayer） */
 export { layerFromPath };
 
 /** 卡片的行 → 终端里预填的命令（行和外观同 v5 卡片；「登录」行 sudo root → su root，Gray 11-11 17:51，定稿 §十三 P4；
@@ -106,7 +106,7 @@ export function mountAccountWindow(o) {
   /* 终端身份问完服务端（whoami）晚于卡片打开时（首帧、旧地址 #acct）：开着就按新身份重画（同 main 里 GET /api/account 回来后校正） */
   if (o.who && typeof o.who.on === 'function') o.who.on(function () { if (o.ms.isShown()) onOpen(); });
 
-  /** 打开时（topbar-panel 的 onOpen）：按终端的 v6 身份画（数据源从旧 GET /api/account 改接 v6，外观不变） */
+  /** 打开时（topbar/panel.js 的 onOpen）：按终端的 v6 身份画（数据源从旧 GET /api/account 改接 v6，外观不变） */
   function onOpen() {
     const u = me();
     setSt(u ? 'in' : 'guest');

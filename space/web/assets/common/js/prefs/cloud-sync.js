@@ -21,7 +21,7 @@
  */
 import { defs, notifyExternal } from '../features/features.js';
 import { get as sget, set as sset, getJSON, setJSON } from './storage.js';
-import { syncUiCookie } from './ui-cookie.js';
+import { syncUiCookie } from './prefs-write.js';
 
 export const PREFS_API = '/api/prefs';
 export const SWITCH_KEY = 'sgx-cloud-sync';
@@ -41,7 +41,7 @@ const FORCE_REUSE_MS = 3000;
 const EXCLUDE = new Set(['sgx-lang', 'sgx-layout']);
 /** features.yaml 之外也要同步的 key */
 /* P4-2c：sgx-weather-loc / sgx-weather-city 随天气删除。
-   P4-2d：sgx-ai-model（账号页选的 AI 模型 id，ai/ai-panel.js MODEL_KEY）；AI 窗口的对话历史仍只存本地、不同步 */
+   P4-2d：sgx-ai-model（账号页选的 AI 模型 id，ai/panel.js MODEL_KEY）；AI 窗口的对话历史仍只存本地、不同步 */
 const EXTRA = ['sgx-ai-model'];
 
 /** @returns {string[]} 要同步的 localStorage key */

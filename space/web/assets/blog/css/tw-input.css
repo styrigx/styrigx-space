@@ -14,10 +14,10 @@
 @source "../../../i18n";
 @source "../../../archetypes/blog.md";
 /* 共享外壳（合站前是博客里的副本，现在直接用主站的源文件） */
-@source "../../../layouts/partials/common/{shell-topbar,sgx-ph,sgx-tr,sgx-lang-path}.html";
-@source "../../common/js/{frame/topbar/topbar-panel,ui/modal-sheet,frame/ai/ai-panel,ui/vk}.js";
+@source "../../../layouts/partials/common/{frame/topbar,frame/page-head,tr,lang-path}.html";
+@source "../../common/js/{frame/topbar/panel,ui/modal-sheet,frame/ai/panel,ui/vk}.js";
 @source "../../common/js/{ui/palette-scheme,prefs/prefs-write,prefs/ui-cookie-read,ui/layout-mode,i18n/lang-path,i18n/lang-boot}.js";
 @source "../../../data/common";
-@source "../../../data/common/sgx-shell-i18n";
+@source "../../../data/common/frame/i18n";
 
 @custom-variant dark (&:where(.dark, .dark *));

@@ -1,5 +1,5 @@
 {{ define "main" }}
-{{ $lang := .Lang }}{{ $tr := partialCached "common/sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
+{{ $lang := .Lang }}{{ $tr := partialCached "common/tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
 {{/* 奇趣 › 音乐（/curio/music/，中文 /curio/zh/music/；P4-3 奇趣拆页新增）：数字专辑，curio-music.js 画。
    三层（v5 S3；接口档在 workers/curio-core/src/routes.js ROUTE_ACCESS）：歌单 / 封面谁都能看（GET /curio/api/music 不带任何音频地址）；
    听要进站（没进站 = 只看模式：播放键是锁、播放条只显示专辑，点播放发 sgx:sudo，顶栏终端预填 sudo styrigx）；

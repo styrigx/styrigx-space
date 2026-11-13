@@ -160,7 +160,7 @@ export function createWho(o) {
     setV6: function (u) {
       v6 = u && u.name ? u : null;
       emit();
-      /* 2c：su / exit / lock 之后页面标记就地切（宿主 topbar-panel 订阅）；只在 v6 命令之后，不在 refresh 里（网络错不误锁） */
+      /* 2c：su / exit / lock 之后页面标记就地切（宿主 topbar/panel.js 订阅）；只在 v6 命令之后，不在 refresh 里（网络错不误锁） */
       const st = pageStateFor(v6);
       v6Subs.forEach(function (f) { try { f(st); } catch (e) {} });
     },
