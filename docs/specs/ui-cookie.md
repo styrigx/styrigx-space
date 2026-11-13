@@ -16,9 +16,9 @@
 
 | 角色 | 文件 |
 |---|---|
-| 字段表、版本、编解码、读端 `SgxUI` | `space/web/assets/shell/js/prefs/ui-cookie-read.js` |
-| 写端 `syncUiCookie()` | `space/web/assets/shell/js/prefs/prefs-write.js`（`prefs/ui-cookie.js` 只转导出） |
-| 首帧语言跳转 | `space/web/assets/shell/js/i18n/lang-boot.js` |
+| 字段表、版本、编解码、读端 `SgxUI` | `space/web/assets/common/js/prefs/ui-cookie-read.js` |
+| 写端 `syncUiCookie()` | `space/web/assets/common/js/prefs/prefs-write.js` |
+| 首帧语言跳转 | `space/web/assets/common/js/i18n/lang-boot.js` |
 | 契约夹具 | `tests/fixtures/ui-cookie-contract.json`（`space/scripts/gen/gen-ui-cookie-contract.mjs` 跑真写端生成） |
 
 ## 2. 不变式
@@ -103,9 +103,9 @@ sgx-ui=<base64url(UTF-8 JSON)>; Domain=styrigx.com; Path=/; Max-Age=34560000; Sa
 
 ```bash
 node space/scripts/gen/gen-ui-cookie-contract.mjs
-node space/scripts/gen/gen-shell.mjs
+node space/scripts/gen/gen-common.mjs
 node space/scripts/gen/gen-ui-cookie-contract.mjs --check
-node space/scripts/gen/gen-shell.mjs --check
+node space/scripts/gen/gen-common.mjs --check
 node --test tests/space/ui/shell/ui-cookie-contract.test.mjs
 ```
 
@@ -117,12 +117,12 @@ node --test tests/space/ui/shell/ui-cookie-contract.test.mjs
 
 ### 8.3 禁止
 
-- MUST NOT 手改生成物：`tests/fixtures/ui-cookie-contract.json`、`space/web/data/shell/`、`space/web/assets/shell/css/`、`ui-cookie-read.js` 的 `@ui-cookie-presets` 段。
+- MUST NOT 手改生成物：`tests/fixtures/ui-cookie-contract.json`、`space/web/data/common/`、`space/web/assets/common/css/`、`ui-cookie-read.js` 的 `@ui-cookie-presets` 段。
 - 色板改名 MUST 在 `normPal()` 里迁移旧 id 并补夹具用例。
 
 ## 9. 子站读端
 
-9.1 子站模板直接内联主站读端（`resources.Get "shell/js/prefs/ui-cookie-read.js"`），没有副本。各站在读端后面加的一小段：博客 `layouts/partials/blog/sgx-inherit.html`，奇趣 / 日刻 `assets/<站>/js/sgx/ui-inherit-run.js`。
+9.1 子站模板直接内联主站读端（`resources.Get "common/js/prefs/ui-cookie-read.js"`），没有副本。各站在读端后面加的一小段：博客 `layouts/partials/blog/sgx-inherit.html`，奇趣 / 日刻 `assets/<站>/js/sgx/ui-inherit-run.js`。
 
 9.2 博客 `sgx-inherit.html` 有三个 `<script>`：① `lang-boot.js`；② `ui-cookie-read.js`；③ 博客胶水（只管外观）。（3.0 起 `entries/inherit.ts` 删除，子站不再加载 `palette-scheme.js`。）
 

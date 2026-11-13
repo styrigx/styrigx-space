@@ -55,4 +55,4 @@
 
 ## 5. 从旧任务书保留的工程规则
 
-以下来自 `styrigx-3.0-task.md` 的全局规则仍然有效，已并入 SGX-CON-001：只走 PR、不直推 `main`、不 force push、合并只经 API、每个分支从最新 `main` 开、不删 / 不跳测试、同一问题修两轮仍失败即停下报告。版本号唯一来源 `space/web/data/shell/version.yaml`。
+以下来自 `styrigx-3.0-task.md` 的全局规则仍然有效，已并入 SGX-CON-001：只走 PR、不直推 `main`、不 force push、合并只经 API、每个分支从最新 `main` 开、不删 / 不跳测试、同一问题修两轮仍失败即停下报告。版本号唯一来源 `space/web/data/common/version.yaml`。

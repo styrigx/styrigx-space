@@ -1,6 +1,6 @@
-# 本站字符串表（语言包化 2026-11-07）：英文是源文本；其他语言的表缺键时回退英文（partials/shell/sgx-tr.html）。
+# 本站字符串表（语言包化 2026-11-07）：英文是源文本；其他语言的表缺键时回退英文（partials/common/tr.html）。
 # 键按模板分组（<模板名>.<键>）；js.<表> 是页面 JS 读的文案表（<script id="sgx-i18n-<表>">）。
-# 不放进来的：品牌名（Gray AI、Styrigx）、个人信息类（partials/shell/sgx-personal.html）、语言自己的名字（hugo.yaml label）。
+# 不放进来的：品牌名（Gray AI、Styrigx）、个人信息类（partials/common/tr-personal.html）、语言自己的名字（hugo.yaml label）。
 site:
   name: Curio
   description: 'Sloan Gray''s Curio: good things found on the web, kept one by one'

@@ -4,7 +4,7 @@
  *   - 看：GET /curio/api/music 谁都能调（只有专辑 / 曲目元数据，没有音频地址）；回 canWrite（账号 + curio.write）才显示上传 / 删除专辑。
  *   - 听：要进站。没进站（网关标记 <html data-sgx-lock-session="locked">，或签令牌回 401）= 只看模式（html.mu-view-only）：
  *     播放整张 / 播放键是锁，播放条显示当前专辑和「未进站，仅可浏览」，上一首 / 下一首 / 倍速 / 进度不可用；
- *     点播放、点曲目都发 sgx:sudo（经 curio.js SgxCurioUI.sudo；= shell/js/auth/sudo.js SUDO_EVENT），顶栏终端预填 su 。
+ *     点播放、点曲目都发 sgx:sudo（经 curio.js SgxCurioUI.sudo；= common/js/auth/sudo.js SUDO_EVENT），顶栏终端预填 su 。
  *   - 写的接口 401 同样按没进站处理。
  * 播放器（交互借 jojo.best/music 的思路，只借交互）：
  *   - 封面横滑切专辑（scroll-snap，停下来的那张是当前专辑；点封面也能切），下面是这张的曲目（按曲序）。
@@ -126,7 +126,7 @@ function toast(m){ if (UI) UI.toast(m); }
 var viewOnly = doc.documentElement.getAttribute('data-sgx-lock-session') === 'locked';
 /** 写的权限（GET /api/music 回的 canWrite：账号 + curio.write） */
 var canWrite = false;
-/** 请人进站：顶栏终端预填 su （curio.js SgxCurioUI.sudo → sgx:sudo，topbar/topbar-panel.js 接） */
+/** 请人进站：顶栏终端预填 su （curio.js SgxCurioUI.sudo → sgx:sudo，topbar/panel.js 接） */
 function askSudo(){ if (UI && UI.sudo) UI.sudo(); }
 /** 本页接口：401 = 没进站（切到只看模式 + 请人进站，抛 sgxLocked，调用方不再报错）；其它错误带 code 抛出 */
 function req(method, url, body, type){

@@ -158,7 +158,7 @@ test('筛选、换代历史、平台联想、缩图尺寸', () => {
 test('裁剪几何：取景框按卡片比例、照片始终盖满、框住的原图区域、重新调整摆回原位', () => {
   const css = readFileSync(new URL('../../space/web/assets/curio/css/input.css', import.meta.url), 'utf8');
   /* 照片按 设备 4:3 / 游戏 3:4 存；2026-11 对齐 PR-C2 起卡片封面位是固定高度（共享外壳 .sgx-cc-im 150 / 90px），图片 object-fit: cover 铺满 */
-  assert.match(readFileSync(new URL('../../space/web/assets/shell/css/shell.css', import.meta.url), 'utf8'), /\.sgx-cc-im img \{[^}]*object-fit: cover;/);
+  assert.match(readFileSync(new URL('../../space/web/assets/common/css/frame.css', import.meta.url), 'utf8'), /\.sgx-cc-im img \{[^}]*object-fit: cover;/);
   assert.match(css, /\.it-cc \.sgx-cc-im img \{ z-index: 1; \}/);
   assert.equal(IT.CROP_RATIO.device, 4 / 3);
   assert.equal(IT.CROP_RATIO.game, 3 / 4);

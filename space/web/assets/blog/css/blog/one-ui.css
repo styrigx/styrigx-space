@@ -1,6 +1,6 @@
 /* ============================================================
  * 博客 One UI 外观（设计稿第二版）
- * 颜色只用主站共享外壳的色彩角色（--sgx-*，sgx-shell.css，atlas/scripts/blog/sync-shell.mjs 同步）：
+ * 颜色只用主站共享外壳的色彩角色（--sgx-*，sgx-frame.css，atlas/scripts/blog/sync-shell.mjs 同步）：
  * 22 套预设 × 亮 / 暗 + 自定义种子；深色 / 调色板 / 自定义色 / 减弱动效跟主站 sgx-ui cookie
  * （sgx-inherit.html 首帧前设 <html class="dark" data-theme data-palette>）。不要在组件里写颜色值。
  * 三层规则同主站 docs/design/palette.md（2026-10-23 PR-G）：Shell（光晕、顶栏、抽屉、内容底板、玻璃）中性、所有主题一样；
@@ -38,7 +38,7 @@
 /* ---------- 外壳框（主站一比一）：最宽 Mobile 640 / DeX 1440 由共享外壳按 <html data-sgx-layout> 定（四站同一条布局规则，head.html 内联脚本），
    本站不再按 layout-* 类改 --sgx-content-max（P4-3 顶栏长度统一）---------- */
 
-/* ---------- 页面底（2026-11 PR-A 对齐设计稿：去掉全页光晕）：--sgx-bg-1 + 44px 网格，网格层是共享外壳 shell.css 的 body::before ---------- */
+/* ---------- 页面底（2026-11 PR-A 对齐设计稿：去掉全页光晕）：--sgx-bg-1 + 44px 网格，网格层是共享外壳 frame.css 的 body::before ---------- */
 html {
   background: var(--sgx-bg-1);
 }

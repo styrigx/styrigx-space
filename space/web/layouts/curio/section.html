@@ -1,5 +1,5 @@
 {{ define "main" }}
-{{ $lang := .Lang }}{{ $tr := partialCached "shell/sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
+{{ $lang := .Lang }}{{ $tr := partialCached "common/tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
 {{/* 奇趣首页（2026-11 对齐 PR-C2，设计稿 tb4.html pg=curio）：「ls curio/」一页就是分区 tab + 卡片，默认 finds/（内容同 /curio/finds/，partials/curio/finds-main.html）。
    旧的平铺入口（发现 / 设备 / 游戏 / 电影 / 音乐大行）删掉，分区切换是页头的下划线 tab。
    旧 hash 地址（#devices、#games）由 curio-home.js 在客户端转到对应子页；#c/<分类> 就地生效（首页就是发现）。顶栏页名胶囊显示站名。 */}}

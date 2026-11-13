@@ -5,21 +5,21 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { bootLang } from '../../space/web/assets/shell/js/i18n/lang-boot.js';
+import { bootLang } from '../../space/web/assets/common/js/i18n/lang-boot.js';
 
 /* 首帧前的内联脚本：space/web/layouts/partials/blog/sgx-inherit.html 三个 <script>：
    ① 首帧语言跳转（共享外壳 lang-boot.js，四站同一份，语言清理 2026-11-07）② 共享读端（ui-cookie-read.js 压缩版）③ 博客胶水（只管外观） */
 const partial = readFileSync(new URL('../../space/web/layouts/partials/blog/sgx-inherit.html', import.meta.url), 'utf8');
 const scripts = [...partial.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 assert.equal(scripts.length, 3, 'sgx-inherit.html 应有三个 <script>');
-assert.match(scripts[0], /resources\.Get "shell\/js\/i18n\/lang-boot\.js" \| js\.Build/, '第一个 <script> 内联首帧语言跳转');
-assert.match(scripts[1], /resources\.Get "shell\/js\/prefs\/ui-cookie-read\.js"|\$reader\.Content/, '第二个 <script> 内联共享读端');
+assert.match(scripts[0], /resources\.Get "common\/js\/i18n\/lang-boot\.js" \| js\.Build/, '第一个 <script> 内联首帧语言跳转');
+assert.match(scripts[1], /resources\.Get "common\/js\/prefs\/ui-cookie-read\.js"|\$reader\.Content/, '第二个 <script> 内联共享读端');
 const glue = scripts[2];
-const READER = readFileSync(new URL('../../space/web/assets/shell/js/prefs/ui-cookie-read.js', import.meta.url), 'utf8');
+const READER = readFileSync(new URL('../../space/web/assets/common/js/prefs/ui-cookie-read.js', import.meta.url), 'utf8');
 /* 模块那一半（entries/inherit.ts：数字健康、自定义色引擎）v6 P4 / 调色板 v4 先后删完，文件已删 */
 const HEAD = readFileSync(new URL('../../space/web/layouts/partials/blog/head.html', import.meta.url), 'utf8');
 const palettes = JSON.parse(
-  readFileSync(new URL('../../space/web/data/shell/palettes.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../space/web/data/common/palette-list.json', import.meta.url), 'utf8'),
 );
 const fx = JSON.parse(readFileSync(new URL('../fixtures/ui-cookie-contract.json', import.meta.url), 'utf8'));
 const SEEDS = Object.fromEntries(palettes.presets.map((p) => [p.id, p.seed]));
@@ -174,9 +174,9 @@ test('内联读端 = 共享外壳 ui-cookie-read.js 原样，和本仓库色板�
   assert.ok(U, 'window.SgxUI');
   assert.deepEqual([...U.VERSIONS], [1, 2]);
   assert.equal(U.DEFAULT_PAL, palettes.default);
-  assert.deepEqual([...U.DARK], palettes.presets.filter((p) => p.mode === 'dark').map((p) => p.id), '读端深套表 = palettes.json');
-  assert.deepEqual({ ...U.PRESETS }, SEEDS, '读端预设种子 = palettes.json');
-  assert.match(partial, /resources\.Get "shell\/js\/prefs\/ui-cookie-read\.js"/);
+  assert.deepEqual([...U.DARK], palettes.presets.filter((p) => p.mode === 'dark').map((p) => p.id), '读端深套表 = palette-list.json');
+  assert.deepEqual({ ...U.PRESETS }, SEEDS, '读端预设种子 = palette-list.json');
+  assert.match(partial, /resources\.Get "common\/js\/prefs\/ui-cookie-read\.js"/);
   assert.doesNotMatch(partial, /data-sgx-seed|dataset\.sgxSeed|ui\.theme/);
 });
 
@@ -338,7 +338,7 @@ test('博客 head 不再加载 inherit.ts / palette-scheme.js（自定义色引�
   assert.doesNotMatch(HEAD, /#fdfdf9/);
 });
 test('共享外壳副本含 22 套预设（v4 起每套一段）和顶栏 / 快捷面板样式（2026-11-04 P5-1 抽屉删了）', () => {
-  const shell = (readFileSync(new URL('../../space/web/assets/shell/css/tokens.css', import.meta.url), 'utf8') + readFileSync(new URL('../../space/web/assets/shell/css/shell.css', import.meta.url), 'utf8'));
+  const shell = (readFileSync(new URL('../../space/web/assets/common/css/tokens.css', import.meta.url), 'utf8') + readFileSync(new URL('../../space/web/assets/common/css/frame.css', import.meta.url), 'utf8'));
   assert.equal(palettes.presets.length, 25);
   for (const { id } of palettes.presets) {
     assert.ok(shell.includes(`:root[data-palette="${id}"] {`), id);

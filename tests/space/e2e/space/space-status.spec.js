@@ -485,7 +485,7 @@ test.describe('NAVIGATE STATUS → 状态页 /status/（入口）', () => {
 
   test('主页 NAVIGATE STATUS 区的跳转按钮 → /zh/status/，数据和原状态窗一样；主页没有 [04] 旷野一节', async ({ page }) => {
     await blockExternalRequests(page);
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} /* 测试构建默认不问 /api/status（topbar-panel mountStatus noApi），这条要测就打开 */ window.__sgxStatusApi = true; });
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} /* 测试构建默认不问 /api/status（topbar/panel.js mountStatus noApi），这条要测就打开 */ window.__sgxStatusApi = true; });
     await page.route('**/api/status', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fx.withUsage(fx.normal(), fx.usage())) }));
     await page.goto('/zh/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#wild, .home-mini')).toHaveCount(0);

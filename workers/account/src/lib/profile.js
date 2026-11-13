@@ -4,7 +4,7 @@
  *
  * - 存储：KV_PROFILE（styrigx-account KV，和头像同库）一个键 `profile`，值是 JSON
  *   `{"v":1,"name","nickname","motto","email","updatedAt"}`；只存改过的字段，没存的字段 = 用默认值。
- * - 默认值不在 Worker 里：在主站 space/web/data/shell/profile.yaml（构建期画首帧）。接口对没存的字段回 null，
+ * - 默认值不在 Worker 里：在主站 space/web/data/common/profile.yaml（构建期画首帧）。接口对没存的字段回 null，
  *   前端回退构建期默认值；KV 读不到 / JSON 坏了也一律当「全没存」（不报错，页面照样显示默认值）。
  * - 字段表 PROFILE_FIELDS 是唯一一份定义（以后加字段在这里加一行 + 前端 lib/profile.js 同名一行，单测核对两边一致）。
  *

@@ -11,8 +11,8 @@ import yaml from 'js-yaml';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
-const css = read('space/web/assets/shell/css/input.css');
-const shell = read('space/web/assets/shell/css/shell.css');
+const css = read('space/web/assets/common/css/input.css');
+const shell = read('space/web/assets/common/css/frame.css');
 
 test('头像外圈：表面色实心环 + 环外沿细线 + 投影；弧压在环外沿（外径 = 环外径 36px，不另起一圈）；平时 2s、.is-busy 0.9s；减弱动效不转；在共享外壳里（四站同一套）', () => {
   for (const s of [css, shell]) {
@@ -33,10 +33,10 @@ test('头像外圈：表面色实心环 + 环外沿细线 + 投影；弧压在�
     assert.match(s, /@media \(prefers-reduced-motion: reduce\) \{ \.sgx-tb-av::before \{ animation: none; \} \}/);
   }
   /* 忙的来源都发 sgx-busy：站内终端等待、AI 回答、主页日刻；顶栏按计数合并 */
-  assert.match(read('space/web/assets/shell/js/term/terminal.js'), /busyEv\(true\);[\s\S]*busyEv\(false\);/);
-  assert.match(read('space/web/assets/shell/js/ai/ai-panel.js'), /dispatchEvent\(new CustomEvent\('sgx-busy', \{ detail: v \}\)\)/);
-  assert.match(read('space/web/assets/shell/js/apps/index.js'), /CustomEvent\('sgx-busy', \{ detail: true \}\)[\s\S]*CustomEvent\('sgx-busy', \{ detail: false \}\)/);
-  assert.match(read('space/web/assets/shell/js/topbar/topbar-panel.js'), /export function mountAvBusy\(d\)[\s\S]*classList\.toggle\('is-busy', on\)/);
+  assert.match(read('space/web/assets/common/js/frame/term/terminal.js'), /busyEv\(true\);[\s\S]*busyEv\(false\);/);
+  assert.match(read('space/web/assets/common/js/frame/ai/panel.js'), /dispatchEvent\(new CustomEvent\('sgx-busy', \{ detail: v \}\)\)/);
+  assert.match(read('space/web/assets/common/js/frame/apps/index.js'), /CustomEvent\('sgx-busy', \{ detail: true \}\)[\s\S]*CustomEvent\('sgx-busy', \{ detail: false \}\)/);
+  assert.match(read('space/web/assets/common/js/frame/topbar/panel.js'), /export function mountAvBusy\(d\)[\s\S]*classList\.toggle\('is-busy', on\)/);
 });
 
 test('触屏点击区 ≥ 44：透明 ::after 撑到 22px 半径；目录行纵向不裁', () => {

@@ -12,7 +12,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { createShell, TERM_EN } from '../../../../space/web/assets/shell/js/term/terminal.js';
+import { createShell, TERM_EN } from '../../../../space/web/assets/common/js/frame/term/terminal.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -30,7 +30,7 @@ function layers() {
 
 test('守卫：hasV6Marker 只认 sgx-id=1；v6SignedIn 按 whoami（有身份 true / 没有 false / 网络错 null）', async () => {
   globalThis.document = { cookie: 'x=1; sgx-id=1' };
-  const G = await import('../../../../space/web/assets/shell/js/auth/guard.js');
+  const G = await import('../../../../space/web/assets/common/js/auth/guard.js');
   assert.equal(G.hasV6Marker(), true);
   document.cookie = 'sgx-id=0';
   assert.equal(G.hasV6Marker(), false);
@@ -43,7 +43,7 @@ test('守卫：hasV6Marker 只认 sgx-id=1；v6SignedIn 按 whoami（有身份 t
   assert.equal(await G.v6SignedIn(), false);
   globalThis.fetch = () => Promise.reject(new Error('offline'));
   assert.equal(await G.v6SignedIn(), null, '网络错不当没有（不重载）');
-  const src = rd('space/web/assets/shell/js/auth/guard.js');
+  const src = rd('space/web/assets/common/js/auth/guard.js');
   assert.match(src, /if \(!hasV6Marker\(\)\) \{ sgxReload\(\); return; \}/);
   assert.match(src, /if \(on === false\) sgxReload\(\)/);
 });
@@ -59,18 +59,18 @@ test('v6 P4：终端 share 命令删了（定稿 §二 分享短链整套删除�
 });
 
 test('403 forbidden 文案：AI 窗口有自己的一句，不再落到「会话过期」或「服务不可用」（v6 P4：分享磁贴不再生成短链、钥匙层删了）', async () => {
-  assert.equal(existsSync(path.join(REPO, 'space/web/assets/shell/js/shell/share-button.js')), false, 'v6 P4：分享磁贴拿掉（Gray 11-11 17:47）');
-  const AI = await import('../../../../space/web/assets/shell/js/ai/ai-panel.js');
+  assert.equal(existsSync(path.join(REPO, 'space/web/assets/common/js/shell/share-button.js')), false, 'v6 P4：分享磁贴拿掉（Gray 11-11 17:47）');
+  const AI = await import('../../../../space/web/assets/common/js/frame/ai/panel.js');
   assert.equal(AI.errKey(403, { error: 'forbidden' }), 'forbidden');
   assert.equal(AI.errKey(401, {}), 'unauthorized');
   for (const lang of ['en', 'zh']) {
-    const t = yaml.load(rd('space/web/data/shell/sgx-shell-i18n/' + lang + '.yaml'));
+    const t = yaml.load(rd('space/web/data/common/frame/i18n/' + lang + '.yaml'));
     assert.ok(t.ai.forbidden && t.term.needRoot6, lang);
     assert.equal(t.share, undefined, lang + ' 分享磁贴的文案整节删了');
-    const st = yaml.load(rd('space/web/data/shell/i18n/' + lang + '.yaml'));
+    const st = yaml.load(rd('space/web/data/common/i18n/' + lang + '.yaml'));
     assert.ok(JSON.stringify(st).includes('auditErrPerm'), lang + ' 服务状态页 auditErrPerm');
   }
-  const status = rd('space/web/assets/shell/js/apps/space-status.js');
+  const status = rd('space/web/assets/common/js/frame/apps/space-status.js');
   assert.match(status, /status === 401 \|\| status === 403/, '状态卡 403 → 锁卡（不是错误卡）');
   assert.match(status, /perm \? 'auditErrPerm'/);
 });

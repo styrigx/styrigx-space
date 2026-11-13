@@ -1,5 +1,5 @@
 {{ define "main" }}
-{{ $lang := .Lang }}{{ $tr := partialCached "shell/sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}{{ $t := $tr.player }}
+{{ $lang := .Lang }}{{ $tr := partialCached "common/tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}{{ $t := $tr.player }}
 {{/* 奇趣 › 音乐 › 播放器（/curio/music/player/，中文 /curio/zh/music/player/；音乐分层方案 v1.13 第二步 2b，功能见 §7.1 播放层）：
    独立小播放器页，桌面 / DeX 由入口用 window.open 开成小窗，手机是新标签页（入口是 2c）；主标签页随便跳，歌不断。music-player.js 画。
    - 声音、签令牌、续签、切曲、防同时响、播放模式都在共用核 music-core.js（奇趣音乐页同一份）；本页不管上传 / 删除（留在奇趣音乐页）。

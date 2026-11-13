@@ -1,5 +1,5 @@
 {
-  "_generated": "styrigx-space space/scripts/gen/gen-ui-cookie-contract.mjs ← space/web/assets/shell/js/prefs/ui-cookie.js（写端真实产出）；勿手改",
+  "_generated": "styrigx-space space/scripts/gen/gen-ui-cookie-contract.mjs ← space/web/assets/common/js/prefs/prefs-write.js（写端真实产出）；勿手改",
   "_doc": "cookie = sgx-ui 的值（document.cookie 里 sgx-ui= 后面那段）。read = SgxUI.read() 的期望（null = 当没有 cookie）；light / dark = 系统浅 / 深色时 SgxUI.resolve() 和 SgxUI.apply() 后 <html> 的期望（v4 起两者相同：深浅只由调色板决定）。root.dark / reduced-motion = class；fontSize = style.fontSize；data-palette null = 不写。",
   "now": 1761062400000,
   "cases": [

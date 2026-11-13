@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { langBootTarget, readLangPref, cookieLangRaw } from '../../space/web/assets/shell/js/i18n/lang-boot.js';
+import { langBootTarget, readLangPref, cookieLangRaw } from '../../space/web/assets/common/js/i18n/lang-boot.js';
 
 const read = (p) => readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
 const enc = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -46,8 +46,8 @@ test('跟随系统（Auto）在子站不跳（2026-11-09：只在进主站首页
 test('页面接线：<html data-sgx-langs> 来自 hugo.yaml；baseof 先内联 lang-boot，再内联共享读端和 ui-inherit-run.js（都在样式前）', () => {
   const base = read('space/web/layouts/curio/baseof.html');
   assert.ok(base.includes('data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}"'), '语言列表来自 hugo.yaml');
-  const iBoot = base.indexOf('resources.Get "shell/js/i18n/lang-boot.js" | js.Build');
-  const iReader = base.indexOf('resources.Get "shell/js/prefs/ui-cookie-read.js" | minify');
+  const iBoot = base.indexOf('resources.Get "common/js/i18n/lang-boot.js" | js.Build');
+  const iReader = base.indexOf('resources.Get "common/js/prefs/ui-cookie-read.js" | minify');
   const iRun = base.indexOf('resources.Get "curio/js/sgx/ui-inherit-run.js"');
   assert.ok(iBoot > 0 && iBoot < iReader && iReader < iRun && iRun < base.indexOf('css/main.css'));
   const run = read('space/web/assets/curio/js/sgx/ui-inherit-run.js');

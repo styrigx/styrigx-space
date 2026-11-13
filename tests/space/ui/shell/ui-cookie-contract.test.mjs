@@ -11,15 +11,15 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { renderContract, FIXTURE } from '../../../../space/scripts/gen/gen-ui-cookie-contract.mjs';
-import { shellFiles, READER_SRC } from '../../../../space/scripts/gen/gen-shell.mjs';
+import { shellFiles, READER_SRC } from '../../../../space/scripts/gen/gen-common.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const READER = readFileSync(READER_SRC, 'utf8');
-const WRITER = readFileSync(path.join(REPO, 'space/web/assets/shell/js/prefs/ui-cookie.js'), 'utf8');
-/* 2026-11-04 P5-1：cookie 写法搬进外观写端 lib/prefs-write.js（共享外壳 prefs-write.js，四站一个写端）；ui-cookie.js 只先引读端再转导出 */
-const PREFS_WRITE = readFileSync(path.join(REPO, 'space/web/assets/shell/js/prefs/prefs-write.js'), 'utf8');
+const CORE = readFileSync(path.join(REPO, 'space/web/assets/common/js/frame/apps/core.js'), 'utf8');
+/* 2026-11-04 P5-1：cookie 写法搬进外观写端 lib/prefs-write.js（共享外壳 prefs-write.js，四站一个写端）；v1.6 删 prefs/ui-cookie.js 垫片后，主站 frame/apps/core.js 直接先引读端、从 prefs-write.js 取 syncUiCookie */
+const PREFS_WRITE = readFileSync(path.join(REPO, 'space/web/assets/common/js/prefs/prefs-write.js'), 'utf8');
 const fx = JSON.parse(readFileSync(FIXTURE, 'utf8'));
-const palettes = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/shell/palettes.json'), 'utf8'));
+const palettes = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/common/palette-list.json'), 'utf8'));
 
 /** 最小 DOM 桩：<html> 的 class / attribute / style，<head> 里的 <style>，localStorage，matchMedia */
 function makeEl(tag) {
@@ -137,21 +137,21 @@ test('写端 → 读端往返：写端写出的字段 = 读端字段表（不多
 });
 
 test('写端和读端共用一份常量 / 编解码（主站先 import ui-cookie-read.js；写端 prefs-write.js 用 window.SgxUI，不再自己 atob / 写死版本号）', () => {
-  assert.match(WRITER, /import '\.\/ui-cookie-read\.js';/);
-  assert.match(WRITER, /export \{ syncUiCookie \} from '\.\/prefs-write\.js';/);
+  assert.match(CORE, /import '\.\.\/\.\.\/prefs\/ui-cookie-read\.js';/);
+  assert.match(CORE, /import \{ paintPalette, syncUiCookie \} from '\.\.\/\.\.\/prefs\/prefs-write\.js';/);
   assert.doesNotMatch(PREFS_WRITE.replace(/\/\*[\s\S]*?\*\//g, ''), /^\s*import\s/m, '写端不 import（子站原样复制）');
   assert.match(PREFS_WRITE, /return \/\*\* @type \{any\} \*\/ \(window\)\.SgxUI \|\| null;/);
   assert.match(PREFS_WRITE, /v: u\.V,/);
   assert.match(PREFS_WRITE, /u\.encode\(payload\)/);
   assert.match(PREFS_WRITE, /if \(readCookie\(\) === b64\) return;/);
-  assert.doesNotMatch(WRITER + PREFS_WRITE, /atob|btoa|v: 2/);
+  assert.doesNotMatch(PREFS_WRITE, /atob|btoa|v: 2/);
   const s = sandbox();
   assert.equal(s.U.V, 2);
   assert.ok(s.U.VERSIONS.includes(s.U.V));
   assert.equal(s.U.NAME, 'sgx-ui');
 });
 
-test('读端预设表 / 深套表 / 底色表 = 共享外壳 palettes.json（gen-shell 生成段）；没有引擎版本 / 自定义色接口', () => {
+test('读端预设表 / 深套表 / 底色表 = 共享外壳 palette-list.json（gen-common 生成段）；没有引擎版本 / 自定义色接口', () => {
   const s = sandbox();
   assert.deepEqual(plain(s.U.PRESETS), Object.fromEntries(palettes.presets.map((p) => [p.id, p.seed])));
   assert.deepEqual(plain(s.U.DARK), palettes.presets.filter((p) => p.mode === 'dark').map((p) => p.id));
@@ -175,7 +175,7 @@ test('读端是 ES5 经典脚本：没有箭头函数 / let / const / 模板串 
 test('共享外壳带上读端 / 图标（2026-11 合站后子站直接用主站源文件；契约夹具只有 tests/fixtures 一份）', () => {
   const files = shellFiles();
   assert.equal(files['ui-cookie-read.js'], READER);
-  assert.equal(files['favicon.js'], readFileSync(path.join(REPO, 'space/web/assets/shell/js/ui/favicon.js'), 'utf8'));
+  assert.equal(files['favicon.js'], readFileSync(path.join(REPO, 'space/web/assets/common/js/ui/favicon.js'), 'utf8'));
   assert.equal(files['favicon.svg'], readFileSync(path.join(REPO, 'space/web/static/favicon.svg'), 'utf8'));
   assert.ok(readFileSync(FIXTURE, 'utf8').length > 100, '契约夹具');
 });
@@ -228,7 +228,7 @@ test('坏 cookie / 没有 DOM 能力也不抛：默认 terra（深套）', () =>
 });
 
 test('cookie 属性按主机名 / 协议：localhost / http 不带 Domain / Secure；styrigx.com 及子域 https 带（P5-1 跨站 e2e 修法）', async () => {
-  const { cookieAttrs } = await import('../../../../space/web/assets/shell/js/prefs/prefs-write.js');
+  const { cookieAttrs } = await import('../../../../space/web/assets/common/js/prefs/prefs-write.js');
   const prod = '; Domain=styrigx.com; Path=/; Max-Age=34560000; SameSite=Lax; Secure';
   assert.equal(cookieAttrs({ hostname: 'styrigx.com', protocol: 'https:' }), prod);
   assert.equal(cookieAttrs({ hostname: 'blog.styrigx.com', protocol: 'https:' }), prod);

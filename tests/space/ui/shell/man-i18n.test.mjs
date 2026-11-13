@@ -11,11 +11,11 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { PAGES } from '../../../../space/web/assets/shell/js/term/man/pages.js';
-import { createShell } from '../../../../space/web/assets/shell/js/term/terminal.js';
+import { PAGES } from '../../../../space/web/assets/common/js/frame/term/man/pages.js';
+import { createShell } from '../../../../space/web/assets/common/js/frame/term/terminal.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const TR = Object.fromEntries(['en', 'zh'].map((l) => [l, /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/shell/sgx-shell-i18n/' + l + '.yaml'), 'utf8')))]));
+const TR = Object.fromEntries(['en', 'zh'].map((l) => [l, /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/frame/i18n/' + l + '.yaml'), 'utf8')))]));
 const SECS = ['desc', 'auth', 'notes'];
 const CJK = /[\u4e00-\u9fff]/;
 /** @param {any} v @returns {string[]} */
@@ -45,7 +45,7 @@ test('zh.yaml：每一页的 NAME 说明和正文都有译文，行数对得上�
   }
 });
 
-/** 假页面：#sgx-i18n-shell 是中文表（叠在英文上，同 sgx-tr.html） */
+/** 假页面：#sgx-i18n-shell 是中文表（叠在英文上，同 tr.html） */
 function zhPage() {
   const merged = JSON.parse(JSON.stringify(TR.en));
   for (const [k, v] of Object.entries(TR.zh)) merged[k] = v && typeof v === 'object' && !Array.isArray(v) ? Object.assign({}, merged[k], v) : v;

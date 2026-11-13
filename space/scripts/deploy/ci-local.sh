@@ -59,7 +59,7 @@ fi
 if want build; then
   begin build
   step build "build-css" css
-  for c in "gen/gen-shell.mjs --check" "gen/gen-palettes.mjs --check" "gen/gen-ui-cookie-contract.mjs --check" "check/check-layers.mjs" "check/check-frontend.mjs"; do
+  for c in "gen/gen-common.mjs --check" "gen/gen-palettes.mjs --check" "gen/gen-ui-cookie-contract.mjs --check" "check/check-layers.mjs" "check/check-frontend.mjs"; do
     step build "$c" bash -c "node space/scripts/$c >/dev/null"
   done
   step build "生产构建（主站 + 三个子站）" bash -c 'hugo --minify --cleanDestinationDir -s space/web >/dev/null'
@@ -68,7 +68,7 @@ if want build; then
   step build "合站单测" bash -c 'node --test tests/space/ui/build/one-site.test.mjs >/dev/null'
   step build "check-worker-routes" bash -c 'node space/scripts/check/check-worker-routes.mjs >/dev/null'
   step build "子站生成物同步" bash -c 'node space/scripts/curio/gen-seed-sql.mjs --check >/dev/null && node space/scripts/blog/gen-code-tokens.mjs --check >/dev/null'
-  step build "stylelint" npx stylelint --config tests/config/stylelintrc.json "space/web/assets/shell/css/input.css"
+  step build "stylelint" npx stylelint --config tests/config/stylelintrc.json "space/web/assets/common/css/input.css"
 fi
 
 PW="npx playwright test --config=tests/config/playwright.config.js"

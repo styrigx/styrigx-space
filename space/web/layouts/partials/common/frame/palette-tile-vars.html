@@ -1,0 +1,10 @@
+{{- /* 七色调色板色块的 CSS 变量（2026-10-23 PR-G；快捷面板 .sgx-th-pal / .sgx-qp-sw）：按 id 从 data/common/palette-roles.json 取，返回 style 里的变量串。
+   2026-11-12 调色板 v4：每套只有一个模式（浅套 / 深套），变量合并成 --pt-*：b1..b7 = 背景 7 档，f1..f6 = 前景 6 色本色。
+   色块画的就是这套自己的颜色，不随当前深浅变（设置风格页的预览卡随 /theme/ 退役删除，入参 full 不再有用，保留只为兼容调用方）。
+   入参：dict "id" 色板 id "full" false */ -}}
+{{- $p := index site.Data "common" "palette-roles" "presets" .id -}}
+{{- $t := $p.tones -}}
+{{- $s := "" -}}
+{{- range $i := seq 7 }}{{ $s = printf "%s--pt-b%d:%s;" $s $i (index $t (printf "bg-%d" $i)) }}{{ end -}}
+{{- range $i := seq 6 }}{{ $s = printf "%s--pt-f%d:%s;" $s $i (index $t (printf "fg-%d" $i)) }}{{ end -}}
+{{- return $s -}}

@@ -1,4 +1,4 @@
-/* Tailwind 4 部分（和主站 space/web/assets/shell/css/tw-input.css 同一套：@tailwindcss/cli 单独构建，再拼到博客样式前面）。
+/* Tailwind 4 部分（和主站 space/web/assets/common/css/tw-input.css 同一套：@tailwindcss/cli 单独构建，再拼到博客样式前面）。
    博客现在的模板没有用 Tailwind 工具类，这里只扫模板，用到了才会生成；不引 preflight（博客没有 Tailwind 重置）。 */
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities) source(none);
@@ -14,10 +14,10 @@
 @source "../../../i18n";
 @source "../../../archetypes/blog.md";
 /* 共享外壳（合站前是博客里的副本，现在直接用主站的源文件） */
-@source "../../../layouts/partials/shell/{shell-topbar,sgx-ph,sgx-tr,sgx-lang-path}.html";
-@source "../../shell/js/{topbar/topbar-panel,ui/modal-sheet,ai/ai-panel,ui/vk}.js";
-@source "../../shell/js/{ui/palette-scheme,prefs/prefs-write,prefs/ui-cookie-read,ui/layout-mode,i18n/lang-path,i18n/lang-boot}.js";
-@source "../../../data/shell";
-@source "../../../data/shell/sgx-shell-i18n";
+@source "../../../layouts/partials/common/{frame/topbar,frame/page-head,tr,lang-path}.html";
+@source "../../common/js/{frame/topbar/panel,ui/modal-sheet,frame/ai/panel,ui/vk}.js";
+@source "../../common/js/{ui/palette-scheme,prefs/prefs-write,prefs/ui-cookie-read,ui/layout-mode,i18n/lang-path,i18n/lang-boot}.js";
+@source "../../../data/common";
+@source "../../../data/common/frame/i18n";
 
 @custom-variant dark (&:where(.dark, .dark *));

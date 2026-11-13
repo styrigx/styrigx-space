@@ -1,0 +1,5 @@
+{{/* 服务状态（设置 → 服务状态 /status/；之前在账号页，2026-10-24 PR4 前是顶栏「状态」页 /status/）文案：输出 #sgx-i18n-status，JS 见 apps/space-status.js（lib/i18n.js loadI18n，fmt 替换 {占位}）。
+   用法：{{ partial "common/status-i18n.html" . }} */}}
+{{ $pageLang := partial "common/page-lang.html" . }}{{ $tr := partialCached "common/tr.html" $pageLang $pageLang }}
+{{ $stI18n := $tr.js.status }}
+<script id="sgx-i18n-status" type="application/json">{{ $stI18n | jsonify | safeJS }}</script>

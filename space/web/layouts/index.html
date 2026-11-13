@@ -1,8 +1,8 @@
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-space.js" }}
-{{ $pageLang := partial "shell/sgx-page-lang.html" . }}{{ $tr := partialCached "shell/sgx-tr.html" $pageLang $pageLang }}
-{{ $profile := site.Data.shell.profile }}
-{{ $ver := site.Data.shell.version }}
+{{ $pageLang := partial "common/page-lang.html" . }}{{ $tr := partialCached "common/tr.html" $pageLang $pageLang }}
+{{ $profile := site.Data.common.profile }}
+{{ $ver := site.Data.common.version }}
 
 {{/* 主页（2026-11 对齐计划 PR-B，设计稿 tb4.html 主页默认 / m=1；Gray 10:43 / 10:45：功能一个不少，形式照稿）：
    首屏 = 居中 hero（状态胶囊 · $ whoami · 名字 · $ 标语打字轮播 + 闪烁光标 · # 签名）+ neofetch about 卡（v5 S7；原嵌入终端，终端挪到顶栏 >_）。
@@ -29,14 +29,14 @@
     </div>
 
     {{/* about（v5 S7，已批截图 home-nf；Gray 16:42 / 16:48）：主页首屏不再嵌终端（终端在顶栏 >_），这一位换成原旷野页的 neofetch about 卡，旷野页那张删除、只在这里。
-       间距同原嵌入终端；提示符跟当前身份（shell/topbar-panel.js 按终端身份重画 [data-sgx-ps]：nobody@space:~$ / nobody@space:~# / styrigx@space:~# / root@account:~#），路径 ~。
-       版本号唯一来源 data/shell/version.yaml；Uptime 构建时先写一份，apps/space.js 打开时按当天重算；旧地址 /about/ 301 到 /#about。 */}}
+       间距同原嵌入终端；提示符跟当前身份（topbar/panel.js 按终端身份重画 [data-sgx-ps]：nobody@space:~$ / nobody@space:~# / styrigx@space:~# / root@account:~#），路径 ~。
+       版本号唯一来源 data/common/version.yaml；Uptime 构建时先写一份，apps/space.js 打开时按当天重算；旧地址 /about/ 301 到 /#about。 */}}
     {{ $W := $tr.about }}
-    {{ if not $ver.ui }}{{ errorf "data/shell/version.yaml 缺少 ui 字段" }}{{ end }}
-    {{ if not $ver.sgx }}{{ errorf "data/shell/version.yaml 缺少 sgx 字段" }}{{ end }}
+    {{ if not $ver.ui }}{{ errorf "data/common/version.yaml 缺少 ui 字段" }}{{ end }}
+    {{ if not $ver.sgx }}{{ errorf "data/common/version.yaml 缺少 sgx 字段" }}{{ end }}
     {{ $twVer := "4.x" }}
-    {{/* data/shell/tailwind.json 由 space/scripts/build/build-css.cjs 从根目录 package-lock.json 生成（不进仓库） */}}
-    {{ with site.Data.shell.tailwind }}{{ with .version }}{{ $twVer = . }}{{ end }}{{ end }}
+    {{/* data/common/tailwind.json 由 space/scripts/build/build-css.cjs 从根目录 package-lock.json 生成（不进仓库） */}}
+    {{ with site.Data.common.tailwind }}{{ with .version }}{{ $twVer = . }}{{ end }}{{ end }}
     {{ $commit := getenv "GITHUB_SHA" }}{{ $commitShort := "local" }}
     {{ if gt (len $commit) 7 }}{{ $commitShort = slicestr $commit 0 7 }}{{ else if ne $commit "" }}{{ $commitShort = $commit }}{{ end }}
     <div id="about" class="sgx-term sgx-term--static trm-win home-about" role="group" aria-labelledby="home-ab-h">
@@ -71,9 +71,9 @@
     </div>
   </section>
 
-  {{/* [01] 博客 · 最新 3 篇（构建期从博客分区取，同博客首页的排序 partials/shell/posts-sorted.html） */}}
-  {{ $posts := partial "shell/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) }}
-  {{ $blogUrl := partial "shell/sgx-lang-path.html" (dict "path" "/blog/" "lang" $pageLang) }}
+  {{/* [01] 博客 · 最新 3 篇（构建期从博客分区取，同博客首页的排序 partials/common/posts-sorted.html） */}}
+  {{ $posts := partial "common/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) }}
+  {{ $blogUrl := partial "common/lang-path.html" (dict "path" "/blog/" "lang" $pageLang) }}
   <section class="home-sec" id="blog" data-term-dir="blog" data-term-label="{{ $h.blogLabel }}" aria-labelledby="home-blog-h">
     <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[01] // BLOG</p><h2 class="home-sec-t" id="home-blog-h">{{ $h.blog }}</h2></div><a class="home-sec-more" href="{{ $blogUrl }}" translate="no">ls blog/ --all →</a></div>
     <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> ls -lt blog/ | head -3</p>
@@ -88,12 +88,12 @@
      右上计数和下面一条（最近收藏 / 在用 / 在玩）由 apps/index.js 运行时取 /curio/api/links、/curio/api/items（进门即可读，私密的服务端不给）；取不到保持「—」。 */}}
   {{ $cu := $h.curio }}
   <section class="home-sec" id="curio" data-term-dir="curio" data-term-label="{{ $h.curioLabel }}" aria-labelledby="home-cu-h">
-    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[02] // CURIO</p><h2 class="home-sec-t" id="home-cu-h">{{ $cu.title }}</h2></div><a class="home-sec-more" href="{{ partial "shell/sgx-lang-path.html" (dict "path" "/curio/" "lang" $pageLang) }}" translate="no">cd curio/ →</a></div>
+    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[02] // CURIO</p><h2 class="home-sec-t" id="home-cu-h">{{ $cu.title }}</h2></div><a class="home-sec-more" href="{{ partial "common/lang-path.html" (dict "path" "/curio/" "lang" $pageLang) }}" translate="no">cd curio/ →</a></div>
     <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> ls curio/</p>
     <ul class="home-dirs" role="list" data-home-curio>
       {{- range $d := slice "finds" "devices" "games" }}
       {{ $c := index $cu $d }}
-      <li><a class="home-dir" href="{{ partial "shell/sgx-lang-path.html" (dict "path" (printf "/curio/%s/" $d) "lang" $pageLang) }}" data-curio="{{ $d }}">
+      <li><a class="home-dir" href="{{ partial "common/lang-path.html" (dict "path" (printf "/curio/%s/" $d) "lang" $pageLang) }}" data-curio="{{ $d }}">
         <span class="home-dir-n" translate="no">{{ $d }}/</span><span class="home-dir-c"><span>{{ $c.name }}</span> · <span data-curio-count>—</span></span>
         <span class="home-dir-z"><small>{{ $c.latest }}</small><span data-curio-latest>—</span></span>
       </a></li>
@@ -103,7 +103,7 @@
 
   {{/* [03] 日刻 · cat daymark/today（设计稿 .qt：左 2px 强调线 + 大字引句 + 一行小字）。数据 lib/daymark-today.js（/daymark/api/today，公开只读），
      槽位 data-dm=text / trans / by / day / body / empty；拉不到且没缓存 → 整块保持隐藏（同锁屏）。测试构建（SGX_TEST_NO_WEATHER）不输出。 */}}
-  {{ $dmHome := partial "shell/sgx-lang-path.html" (dict "path" "/daymark/" "lang" $pageLang) }}
+  {{ $dmHome := partial "common/lang-path.html" (dict "path" "/daymark/" "lang" $pageLang) }}
   <section class="home-sec" id="daymark" data-term-dir="daymark" data-term-label="{{ $h.daymarkLabel }}" aria-labelledby="home-dm-h">
     <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[03] // DAYMARK</p><h2 class="home-sec-t" id="home-dm-h">{{ $h.daymark }}</h2></div><a class="home-sec-more" href="{{ $dmHome }}" translate="no">cd daymark/ →</a></div>
     <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> cat daymark/today</p>
@@ -128,5 +128,5 @@
 
 
 {{/* 脚本入口 entry-space.js（主页：日刻今日一句、奇趣计数、首屏状态胶囊） */}}
-{{ partial "shell/space-i18n.html" (dict "tr" $tr) }}
+{{ partial "common/space-i18n.html" (dict "tr" $tr) }}
 {{ end }}

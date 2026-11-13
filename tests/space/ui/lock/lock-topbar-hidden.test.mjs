@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-const css = readFileSync(path.join(REPO, 'space/web/assets/shell/css/input.css'), 'utf8');
+const css = readFileSync(path.join(REPO, 'space/web/assets/common/css/input.css'), 'utf8');
 
 const HIDE = 'body.sgx-entry #site-nav { visibility: hidden; }';
 const NO_VT = 'body.sgx-entry #site-nav .sgx-topbar { view-transition-name: none; }';
@@ -35,7 +35,7 @@ test('input.css：锁屏界面开着时藏页面顶栏 + 去掉顶栏 view-trans
   }
 });
 
-test('input.css：规则不在共享外壳段里（锁屏只在主站，不进 shell.css）', () => {
+test('input.css：规则不在共享外壳段里（锁屏只在主站，不进 frame.css）', () => {
   const re = /\/\* @shell:begin ([\w-]+)[\s\S]*?\/\* @shell:end \1 \*\//g;
   let m;
   while ((m = re.exec(css))) {

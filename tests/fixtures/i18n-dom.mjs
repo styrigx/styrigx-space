@@ -1,5 +1,5 @@
 // Node 单测用的页面字符串表（语言包化 2026-11-07）：lib/i18n.js 的 i18nTable / pageLang 读 document 上的
-// <script id="sgx-i18n-<表>"> 和 <html lang>；单测没有 DOM，这里按 strings.mjs（与 partials/shell/sgx-tr.html 同一规则：英文打底、缺键回退英文）
+// <script id="sgx-i18n-<表>"> 和 <html lang>；单测没有 DOM，这里按 strings.mjs（与 partials/common/tr.html 同一规则：英文打底、缺键回退英文）
 // 给出页面实际会拿到的扁平字典。
 // 用法：installI18nDom('zh')（没有 document 就建一个最小桩；已有桩就只补 getElementById 和 lang），之后 setI18nLang('en') 换语言。
 import { strings } from './strings.mjs';

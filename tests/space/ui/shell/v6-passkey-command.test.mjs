@@ -15,10 +15,10 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { createShell } from '../../../../space/web/assets/shell/js/term/terminal.js';
-import { mountAuthErr } from '../../../../space/web/assets/shell/js/account/cmd/auth-err.js';
-import { mountKeys } from '../../../../space/web/assets/shell/js/account/cmd/keys.js';
-import * as accountApi from '../../../../space/web/assets/shell/js/account/api.js';
+import { createShell } from '../../../../space/web/assets/common/js/frame/term/terminal.js';
+import { mountAuthErr } from '../../../../space/web/assets/common/js/frame/account/cmd/auth-err.js';
+import { mountKeys } from '../../../../space/web/assets/common/js/frame/account/cmd/keys.js';
+import * as accountApi from '../../../../space/web/assets/common/js/frame/account/api.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -61,14 +61,14 @@ test('sudo passkey（v6）交给身份层，身份层先回 rootCreds（定稿 �
   const L = layers();
   assert.equal(sh('u:styrigx').exec('sudo passkey add', L.v).flow, true);
   assert.deepEqual(L.calls, [['ident.cmdSudo', ['passkey', 'add']]]);
-  const layer = rd('space/web/assets/shell/js/identity/layer.js');
+  const layer = rd('space/web/assets/common/js/frame/account/identity/layer.js');
   assert.match(layer, /if \(argv\[0\] === 'passkey'\) \{ C\.err\(t\('rootCreds'\)\); return; \}\n\s+const cmd = sudoCommand\(argv\);/);
   const old = layers();
   assert.equal(text(sh('nobody').exec('sudo passkey add', old.v).out[0]), 'usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who', '访客：同 main 不进身份层，给用法');
   assert.deepEqual(old.calls, []);
   assert.equal(text(sh('nobody').exec('sudo styrigx', old.v).out[0]), 'usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who', '旧写法：sudo 用法');
   for (const lang of ['en', 'zh']) {
-    const t = yaml.load(rd('space/web/data/shell/sgx-shell-i18n/' + lang + '.yaml'));
+    const t = yaml.load(rd('space/web/data/common/frame/i18n/' + lang + '.yaml'));
     assert.ok(t.identity.rootCreds, lang + ' rootCreds 已上线');
   }
 });
@@ -76,11 +76,11 @@ test('sudo passkey（v6）交给身份层，身份层先回 rootCreds（定稿 �
 test('man：passkey 给 v6 普通用户与 root6 都列；AUTH 行 = 已上线 groups 的同类写法「已登录」（中英）', async () => {
   const names = async (w) => (await sh(w).exec('man')).out.slice(1).map((o) => o.seg[0][1]);
   for (const w of ['u:styrigx', 'u:root']) assert.ok((await names(w)).includes('passkey'), w);
-  const zh = yaml.load(rd('space/web/data/shell/sgx-shell-i18n/zh.yaml'));
-  const en = yaml.load(rd('space/web/data/shell/sgx-shell-i18n/en.yaml'));
+  const zh = yaml.load(rd('space/web/data/common/frame/i18n/zh.yaml'));
+  const en = yaml.load(rd('space/web/data/common/frame/i18n/en.yaml'));
   assert.equal(zh.manBody.passkey.auth, zh.manBody.groups.auth.split('；')[0]);
   assert.equal(en.manBody.passkey.auth, en.manBody.groups.auth.split(';')[0]);
-  const pg = rd('space/web/assets/shell/js/term/man/pages.js');
+  const pg = rd('space/web/assets/common/js/frame/term/man/pages.js');
   assert.match(pg, /passkey: \{ d: '[^']+', syn: \['passkey', 'passkey add', 'passkey rm <n>'\], auth: 'signed in' \}/, 'SYNOPSIS 同 main（passkey ls 进 SYNOPSIS 仍是待定项）');
 });
 

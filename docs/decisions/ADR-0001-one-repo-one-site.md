@@ -24,7 +24,7 @@
 
 2.3 **一个 Hugo 站**：`space/web/` 一份 `hugo.yaml`，一次构建出四站，产物 `space/web/public/` 由一个 Pages 项目 `styrigx-space` 发布。子站内容按站分目录（`content|layouts|assets|static|data/<站>/`）。
 
-2.4 **共享外壳不复制**：子站直接使用主站的 partial 与 JS；`gen-shell.mjs` 只生成派生文件并在 CI `--check`。
+2.4 **共享外壳不复制**：子站直接使用主站的 partial 与 JS；`gen-common.mjs` 只生成派生文件并在 CI `--check`。
 
 2.5 **共用脚本归 `space/scripts/`**（2026-11-05 拥有者选 B 方案）：根目录不留 `scripts/`，子站自己的脚本在 `space/scripts/<站>/`。
 

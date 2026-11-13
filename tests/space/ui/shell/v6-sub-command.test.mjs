@@ -13,9 +13,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { createShell, TERM_EN } from '../../../../space/web/assets/shell/js/term/terminal.js';
-import { mountAuthErr } from '../../../../space/web/assets/shell/js/account/cmd/auth-err.js';
-import { mountProxy } from '../../../../space/web/assets/shell/js/account/proxy.js';
+import { createShell, TERM_EN } from '../../../../space/web/assets/common/js/frame/term/terminal.js';
+import { mountAuthErr } from '../../../../space/web/assets/common/js/frame/account/cmd/auth-err.js';
+import { mountProxy } from '../../../../space/web/assets/common/js/frame/account/proxy.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -60,7 +60,7 @@ test('访客：所有要身份的命令提示先 su <用户>（同身份层 notS
   assert.deepEqual(L.calls, []);
   assert.equal(TERM_EN.needSu, 'not signed in · {x} first');
   for (const lang of ['en', 'zh']) {
-    const t = yaml.load(rd('space/web/data/shell/sgx-shell-i18n/' + lang + '.yaml'));
+    const t = yaml.load(rd('space/web/data/common/frame/i18n/' + lang + '.yaml'));
     assert.equal(t.term.needSu.replace('{x}', 'su ' + t.term.suUser), t.identity.notSignedIn, lang + '：终端访客提示 = 身份层 notSignedIn');
     assert.equal(t.account.v6.notSignedIn, t.identity.notSignedIn, lang);
     assert.equal(t.account.v6.forbidden, t.term.needRoot6, lang);
@@ -146,7 +146,7 @@ test('账号层 sub：服务端 401 → 先 su <用户>；403 forbidden → 先 
 });
 
 test('子站 / 博客终端挂 v6 身份层（全站一个终端：su / su root / exit / lock 在奇趣、日刻、博客也能用）', () => {
-  for (const f of ['space/web/assets/curio/js/sgx/topbar-host.js', 'space/web/assets/daymark/js/sgx/topbar-host.js', 'space/web/assets/blog/js/entries/topnav.ts', 'space/web/assets/shell/js/topbar/quick-panel.js']) {
+  for (const f of ['space/web/assets/curio/js/sgx/topbar-host.js', 'space/web/assets/daymark/js/sgx/topbar-host.js', 'space/web/assets/blog/js/entries/topnav.ts', 'space/web/assets/common/js/frame/topbar/quick-panel.js']) {
     const s = rd(f);
     assert.match(s, /\n\s+identityTerm: mountIdentityLayer,\n/, f);
     assert.match(s, /\n\s+identityWhoami: identityWhoami,\n/, f);
@@ -172,10 +172,10 @@ test('冒烟 smoke2（已登录、无组、非 root）：sub show / sub 不再�
 });
 
 test('旷野状态卡 403（已登录不在 status 组）留着凭据记录区（展开回已上线的 auditErrPerm）；401 访客照旧藏起来', () => {
-  const src = rd('space/web/assets/shell/js/apps/space-status.js');
+  const src = rd('space/web/assets/common/js/frame/apps/space-status.js');
   assert.match(src, /root\.toggleAttribute\('data-lock-perm', status === 403\)/);
   assert.match(src, /setState\('locked'\);\n\s+root\.removeAttribute\('data-lock-perm'\);/, 'exit / lock 回访客清掉');
-  const css = rd('space/web/assets/shell/css/input.css');
+  const css = rd('space/web/assets/common/css/input.css');
   assert.match(css, /\.st-wrap\[data-state="locked"\]:not\(\[data-lock-perm\]\) \.st-audit-wrap \{ display: none; \}/);
   assert.doesNotMatch(css, /\.st-wrap\[data-state="locked"\] \.st-audit-wrap \{ display: none; \}/);
 });

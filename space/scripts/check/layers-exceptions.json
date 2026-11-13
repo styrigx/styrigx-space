@@ -4,7 +4,7 @@
     {
       "rule": 26,
       "file": "space/web/assets/jsconfig.json",
-      "reason": "横跨整个 assets/ 的 JS 路径配置：baseUrl \".\" 即 assets/ 本身，覆盖 Platform 的 shell/js/ 与 curio、daymark、blog 各产品的 js/；放进任一层（如 assets/shell/）都会断掉其它层的路径解析，只能留在 assets/ 根。",
+      "reason": "横跨整个 assets/ 的 JS 路径配置：baseUrl \".\" 即 assets/ 本身，覆盖 Platform 的 common/js/ 与 curio、daymark、blog 各产品的 js/；放进任一层（如 assets/common/）都会断掉其它层的路径解析，只能留在 assets/ 根。",
       "since": "2026-11-13 #450"
     }
   ]

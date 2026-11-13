@@ -7,8 +7,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createShell, TERM_EN } from '../../../../space/web/assets/shell/js/term/terminal.js';
-import * as accountApi from '../../../../space/web/assets/shell/js/account/api.js';
+import { createShell, TERM_EN } from '../../../../space/web/assets/common/js/frame/term/terminal.js';
+import * as accountApi from '../../../../space/web/assets/common/js/frame/account/api.js';
 
 function mem() { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; }
 const act = { cd: () => ({ kind: 'scroll', label: '' }), theme() {}, ask() {}, find: () => Promise.resolve({ ok: true, results: [] }), today: () => Promise.resolve(null), daymarkHref: () => '/daymark/', close() {} };

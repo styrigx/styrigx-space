@@ -12,11 +12,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveLayout, resolveDevice, normLayout, uaMobile, layoutNarrow } from '../../../../space/web/assets/shell/js/prefs/prefs.js';
+import { resolveLayout, resolveDevice, normLayout, uaMobile, layoutNarrow } from '../../../../space/web/assets/common/js/prefs/prefs.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const baseof = readFileSync(path.join(REPO, 'space/web/layouts/_default/baseof.html'), 'utf8');
-const lib = readFileSync(path.join(REPO, 'space/web/assets/shell/js/ui/layout-mode.js'), 'utf8');
+const lib = readFileSync(path.join(REPO, 'space/web/assets/common/js/ui/layout-mode.js'), 'utf8');
 const src = baseof.match(/function __layoutMode\(\)\{[\s\S]*?\n\}/)[0];
 
 const PHONE_UA = 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
@@ -210,8 +210,8 @@ test('首帧底色（调色板 v4）：按 data-dark 写 color-scheme，底色 /
   assert.equal(lake.styles[0].textContent, '@layer sgx-first-paint{html{background-color:#01172b;color-scheme:dark}}');
 });
 
-test('读不到 theme-color 时首帧底色 = palettes.json 默认色板（terra）bg-1（换了默认调色板要跟着改）', () => {
-  const pal = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/shell/palettes.json'), 'utf8'));
+test('读不到 theme-color 时首帧底色 = palette-list.json 默认色板（terra）bg-1（换了默认调色板要跟着改）', () => {
+  const pal = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/common/palette-list.json'), 'utf8'));
   const def = pal.presets.find((p) => p.id === pal.default);
   assert.match(lib, new RegExp("\\?pc:'" + def.tokens['bg-1'] + "'"));
   const r = withDoc({ dark: true, theme: 'bad' });

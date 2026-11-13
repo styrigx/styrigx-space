@@ -1,4 +1,4 @@
-{{- /* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个）：标记是共享外壳 partials/shell/shell-topbar.html（合站后直接用主站这份），
+{{- /* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个）：标记是共享外壳 partials/common/frame/topbar.html（合站后直接用主站这份），
    这里只准备博客自己的参数：
 - 中间（.sgx-tb-pill，原样搬进来）：
   links   首页 / 目录页 / 标签页 / 404：只有页名（.title，不给就用页面标题）。2026-11 对齐 PR-C 起首页是单一文章列表，没有分区面板（原 tabs 模式删除）。
@@ -9,7 +9,7 @@
 {{- $lang := .page.Language.Lang -}}
 
 {{- $mode := .mode | default "links" -}}
-{{- $nav := site.Data.shell.nav -}}
+{{- $nav := site.Data.common.frame.nav -}}
 {{- $title := .title | default .page.Title -}}
 {{- $center := "" -}}
 {{- $center = printf "<span class=\"sgx-tb-title\">%s</span>" ($title | htmlEscape) -}}
@@ -20,12 +20,12 @@
 {{- $langHref := "" -}}
 {{- range .page.Translations }}{{ if not $langHref }}{{ $langHref = .RelPermalink }}{{ end }}{{ end -}}
 {{- if not $langHref }}{{ range (site.GetPage "/blog").AllTranslations }}{{ if ne .Language.Lang $lang }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}{{ end -}}
-{{- /* 调色板色块的变量（同主站 partials/shell/palette-tile-vars.html：--pt-b1..7 / --pt-f1..6，2026-11-12 v4 起每套一个模式），取自共享外壳 palettes.json */ -}}
+{{- /* 调色板色块的变量（同主站 partials/common/frame/palette-tile-vars.html：--pt-b1..7 / --pt-f1..6，2026-11-12 v4 起每套一个模式），取自共享外壳 palette-list.json */ -}}
 {{- /* 快捷面板语言选项顺序 = languages.<语言>.params.pickerWeight（没写按 weight），四站同序（跟随系统 / 中文 / English） */ -}}
 {{- $langs := slice }}{{ range hugo.Sites }}{{ $langs = $langs | append (dict "code" .Language.Lang "name" .Language.Label "short" .Language.Params.pickerShort "w" (.Language.Params.pickerWeight | default .Language.Weight)) }}{{ end -}}
 {{- $langs = sort $langs "w" -}}
 {{- $pal := slice -}}
-{{- range site.Data.shell.palettes.presets -}}
+{{- range (index site.Data.common "palette-list").presets -}}
 {{- $s := "" -}}
 {{- $p := . -}}
 {{- $tk := $p.tokens -}}
@@ -33,11 +33,11 @@
 {{- range $n := seq 6 }}{{ $s = printf "%s--pt-f%d:%s;" $s $n (index $tk (printf "fg-%d" $n)) }}{{ end -}}
 {{- $pal = $pal | append (dict "id" $p.id "style" $s) -}}
 {{- end -}}
-{{- partial "shell/shell-topbar.html" (dict
+{{- partial "common/frame/topbar.html" (dict
   "lang" $lang
-  "tr" (partialCached "shell/sgx-tr.html" $lang $lang).shell
+  "tr" (partialCached "common/tr.html" $lang $lang).shell
   "langs" $langs
-  "home" (partial "shell/sgx-lang-path.html" (dict "path" "/" "lang" $lang))
+  "home" (partial "common/lang-path.html" (dict "path" "/" "lang" $lang))
   "center" $center
   "pillClass" (printf "sgx-tb-pill--%s" $mode)
   "headerClass" "sgx-site-nav"
@@ -47,16 +47,16 @@
   "icons" $nav.icons
   "wordmark" $nav.wordmark
   "mainOrigin" "https://styrigx.com"
-  "acct" (partial "shell/sgx-lang-path.html" (dict "path" $nav.me.href "lang" $lang))
+  "acct" (partial "common/lang-path.html" (dict "path" $nav.me.href "lang" $lang))
   "avatar" $nav.me.avatar
-  "name" site.Data.shell.profile.name
-  "nick" site.Data.shell.profile.nickname
+  "name" site.Data.common.profile.name
+  "nick" site.Data.common.profile.nickname
   "email" $nav.me.email
   "langHref" $langHref
-  "security" (printf "%s#sec" (partial "shell/sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" $lang)))
-  "status" (partial "shell/sgx-lang-path.html" (dict "path" "https://styrigx.com/status/" "lang" $lang))
-  "music" (partial "shell/sgx-lang-path.html" (dict "path" "https://styrigx.com/curio/music/" "lang" $lang))
+  "security" (printf "%s#sec" (partial "common/lang-path.html" (dict "path" "https://styrigx.com/" "lang" $lang)))
+  "status" (partial "common/lang-path.html" (dict "path" "https://styrigx.com/status/" "lang" $lang))
+  "music" (partial "common/lang-path.html" (dict "path" "https://styrigx.com/curio/music/" "lang" $lang))
   "pal" $pal
 ) -}}
-{{ partial "shell/sgx-profile-default.html" . }}
+{{ partial "common/profile-default.html" . }}
 {{ partial "blog/script.html" (dict "name" "topnav.ts") }}

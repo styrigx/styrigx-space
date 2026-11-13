@@ -1,5 +1,5 @@
 /**
- * 2026-10-22 sgx-ui 读端端到端：主站真写端写出的 cookie → 一个最小「子站」页（只内联共享外壳的 ui-cookie-read.js + tokens.css + shell.css，
+ * 2026-10-22 sgx-ui 读端端到端：主站真写端写出的 cookie → 一个最小「子站」页（只内联共享外壳的 ui-cookie-read.js + tokens.css + frame.css，
  * 放顶栏 v3 文字字标），首帧前 <html> 的状态、--sgx-primary、字标 ❯ / 名字颜色、SVG 标签页图标都要和主站一模一样。
  * 子站页由 page.route 现拼（同源 localhost，cookie 也设在 localhost；线上是 Domain=styrigx.com，这里只验读写两端的格式）。
  */
@@ -10,14 +10,14 @@ const { blockExternalRequests, freezeTime, expect } = require('../helpers/helper
 
 test.use({ viewport: { width: 412, height: 915 } });
 
-/* 2026-11 合站：没有 shared/shell 副本目录了，按外壳文件名读仓库里的原位置（同 space/scripts/gen/gen-shell.mjs 的 SHELL_FILES） */
+/* 2026-11 合站：没有 shared/shell 副本目录了，按外壳文件名读仓库里的原位置（同 space/scripts/gen/gen-common.mjs 的 SHELL_FILES） */
 const REPO = path.join(__dirname, '../../../..');
 const SHELL_FILES = {
-  'nav.json': 'space/web/data/shell/nav.json',
-  'tokens.css': 'space/web/assets/shell/css/tokens.css',
-  'shell.css': 'space/web/assets/shell/css/shell.css',
-  'ui-cookie-read.js': 'space/web/assets/shell/js/prefs/ui-cookie-read.js',
-  'favicon.js': 'space/web/assets/shell/js/ui/favicon.js',
+  'nav.json': 'space/web/data/common/frame/nav.json',
+  'tokens.css': 'space/web/assets/common/css/tokens.css',
+  'frame.css': 'space/web/assets/common/css/frame.css',
+  'ui-cookie-read.js': 'space/web/assets/common/js/prefs/ui-cookie-read.js',
+  'favicon.js': 'space/web/assets/common/js/ui/favicon.js',
 };
 const shell = (f) => fs.readFileSync(path.join(REPO, SHELL_FILES[f]), 'utf8');
 const SUB = '/__ui-cookie-subsite/';
@@ -27,7 +27,7 @@ function subsiteHtml() {
   return `<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8">
 <meta name="color-scheme" content="dark"><meta name="theme-color" content="#161412">
 <link rel="icon" href="/favicon.ico" sizes="32x32"><link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<style>${shell('tokens.css')}\n${shell('shell.css')}</style>
+<style>${shell('tokens.css')}\n${shell('frame.css')}</style>
 <script>${shell('ui-cookie-read.js')}</script>
 <script>SgxUI.apply(document.documentElement);</script>
 <script>window.__pre = { cls: document.documentElement.className, style: document.documentElement.getAttribute('style') };</script>

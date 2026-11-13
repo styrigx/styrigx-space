@@ -1,0 +1,43 @@
+{{- /* tmux 页脚（2026-11 UI 重设计 PR-1，设计稿 foot-v1；四站同一个，共享外壳：gen-common 核对它只用参数）。
+   第一行 = tmux 状态栏：会话 space · 窗口 0:home 1:blog 2:curio 3:daymark（当前窗口带 *；4:wild 2026-11-12 随旷野删除）· 右边 状态计数 / zh · en / CST 时钟；
+   第二行 = © 年份 Sloan Gray · styrigx · rss · github · x（不放「联系」：Gray 2026-11-09，邮箱只在 AI 窗口底部）。手机布局只显示当前窗口、不显示语言（CSS 按 data-sgx-layout）。没有站点地图。
+   状态计数没数据时是「–/6」，topbar/panel.js mountStatus 取到 /api/status 后写成「● n/6」（2026-11 PR-A）；时钟由 topbar/panel.js 按北京时间每 30 秒写一次（[data-sgx-clock]）。
+   参数（dict）：
+     tr        共享外壳字符串表（tr.html 的 .shell）
+     lang      页面语言；langs [{code short}]（hugo.yaml languages）；here 本页地址；langHref 另一种语言的同一页
+     nav       frame/nav-source.json（items：id path origin；links：github / x）；site 当前项 id；mainOrigin 主站项地址前缀（子站传 https://styrigx.com）
+     name      版权行的名字（data/common/profile.yaml name，个人信息、不翻译）；year 年份
+     sha       构建短 SHA（partials/common/build-sha.html：CI 的 SGX_BUILD_SHA；本地 dev = 不显示）
+     email     （不再使用，2026-11-09 页脚去掉「联系」；调用方仍可传）；rss 博客 RSS 地址（当前语言） */ -}}
+{{- $t := .tr -}}
+{{- $lang := .lang | default "en" -}}
+<footer class="sgx-foot" aria-label="{{ $t.foot.label }}">
+  <div class="sgx-foot-bar">
+    <span class="sgx-foot-ses" translate="no">space</span>
+    <nav class="sgx-foot-win" aria-label="{{ $t.foot.windows }}">
+      {{- range $k, $it := .nav.items }}
+      {{- $sub := in (slice "blog" "curio" "daymark") .id }}
+      {{- /* 地址规则同 frame/topbar.html 的导航项（英文无前缀；中文主站 /zh/…、子站 /<站>/zh/） */ -}}
+      {{- $p := .path }}{{ if ne $lang "en" }}{{ if $sub }}{{ $p = printf "%s%s/" .path $lang }}{{ else }}{{ $p = printf "/%s%s" $lang .path }}{{ end }}{{ end }}
+      {{- if not $sub }}{{ if ne .origin "https://styrigx.com" }}{{ $p = printf "%s%s" .origin $p }}{{ else }}{{ $p = printf "%s%s" ($.mainOrigin | default "") $p }}{{ end }}{{ end }}
+      <a href="{{ $p }}" data-win="{{ .id }}"{{ if eq .id $.site }} aria-current="page"{{ end }} translate="no">{{ $k }}:{{ index $t.foot.win .id }}</a>
+      {{- end }}
+    </nav>
+    <span class="sgx-foot-rt">
+      <span class="sgx-foot-st" data-sgx-status-count title="{{ $t.foot.status }}"><i aria-hidden="true">●</i> –/6</span>
+      <span class="sgx-foot-lang" role="group" aria-label="{{ $t.foot.langs }}">
+        {{- range $k, $l := sort .langs "code" "desc" }}{{ if $k }}<span aria-hidden="true"> · </span>{{ end }}{{ if eq .code $lang }}<span lang="{{ .code }}" aria-current="true" translate="no">{{ .code }}</span>{{ else }}<a href="{{ $.langHref | default "/" }}" data-sgx-lang-set lang="{{ .code }}" hreflang="{{ .code }}" translate="no">{{ .code }}</a>{{ end }}{{ end -}}
+      </span>
+      <span class="sgx-foot-clock" title="{{ $t.foot.clock }}" translate="no">CST <time data-sgx-clock>--:--</time></span>
+    </span>
+  </div>
+  <div class="sgx-foot-2">
+    <span>© {{ .year }} <span translate="no" data-sgx-personal data-sgx-profile="name">{{ .name }}</span> · <span translate="no">styrigx</span>
+      {{- /* 构建号（Gray 2026-11-09）：生产构建的短 SHA，链到 GitHub 这次提交；本地 / 测试构建（sha 空或 dev）不显示 */}}
+      {{- with .sha }}{{ if ne . "dev" }} · <a class="sgx-foot-build" href="https://github.com/styrigx/styrigx-space/commit/{{ . }}" rel="noopener" translate="no">build {{ . }}</a>{{ end }}{{ end -}}
+    </span>
+    <span class="sgx-foot-links">
+      <a href="{{ .rss }}" translate="no">rss</a> · <a href="{{ .nav.links.github }}" rel="me noopener" translate="no">github</a> · <a href="{{ .nav.links.x }}" rel="me noopener" translate="no">x</a>
+    </span>
+  </div>
+</footer>

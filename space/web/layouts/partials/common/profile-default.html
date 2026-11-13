@@ -1,0 +1,4 @@
+{{- /* 个人资料的构建期默认值（data/common/profile.yaml），lib/profile.js profileDefaults() 读：接口对没改过的字段回 null 时用它。
+   四站都要有（2026-11-08 修：以前只有主站 baseof 输出，子站上默认值全是空串，账号下拉 / 个人资料层显示「未填写」、头部回退成写死的 Styrigx）。 */ -}}
+{{- $pf := site.Data.common.profile -}}
+<script id="sgx-profile-default" type="application/json">{{ dict "name" $pf.name "nickname" $pf.nickname "motto" $pf.motto "email" $pf.email | jsonify | safeJS }}</script>

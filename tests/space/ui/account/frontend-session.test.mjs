@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /* 2026-10-26（frontend-js #6）：锁屏拆成守卫（core 里）+ 界面（按需加载）；v5 S5 起是守卫 shell/space/guard.js + 终端里的钥匙层 shell/space/layer.js / unlock.js，合起来查 */
-const SP = join(root, 'space/web/assets/shell/js/auth');
+const SP = join(root, 'space/web/assets/common/js/auth');
 /* v6 P4：钥匙层（layer.js / unlock.js / lock-now.js …）随旧进站会话删了，只剩守卫 */
 const lockJs = readFileSync(join(SP, 'guard.js'), 'utf8');
 
@@ -41,14 +41,14 @@ test('lock.js：会话有效时分发 sgx:session 事件', () => {
 });
 
 test('v6 P4：旧的立即锁屏（shell/space/lock-now.js → POST /api/lock-now）删了；lock = v6 身份层清栈（POST /api/identity lock）', () => {
-  for (const f of ['shell/space/lock-now.js', 'shell/space/api.js', 'shell/space/paths.js', 'auth/lock-now.js', 'apps/security.js']) {
+  for (const f of ['shell/space/lock-now.js', 'shell/space/api.js', 'shell/space/paths.js', 'auth/lock-now.js', 'frame/apps/security.js']) {
     let gone = false;
-    try { readFileSync(join(root, 'space/web/assets/shell/js', f), 'utf8'); } catch (e) { gone = true; }
+    try { readFileSync(join(root, 'space/web/assets/common/js', f), 'utf8'); } catch (e) { gone = true; }
     assert.ok(gone, f + ' 已删');
   }
   const code = lockJs.replace(/\/\*[\s\S]*?\*\//g, '');
   assert.ok(!code.includes('/api/lock-session-check') && !code.includes('/api/lock-now'), '守卫不再问旧接口');
-  const lockCmd = readFileSync(join(root, 'space/web/assets/shell/js/term/cmds/keys/lock.js'), 'utf8');
+  const lockCmd = readFileSync(join(root, 'space/web/assets/common/js/frame/term/cmds/keys/lock.js'), 'utf8');
   assert.ok(lockCmd.includes('I.cmdLock()'), 'lock 走身份层');
 });
 
@@ -58,7 +58,7 @@ test('2026-11-08 账号 UI 改版：账号卡 sgx-account-card.html 和账号页
   assert.ok(gone, 'sgx-account-card.html 应已删除');
   const setHtml = readFileSync(join(root, 'space/web/layouts/index.html'), 'utf8') + readFileSync(join(root, 'space/web/layouts/_default/status.html'), 'utf8');
   assert.ok(!setHtml.includes('sgx-account-card'), '主页 / 状态页不放账号卡');
-  const setEntry = readFileSync(join(root, 'space/web/assets/shell/js/apps/entries/entry-space.js'), 'utf8') + readFileSync(join(root, 'space/web/assets/shell/js/apps/entries/entry-space-status.js'), 'utf8');
+  const setEntry = readFileSync(join(root, 'space/web/assets/common/js/frame/apps/entries/entry-space.js'), 'utf8') + readFileSync(join(root, 'space/web/assets/common/js/frame/apps/entries/entry-space-status.js'), 'utf8');
   assert.ok(!setEntry.includes('initAvatarEdit'), '主站页面入口不加载换头像');
 });
 
@@ -70,7 +70,7 @@ test('进站 v3 L1：安全页（security.html / security.js）删了，旧地�
   assert.match(red, /^\/security\/\s+\/#sec\s+301/m, '/security/ → /#sec 301');
   const base = readFileSync('space/web/layouts/_default/baseof.html', 'utf8');
   assert.ok(base.includes('"acct" $acctUrl'), '顶栏头像 / 账号下拉链到账号页');
-  const tb = readFileSync('space/web/layouts/partials/shell/shell-topbar.html', 'utf8');
+  const tb = readFileSync('space/web/layouts/partials/common/frame/topbar.html', 'utf8');
   assert.ok(tb.includes('<a class="sgx-tb-av" href="{{ .acct }}"'), '顶栏头像用 acct 参数');
   assert.ok(tb.includes('<dialog id="sgx-acct"'), '账号下拉骨架');
   assert.ok(!tb.includes('sgx-pop-me-a'), '账号下拉模板里不再有去账号页的链接');

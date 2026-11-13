@@ -1,7 +1,7 @@
 /**
  * 顶栏长度统一（P4-3 再修，Gray 2026-11-06 立规⑥：顶栏一会长一会短是设计问题；P4-3 PR-4b Gray 2026-11-07 定稿布局只有手机 / 桌面）。
- * 规则只有一份：共享外壳 layout-mode.js __sgxLayout()（源头 space/web/assets/shell/js/ui/layout-mode.js），四站 <head> 原样内联，写 <html data-sgx-layout="phone|desktop">；
- * 顶栏宽只在共享外壳 shell.css 按它定：手机布局 min(100% − 32, 640)；桌面布局按 <html data-sgx-device>（__sgxDevice()）分档——
+ * 规则只有一份：共享外壳 layout-mode.js __sgxLayout()（源头 space/web/assets/common/js/ui/layout-mode.js），四站 <head> 原样内联，写 <html data-sgx-layout="phone|desktop">；
+ * 顶栏宽只在共享外壳 frame.css 按它定：手机布局 min(100% − 32, 640)；桌面布局按 <html data-sgx-device>（__sgxDevice()）分档——
  * 手机设备 min(720, 100% − 48)，电脑 / 平板 min(clamp(720, 60vw, 960), 100% − 48)（Gray 2026-11-07），居中；上限按 100%（不含滚动条），vw 只在 clamp 中间项。
  * 本文件：① 四站 <head> 内联的是同一份 layout-mode.js、都调 __sgxLayout() 写属性、都按 matchMedia 重算；
  * ② 四站内联脚本在一整张 视口 × UA × 偏好 × 查询串 表上给出和主站一样的 data-sgx-layout；
@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
-const LIB = read('space/web/assets/shell/js/ui/layout-mode.js');
+const LIB = read('space/web/assets/common/js/ui/layout-mode.js');
 
 const TPL = {
   main: read('space/web/layouts/_default/baseof.html'),
@@ -29,9 +29,9 @@ const SCRIPTS = Object.fromEntries(Object.entries(TPL).map(([k, t]) => [k, t.mat
 /** 各站同步来的 layout-mode.js（子站带 @sgx-shell 头注释） */
 const COPIES = {
   main: LIB,
-  curio: read('space/web/assets/shell/js/ui/layout-mode.js'),
-  daymark: read('space/web/assets/shell/js/ui/layout-mode.js'),
-  blog: read('space/web/assets/shell/js/ui/layout-mode.js'),
+  curio: read('space/web/assets/common/js/ui/layout-mode.js'),
+  daymark: read('space/web/assets/common/js/ui/layout-mode.js'),
+  blog: read('space/web/assets/common/js/ui/layout-mode.js'),
 };
 const body = (s) => s.slice(s.indexOf('function __sgxUaMobile')).replace(/\/\* @sgx-shell:end \*\/\n?$/, '');
 
@@ -63,9 +63,9 @@ function run(site, { w, ua = DESK_UA, uad, pref = null, search = '', screen, coa
 test('四站 <head> 原样内联同一份 layout-mode.js（共享外壳，sync-shell 同步）、用 __sgxLayout() 写 data-sgx-layout、按 matchMedia 重算', () => {
   for (const site of ['curio', 'daymark', 'blog']) {
     assert.equal(body(COPIES[site]), body(LIB), `${site} 的 layout-mode.js 和主站源头不同`);
-    assert.match(TPL[site], /<script>\{\{ \(resources\.Get "shell\/js\/ui\/layout-mode\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/, site);
+    assert.match(TPL[site], /<script>\{\{ \(resources\.Get "common\/js\/ui\/layout-mode\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/, site);
   }
-  assert.match(TPL.main, /<script>\{\{ \(resources\.Get "shell\/js\/ui\/layout-mode\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
+  assert.match(TPL.main, /<script>\{\{ \(resources\.Get "common\/js\/ui\/layout-mode\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
   for (const [site, s] of Object.entries(SCRIPTS)) {
     assert.match(s, /__sgxLayout\(\)/, site);
     assert.match(s, /setAttribute\('data-sgx-layout',/, site);
@@ -137,7 +137,7 @@ test('手机开「桌面版网站」（2026-11-07 录屏：S23 Ultra 视口 980�
 });
 
 test('外壳 CSS（顶栏 v3，2026-11 UI 重设计 PR-1）：顶栏贴顶通栏，内容宽一个 token --sgx-content-w（1080），左右内边距 --sgx-tb-pad（页边距 / 安全区 / 居中余量取大），上限按 100% 不用 100vw；横向不滚；页名不在顶栏显示', () => {
-  const shell = read('space/web/assets/shell/css/shell.css');
+  const shell = read('space/web/assets/common/css/frame.css');
   const code = shell.replace(/\/\*[\s\S]*?\*\//g, '');
   assert.match(code, /--sgx-content-w: 1080px;/);
   assert.match(code, /--sgx-tb-pad: max\(var\(--sgx-page-m\), env\(safe-area-inset-left, 0px\), env\(safe-area-inset-right, 0px\), \(100% - var\(--sgx-content-w\)\) \/ 2\);/);
@@ -160,7 +160,7 @@ test('外壳 CSS（顶栏 v3，2026-11 UI 重设计 PR-1）：顶栏贴顶通栏
 
 test('各站自己的样式不再按 layout-* 类改 --sgx-content-max / 顶栏宽（只有外壳一处）', () => {
   const files = [
-    'space/web/assets/shell/css/input.css',
+    'space/web/assets/common/css/input.css',
     'space/web/assets/curio/css/input.css',
     'space/web/assets/daymark/css/input.css',
     'space/web/assets/blog/css/blog/one-ui.css',
