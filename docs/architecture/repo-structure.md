@@ -3,12 +3,14 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-ARCH-002 |
-| 版本 | 2.0 |
-| 日期 | 2026-11-09 |
+| 版本 | 2.1 |
+| 日期 | 2026-11-13 |
 | 状态 | 现行 |
 | 取代 | 根目录 `STRUCTURE.md` |
 
 ## 1. 原则
+
+> 2.1（2026-11-13）：本文件只讲顶层分工。`space/` 内部的骨架、落点、依赖规矩和检查以 space 骨架契约 [`space/README.md`](../../space/README.md) 为唯一出处（架构规范 v1.12 §6 第 6 条），下面 §3、§4 只给概览，冲突时以契约为准。
 
 1.1 按用途分层，根目录只放入口文件与顶层目录。改一处不牵连别处：换网站构建工具只动 `space/web/`，加 Worker 只动 `workers/`。
 
@@ -51,13 +53,12 @@ space/web/
 ├─ wrangler.toml      Pages 项目配置（生产无变量；preview 环境只给 passkey-e2e）
 ├─ archetypes/        hugo new 的模板（blog.md）
 ├─ content/           主站英文在根、中文在 zh/；子站在 blog/ curio/ daymark/；标签页 tags/
-├─ layouts/           _default/ 主站；blog/ curio/ daymark/ 子站；partials/ 公共片段，partials/<站>/ 子站片段
+├─ layouts/           _default/ 主站；common/ Platform 页面模板（共用播放器页）；blog/ curio/ daymark/ 子站；partials/common/ Platform 片段，partials/<站>/ 子站片段
 ├─ assets/
-│  ├─ css/            input.css、tw-input.css（源）；main.css 生成；shell/ 外壳 token 与样式（生成）
-│  ├─ js/             lib/ auth/ shell/ apps/ entries/（分层见 SGX-ARCH-001 §6）
+│  ├─ common/         Platform：css/（input.css、tw-input.css 源；main.css、tokens.css、frame.css 生成）、js/（库按功能分组，外壳在 frame/ 下；见 space/README.md §1.1）
 │  └─ blog/ curio/ daymark/   子站的 css/ 与 js/（发布路径 /<站>/css/…、/<站>/js/…）
 ├─ static/            原样复制：字体、_redirects、_headers、robots.txt、_worker.js；static/<站>/ 子站静态文件
-├─ data/              站点数据；shell/（nav.json、palette-list.json，生成）；curio/ daymark/ 的 i18n 字符串表；version.yaml
+├─ data/              common/ Platform 数据（i18n、frame/i18n、调色板、导航、版本号……；nav.json、palette-list.json 等生成）；blog/ curio/ daymark/ 各产品数据
 ├─ i18n/              Hugo 字符串表（博客用）
 └─ public/            构建产物，不进仓库
 ```
@@ -78,22 +79,24 @@ hugo server -s space/web   # /、/blog/、/curio/、/daymark/ 一起
 
 ## 4. `space/scripts/`
 
+按类分组（`space/README.md` §1）：`build/` 构建、`check/` 检查、`gen/` 生成、`deploy/` 部署、`lib/` 共享脚本库，`blog/` `curio/` `daymark/` 各产品脚本。
+
 | 脚本 | 用途 |
 |---|---|
-| `build-css.cjs` | 主站 CSS（Tailwind 4），顺带三个子站；`--main-only` 只构建主站 |
-| `gen-common.mjs` | 外壳派生文件（tokens / frame.css、nav / palette-list.json、`ui-cookie-read.js` 的 `@ui-cookie-presets` 段） |
-| `gen-palettes.mjs` | 调色板角色（`--roles`） |
-| `gen-ui-cookie-contract.mjs` | `tests/fixtures/ui-cookie-contract.json` |
-| `gen-csp.mjs` | Report-Only CSP 的内联脚本哈希；只算主站页面 |
-| `build-search-index.mjs` | 主站搜索索引（KV `site:space`）；博客的在 `blog/build-search-index.mjs` |
-| `check-layers.mjs` | 前端分层与 Worker 边界（SGX-ARCH-001 §6–7） |
-| `check-frontend.mjs` | 前端规范：禁原生弹窗、禁独立 `token` 变量、`openSheet(` 只许出现在白名单 |
-| `check-worker-routes.mjs` | 路由归属核对（匹配规则 `lib/cf-routes.mjs`） |
-| `verify-core-routes.mjs` | 部署后线上路由核对 |
-| `health-gate.mjs`、`kv-budget.mjs` | 部署后健康检查、KV 写额度守卫 |
-| `deploy-rollback.mjs`、`deploy-rollback-floor.json` | 部署失败自动回滚与回滚下限 |
-| `retired-names.json` | 退役名单（规则 22） |
-| `ci-local.sh` | 本地按 CI 顺序跑 |
+| `build/build-css.cjs` | 主站 CSS（Tailwind 4），顺带三个子站；`--main-only` 只构建主站 |
+| `build/build-search-index.mjs` | 主站搜索索引（KV `site:space`）；博客的在 `blog/build-search-index.mjs` |
+| `gen/gen-common.mjs` | 外壳派生文件（tokens / frame.css、nav / palette-list.json、`ui-cookie-read.js` 的 `@ui-cookie-presets` 段） |
+| `gen/gen-palettes.mjs` | 调色板角色（`--roles`） |
+| `gen/gen-ui-cookie-contract.mjs` | `tests/fixtures/ui-cookie-contract.json` |
+| `gen/gen-csp.mjs` | Report-Only CSP 的内联脚本哈希；只算主站页面 |
+| `check/check-layers.mjs` | 前端分组与 space 骨架（`space/README.md` §4）、Worker 边界（SGX-ARCH-001 §7）；白名单 / 待迁移表 / 例外表 `check/layers-*.json` |
+| `check/check-frontend.mjs` | 前端规范：禁原生弹窗、禁独立 `token` 变量、`openSheet(` 只许出现在白名单 |
+| `check/check-worker-routes.mjs` | 路由归属核对（匹配规则 `lib/cf-routes.mjs`） |
+| `check/verify-core-routes.mjs` | 部署后线上路由核对 |
+| `check/health-gate.mjs`、`check/kv-budget.mjs` | 部署后健康检查、KV 写额度守卫 |
+| `check/retired-names.json` | 退役名单（规则 22） |
+| `deploy/deploy-rollback.mjs`、`deploy/deploy-rollback-floor.json` | 部署失败自动回滚与回滚下限 |
+| `deploy/ci-local.sh` | 本地按 CI 顺序跑 |
 | `blog/` | 博客：`build-css.mjs`、`build-search-index.mjs`、`gen-code-tokens.mjs`、`serve-static.mjs` |
 | `curio/`、`daymark/` | 种子 SQL 生成：`gen-seed-sql.mjs` |
 
