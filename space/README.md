@@ -153,7 +153,7 @@ space/
 
 | 文件 / 引用 | 违反哪条 | 原因 | 加入日期 / PR |
 |---|---|---|---|
-| （暂无） | | | |
+| `web/assets/jsconfig.json` | 26（落点） | 横跨整个 `assets/` 的 JS 路径配置：`baseUrl` 为 `.`（即 `assets/` 本身），覆盖 Platform 的 `shell/js/` 和 curio、daymark、blog 的 `js/`；放进任一层都会断掉其它层的路径解析 | 2026-11-13 #450 |
 
 ## 6. 迁移（进行中）
 
