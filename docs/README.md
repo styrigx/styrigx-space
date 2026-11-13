@@ -61,6 +61,7 @@
 | SGX-SPEC-005 | [`tasks/v6-identity-migration.md`](tasks/v6-identity-migration.md) | 草案 | v6 数据迁移对照表：凭据 → root / styrigx、pepper 来源、userHandle |
 | — | [`tasks/space-architecture-standardization-draft-v1.12.md`](tasks/space-architecture-standardization-draft-v1.12.md) | 定稿 | space 架构规范 v1.12 |
 | — | [`tasks/directory-rename-draft-v1.7.md`](tasks/directory-rename-draft-v1.7.md) | 定稿 | 目录改名定稿 v1.7 |
+| — | [`tasks/清理章程 v2 定稿.md`](<tasks/清理章程 v2 定稿.md>) | 定稿 | 全仓清理章程 v2 |
 | — | [`tasks/styrigx-redesign.pdf`](tasks/styrigx-redesign.pdf) | 定稿 | 改版设计稿（2026-11-07） |
 | — | [`tasks/NAMING-V2.md`](tasks/NAMING-V2.md) | 定稿 | 账号命名 v2（2026-11-08） |
 | — | [`tasks/SPACE-V3.md`](tasks/SPACE-V3.md) | 定稿 | 进站命名 v3（2026-11-09，含锁屏与盾牌那轮决定） |
