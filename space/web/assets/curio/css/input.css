@@ -156,9 +156,9 @@ html, body {
 }
 /* 外壳框最宽（Mobile 640 / DeX 1440）由共享外壳按 <html data-sgx-layout> 定（四站同一条布局规则，baseof __sgxLayout()）；
    本站自己的 layout-phone / layout-dex 类只管弹层样式，不再改 --sgx-content-max（P4-3 顶栏长度统一） */
-/* 页面外框 = 外壳框（不加横向内边距，左右边线和顶栏两侧圆外缘对齐，同主站 .home-wrap）；留言板 / 404 内容列在框里居中 */
-.cu-wrap { box-sizing: border-box; width: var(--sgx-frame-w); max-width: none; margin-left: auto; margin-right: auto; }
-.cu-narrow > * { max-width: 860px; margin-left: auto; margin-right: auto; }
+/* 页面外框 = 顶栏内容宽 --sgx-col-w（1080 居中，对齐字标 / 图标组），两种布局一样；:root 前缀保留原权重 */
+:root .cu-wrap { box-sizing: border-box; width: var(--sgx-col-w); max-width: none; margin-left: auto; margin-right: auto; }
+:root .cu-narrow > * { max-width: none; margin-left: auto; margin-right: auto; }
 
 /* ===== 页面骨架、壁纸、主题过渡（同主站 base 层）===== */
 html { background: var(--sgx-bg-1); }
@@ -185,7 +185,6 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 /* ===== 顶栏（三块的尺寸、位置、玻璃材质都在共享外壳里）===== */
 #site-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 50; pointer-events: none;
   background: transparent; border: 0; box-shadow: none; padding: 0; }
-.sgx-topbar { view-transition-name: sgx-topbar; }
 /* ===== 弹层（编辑 / 管理分类 / 导入 / 确认）：2026-11 对齐 PR-C2 起是稿的终端窗口（设计稿没画编辑，按稿的风格：细线框、实色底、三点标题栏、等宽小标题，
    不要毛玻璃）；手机从底部升起（贴底、上圆角），桌面居中。遮罩 = 稿里 AI 窗口的 50% 暗底 ===== */
 .bk-overlay { display: none; opacity: 0; transition: opacity .2s; }
@@ -336,9 +335,6 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 
 /* 音乐（.mu-* 奇趣音乐页 / .mp-* 弹出播放器）：2026-11 第 7 步搬进共享外壳 @frame music（common/css/input.css → frame.css），本站经上面 @import frame.css 用同一份 */
 
-/* ===== 页面外框 = 顶栏内容宽 --sgx-col-w（1080 居中，对齐字标 / 图标组），两种布局一样 ===== */
-:root .cu-wrap { width: var(--sgx-col-w); }
-:root .cu-narrow > * { max-width: none; }
 /* 编辑弹层里的单选 / 多选签（类型、状态、分类）：等宽小方签，选中 = 主题色描边 + 主题色字 + --sgx-term-sel 衬底 */
 .cu-chip { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--sgx-term-line); background: transparent;
   color: var(--sgx-text-secondary); font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 400; white-space: nowrap; cursor: pointer; }
