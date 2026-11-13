@@ -3,7 +3,7 @@
  *
  * v6 P4（定稿 v5.2 §十三）起旧账号会话删除：三张票（sgx-account-session / -reauth / -reset）、两个纪元、登录标记 sgx-account-signed-in、
  * 账号侧旧恢复密钥都删了；身份只由 v6 会话（core/identity-session.js / identity-stack.js）承担。
- * - 账号签名钥匙对删除（定稿 v5.3 §十二：v6 会话不签名，APP 令牌已删；旧名见 space/scripts/retired-names.json）。
+ * - 账号签名钥匙对删除（定稿 v5.3 §十二：v6 会话不签名，APP 令牌已删；旧名见 space/scripts/check/retired-names.json）。
  * - 账号密码 pepper SGX_ACCOUNT_PASSWORD_PEPPER（v6 唯一的密码 pepper）、救援钥匙 SGX_ACCOUNT_RESCUE_KEY：只绑在账号 Worker（Secrets Store）。
  *
  * 叶子模块：只 import lib/http.js。

@@ -20,7 +20,7 @@
  * 那一行的 alert( 就查不到。
  * 原生弹窗除了裸调用和 window.，也查 globalThis. / self. / top. 和 window['alert'] 这种写法。
  *
- * 用法：node space/scripts/check-frontend.mjs [--root <仓库根>]
+ * 用法：node space/scripts/check/check-frontend.mjs [--root <仓库根>]
  * 规则函数导出给 tests/space/ui/build/check-layers.test.mjs 用。
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
@@ -28,7 +28,7 @@ import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname } from 'node:path';
 
-const DEFAULT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const DEFAULT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 function walk(dir, out = []) {
   if (!existsSync(dir)) return out;

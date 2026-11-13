@@ -1,5 +1,5 @@
 /**
- * space/scripts/verify-core-routes.mjs（deploy-space-core 部署后只读核对 styrigx.com 的 Worker 路由）。
+ * space/scripts/check/verify-core-routes.mjs（deploy-space-core 部署后只读核对 styrigx.com 的 Worker 路由）。
  * 纯函数 verifyRoutes + 用本机假 Cloudflare API 跑一遍脚本（只读：只发 GET）。
  * 运行：node --test tests/workers/space-core/verify-core-routes.test.mjs
  */
@@ -11,7 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const SCRIPT = path.join(REPO, 'space/scripts/verify-core-routes.mjs');
+const SCRIPT = path.join(REPO, 'space/scripts/check/verify-core-routes.mjs');
 const VR = await import(SCRIPT);
 
 const GOOD = () => [

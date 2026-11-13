@@ -22,17 +22,17 @@
  *
  * 需要先构建网站（hugo --minify -s space/web；2026-11 合站后主站和三个子站同一次构建），读 space/web/public/ 下的 .html
  * （子站页面在 public/<站>/ 下，地址本来就带 /<站>/ 前缀；没构建或缺哪个子站就报错）。
- * 用法：node space/scripts/check-worker-routes.mjs
+ * 用法：node space/scripts/check/check-worker-routes.mjs
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readRoutes, routeMatches, pickRoute } from './lib/cf-routes.mjs';
-import { API_ROUTES, FORWARDING, matchForwarding } from '../../workers/space-core/src/router.js';
+import { readRoutes, routeMatches, pickRoute } from '../lib/cf-routes.mjs';
+import { API_ROUTES, FORWARDING, matchForwarding } from '../../../workers/space-core/src/router.js';
 
 export { readRoutes, routeMatches };
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const HOST = 'styrigx.com';
 const PUBLIC_DIR = path.join(REPO, 'space/web/public');
 /* 不需要过网关的 HTML：Pages 对不存在的路径直接回 404.html，本来就没人拦 */

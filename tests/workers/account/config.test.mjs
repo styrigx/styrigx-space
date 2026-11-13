@@ -4,7 +4,7 @@
  * - 账号 Worker 不自己建表（表只由 migrations 建）；0007 / 0008 只加列
  * - secrets：四个名字；wrangler.toml 正式段恰好这四个 Secrets Store 绑定（binding = secret_name，store 同网关），预览不绑
  * - resolveSecrets：绑定 → 字符串、60 秒缓存、取值失败留空且不缓存
- * - 退役名单（space/scripts/retired-names.json）里的旧名不出现在账号 Worker 源码里
+ * - 退役名单（space/scripts/check/retired-names.json）里的旧名不出现在账号 Worker 源码里
  *
  * 运行：node --test tests/workers/account/config.test.mjs
  */
@@ -117,8 +117,8 @@ function walk(dir) {
   return out;
 }
 
-test('退役名单：space/scripts/retired-names.json 里的旧名不出现在账号 Worker 源码（含注释）和 wrangler.toml 的配置里', () => {
-  const retired = JSON.parse(readFileSync(REPO + 'space/scripts/retired-names.json', 'utf8'));
+test('退役名单：space/scripts/check/retired-names.json 里的旧名不出现在账号 Worker 源码（含注释）和 wrangler.toml 的配置里', () => {
+  const retired = JSON.parse(readFileSync(REPO + 'space/scripts/check/retired-names.json', 'utf8'));
   assert.ok(Array.isArray(retired.account) && retired.account.length > 10);
   const files = walk(SRC).concat([REPO + 'workers/account/wrangler.toml']);
   const hits = [];

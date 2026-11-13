@@ -9,19 +9,19 @@
  * 变量名：--sgx-<角色>（bg-gradient 拆成 --sgx-bg-gradient-1..3；状态层 --sgx-state-color / -hover / -focus / -pressed / -selected / -dragged），
  * 由 space/web/assets/shell/js/ui/palette-scheme.js 的 roleDecls / toneDecls 出。每个预设另写 --sgx-seed（= 色板种子）。
  *
- * 用法：node space/scripts/gen-palettes.mjs          重新生成
- *       node space/scripts/gen-palettes.mjs --check  只核对（不一致 exit 1，单测 / CI 用）
- *       node space/scripts/gen-palettes.mjs --roles  先用引擎（palette-scheme.js）按 PRESETS 重建 JSON 里的全部预设（含元数据），再生成 input.css
+ * 用法：node space/scripts/gen/gen-palettes.mjs          重新生成
+ *       node space/scripts/gen/gen-palettes.mjs --check  只核对（不一致 exit 1，单测 / CI 用）
+ *       node space/scripts/gen/gen-palettes.mjs --roles  先用引擎（palette-scheme.js）按 PRESETS 重建 JSON 里的全部预设（含元数据），再生成 input.css
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { roleDecls, toneDecls, presetRoles, PRESETS, DEFAULT_ID } from '../web/assets/shell/js/ui/palette-scheme.js';
+import { roleDecls, toneDecls, presetRoles, PRESETS, DEFAULT_ID } from '../../web/assets/shell/js/ui/palette-scheme.js';
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const JSON_PATH = path.join(REPO, 'space/web/data/shell/palette-roles.json');
 const CSS_PATH = path.join(REPO, 'space/web/assets/shell/css/input.css');
-const BEGIN = '/* @gen-palettes:begin（space/scripts/gen-palettes.mjs 由 space/web/data/shell/palette-roles.json 生成，勿手改） */';
+const BEGIN = '/* @gen-palettes:begin（space/scripts/gen/gen-palettes.mjs 由 space/web/data/shell/palette-roles.json 生成，勿手改） */';
 const END = '/* @gen-palettes:end */';
 const ORDER = PRESETS.map((p) => p.id);
 
@@ -86,7 +86,7 @@ if (isMain) {
   const next = splice(css, renderBlock(data));
   if (process.argv.includes('--check')) {
     if (next !== css) {
-      console.error('input.css 的色板角色和 space/web/data/shell/palette-roles.json 不一致：运行 node space/scripts/gen-palettes.mjs');
+      console.error('input.css 的色板角色和 space/web/data/shell/palette-roles.json 不一致：运行 node space/scripts/gen/gen-palettes.mjs');
       process.exit(1);
     }
     console.log('palettes in sync');

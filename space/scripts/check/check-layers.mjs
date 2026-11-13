@@ -47,7 +47,7 @@
  * 21. 每个 Worker 的 package.json 必须有非空字符串 name
  *
  * 账号命名 v2（2026-11-08）：
- * 22. 退役名单（space/scripts/retired-names.json 的 account）里的旧名字不许出现在账号 Worker（workers/account/src/）
+ * 22. 退役名单（space/scripts/check/retired-names.json 的 account）里的旧名字不许出现在账号 Worker（workers/account/src/）
  *     和账号前端（space/web/assets/shell/js/account/）——注释也算，旧名字只留在退役名单这一处
  *     （19–21 的 Worker 目录 = workers/ 下有 wrangler.toml 的子目录；workers/ 下每个子目录都得有 wrangler.toml，
  *     tests/space/ui/build/check-layers.test.mjs 核对。只管这四条，依赖方向不在这里查）
@@ -63,7 +63,7 @@
  *     （规范 v1.8：例外要写下来、说清楚原因，不悄悄绕过）
  *     23–27 只在仓库根有 space/README.md 时查（单测的临时小仓库没有）；命令行直接跑时缺 README 就报错。
  *
- * 用法：node space/scripts/check-layers.mjs [--root <仓库根>]
+ * 用法：node space/scripts/check/check-layers.mjs [--root <仓库根>]
  * 规则函数导出给 tests/space/ui/build/check-layers.test.mjs 用。
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
@@ -71,7 +71,7 @@ import { join, relative, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
-const DEFAULT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const DEFAULT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 /** @param {string} dir @param {string[]} [out] */
 export function walk(dir, out = []) {
@@ -293,7 +293,7 @@ export function checkGatewayAccountAuth(rel, src, kind = 'js') {
 export const RETIRED_SCOPE_RE = /^(?:workers\/account\/src\/|space\/web\/assets\/shell\/js\/account\/)/;
 /** @type {string[]|null} */
 let retiredCache = null;
-/** 退役名单（space/scripts/retired-names.json 的 account） */
+/** 退役名单（space/scripts/check/retired-names.json 的 account） */
 export function retiredNames() {
   if (!retiredCache) retiredCache = JSON.parse(readFileSync(new URL('./retired-names.json', import.meta.url), 'utf8')).account;
   return /** @type {string[]} */ (retiredCache);
@@ -310,7 +310,7 @@ export function checkRetiredNames(rel, src) {
   for (const name of retiredNames()) {
     const re = new RegExp('(?<![\\w-])' + name.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&') + '(?![\\w-])');
     const ln = lines.findIndex((l) => re.test(l));
-    if (ln >= 0) errors.push(`${rel}:${ln + 1}: 退役旧名 ${name}（规则 22：账号命名 v2 起只留在 space/scripts/retired-names.json）`);
+    if (ln >= 0) errors.push(`${rel}:${ln + 1}: 退役旧名 ${name}（规则 22：账号命名 v2 起只留在 space/scripts/check/retired-names.json）`);
   }
   return errors;
 }

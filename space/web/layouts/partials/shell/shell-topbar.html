@@ -1,5 +1,5 @@
 {{- /* 顶栏单一来源（2026-11-04 P5-1；2026-11 UI 重设计 PR-1 顶栏 v3，设计稿 tb4.html / tb-v3 / prog-v1 / nav-v2）：四个站同一个顶栏 + NAVIGATE 面板 + 外观面板 + AI 窗口。
-   主站（baseof.html）和三个子站（blog/topnav.html、curio/daymark baseof.html）都直接调这一份；space/scripts/gen-shell.mjs 核对它只用参数：
+   主站（baseof.html）和三个子站（blog/topnav.html、curio/daymark baseof.html）都直接调这一份；space/scripts/gen/gen-shell.mjs 核对它只用参数：
    不能调用任何别的 partial、不能读 site.Data，要用的东西全由调用方传进来（站点自己的页名 / 标签、图标、色板都是参数）。
    结构：<header id="site-nav"> 通栏 .sgx-topbar（底边一条 1px 线，内容宽 = --sgx-content-w，1080）=
      [字标 ❯ + SVG 字标 Styrigx + _（光标 1.05s 闪；2026-11 PR-2 起不再是等宽文字 styrigx :~$）] [.sgx-tb-pill：页名（v3 不显示，标记留着给子站脚本 / 锁屏抄）] [盾牌 · 外观 · 四格（NAVIGATE）· 分隔 · >_（终端）· 头像（账号窗口）]（v5 S6 顶栏 E）；

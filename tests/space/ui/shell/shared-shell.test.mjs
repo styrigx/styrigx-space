@@ -1,5 +1,5 @@
 /**
- * 共享外壳（2026-11 合站后主站和三个子站同一个 Hugo 站，子站直接用主站的 partial / JS；space/scripts/gen-shell.mjs 只生成
+ * 共享外壳（2026-11 合站后主站和三个子站同一个 Hugo 站，子站直接用主站的 partial / JS；space/scripts/gen/gen-shell.mjs 只生成
  *   space/web/assets/shell/css/{tokens,shell}.css 和 space/web/data/shell/{nav,palettes}.json 四个派生文件）：
  * 生成物必须和源头一致；外壳 CSS 只用色彩角色，不写死颜色；导航项 / 图标齐全；顶栏标记 topbar.html 四站一份（2026-11-04 P5-1）。
  */
@@ -9,7 +9,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { renderAll, OUT, SHELL_REGIONS, extractRegion } from '../../../../space/scripts/gen-shell.mjs';
+import { renderAll, OUT, SHELL_REGIONS, extractRegion } from '../../../../space/scripts/gen/gen-shell.mjs';
 import yaml from 'js-yaml';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -24,7 +24,7 @@ const files = {
 };
 const ROLES = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/shell/palette-roles.json'), 'utf8'));
 
-test('共享外壳的四个派生文件和源头一致（改了源头要重跑 node space/scripts/gen-shell.mjs）；没有 shared/shell 副本目录', () => {
+test('共享外壳的四个派生文件和源头一致（改了源头要重跑 node space/scripts/gen/gen-shell.mjs）；没有 shared/shell 副本目录', () => {
   for (const [k, v] of Object.entries(generated)) assert.equal(readFileSync(path.join(REPO, OUT[k]), 'utf8'), v, OUT[k]);
   assert.deepEqual(Object.keys(OUT).sort(), ['nav.json', 'palettes.json', 'shell.css', 'tokens.css']);
   assert.equal(existsSync(path.join(REPO, 'space/web/shared')), false);

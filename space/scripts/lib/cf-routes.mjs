@@ -10,7 +10,7 @@
  *   - 不带 * 的规则是「整条 URL（host + path + 查询串）完全相等」才命中，带查询串就不命中；
  *   - 结尾 * 的规则是对 host + path + 查询串做前缀匹配；
  *   - 多条命中时取最具体（最长）的一条。
- * 以前 space/scripts/check-worker-routes.mjs 写的是「不看查询串」，和线上不符，
+ * 以前 space/scripts/check/check-worker-routes.mjs 写的是「不看查询串」，和线上不符，
  * 导致 styrigx.com/?lock=1&return=…（锁屏入口本身）、子站首页带任意查询串都不过网关。
  */
 

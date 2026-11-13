@@ -19,7 +19,7 @@
  *                  网关就是 Pages Functions，所以必须一起算
  *   KV            kvOperationsAdaptiveGroups · sum { requests } · dimensions { actionType } · date = 今天
  *                  actionType：read / write / delete / list（https://developers.cloudflare.com/kv/observability/metrics-analytics/；
- *                  原 space/scripts/kv-budget.mjs 预算闸同一个查询，PR #223 前在 CI 里跑过）
+ *                  原 space/scripts/check/kv-budget.mjs 预算闸同一个查询，PR #223 前在 CI 里跑过）
  *   D1            d1AnalyticsAdaptiveGroups · sum { rowsRead rowsWritten } · date = 今天（https://developers.cloudflare.com/d1/observability/metrics-analytics/）
  *   R2            r2OperationsAdaptiveGroups · sum { requests } · dimensions { actionType } · datetime 本月 1 日 UTC 00:00 起
  *                  （https://developers.cloudflare.com/r2/platform/metrics-analytics/），actionType 按 R2_CLASS_A / R2_CLASS_B 归类

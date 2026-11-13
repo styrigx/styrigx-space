@@ -55,9 +55,9 @@ quality + passkey-e2e
 
 ## 5. 回滚
 
-5.1 部署、冒烟或部署后核对失败 → `space/scripts/deploy-rollback.mjs` 退回部署前记录的版本（Worker 用 `wrangler rollback`，Pages 用回滚 API），作业照样标红。
+5.1 部署、冒烟或部署后核对失败 → `space/scripts/deploy/deploy-rollback.mjs` 退回部署前记录的版本（Worker 用 `wrangler rollback`，Pages 用回滚 API），作业照样标红。
 
-5.2 `space/scripts/deploy-rollback-floor.json` 是回滚下限：MUST NOT 回滚到切库之前的版本。
+5.2 `space/scripts/deploy/deploy-rollback-floor.json` 是回滚下限：MUST NOT 回滚到切库之前的版本。
 
 5.3 不回滚的：D1 迁移（只进不退，新迁移 MUST 兼容旧代码）、KV 数据、Secrets Store、路由 / 自定义域名、其他已部署的作业。
 
@@ -97,9 +97,9 @@ quality + passkey-e2e
 ## 9. 本地复现
 
 ```bash
-space/scripts/ci-local.sh                        # 除 lighthouse 外全部分组
-space/scripts/ci-local.sh unit build e2e-lock    # 指定分组：unit build e2e-lock e2e-sites visual lighthouse passkey
-VISUAL_SHARD=1 space/scripts/ci-local.sh visual  # 只跑 visual 第 1 片
+space/scripts/deploy/ci-local.sh                        # 除 lighthouse 外全部分组
+space/scripts/deploy/ci-local.sh unit build e2e-lock    # 指定分组：unit build e2e-lock e2e-sites visual lighthouse passkey
+VISUAL_SHARD=1 space/scripts/deploy/ci-local.sh visual  # 只跑 visual 第 1 片
 ```
 
 本地 passkey 组走模拟器（`tests/space/e2e/helpers/preview-emulator.cjs`），不连 Cloudflare。

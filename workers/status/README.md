@@ -49,4 +49,4 @@ D1 迁移（`--remote`，已迁过的跳过），再部署。
 旧库 `styrigx-status` 的迁移历史（0001_init … 0005_retire_sites）移到 `migrations-archive/`，只留史、不再跑；存量数据 2026-11 合库时
 搬进新表（表名加 `status_`），L2b 再原样搬进 `styrigx-status`；两个旧库都已删除。
 
-部署排在 AI Worker（`deploy-ai-worker`）之后、网关之前；部署后的健康闸门见 `space/scripts/health-gate.mjs`。测试：`tests/workers/status/`。
+部署排在 AI Worker（`deploy-ai-worker`）之后、网关之前；部署后的健康闸门见 `space/scripts/check/health-gate.mjs`。测试：`tests/workers/status/`。

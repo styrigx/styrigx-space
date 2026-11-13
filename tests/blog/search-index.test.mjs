@@ -1,5 +1,5 @@
 /**
- * space/scripts/build-search-index.mjs：博客写进全站搜索的索引（KV site:blog）。
+ * space/scripts/build/build-search-index.mjs：博客写进全站搜索的索引（KV site:blog）。
  * 前几条用临时目录里的假文章测解析规则（draft 跳过、private 标记、正文去代码块标题栏 / 行号 / 标签、截断）；
  * 最后一条读真实构建（space/web/public/blog/）：每篇文章都在、网址和站点地图一致。
  * 跑法：npm run build 之后 node --test tests/search-index.test.mjs

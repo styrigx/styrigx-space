@@ -145,8 +145,8 @@ npm run build && npm run test:sites                                   # 子站�
 npx playwright test --config=tests/config/playwright.config.js        # 主站 e2e 与视觉回归
 npx playwright test --config=tests/blog/config/playwright.config.js   # 子站 e2e（curio / daymark 同理）
 
-space/scripts/ci-local.sh                     # 按 CI 分组跑一遍（不含 lighthouse）
-space/scripts/ci-local.sh unit build          # 只跑指定分组
+space/scripts/deploy/ci-local.sh                     # 按 CI 分组跑一遍（不含 lighthouse）
+space/scripts/deploy/ci-local.sh unit build          # 只跑指定分组
 ```
 
 `ci-local.sh` 不连 Cloudflare，passkey 组走本地模拟器。

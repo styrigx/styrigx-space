@@ -1,22 +1,6 @@
 {
   "_doc": "待迁移表（space/README.md §4、check-layers 规则 26）：迁移开始时（2026-11-13，main 567bf9ce）还不在目标位置的文件。只许删不许加：每挪完一处就把挪走的文件删掉；新文件一律放目标位置，不进这张表。表空了迁移才算完。",
   "pending": [
-    "space/scripts/build-css.cjs",
-    "space/scripts/build-search-index.mjs",
-    "space/scripts/check-frontend.mjs",
-    "space/scripts/check-layers.mjs",
-    "space/scripts/check-worker-routes.mjs",
-    "space/scripts/ci-local.sh",
-    "space/scripts/deploy-rollback-floor.json",
-    "space/scripts/deploy-rollback.mjs",
-    "space/scripts/gen-csp.mjs",
-    "space/scripts/gen-palettes.mjs",
-    "space/scripts/gen-shell.mjs",
-    "space/scripts/gen-ui-cookie-contract.mjs",
-    "space/scripts/health-gate.mjs",
-    "space/scripts/kv-budget.mjs",
-    "space/scripts/retired-names.json",
-    "space/scripts/verify-core-routes.mjs",
     "space/web/assets/jsconfig.json"
   ]
 }

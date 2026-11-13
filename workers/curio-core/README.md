@@ -23,7 +23,7 @@ src/photo-sweep.js   R2 photos/ 清扫
 
 ## 路由
 
-`styrigx.com/curio/api/*`（`wrangler.toml`，合并 PR3 起）。比网关的 `styrigx.com/*` 更具体，接口请求直接落到本 Worker；`space/scripts/check-worker-routes.mjs` 核对它登记了、且不抢网关的页面。
+`styrigx.com/curio/api/*`（`wrangler.toml`，合并 PR3 起）。比网关的 `styrigx.com/*` 更具体，接口请求直接落到本 Worker；`space/scripts/check/check-worker-routes.mjs` 核对它登记了、且不抢网关的页面。
 旧图志域名下的过渡期旧路由已于 P4-3 PR-1 删除。
 部署：本仓库 `.github/workflows/deploy.yml` 的 `deploy-curio-core`（D1 迁移 + 部署），在网关之前。
 

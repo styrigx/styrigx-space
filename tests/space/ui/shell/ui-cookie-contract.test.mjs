@@ -1,6 +1,6 @@
 /**
  * sgx-ui cookie 契约（2026-10-22）：主站写端 lib/ui-cookie.js ↔ 子站读端 lib/ui-cookie-read.js（共享外壳原样分发）。
- * 夹具 tests/fixtures/ui-cookie-contract.json 由 space/scripts/gen-ui-cookie-contract.mjs 跑真写端生成；
+ * 夹具 tests/fixtures/ui-cookie-contract.json 由 space/scripts/gen/gen-ui-cookie-contract.mjs 跑真写端生成；
  * 这里断言：夹具没过期、每个 cookie 经读端 read / resolve / apply 得到夹具里的期望、写端字段表 = 读端字段表、
  * 读端是 ES5 经典脚本且从不写 cookie。（过去主站改了 sgx-verified 格式、子站死循环——契约不许悄悄漂移。）
  */
@@ -10,8 +10,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
-import { renderContract, FIXTURE } from '../../../../space/scripts/gen-ui-cookie-contract.mjs';
-import { shellFiles, READER_SRC } from '../../../../space/scripts/gen-shell.mjs';
+import { renderContract, FIXTURE } from '../../../../space/scripts/gen/gen-ui-cookie-contract.mjs';
+import { shellFiles, READER_SRC } from '../../../../space/scripts/gen/gen-shell.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const READER = readFileSync(READER_SRC, 'utf8');

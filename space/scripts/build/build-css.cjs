@@ -8,12 +8,12 @@
      博客  node space/scripts/blog/build-css.mjs → space/web/assets/blog/css/main.css
      奇趣 / 日刻  tailwindcss -i space/web/assets/<站>/css/input.css -o space/web/assets/<站>/css/main.css --minify
    子站样式一律压缩（同合站前），--minify 只管主站。--main-only：只构建主站。
-   用法：node space/scripts/build-css.cjs [--minify] [--main-only] */
+   用法：node space/scripts/build/build-css.cjs [--minify] [--main-only] */
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const root = path.join(__dirname, '..', 'web');
+const root = path.join(__dirname, '..', '..', 'web');
 const minify = process.argv.includes('--minify');
 const tmpTw = path.join(root, 'assets/shell/css/.tw-out.css');
 
@@ -27,7 +27,7 @@ const src = fs.readFileSync(path.join(root, 'assets/shell/css/input.css'), 'utf8
 fs.unlinkSync(tmpTw);
 /* 2026-10-24 PR3：--minify 时自定义分层 CSS 也压缩（以前只压了 Tailwind 那段，input.css 的注释和缩进原样进 main.css）。
    只去注释、收空白（space/scripts/lib/css-min.cjs），不改任何选择器 / 属性 / 值 / 顺序；单测核对压缩前后逐条声明一致。 */
-const custom = minify ? require('./lib/css-min.cjs').minifyCss(src) : src;
+const custom = minify ? require('../lib/css-min.cjs').minifyCss(src) : src;
 
 const out =
   '@layer tw, reset, tokens, sgx-base, sgx-components, sgx-utilities, overrides;\n' +
@@ -39,13 +39,13 @@ console.log('CSS built:', out.length, 'bytes');
 
 /* Tailwind 实际安装版本 → data/shell/tailwind.json（设置 › 关于 页显示）。
    Hugo 只能读网站目录内的文件，读不到根目录的 package-lock.json，所以在这里转一手。 */
-const lock = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package-lock.json'), 'utf8'));
+const lock = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', '..', 'package-lock.json'), 'utf8'));
 const twPkg = (lock.packages || {})['node_modules/tailwindcss'];
 fs.writeFileSync(path.join(root, 'data/shell/tailwind.json'), JSON.stringify({ version: twPkg ? twPkg.version : '' }) + '\n');
 
 /* 三个子站的样式（合站 2026-11；合站前在 space/scripts/build-sites.mjs 里各站构建前跑） */
 if (!process.argv.includes('--main-only')) {
-  const repo = path.join(__dirname, '..', '..');
+  const repo = path.join(__dirname, '..', '..', '..');
   execSync(`"${process.execPath}" space/scripts/blog/build-css.mjs`, { cwd: repo, stdio: 'inherit' });
   for (const site of ['curio', 'daymark']) {
     execSync(`npx --no-install tailwindcss -i space/web/assets/${site}/css/input.css -o space/web/assets/${site}/css/main.css --minify`, { cwd: repo, stdio: 'inherit' });

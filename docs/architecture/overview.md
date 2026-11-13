@@ -20,7 +20,7 @@
 
 2.2 **门归网站，账号管授权**。「能不能进来」只由进站会话回答；「能不能写、能不能读私密内容」只由账号 Worker 回答。两者是两套独立的票据（SGX-SEC-001）。
 
-2.3 **唯一状态源**。是否已进站，只由站点核心签发并验签的 `sgx-space-session`（`Domain=.styrigx.com; Path=/`）决定。任何站点、任何页面 MUST NOT 用 sessionStorage、localStorage、前端内存或标签页状态另做判断（`space/scripts/check-layers.mjs` 规则 7–9）。
+2.3 **唯一状态源**。是否已进站，只由站点核心签发并验签的 `sgx-space-session`（`Domain=.styrigx.com; Path=/`）决定。任何站点、任何页面 MUST NOT 用 sessionStorage、localStorage、前端内存或标签页状态另做判断（`space/scripts/check/check-layers.mjs` 规则 7–9）。
 
 ## 3. 请求路径
 
@@ -105,9 +105,9 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 
 6.4 进站与账号的接口调用各只有一处：`shell/space/api.js`（地址表 `shell/space/paths.js`）、`account/api.js`。
 
-6.5 打包：所有入口在 `layouts/partials/shell/sgx-js-batch.html` 里一次 `js.Batch`（esbuild ESM + 代码分割）；首帧前必须执行的主题、语言、布局、提示符脚本是 `<head>` 里的同步内联脚本，其 sha256 进 CSP（`space/scripts/gen-csp.mjs`）。
+6.5 打包：所有入口在 `layouts/partials/shell/sgx-js-batch.html` 里一次 `js.Batch`（esbuild ESM + 代码分割）；首帧前必须执行的主题、语言、布局、提示符脚本是 `<head>` 里的同步内联脚本，其 sha256 进 CSP（`space/scripts/gen/gen-csp.mjs`）。
 
-## 7. Worker 边界（`space/scripts/check-layers.mjs`，CI 必过）
+## 7. Worker 边界（`space/scripts/check/check-layers.mjs`，CI 必过）
 
 | 规则 | 要求 |
 |---|---|
@@ -116,7 +116,7 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 | 16 | 站点核心源码（去注释）MUST NOT 出现账号鉴权标识（`SGX_ACCOUNT_*`、`D1_ACCOUNT`、账号票名等，完整列表见脚本 `GATEWAY_ACCOUNT_AUTH_RE`） |
 | 17 | 账号 Worker 的 `wrangler.toml` MUST NOT 有路由 |
 | 18–21 | Worker 骨架防回退：无 `functions/`、`_kernel/`；`main = "src/index.js"`；有 `README.md`；`package.json` 有 `name` |
-| 22 | 退役名单 `space/scripts/retired-names.json` 里的账号旧名 MUST NOT 出现在账号 Worker 与账号前端（含注释） |
+| 22 | 退役名单 `space/scripts/check/retired-names.json` 里的账号旧名 MUST NOT 出现在账号 Worker 与账号前端（含注释） |
 
 ## 8. 网关结论（授权）
 

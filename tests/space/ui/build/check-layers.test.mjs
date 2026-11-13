@@ -1,5 +1,5 @@
 /**
- * 分层检查器（space/scripts/check-layers.mjs）和前端规范检查器（space/scripts/check-frontend.mjs）的单测。
+ * 分层检查器（space/scripts/check/check-layers.mjs）和前端规范检查器（space/scripts/check/check-frontend.mjs）的单测。
  *
  * - 本仓库现在两者都通过
  * - 解析不到文件的相对 import 报错（以前记成 unknown 放行）
@@ -19,8 +19,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
-const layers = await import(join(REPO, 'space/scripts/check-layers.mjs'));
-const frontend = await import(join(REPO, 'space/scripts/check-frontend.mjs'));
+const layers = await import(join(REPO, 'space/scripts/check/check-layers.mjs'));
+const frontend = await import(join(REPO, 'space/scripts/check/check-frontend.mjs'));
 
 /** 在临时目录造一个最小仓库：files = { 相对路径: 源码 } */
 function fixture(files) {

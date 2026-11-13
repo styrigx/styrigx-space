@@ -8,7 +8,7 @@
 -- - workers/space-core/src/core/d1-state.js SCHEMA（兜底建表）只剩 attempt_limit、audit（含索引 audit_ts）；sweepExpired 白名单只剩 attempt_limit|audit；
 --   部署后兜底建表不会把下面的表建回来。
 -- - 一次性迁移脚本 space/scripts/v6-identity-migrate.mjs、space/scripts/migrate-kv-to-d1.mjs 已删（Gray 20:11）；
---   space/scripts/kv-budget.mjs RESET_D1_TABLES 去掉 passkey、password（只清预览库的 attempt_limit 与 account_* 表）。
+--   space/scripts/check/kv-budget.mjs RESET_D1_TABLES 去掉 passkey、password（只清预览库的 attempt_limit 与 account_* 表）。
 -- - 全仓 workers/*/src、space/scripts、space/web/assets、.github 对这 8 张表名 0 读写；只剩历史迁移
 --   workers/space-core/migrations/0001_baseline.sql 与 migrations-archive/ 的建表 / 搬数据语句（历史记录，不改）。
 -- - 8 张表都只有主键，没有单独的索引（audit_ts 属于 audit，不动）。

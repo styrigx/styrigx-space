@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
  * 构建博客 CSS → space/web/assets/blog/css/main.css（不进仓库；Hugo 再压缩 + 加内容指纹，见 partials/head.html）。
- * 和主站 space/scripts/build-css.cjs 同一个做法：
+ * 和主站 space/scripts/build/build-css.cjs 同一个做法：
  *   1. @tailwindcss/cli（版本见 package.json）单独构建 space/web/assets/blog/css/tw-input.css；
  *   2. 博客自己的样式（space/web/assets/blog/css/input.css 按 @import 顺序展开）原样拼在后面，不过 Tailwind 的 lightningcss。
  * 原因：lightningcss 会把 `backdrop-filter: var(…); -webkit-backdrop-filter: var(…)` 合并成只剩 -webkit- 前缀，
  * Chromium（三星浏览器）就没有毛玻璃了（共享外壳的顶栏 / 抽屉都是这种写法）。
- * 用法：node space/scripts/blog/build-css.mjs（node space/scripts/build-css.cjs 会顺带跑）
+ * 用法：node space/scripts/blog/build-css.mjs（node space/scripts/build/build-css.cjs 会顺带跑）
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';

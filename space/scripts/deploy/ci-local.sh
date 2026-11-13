@@ -2,7 +2,7 @@
 # 本地按 CI 的分组跑一遍（.github/workflows/deploy.yml 的 unit / build / e2e-lock / e2e-sites / visual / lighthouse / passkey-e2e）。
 # 出补丁前跑；某一组红了照样往下跑，最后一行汇总各组结果，红了退出码非 0。
 #
-# 用法：space/scripts/ci-local.sh [组 ...]
+# 用法：space/scripts/deploy/ci-local.sh [组 ...]
 #   组：unit build e2e-lock e2e-sites visual lighthouse passkey；不写 = 除 lighthouse 外全部（lighthouse 要 Chrome，按需加）。
 #   VISUAL_SHARD=1 或 2（可选）：visual 组只跑 CI 的那一片（--shard=N/2），复现 visual (1) / visual (2)；不设 = 整组跑。
 # 前提：Node 22（node:sqlite）、已 npm ci、hugo 在 PATH 上（版本见 .github/actions/setup-hugo）。
@@ -10,7 +10,7 @@
 # 构建顺序和 CI 一致：build 组做一次生产构建（2026-11 合站：主站和三个子站同一个 Hugo 站，产物就是 space/web/public/）；e2e-lock 用这份生产构建，gate 关的构建放最后；
 # visual / lighthouse 各自再做测试构建（SGX_TEST_NO_LOCK=1 SGX_TEST_NO_WEATHER=1）；passkey 做普通构建。
 set -uo pipefail
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/../../.."
 # 本机测试服务器一律直连：机器上设了 HTTP(S)_PROXY 时，Playwright 的 webServer 就绪检查会走代理拿到 404，干等到超时
 export NO_PROXY="localhost,127.0.0.1,::1${NO_PROXY:+,$NO_PROXY}" no_proxy="localhost,127.0.0.1,::1${no_proxy:+,$no_proxy}"
 # 本机测试服务器一律直连：机器上设了 HTTP(S)_PROXY 时，Playwright 的 webServer 就绪检查会走代理拿到 404，干等到超时
@@ -48,7 +48,7 @@ preflight() {
 }
 if ! preflight; then echo; echo "环境不齐，未开始。"; exit 2; fi
 
-css() { node space/scripts/build-css.cjs --minify >/dev/null; }
+css() { node space/scripts/build/build-css.cjs --minify >/dev/null; }
 
 if want unit; then
   begin unit
@@ -59,14 +59,14 @@ fi
 if want build; then
   begin build
   step build "build-css" css
-  for c in "gen-shell.mjs --check" "gen-palettes.mjs --check" "gen-ui-cookie-contract.mjs --check" "check-layers.mjs" "check-frontend.mjs"; do
+  for c in "gen/gen-shell.mjs --check" "gen/gen-palettes.mjs --check" "gen/gen-ui-cookie-contract.mjs --check" "check/check-layers.mjs" "check/check-frontend.mjs"; do
     step build "$c" bash -c "node space/scripts/$c >/dev/null"
   done
   step build "生产构建（主站 + 三个子站）" bash -c 'hugo --minify --cleanDestinationDir -s space/web >/dev/null'
-  step build "gen-csp --check" bash -c 'node space/scripts/gen-csp.mjs --check >/dev/null'
+  step build "gen-csp --check" bash -c 'node space/scripts/gen/gen-csp.mjs --check >/dev/null'
   step build "test:sites" bash -c 'npm run --silent test:sites 2>&1 | grep -E "^# (tests|pass|fail|skipped)"; exit ${PIPESTATUS[0]}'
   step build "合站单测" bash -c 'node --test tests/space/ui/build/one-site.test.mjs >/dev/null'
-  step build "check-worker-routes" bash -c 'node space/scripts/check-worker-routes.mjs >/dev/null'
+  step build "check-worker-routes" bash -c 'node space/scripts/check/check-worker-routes.mjs >/dev/null'
   step build "子站生成物同步" bash -c 'node space/scripts/curio/gen-seed-sql.mjs --check >/dev/null && node space/scripts/blog/gen-code-tokens.mjs --check >/dev/null'
   step build "stylelint" npx stylelint --config tests/config/stylelintrc.json "space/web/assets/shell/css/input.css"
 fi
@@ -75,7 +75,7 @@ PW="npx playwright test --config=tests/config/playwright.config.js"
 if want e2e-lock; then
   begin e2e-lock
   # 没跑 build 组就自己做一次生产构建
-  if ! want build; then step e2e-lock "build-css + 主站生产构建" bash -c 'node space/scripts/build-css.cjs --minify >/dev/null && hugo --minify -s space/web >/dev/null'; fi
+  if ! want build; then step e2e-lock "build-css + 主站生产构建" bash -c 'node space/scripts/build/build-css.cjs --minify >/dev/null && hugo --minify -s space/web >/dev/null'; fi
   step e2e-lock "lock" bash -c "SGX_TEST_SUITE=lock $PW --grep-invert 'baseline screenshot' --reporter=line"
   step e2e-lock "edge" bash -c "SGX_TEST_SUITE=edge $PW --reporter=line"
   step e2e-lock "lock baseline" bash -c "SGX_TEST_SUITE=lock $PW --grep 'baseline screenshot' --reporter=line"
@@ -94,7 +94,7 @@ fi
 
 if want visual; then
   begin visual
-  step visual "测试构建（锁屏禁用）" bash -c 'node space/scripts/build-css.cjs --minify >/dev/null && SGX_TEST_NO_LOCK=1 SGX_TEST_NO_WEATHER=1 hugo --minify -s space/web >/dev/null'
+  step visual "测试构建（锁屏禁用）" bash -c 'node space/scripts/build/build-css.cjs --minify >/dev/null && SGX_TEST_NO_LOCK=1 SGX_TEST_NO_WEATHER=1 hugo --minify -s space/web >/dev/null'
   case "${VISUAL_SHARD:-}" in
     "") step visual "visual 默认组" bash -c "$PW --reporter=line" ;;
     1|2|1/2|2/2) step visual "visual 默认组（第 ${VISUAL_SHARD%/2}/2 片）" bash -c "$PW --shard=${VISUAL_SHARD%/2}/2 --reporter=line" ;;
@@ -104,13 +104,13 @@ fi
 
 if want lighthouse; then
   begin lighthouse
-  step lighthouse "测试构建（锁屏禁用）" bash -c 'node space/scripts/build-css.cjs --minify >/dev/null && SGX_TEST_NO_LOCK=1 SGX_TEST_NO_WEATHER=1 hugo --minify -s space/web >/dev/null'
+  step lighthouse "测试构建（锁屏禁用）" bash -c 'node space/scripts/build/build-css.cjs --minify >/dev/null && SGX_TEST_NO_LOCK=1 SGX_TEST_NO_WEATHER=1 hugo --minify -s space/web >/dev/null'
   step lighthouse "Lighthouse CI" bash -c "find space/web/public -type f \( -name '*.html' -o -name '*.css' -o -name '*.js' \) -exec gzip -kf -9 {} \; && npx lhci autorun --config=tests/config/lighthouserc.json"
 fi
 
 if want passkey; then
   begin passkey
-  step passkey "build-css + 构建" bash -c 'node space/scripts/build-css.cjs --minify >/dev/null && hugo --minify -s space/web >/dev/null'
+  step passkey "build-css + 构建" bash -c 'node space/scripts/build/build-css.cjs --minify >/dev/null && hugo --minify -s space/web >/dev/null'
   # v6 P4（定稿 v5.3 §十三）：网关没有进站钥匙 / 恢复钥匙 / 锁屏 pepper 了，模拟器只收账号 pepper
   PEPPER="$(openssl rand -hex 32)"
   LOG="$(mktemp)"

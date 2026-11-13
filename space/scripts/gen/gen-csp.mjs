@@ -12,18 +12,18 @@
  *
  * 哈希依赖 Hugo 版本和 --minify（压缩会改内联脚本的空白），CI 和部署都是同一条构建命令、同一个 HUGO_VERSION。
  * 改了 baseof.html 等模板里的内联脚本，就要重新生成：
- *   hugo --minify -s space/web && node space/scripts/gen-csp.mjs
- * 用法：node space/scripts/gen-csp.mjs            重新生成（先构建）
- *       node space/scripts/gen-csp.mjs --check    只核对（CI quality，在「Build site」之后跑；不一致 exit 1）
+ *   hugo --minify -s space/web && node space/scripts/gen/gen-csp.mjs
+ * 用法：node space/scripts/gen/gen-csp.mjs            重新生成（先构建）
+ *       node space/scripts/gen/gen-csp.mjs --check    只核对（CI quality，在「Build site」之后跑；不一致 exit 1）
  *       --public <目录>                      构建产物目录（默认 space/web/public）
  */
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { parseHeaders } from './lib/pages-headers.mjs';
+import { parseHeaders } from '../lib/pages-headers.mjs';
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 export const HASHES_FILES = Object.freeze([
   path.join(REPO, 'workers/space-core/src/lib/csp-hashes.js'),
   path.join(REPO, 'workers/account/src/lib/csp-hashes.js'),
@@ -117,7 +117,7 @@ export function renderHashesFile(hashes) {
   const lines = rows.map(([h, e]) => `  '${h}', // ${e.file}（${e.count} 页）: ${e.sample.replace(/\*\//g, '* /')}`);
   return [
     '/**',
-    ' * @fileoverview 生成文件，别手改：node space/scripts/gen-csp.mjs（先 hugo --minify -s space/web）。CI 用 --check 核对。',
+    ' * @fileoverview 生成文件，别手改：node space/scripts/gen/gen-csp.mjs（先 hugo --minify -s space/web）。CI 用 --check 核对。',
     ' * 生产构建里每段会执行的内联 <script> 的 sha256，给 security-headers.js 的 Content-Security-Policy-Report-Only 用。',
     ' */',
     'export const INLINE_SCRIPT_HASHES = Object.freeze([',
@@ -133,7 +133,7 @@ export function renderHashesFile(hashes) {
  */
 export function renderHeadersBlock(list) {
   return [
-    GEN_START + '（space/scripts/gen-csp.mjs 按 workers/space-core/src/lib/security-headers.js 生成，别手改）',
+    GEN_START + '（space/scripts/gen/gen-csp.mjs 按 workers/space-core/src/lib/security-headers.js 生成，别手改）',
     '/*',
     ...list.map(([k, v]) => '  ' + k + ': ' + v),
     GEN_END,
@@ -172,7 +172,7 @@ async function main() {
       const cur = existsSync(f) ? readFileSync(f, 'utf8') : '';
       if (cur !== hashesText) {
         ok = false;
-        console.error('gen-csp --check: ' + path.relative(REPO, f) + ' 和构建产物对不上（内联脚本改过？）。重新生成：hugo --minify -s space/web && node space/scripts/gen-csp.mjs');
+        console.error('gen-csp --check: ' + path.relative(REPO, f) + ' 和构建产物对不上（内联脚本改过？）。重新生成：hugo --minify -s space/web && node space/scripts/gen/gen-csp.mjs');
       }
     }
     const { mainSiteHeaderList } = await import(pathToFileURL(SECURITY).href);
@@ -180,7 +180,7 @@ async function main() {
     const want = spliceBlock(headersText, renderHeadersBlock(mainSiteHeaderList()));
     if (want !== headersText) {
       ok = false;
-      console.error('gen-csp --check: space/web/static/_headers 的安全头和 security-headers.js 对不上。重新生成：node space/scripts/gen-csp.mjs');
+      console.error('gen-csp --check: space/web/static/_headers 的安全头和 security-headers.js 对不上。重新生成：node space/scripts/gen/gen-csp.mjs');
     }
     for (const [i, l] of headersText.split('\n').entries()) {
       if (l.length > MAX_LINE) {

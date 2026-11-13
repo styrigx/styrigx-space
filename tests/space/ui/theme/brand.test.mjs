@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { shellFiles, readWordmark } from '../../../../space/scripts/gen-shell.mjs';
+import { shellFiles, readWordmark } from '../../../../space/scripts/gen/gen-shell.mjs';
 import { toHex, recolor } from '../../../../space/web/assets/shell/js/ui/favicon.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');

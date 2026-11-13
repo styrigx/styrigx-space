@@ -1,4 +1,4 @@
-{{/* 全站内容索引：/files-index.json —— 主站的站点 + 应用，space/scripts/build-search-index.mjs 读它写进搜索索引 site:space（博客文章由博客自己写 site:blog） */}}
+{{/* 全站内容索引：/files-index.json —— 主站的站点 + 应用，space/scripts/build/build-search-index.mjs 读它写进搜索索引 site:space（博客文章由博客自己写 site:blog） */}}
 {{ $items := slice }}
 {{/* 语言列表来自 hugo.yaml languages（语言包化 2026-11-07：不写死 zh / en） */}}
 {{ $langs := slice }}{{ range hugo.Sites }}{{ $langs = $langs | append .Language.Lang }}{{ end }}

@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { shellFiles } from '../../../../space/scripts/gen-shell.mjs';
+import { shellFiles } from '../../../../space/scripts/gen/gen-shell.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');

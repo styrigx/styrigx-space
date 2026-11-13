@@ -65,7 +65,7 @@ test('wrangler.toml：不开 workers.dev、生产模式；v6 P4 起不绑任何 
   /* 2026-10-21：整站通配（不带 * 的规则遇到查询串不命中，锁屏入口 /?lock=1 曾因此绕过网关）。
      只接 styrigx.com 一条通配，不许有精确规则；旧 blog / daymark / curio 子域名不再登记。子站在 styrigx.com/<站>/，由 styrigx.com/* 接住。
      旧图志域名的 301（合并 PR3 起）已于 P4-3 PR-1 删除，路由不再登记。
-     完整核对见 space/scripts/check-worker-routes.mjs。 */
+     完整核对见 space/scripts/check/check-worker-routes.mjs。 */
   const routes = [...toml.matchAll(/^pattern = "([^"]+)"$/gm)].map(m => m[1]);
   assert.deepEqual(routes, ['styrigx.com/*']);
   assert.ok(!routes.some(r => r.startsWith('*')), '不能通配子域名');
@@ -346,7 +346,7 @@ test('预览显式设 SGX_ENV=preview（网关缺 SGX_ENV 按生产处理，不�
 });
 
 test('路由：旧账号地址（/account/、/account/security/ 与 /zh/）过网关（2026-11-08 起只剩 301 到首页 #acct=<层>，跳转也要先进门）', async () => {
-  const { readRoutes, routeMatches } = await import(REPO + '/space/scripts/check-worker-routes.mjs');
+  const { readRoutes, routeMatches } = await import(REPO + '/space/scripts/check/check-worker-routes.mjs');
   const routes = readRoutes(readFileSync(path.join(REPO, 'workers/space-core/wrangler.toml'), 'utf8'));
   for (const p of ['/account/', '/account/security/', '/zh/account/security/']) {
     assert.ok(routes.some((r) => routeMatches(r, 'styrigx.com', p)), p + ' 应被路由覆盖');

@@ -7,7 +7,7 @@
 | 日期 | 2026-11-12 |
 | 状态 | 现行 |
 | 取代 | `docs/palette-usage.md`（2026-11-06） |
-| 规则版本 | `palette-rules-2`（`space/scripts/gen-shell.mjs` `RULES_VERSION`，导出到 `palettes.json` 的 `rulesVersion`） |
+| 规则版本 | `palette-rules-2`（`space/scripts/gen/gen-shell.mjs` `RULES_VERSION`，导出到 `palettes.json` 的 `rulesVersion`） |
 
 ## 0. 数据源与生成链
 
@@ -17,8 +17,8 @@
 
 ```
 palette-scheme.js
-  → node space/scripts/gen-palettes.mjs --roles → space/web/data/shell/palette-roles.json + input.css 的 @gen-palettes 段
-  → node space/scripts/gen-shell.mjs           → space/web/assets/shell/css/tokens.css + space/web/data/shell/palettes.json
+  → node space/scripts/gen/gen-palettes.mjs --roles → space/web/data/shell/palette-roles.json + input.css 的 @gen-palettes 段
+  → node space/scripts/gen/gen-shell.mjs           → space/web/assets/shell/css/tokens.css + space/web/data/shell/palettes.json
 ```
 
 0.3 快捷面板的色块与预览从 `palette-roles.json` 取值（`layouts/partials/shell/palette-tile-vars.html`），与页面角色同一份数据。四站直接使用同一份生成物，没有副本。
@@ -190,7 +190,7 @@ palette-scheme.js
 ## 8. 改调色板
 
 1. `palette-scheme.js` 的 `THEMES` 加 / 改一行（6 个前景从 `FG_POOL` 挑），`space/web/data/shell/palette-source.yaml`、`space/web/data/shell/features.yaml` 的 palette 选项同步。
-2. `node space/scripts/gen-palettes.mjs --roles`、`node space/scripts/gen-shell.mjs`，再各跑一次 `--check`。
+2. `node space/scripts/gen/gen-palettes.mjs --roles`、`node space/scripts/gen/gen-shell.mjs`，再各跑一次 `--check`。
 3. 单测 `tests/space/ui/theme/palette-scheme.test.mjs` 会核对：对比度审计全过、中性彩度 ≤ 0.012、danger / success 不变、前景 ink 在 tint 上 ≥4.5:1、
    填充档 on 色 ≥4.5:1、`SEM` / `PINS` 不被改写、22 套没有手调值、palette-source.yaml / 定稿夹具和 THEMES 一致。
 

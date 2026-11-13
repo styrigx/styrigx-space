@@ -4,7 +4,7 @@
 -- 只建表建索引，不放数据、不删数据（存量行由 .github/workflows/d1-cutover.yml 从旧库 styrigx-status 搬来并改表名）。
 -- 时间一律毫秒时间戳（UTC）；day 是北京时间日期 YYYY-MM-DD。
 
--- 每次检查一行，留 7 天（每小时整点按 at 清一次；只写不查，健康闸门 space/scripts/health-gate.mjs 经 D1 REST 按 at 读）
+-- 每次检查一行，留 7 天（每小时整点按 at 清一次；只写不查，健康闸门 space/scripts/check/health-gate.mjs 经 D1 REST 按 at 读）
 CREATE TABLE IF NOT EXISTS status_checks (
   site TEXT NOT NULL,
   at   INTEGER NOT NULL,

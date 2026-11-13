@@ -145,8 +145,8 @@ npm run build && npm run test:sites                                   # sub-site
 npx playwright test --config=tests/config/playwright.config.js        # main-site e2e and visual regression
 npx playwright test --config=tests/blog/config/playwright.config.js   # sub-site e2e (same for curio / daymark)
 
-space/scripts/ci-local.sh                     # run the CI groups locally (lighthouse excluded)
-space/scripts/ci-local.sh unit build          # only the named groups
+space/scripts/deploy/ci-local.sh                     # run the CI groups locally (lighthouse excluded)
+space/scripts/deploy/ci-local.sh unit build          # only the named groups
 ```
 
 `ci-local.sh` never touches Cloudflare; the passkey group runs against a local emulator.

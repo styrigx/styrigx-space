@@ -89,7 +89,7 @@ test('wrangler.toml：配置里（注释除外）只有 styrigx-test-preview 这
 });
 
 test('deploy.yml / scripts：对预览跑的 wrangler d1 命令只碰 styrigx-test-preview，不出现别的 *-preview 库名', () => {
-  const files = ['.github/workflows/deploy.yml', ...readdirSync(REPO + 'space/scripts').filter((f) => /\.(mjs|cjs|js)$/.test(f)).map((f) => 'space/scripts/' + f)];
+  const files = ['.github/workflows/deploy.yml', ...['build', 'check', 'gen', 'deploy'].flatMap((d) => readdirSync(REPO + 'space/scripts/' + d).filter((f) => /\.(mjs|cjs|js)$/.test(f)).map((f) => 'space/scripts/' + d + '/' + f))];
   let previewCmds = 0;
   for (const p of files) {
     const s = read(p);

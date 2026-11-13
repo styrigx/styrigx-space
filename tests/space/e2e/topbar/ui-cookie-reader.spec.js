@@ -10,7 +10,7 @@ const { blockExternalRequests, freezeTime, expect } = require('../helpers/helper
 
 test.use({ viewport: { width: 412, height: 915 } });
 
-/* 2026-11 合站：没有 shared/shell 副本目录了，按外壳文件名读仓库里的原位置（同 space/scripts/gen-shell.mjs 的 SHELL_FILES） */
+/* 2026-11 合站：没有 shared/shell 副本目录了，按外壳文件名读仓库里的原位置（同 space/scripts/gen/gen-shell.mjs 的 SHELL_FILES） */
 const REPO = path.join(__dirname, '../../../..');
 const SHELL_FILES = {
   'nav.json': 'space/web/data/shell/nav.json',
