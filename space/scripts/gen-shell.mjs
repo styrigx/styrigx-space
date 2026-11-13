@@ -2,7 +2,7 @@
 /**
  * 共享外壳（shared shell）：主站是唯一来源。2026-11 合站起主站和三个子站（blog / curio / daymark）是同一个 Hugo 站（space/web/），
  * 子站直接用主站的 partial（shell-topbar.html、sgx-ph.html、sgx-tr.html、sgx-lang-path.html；平铺入口 sgx-entries.html、段式标签 sgx-segtabs.html 对齐 PR-C2 退役）
- * 和 JS（assets/shell/js/shell/*、assets/shell/js/lib/*），没有副本、没有同步脚本、没有 lock。
+ * 和 JS（assets/shell/js/ 各组），没有副本、没有同步脚本、没有 lock。
  *
  * 只剩四个由源头算出来、没法直接引用的派生文件由本脚本生成（勿手改，改源头后重跑本脚本）：
  *   space/web/assets/css/shell/tokens.css  25 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；space/web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
@@ -14,7 +14,7 @@
  *                                          + 字标 SVG wordmark（space/web/layouts/partials/shell-wordmark.html）；子站模板读 site.Data.shell.nav
  *   space/web/data/shell/palettes.json     预设 id / 名字 / 分组 / 种子 / 背景色 / 6 前景 + 每套亮暗的 Shell + Semantic token 值（含 bg-1..7、chart-1..6）
  *                                          + 默认值 + 子站自定义色缓存版本号；子站模板读 site.Data.shell.palettes
- * 另外：space/web/assets/shell/js/lib/ui-cookie-read.js 的 @ui-cookie-presets 段（预设 id → 种子 + 引擎版本）由本脚本按 palette-roles.json 就地重写。
+ * 另外：space/web/assets/shell/js/prefs/ui-cookie-read.js 的 @ui-cookie-presets 段（预设 id → 种子 + 引擎版本）由本脚本按 palette-roles.json 就地重写。
  * 子站直接用的那几个 partial / JS 仍按原来的约束核对（只用参数、不 import 等），违反就失败。
  *
  * 用法：node space/scripts/gen-shell.mjs          重新生成
@@ -26,7 +26,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { renderBlock } from './gen-palettes.mjs';
-import { DEFAULT_ID, GROUPS } from '../web/assets/shell/js/lib/palette-scheme.js';
+import { DEFAULT_ID, GROUPS } from '../web/assets/shell/js/ui/palette-scheme.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 /** 派生文件 → 仓库里的位置（同一个 Hugo 站里，子站直接引用） */
@@ -46,16 +46,16 @@ const SRC = {
   topbar: path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'),
   pageHeader: path.join(REPO, 'space/web/layouts/partials/sgx-ph.html'),
   footer: path.join(REPO, 'space/web/layouts/partials/sgx-footer.html'),
-  topbarJs: path.join(REPO, 'space/web/assets/shell/js/shell/topbar-panel.js'),
-  terminal: path.join(REPO, 'space/web/assets/shell/js/shell/terminal.js'),
-  modalSheet: path.join(REPO, 'space/web/assets/shell/js/shell/modal-sheet.js'),
-  ai: path.join(REPO, 'space/web/assets/shell/js/shell/ai-panel.js'),
-  vk: path.join(REPO, 'space/web/assets/shell/js/shell/vk.js'),
-  prefsWrite: path.join(REPO, 'space/web/assets/shell/js/lib/prefs-write.js'),
-  reader: path.join(REPO, 'space/web/assets/shell/js/lib/ui-cookie-read.js'),
-  layoutMode: path.join(REPO, 'space/web/assets/shell/js/lib/layout-mode.js'),
-  langPath: path.join(REPO, 'space/web/assets/shell/js/lib/lang-path.js'),
-  langBoot: path.join(REPO, 'space/web/assets/shell/js/lib/lang-boot.js'),
+  topbarJs: path.join(REPO, 'space/web/assets/shell/js/topbar/topbar-panel.js'),
+  terminal: path.join(REPO, 'space/web/assets/shell/js/term/terminal.js'),
+  modalSheet: path.join(REPO, 'space/web/assets/shell/js/ui/modal-sheet.js'),
+  ai: path.join(REPO, 'space/web/assets/shell/js/ai/ai-panel.js'),
+  vk: path.join(REPO, 'space/web/assets/shell/js/ui/vk.js'),
+  prefsWrite: path.join(REPO, 'space/web/assets/shell/js/prefs/prefs-write.js'),
+  reader: path.join(REPO, 'space/web/assets/shell/js/prefs/ui-cookie-read.js'),
+  layoutMode: path.join(REPO, 'space/web/assets/shell/js/ui/layout-mode.js'),
+  langPath: path.join(REPO, 'space/web/assets/shell/js/i18n/lang-path.js'),
+  langBoot: path.join(REPO, 'space/web/assets/shell/js/i18n/lang-boot.js'),
   shellI18n: path.join(REPO, 'space/web/data/sgx-shell-i18n'),
 };
 export const READER_SRC = SRC.reader;
@@ -172,7 +172,7 @@ function renderNav() {
 }
 
 /** 终端公共件目录（终端统一 T1）：terminal.js、ai-panel.js 只许 import 这里面的文件 */
-export const TERM_DIR = path.join(REPO, 'space/web/assets/shell/js/shell/term');
+export const TERM_DIR = path.join(REPO, 'space/web/assets/shell/js/term');
 
 /**
  * 一份源码的 import 路径（去掉注释后）：静态 import + 字面量路径的 import()（终端统一 T5：man 页懒加载）；import() 的参数不是字符串字面量就报错
@@ -189,7 +189,7 @@ function staticImports(code, label) {
 }
 
 /**
- * 核对 import（含字面量 import()）只落在 shell/term/** 里，并顺着 term/** 里的文件往下查（它们也只许互相 import）
+ * 核对 import（含字面量 import()）只落在 term/** 里，并顺着 term/** 里的文件往下查（它们也只许互相 import）
  * @param {string} file @param {string} label @param {string} [termDir] 单测换成临时目录 @param {Set<string>} [seen]
  */
 export function checkTermImports(file, label, termDir = TERM_DIR, seen = new Set()) {
@@ -199,7 +199,7 @@ export function checkTermImports(file, label, termDir = TERM_DIR, seen = new Set
   for (const spec of staticImports(code, label)) {
     const to = path.resolve(path.dirname(file), spec);
     if (!spec.startsWith('.') || !to.startsWith(termDir + path.sep) || !to.endsWith('.js')) {
-      throw new Error(label + ' 只能 import shell/term/** 里的 .js（终端统一 T1）：' + spec);
+      throw new Error(label + ' 只能 import term/** 里的 .js（终端统一 T1）：' + spec);
     }
     if (!existsSync(to)) throw new Error(label + ' import 的文件不存在：' + spec);
     checkTermImports(to, path.relative(REPO, to), termDir, seen);
@@ -208,7 +208,7 @@ export function checkTermImports(file, label, termDir = TERM_DIR, seen = new Set
 
 /**
  * 自成一体的 JS 组件：原样复制（不能 import；必须导出 exportName）。
- * opts.term：只许 import shell/term/**（终端统一 T1 起 terminal.js、ai-panel.js；同一次 Hugo 构建打包，子站没有原样副本）
+ * opts.term：只许 import term/**（终端统一 T1 起 terminal.js、ai-panel.js；同一次 Hugo 构建打包，子站没有原样副本）
  * @param {string} file @param {string} label @param {string} exportName @param {{term?: boolean}} [opts]
  */
 export function renderStandalone(file, label, exportName, opts = {}) {
@@ -354,21 +354,21 @@ export const SHELL_FILES = Object.freeze({
   'topbar.html': 'space/web/layouts/partials/shell-topbar.html',
   'page-header.html': 'space/web/layouts/partials/sgx-ph.html',
   'footer.html': 'space/web/layouts/partials/sgx-footer.html',
-  'topbar.js': 'space/web/assets/shell/js/shell/topbar-panel.js',
-  'terminal.js': 'space/web/assets/shell/js/shell/terminal.js',
-  'modal-sheet.js': 'space/web/assets/shell/js/shell/modal-sheet.js',
-  'ai.js': 'space/web/assets/shell/js/shell/ai-panel.js',
-  'vk.js': 'space/web/assets/shell/js/shell/vk.js',
-  'prefs-write.js': 'space/web/assets/shell/js/lib/prefs-write.js',
-  'ui-cookie-read.js': 'space/web/assets/shell/js/lib/ui-cookie-read.js',
-  'layout-mode.js': 'space/web/assets/shell/js/lib/layout-mode.js',
-  'lang-path.js': 'space/web/assets/shell/js/lib/lang-path.js',
-  'lang-boot.js': 'space/web/assets/shell/js/lib/lang-boot.js',
+  'topbar.js': 'space/web/assets/shell/js/topbar/topbar-panel.js',
+  'terminal.js': 'space/web/assets/shell/js/term/terminal.js',
+  'modal-sheet.js': 'space/web/assets/shell/js/ui/modal-sheet.js',
+  'ai.js': 'space/web/assets/shell/js/ai/ai-panel.js',
+  'vk.js': 'space/web/assets/shell/js/ui/vk.js',
+  'prefs-write.js': 'space/web/assets/shell/js/prefs/prefs-write.js',
+  'ui-cookie-read.js': 'space/web/assets/shell/js/prefs/ui-cookie-read.js',
+  'layout-mode.js': 'space/web/assets/shell/js/ui/layout-mode.js',
+  'lang-path.js': 'space/web/assets/shell/js/i18n/lang-path.js',
+  'lang-boot.js': 'space/web/assets/shell/js/i18n/lang-boot.js',
   'lang-path.html': 'space/web/layouts/partials/sgx-lang-path.html',
   'tr.html': 'space/web/layouts/partials/sgx-tr.html',
   'i18n-en.yaml': 'space/web/data/sgx-shell-i18n/en.yaml',
   'i18n-zh.yaml': 'space/web/data/sgx-shell-i18n/zh.yaml',
-  'favicon.js': 'space/web/assets/shell/js/shell/favicon.js',
+  'favicon.js': 'space/web/assets/shell/js/ui/favicon.js',
   'favicon.svg': 'space/web/static/favicon.svg',
 });
 
@@ -389,7 +389,7 @@ if (isMain) {
       const p = path.join(REPO, OUT[k]);
       if (!existsSync(p) || readFileSync(p, 'utf8') !== v) bad.push(OUT[k]);
     }
-    if (readFileSync(SRC.reader, 'utf8') !== reader) bad.push('space/web/assets/shell/js/lib/ui-cookie-read.js 的 @ui-cookie-presets 段');
+    if (readFileSync(SRC.reader, 'utf8') !== reader) bad.push('space/web/assets/shell/js/prefs/ui-cookie-read.js 的 @ui-cookie-presets 段');
     if (bad.length) {
       console.error('共享外壳派生文件和源头不一致：' + bad.join('、') + '；运行 node space/scripts/gen-shell.mjs');
       process.exit(1);

@@ -1,0 +1,286 @@
+/**
+ * @fileoverview 顶栏弹出层的开合状态机（快捷面板 #sgx-qp、AI 窗口 #sgx-ai 共用；2026-11-04 P5-1 导航抽屉删除）。
+ *
+ * 共享外壳组件：gen-shell 原样复制成 space/web/shared/shell/modal-sheet.js，子站的 topbar.js / ai.js 由调用方把 modalSheet 传进去用。
+ * 所以本文件不 import 任何东西（减弱动效判断自己写）。
+ *
+ * dlg.dataset.state：closed → opening → open → closing → closed。
+ * 开合只靠我们自己的计时器推进（不等 transitionend：减弱动效 / 后台标签页 / 过渡被打断时它可能永远不来），
+ * 每次开 / 关都换一代 gen，上一代没跑完的 rAF / 计时器一律作废——
+ * 以前「刚点开（is-open 还在等两帧 rAF）就按 Esc」时，迟到的 rAF 会把 is-open 加回去，
+ * 关闭计时器看到 is-open 就不关 <dialog>，弹出层卡在打开状态（CI 偶发）。
+ *
+ * 打开时 push 一条同 URL 的历史哨兵，系统返回只关弹出层不离开页面；
+ * Esc（模态：原生 cancel；非模态 modal:false：document keydown）走 close()，点遮罩由调用方接到 close()；close(after) 先退掉哨兵、等它出栈后再执行 after
+ * （跳转 / 再弹别的层），免得目标页的返回多一步。
+ */
+/** 减弱动效：<html class="reduced-motion">（主站 / 子站读端都会写）或系统 prefers-reduced-motion（同 core/util.js reducedMotion） */
+function reducedMotion() {
+  return (
+    document.documentElement.classList.contains('reduced-motion') ||
+    !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  );
+}
+/**
+ * 打开 <dialog>，但不让浏览器「滚到焦点」（2026-11-07 Gray 真机：S23 Ultra 三星浏览器开「桌面版网站」，点九宫格 / 快捷设置 / AI，
+ * 整页突然放大并左移、只看得见面板一角，关掉才恢复）。
+ * show() / showModal() 自带的「对话框聚焦」会聚焦 [autofocus]（没有就是第一个可聚焦元素）并把它滚进视野，这一步不能带 preventScroll。
+ * 桌面版网站下整页是缩小显示的（S23 Ultra 约 0.39 倍），用户再双指放大过、或浏览器给焦点元素做放大时，
+ * 这次「滚进视野」会平移甚至放大可视视口（e2e 可复现平移：可视视口 offsetLeft 0 → 445，见 tests/space/e2e/topbar/popover-no-zoom.spec.js）。
+ * 做法：开的那一下把弹层设成 inert（原生聚焦找不到目标，什么都不聚焦、不滚动），开完立刻还原，
+ * 再自己把焦点给 [autofocus]（没有就按文档顺序第一个可聚焦元素，含 tabindex=-1 的面板本身，同原生）并带 preventScroll。触屏上不把焦点直接给输入框（程序化聚焦会弹键盘、
+ * 桌面版网站下浏览器还会放大到输入框），改给弹层本身。不支持 inert 的旧浏览器照原样（多一次滚动，不影响开合）。
+ * @param {HTMLDialogElement} dlg
+ * @param {boolean} modal true = showModal()；false = show()
+ * @returns {boolean} 打开了没有（已经开着 / 浏览器抛错 → false）
+ */
+export function showDialog(dlg, modal) {
+  const was = dlg.inert;
+  dlg.inert = true;
+  try {
+    if (modal) dlg.showModal();
+    else dlg.show();
+  } catch (e) {
+    dlg.inert = was;
+    return false;
+  }
+  dlg.inert = was;
+  let el = /** @type {HTMLElement|null} */ (dlg.querySelector('[autofocus]'));
+  if (!el) el = /** @type {HTMLElement|null} */ (dlg.querySelector('[tabindex], button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select, textarea'));
+  let coarse = false;
+  try {
+    coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  } catch (e) {}
+  if (el && coarse && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) {
+    if (!dlg.hasAttribute('tabindex')) dlg.setAttribute('tabindex', '-1');
+    el = dlg;
+  }
+  if (el) {
+    try {
+      el.focus({ preventScroll: true });
+    } catch (e) {}
+  }
+  return true;
+}
+
+/**
+ * @typedef {Object} ModalSheet
+ * @property {() => void} open
+ * @property {(after?: () => void) => void} close 关闭（带滑出动画并退掉哨兵）；after 在哨兵出栈后执行
+ * @property {() => boolean} isOpen
+ * @property {() => boolean} isShown
+ * @property {() => boolean} handoff 同步关掉（不做滑出、不退哨兵），返回历史里是否留着本层的哨兵（交给接手的层，如原地搜索层用 replaceState 接过去）
+ */
+
+/**
+ * @param {HTMLDialogElement} dlg 弹出层 <dialog>（模态：铺满视口，::backdrop 是遮罩；非模态：调用方自己画遮罩）
+ * @param {HTMLElement} btn 打开它的顶栏按钮（同步 aria-expanded）
+ * @param {{ ms: number, reducedMs?: number, stateKey: string, modal?: boolean, onOpen?: () => void, onClosed?: () => void }} opts
+ *   ms：滑入 / 滑出时长（与 CSS transition 一致）；reducedMs：减弱动效下仍做的短淡入淡出时长（AI 窗口 120，2026-11-08；不传 = 减弱动效直接到位、直接关）；
+ *   stateKey：历史哨兵 state 里的键名；
+ *   modal：默认 true = showModal()；false = show()（不进顶层、不 inert 页面，快捷面板用：顶栏留在它上面可点）；
+ *   onOpen：打开之后调用（重绘内容）；onClosed：<dialog> 真正关上之后调用（非模态时还焦点用）
+ * @returns {ModalSheet}
+ */
+export function modalSheet(dlg, btn, opts) {
+  const MS = opts.ms;
+  /* 减弱动效下要不要等一段短淡入淡出（reducedMs > 0）；不要就同以前一样直接到位 */
+  const rmWait = function () { return reducedMotion() && !(opts.reducedMs && opts.reducedMs > 0); };
+  const dur = function () { return reducedMotion() ? opts.reducedMs || 0 : MS; };
+  /* 历史里是否有本层的哨兵；关闭时退掉它 */
+  let pushed = false;
+  /* 正在等哨兵出栈的 popstate：null = 不在等；否则出栈后执行它（noop = 只关闭） */
+  /** @type {null | (() => void)} */
+  let awaiting = null;
+  /* 开合代数：每次 open / hide 加一，旧代的回调看到代数变了就什么都不做 */
+  let gen = 0;
+  /** @type {number[]} */ let rafs = [];
+  /** @type {number|null} */ let timer = null;
+  const noop = function () {};
+
+  /** @param {string} st */
+  function setState(st) {
+    dlg.setAttribute('data-state', st);
+  }
+  function cancelPending() {
+    for (let i = 0; i < rafs.length; i++) cancelAnimationFrame(rafs[i]);
+    rafs = [];
+    if (timer) clearTimeout(timer);
+    timer = null;
+  }
+  /** 收尾成「已关」：同步 class / aria / 状态；<dialog> 还开着就关掉 */
+  function settleClosed() {
+    cancelPending();
+    dlg.classList.remove('is-open');
+    btn.setAttribute('aria-expanded', 'false');
+    setState('closed');
+    if (dlg.open) {
+      dlg.close();
+      if (opts.onClosed) {
+        try {
+          opts.onClosed();
+        } catch (e) {}
+      }
+    }
+  }
+  setState('closed');
+
+  function open() {
+    if (dlg.open) return;
+    /* 上一次关闭的哨兵还没出栈（history.back() 是异步的）：等它出栈后再开，免得那次 popstate 把刚开的层当成「系统返回」关掉 */
+    if (awaiting) {
+      const prev = awaiting;
+      awaiting = function () { prev(); window.setTimeout(open, 0); };
+      return;
+    }
+    /* 被浏览器强关、close 事件还没到（状态还停在 open / closing）：先把状态收成已关；哨兵还在历史里就沿用，不再多压一条 */
+    if (dlg.getAttribute('data-state') !== 'closed') {
+      gen++;
+      settleClosed();
+    }
+    cancelPending();
+    const my = ++gen;
+    dlg.classList.remove('is-open');
+    if (!showDialog(dlg, opts.modal !== false)) return;
+    btn.setAttribute('aria-expanded', 'true');
+    if (opts.onOpen) {
+      try {
+        opts.onOpen();
+      } catch (e) {}
+    }
+    const shown = function () {
+      if (my !== gen) return;
+      dlg.classList.add('is-open');
+      if (rmWait()) {
+        setState('open');
+        return;
+      }
+      timer = window.setTimeout(function () {
+        timer = null;
+        if (my === gen) setState('open');
+      }, dur());
+    };
+    setState('opening');
+    /* 下一帧再加 is-open，让滑入过渡生效；减弱动效直接到位（给了 reducedMs 的照样等两帧，好做短淡入） */
+    if (rmWait()) shown();
+    else rafs.push(requestAnimationFrame(function () { rafs.push(requestAnimationFrame(shown)); }));
+    if (pushed) return;
+    try {
+      /** @type {Record<string, number>} */
+      const st = {};
+      st[opts.stateKey] = 1;
+      history.pushState(st, '', location.href);
+      pushed = true;
+    } catch (e) {
+      pushed = false;
+    }
+  }
+  /** 只收界面（滑出后关 <dialog>），不动历史 */
+  function hide() {
+    cancelPending();
+    const my = ++gen;
+    btn.setAttribute('aria-expanded', 'false');
+    /* 还没真正滑出来（opening 且 is-open 没加上）或减弱动效：没有可等的滑出，直接关 */
+    const slid = dlg.classList.contains('is-open');
+    dlg.classList.remove('is-open');
+    if (!dlg.open || !slid || rmWait()) {
+      settleClosed();
+      return;
+    }
+    setState('closing');
+    timer = window.setTimeout(function () {
+      timer = null;
+      if (my === gen) settleClosed();
+    }, dur());
+  }
+  /** @param {() => void} [after] */
+  function close(after) {
+    if (!dlg.open) {
+      if (after) after();
+      return;
+    }
+    hide();
+    if (pushed) {
+      pushed = false;
+      awaiting = after || noop;
+      history.back();
+    } else if (after) {
+      after();
+    }
+  }
+
+  /* Esc（原生 cancel）：自己关，带滑出动画并退掉哨兵 */
+  dlg.addEventListener('cancel', function (e) {
+    e.preventDefault();
+    close();
+  });
+  /* 非模态没有原生 cancel：自己接 Esc（只在开着、且没被别人处理时） */
+  if (opts.modal === false) {
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' || e.defaultPrevented || !dlg.open) return;
+      const st = dlg.getAttribute('data-state');
+      if (st !== 'open' && st !== 'opening') return;
+      e.preventDefault();
+      close();
+    });
+  }
+  /* <dialog> 被我们以外的途径关掉（浏览器连按 Esc 时可能无视 preventDefault 强关）：同步状态并退掉哨兵。
+   * close 事件是 dialog.close() 之后排进任务队列、异步派发的：Esc 关上后马上 Ctrl K 重开，上一次关闭的 close 事件可能晚到、
+   * 落在已经重开的层上（2026-11-08 main CI 偶发：重开后立刻又被关掉）。所以派发时 <dialog> 又开着 = 过期事件，不理。 */
+  dlg.addEventListener('close', function () {
+    if (dlg.open || dlg.getAttribute('data-state') === 'closed') return;
+    gen++;
+    settleClosed();
+    if (pushed) {
+      pushed = false;
+      awaiting = noop;
+      history.back();
+    }
+  });
+  /* 系统返回：哨兵出栈 → 只关本层，停在本页 */
+  window.addEventListener('popstate', function () {
+    if (awaiting) {
+      const fn = awaiting;
+      awaiting = null;
+      fn();
+      return;
+    }
+    if (dlg.open) {
+      pushed = false;
+      hide();
+    }
+  });
+  /* bfcache 恢复：一律收起 */
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted && dlg.open) {
+      pushed = false;
+      awaiting = null;
+      gen++;
+      settleClosed();
+    }
+  });
+
+  /** 交接：立刻关上 <dialog>（模态关了页面才能聚焦），哨兵留在历史里给接手的层 */
+  function handoff() {
+    const had = pushed;
+    pushed = false;
+    awaiting = null;
+    gen++;
+    settleClosed();
+    return had;
+  }
+
+  return {
+    open,
+    close,
+    handoff,
+    isOpen: function () {
+      return dlg.open;
+    },
+    /** 开着或正在打开（正在滑出收起的不算） */
+    isShown: function () {
+      const st = dlg.getAttribute('data-state');
+      return dlg.open && (st === 'open' || st === 'opening');
+    },
+  };
+}

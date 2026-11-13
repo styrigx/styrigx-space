@@ -93,7 +93,7 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 |---|---|---|
 | lib | `lib/` | `lib/` |
 | auth | `auth/`（`passkey-assert.js`、`passkey-register.js`、`post-json.js`） | `lib/`、`auth/` |
-| shell | `shell/`（含 `shell/term/` 终端引擎与命令表、`shell/space/` 钥匙层、`shell/account/` 账号层与账号窗口） | `lib/`、`auth/`、`shell/` |
+| shell | `shell/`（含 `term/` 终端引擎与命令表、`shell/space/` 钥匙层、`account/` 账号层与账号窗口） | `lib/`、`auth/`、`shell/` |
 | apps | `apps/` | 以上全部，`apps/` |
 | entries | `entries/` | 以上全部 |
 
@@ -101,9 +101,9 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 
 6.2 `lib/` MUST NOT 含鉴权逻辑：不得出现 `/api/lock-*`、`/api/space-*`、`/api/account` 与 `navigator.credentials`（规则 6）。
 
-6.3 进站守卫 `shell/space/guard.js` 在每页的 core chunk 里，只读网关注入的 `data-sgx-lock-session`：`valid` 时绑自动回锁（切回前台问服务端，401 → 重载）；不盖遮罩、没有锁屏界面。进站在顶栏终端里 `sudo styrigx`（钥匙层 `shell/space/layer.js`，ADR-0005）；上锁部件与接口 401 派发 `sgx:sudo`，`shell/topbar-panel.js` 打开终端预填。
+6.3 进站守卫 `auth/guard.js` 在每页的 core chunk 里，只读网关注入的 `data-sgx-lock-session`：`valid` 时绑自动回锁（切回前台问服务端，401 → 重载）；不盖遮罩、没有锁屏界面。进站在顶栏终端里 `sudo styrigx`（钥匙层 `shell/space/layer.js`，ADR-0005）；上锁部件与接口 401 派发 `sgx:sudo`，`topbar/topbar-panel.js` 打开终端预填。
 
-6.4 进站与账号的接口调用各只有一处：`shell/space/api.js`（地址表 `shell/space/paths.js`）、`shell/account/api.js`。
+6.4 进站与账号的接口调用各只有一处：`shell/space/api.js`（地址表 `shell/space/paths.js`）、`account/api.js`。
 
 6.5 打包：所有入口在 `layouts/partials/sgx-js-batch.html` 里一次 `js.Batch`（esbuild ESM + 代码分割）；首帧前必须执行的主题、语言、布局、提示符脚本是 `<head>` 里的同步内联脚本，其 sha256 进 CSP（`space/scripts/gen-csp.mjs`）。
 

@@ -1,14 +1,14 @@
 /**
  * @fileoverview 主页（/，中文 /zh/）三节和首屏里要运行时取数的部分（2026-11 对齐 PR-B，设计稿 tb4.html）：
  * - [02] 奇趣 三个目录卡：计数 + 最近收藏 / 在用 / 在玩（/curio/api/links、/curio/api/items，进门即可读，私密的服务端不给）
- * - [03] 日刻 今日一句（lib/daymark-today.js，/daymark/api/today 公开只读）
- * - 首屏状态胶囊：接外壳 shell/topbar-panel.js mountStatus 发的 sgx:status-cells（同一份 /api/status，不另取）
+ * - [03] 日刻 今日一句（apps/daymark-today.js，/daymark/api/today 公开只读）
+ * - 首屏状态胶囊：接外壳 topbar/topbar-panel.js mountStatus 发的 sgx:status-cells（同一份 /api/status，不另取）
  * - hero：$ 行标语打字轮播（apps/home-typer.js）；# 行签名 motto 空值时整行隐藏（跟 sgx-profile-changed）
- * mountHome() 由 entries/entry-space.js 在加载时调一次（先于 initCore，事件监听在外壳取数之前挂好）。
+ * mountHome() 由 apps/entries/entry-space.js 在加载时调一次（先于 initCore，事件监听在外壳取数之前挂好）。
  */
-import { mountDaymarkToday } from '../lib/daymark-today.js';
-import { i18nTable } from '../lib/i18n.js';
-import { PROFILE_EVENT } from '../lib/profile.js';
+import { mountDaymarkToday } from './daymark-today.js';
+import { i18nTable } from '../i18n/i18n.js';
+import { PROFILE_EVENT } from '../prefs/profile.js';
 import { mountTyper } from './home-typer.js';
 
 /** 界面文案：页面字符串表 #sgx-i18n-space */
@@ -95,7 +95,7 @@ export function mountHome(o) {
   }
   const lang = (document.documentElement.lang || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
 
-  /* hero：$ 行标语打字轮播；# 行签名（个人资料 motto，lib/profile.js 用 textContent 覆盖）空了就藏整行，账号页改了跟着变 */
+  /* hero：$ 行标语打字轮播；# 行签名（个人资料 motto，prefs/profile.js 用 textContent 覆盖）空了就藏整行，账号页改了跟着变 */
   mountTyper(document.querySelector('[data-home-typer]'));
   const motto = /** @type {HTMLElement|null} */ (document.querySelector('[data-home-motto-line]'));
   if (motto) {

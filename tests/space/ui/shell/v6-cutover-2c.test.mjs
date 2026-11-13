@@ -12,8 +12,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { pageStateFor, createWho } from '../../../../space/web/assets/shell/js/shell/term/core/who.js';
-import { switchPageSession, SESSION_EVENT } from '../../../../space/web/assets/shell/js/shell/topbar-panel.js';
+import { pageStateFor, createWho } from '../../../../space/web/assets/shell/js/term/core/who.js';
+import { switchPageSession, SESSION_EVENT } from '../../../../space/web/assets/shell/js/topbar/topbar-panel.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -74,16 +74,16 @@ test('switchPageSession：locked → valid 就地切并发 live 事件；没变�
 });
 
 test('源码约定：顶栏订阅 who.onV6 → switchPageSession（登录了重取 NAVIGATE STATUS）；守卫 / AI 窗口 / 服务状态页 / 云同步接 live 事件', () => {
-  const tp = rd('space/web/assets/shell/js/shell/topbar-panel.js');
+  const tp = rd('space/web/assets/shell/js/topbar/topbar-panel.js');
   assert.match(tp, /who\.onV6\(function \(\/\*\* @type \{'valid'\|'locked'\} \*\/ st\) \{\s*if \(switchPageSession\(doc, st\) && st === 'valid' && status\) status\(\);/);
-  const g = rd('space/web/assets/shell/js/shell/space/guard.js');
+  const g = rd('space/web/assets/shell/js/auth/guard.js');
   assert.match(g, /addEventListener\(SESSION_EVENT, function \(\/\*\* @type \{any\} \*\/ e\) \{ if \(e && e\.detail && e\.detail\.live && e\.detail\.ok\) bindAutoLock\(\); \}\)/);
   assert.match(g, /function checkSessionForAutoLock\(\) \{[\s\S]{0,120}if \(pageState\(\) !== 'valid'\) return;/);
-  const ai = rd('space/web/assets/shell/js/shell/ai-panel.js');
+  const ai = rd('space/web/assets/shell/js/ai/ai-panel.js');
   assert.match(ai, /if \(d\.ok\) \{ setLocked\(false\); loadModels\(\); \} else setLocked\(true\);/);
   const st = rd('space/web/assets/shell/js/apps/space-status.js');
   assert.match(st, /window\.addEventListener\('sgx:session'[\s\S]{0,260}if \(d\.ok\) \{ load\(\); return; \}\s*dropCache\(\);\s*data = null;\s*setState\('locked'\);/);
-  const core = rd('space/web/assets/shell/js/shell/core.js');
+  const core = rd('space/web/assets/shell/js/apps/core.js');
   assert.match(core, /bindSessionSync\(\);/);
 });
 
@@ -98,7 +98,7 @@ test('守卫：页面标记就地切成 valid（live）→ 补绑自动回锁；
   globalThis.document = { documentElement: { dataset: { sgxLockSession: 'locked' } }, addEventListener: (t, f) => { (docL[t] = docL[t] || []).push(f); }, cookie: '', visibilityState: 'visible' };
   globalThis.SGX_TEST_NO_LOCK = false;
   globalThis.SGX_FEAT_LOCK_GATE = true;
-  const G = await import('../../../../space/web/assets/shell/js/shell/space/guard.js?2c');
+  const G = await import('../../../../space/web/assets/shell/js/auth/guard.js?2c');
   G.initLock();
   assert.equal((docL.visibilitychange || []).length, 0, '访客页不绑');
   document.documentElement.dataset.sgxLockSession = 'valid';

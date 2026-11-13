@@ -21,7 +21,7 @@
 | 奇趣 | curio | 子站：发现（收藏）、设备、游戏、电影、音乐 |
 | 日刻 | daymark | 子站：句子收藏与「今日一句」 |
 | 状态页 | status，`/status/` | 主站的服务状态页（2026-11-12 起；原旷野 `/wild/#status`，旷野删除后 `/wild/` 301 到这里） |
-| 外壳 | shell | 四站共用的顶栏、导航面板、快捷面板、终端、AI 窗、盾牌与账号窗口；源码在 `space/web/assets/shell/js/shell/` 与 `layouts/partials/shell-*` |
+| 外壳 | shell | 四站共用的顶栏、导航面板、快捷面板、终端、AI 窗、盾牌与账号窗口；源码在 `space/web/assets/shell/js/`（topbar/、term/、ai/、account/ 等组）与 `layouts/partials/shell-*` |
 | 站点核心 | `styrigx-space-core`（`workers/space-core/`） | 挂在 `styrigx.com/*` 的 Worker：进站会话的唯一签发与校验方、页面关口、分享链接、接口路由与转发。旧称「网关」「鉴权网关」（`styrigx-auth-gateway`） |
 | 接口 Worker | `styrigx-curio-core`、`styrigx-daymark-core` | 子站数据接口，挂 `styrigx.com/<站>/api/*` |
 | 账号 Worker | `styrigx-account` | 账号系统；没有公开路由，只经站点核心的服务绑定进入 |

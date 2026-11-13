@@ -7,8 +7,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pickInputMode } from '../../../../space/web/assets/shell/js/shell/term/view/pick.js';
-import { createInputLine } from '../../../../space/web/assets/shell/js/shell/term/view/input-line.js';
+import { pickInputMode } from '../../../../space/web/assets/shell/js/term/view/pick.js';
+import { createInputLine } from '../../../../space/web/assets/shell/js/term/view/input-line.js';
 
 test('pickInputMode：全数字 = numeric，有字母 / 空 = text', () => {
   assert.equal(pickInputMode(['1', '2']), 'numeric');
@@ -82,6 +82,6 @@ test('隐藏用户名（S9）：只在秘密输入时在表单里（autocomplete
 });
 
 test('秘密模式表里没有临时钥匙时代的 temp 了（S9）', async () => {
-  const { SECRET_MODES } = await import('../../../../space/web/assets/shell/js/shell/term/view/input-line.js');
+  const { SECRET_MODES } = await import('../../../../space/web/assets/shell/js/term/view/input-line.js');
   assert.deepEqual([...SECRET_MODES], ['pw', 'rkey', 'newpw', 'newpw2']);
 });

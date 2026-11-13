@@ -17,7 +17,7 @@ import { dirname, join } from 'node:path';
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(join(root, p), 'utf8');
 const base = rd('space/web/layouts/_default/baseof.html');
-const ENTRY_DIR = 'space/web/assets/shell/js/entries';
+const ENTRY_DIR = 'space/web/assets/shell/js/apps/entries';
 
 function batchList() {
   const m = base.match(/partialCached "sgx-js-batch\.html" \(dict "defines" \$featDefines "entries" \(slice ([^)]*)\)\)/);
@@ -64,13 +64,13 @@ test('主站入口：entry-space.js 静态挂首页小组件和页面模块，en
   assert.ok(!existsSync(join(root, 'space/web/assets/shell/js/apps/chat.js')), 'P4-2b：apps/chat.js 已删');
   assert.ok(!existsSync(join(root, 'space/web/assets/shell/js/apps/settings.js')), 'apps/settings.js 已改名 apps/space.js');
   const src = rd(`${ENTRY_DIR}/entry-space.js`);
-  assert.ok(src.includes("import { mountHome } from '../apps/index.js'"), '静态 import 首页小组件');
-  assert.ok(src.includes("import { mountSpace } from '../apps/space.js'"), '静态 import 旷野页模块');
+  assert.ok(src.includes("import { mountHome } from '../index.js'"), '静态 import 首页小组件');
+  assert.ok(src.includes("import { mountSpace } from '../space.js'"), '静态 import 旷野页模块');
   assert.ok(!/registerTab|inpage-tabs|import\(/.test(src), '没有页内切换 / 按需取');
   assert.ok(src.indexOf('mountSpace();') < src.indexOf('initCore();'), '先挂页面模块再 initCore');
   const sub = rd(`${ENTRY_DIR}/entry-space-status.js`);
-  assert.ok(sub.includes("import { mountSpace } from '../apps/space.js'") && !sub.includes('mountHome'), '状态页只挂页面模块');
-  const core = rd('space/web/assets/shell/js/shell/core.js');
+  assert.ok(sub.includes("import { mountSpace } from '../space.js'") && !sub.includes('mountHome'), '状态页只挂页面模块');
+  const core = rd('space/web/assets/shell/js/apps/core.js');
   assert.ok(!/tab-swipe|inpage-tabs|sgx-tab-(leave|enter)/.test(core), 'core 不再接页内切换 / 左右滑');
 });
 
@@ -90,19 +90,19 @@ test('baseof：modulepreload + 构建签名 + 入口加载失败只自动刷新�
 });
 
 test('core.js：入口加载成功清掉自动重试标记', () => {
-  const core = rd('space/web/assets/shell/js/shell/core.js');
+  const core = rd('space/web/assets/shell/js/apps/core.js');
   assert.ok(core.includes("sessionStorage.getItem('sgx-js-retry') === location.pathname"), 'core 初始化成功清标记');
 });
 
 test('守卫在 core 里（frontend-js #6）：只带守卫，钥匙层 / 鉴权模块不进每页的 core；v5 S5 起没有锁屏界面（进站在终端里）', () => {
-  const core = rd('space/web/assets/shell/js/shell/core.js');
-  assert.ok(core.includes("import { initLock } from './space/guard.js';"), 'core 从 space/guard.js 取 initLock');
+  const core = rd('space/web/assets/shell/js/apps/core.js');
+  assert.ok(core.includes("import { initLock } from '../auth/guard.js';"), 'core 从 auth/guard.js 取 initLock');
   assert.ok(!/from '\.\/(lock|upgrade|lock-guard)\.js'/.test(core) && !/from '\.\/space\/(entry|layer)\.js'/.test(core), 'core 不静态 import 钥匙层');
   assert.ok(!/initUpgrade/.test(core), '升级层入口已删');
   for (const f of ['shell/lock.js', 'shell/lock-guard.js', 'lib/lock-state.js', 'shell/space/entry.js', 'shell/space/shield.js', 'shell/space/tempkeys.js']) assert.ok(!existsSync(join(root, 'space/web/assets/shell/js', f)), f + ' 已删');
-  const guard = rd('space/web/assets/shell/js/shell/space/guard.js');
+  const guard = rd('space/web/assets/shell/js/auth/guard.js');
   const staticImports = [...guard.matchAll(/^import [^\n]* from '([^']+)';$/gm)].map((m) => m[1]);
-  assert.deepEqual(staticImports, ['../../lib/diag-jumptrace.js'], '守卫只静态依赖 diag-jumptrace（v6 P4 起 state / paths 随钥匙层删了）');
+  assert.deepEqual(staticImports, ['../status/diag-jumptrace.js'], '守卫只静态依赖 diag-jumptrace（v6 P4 起 state / paths 随钥匙层删了）');
   assert.ok(!/from '\.\/(api|entry|session|reset|shield|layer)\.js'/.test(guard), '守卫不带 api / 通行密钥代码');
   assert.ok(!/\bimport\(/.test(guard.replace(/\/\*[\s\S]*?\*\//g, '')), '守卫不再按需加载锁屏界面');
   assert.ok(!guard.includes('sgx-entry-cover') && !guard.includes('showEntryCover'), '没有全页遮罩');

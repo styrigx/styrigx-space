@@ -56,7 +56,7 @@
 {{/* 注意：main.css 已由 space/scripts/build-css.cjs 压缩，不再走 Hugo minify（tdewolff 不认 @view-transition） */}}
 {{/* 首帧语言跳转（语言清理 2026-11-07：四站同一份 lib/lang-boot.js，共享外壳同步给三个子站）：打成 IIFE 内联，挂 window.SgxLang。
    偏好 sgx-lang：明确语言 → 那种语言；'system' / 旧版的空 / 没有 → 浏览器语言；和本页不同就 replace 跳（不产生历史），跳前记 sgx-lang-hop */}}
-<script>{{ (resources.Get "shell/js/lib/lang-boot.js" | js.Build (dict "format" "iife" "minify" true "target" "es2017")).Content | safeJS }}</script>
+<script>{{ (resources.Get "shell/js/i18n/lang-boot.js" | js.Build (dict "format" "iife" "minify" true "target" "es2017")).Content | safeJS }}</script>
 <script>
 /* 记下这次切页的 view transition（页面脚本可等它结束再做大动作，如浏览器页带 #focus 进来时打开搜索层） */
 addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition||null;window.__sgxRevealed=1;},{once:true});
@@ -110,13 +110,13 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
   }catch(e){}
 })();
 </script>
-{{/* 2.4.0-C：旧 __sgxGet/__sgxSet/__sgxFmtTz 已移入 ES Module（assets/shell/js/lib/storage.js、util.js），此处不再定义 */}}
+{{/* 2.4.0-C：旧 __sgxGet/__sgxSet/__sgxFmtTz 已移入 ES Module（assets/shell/js/prefs/storage.js、util.js），此处不再定义 */}}
 {{/* 布局模式：共享外壳 layout-mode.js 的源头（四站同一条规则：手机 / 桌面，按 UA 是不是手机版网站 + 快捷面板手动偏好；P4-3 PR-4b Gray 2026-11-07）原样内联 */}}
-<script>{{ (resources.Get "shell/js/lib/layout-mode.js" | minify).Content | safeJS }}</script>
+<script>{{ (resources.Get "shell/js/ui/layout-mode.js" | minify).Content | safeJS }}</script>
 <script>
 /* 布局：__sgxLayout()（layout-mode.js）给出 phone / desktop → <html data-sgx-layout> + 主站版面类 layout-mobile / layout-dex（类名照旧，版面 CSS 不动）。
    主站另做偏好迁移：存的旧值 mobile → phone、dex / pc → desktop，未知值 → auto；?layout=auto 把偏好改回 auto（逃生口）。
-   与 assets/shell/js/lib/prefs.js resolveLayout() 同一规则。 */
+   与 assets/shell/js/prefs/prefs.js resolveLayout() 同一规则。 */
 function __layoutMode(){
   try{
     if(new URLSearchParams(location.search).get('layout')==='auto')localStorage.setItem('sgx-layout','auto');
@@ -147,7 +147,7 @@ __sgxLayoutWatch(__applyLayout);
 </head>
 <body class="text-m-on-surface min-h-screen antialiased{{ if not .IsHome }} subpage{{ end }}">
 {{ partial "sgx-icon-sprite.html" . }}
-{{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/shell/js/shell/），此处不再内联定义 */}}
+{{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/shell/js/ui/、nav/），此处不再内联定义 */}}
 {{ $acctUrl := (partial "sgx-lang-path.html" (dict "path" "/account/" "lang" $pageLang)) }}
 
 {{/* 顶栏（2026-11-04 P5-1，全站同一个：方案 6.2–6.5；P4-3 PR-4b Gray 2026-11-07 定稿）：一整条胶囊 [字标] [页名胶囊] [九宫格 · 快捷设置 · AI]，

@@ -23,7 +23,7 @@ import {
   tapFeedback,
   setRowBusy,
   setRowSelected,
-} from '../../../../space/web/assets/shell/js/lib/dialog-behavior.js';
+} from '../../../../space/web/assets/shell/js/ui/dialog-behavior.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -126,9 +126,8 @@ test('眼睛：EYE_OFF_SVG 带斜线、EYE_SVG 不带；icon.html 有 eye/eye-of
 });
 
 test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案为显示密码/隐藏密码', () => {
-  const spaceDir = 'space/web/assets/shell/js/shell/space';
-  const files = ['space/web/assets/shell/js/shell/account/window.js', 'space/web/assets/shell/js/shell/account/cmd/keys.js']
-    .concat(readdirSync(join(ROOT, spaceDir)).filter((f) => f.endsWith('.js')).map((f) => spaceDir + '/' + f));
+    const files = ['space/web/assets/shell/js/account/window.js', 'space/web/assets/shell/js/account/cmd/keys.js']
+    .concat(['space/web/assets/shell/js/auth/guard.js']);
   for (const f of files) {
     const src = read(f);
     assert.ok(!src.includes("classList.toggle('off'"), f + ' 不应再 toggle .off');
@@ -141,6 +140,7 @@ test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案�
   /* v6 P4 收尾：旧账号页文案表 js.account 没有页面输出、没有脚本读，整节删了 */
   assert.deepEqual(jsDict('account'), {}, 'js.account 删了');
   /* v6 P4：钥匙层（shell/space/ 下的进站 / reset / 复验）随旧进站会话删了，只剩守卫 */
+  const spaceDir = 'space/web/assets/shell/js/shell/space';
   for (const f of ['paths.js', 'layer.js', 'reset.js', 'session.js']) assert.ok(!existsSync(join(spaceDir, f)), 'shell/space/' + f + ' 已删（v6 P4）');
   /* P2-3：升级验证层（shell/upgrade.js）已删除 */
   assert.ok(!existsSync(join(ROOT, 'space/web/assets/shell/js/shell/upgrade.js')), 'shell/upgrade.js 已删除');

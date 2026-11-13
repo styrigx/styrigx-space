@@ -3,21 +3,21 @@
  * 开合 / 互斥 / 导航面板 / 快捷设置 / 磁贴都在共享外壳 topbar.js（四站同一套，P4-3 PR-4b）；这里把依赖传进去：
  * - 状态机 modal-sheet.js；外观写端 prefs-write.js（写 localStorage + sgx-ui cookie，同源后主站同步生效，定案第 5 条）；
  * - 语言行（跟随系统 / 中文 / English）：写偏好，实际语言变了就去语言行的 data-href（另一种语言的同一页）；布局行写 sgx-layout；
- * - 终端里的 v6 身份层 = shell/identity/layer.js、账号层 = shell/account/cmd/layer.js、账号卡片 = shell/account/window.js（只展示）；
+ * - 终端里的 v6 身份层 = identity/layer.js、账号层 = account/cmd/layer.js、账号卡片 = account/window.js（只展示）；
  * - AI 窗口内容 ai.js（v6 P4 起「分享本页」磁贴随分享短链删除）。
  * 取代原来的 topbar.js（导航抽屉）、share-host.js（右圆分享）。
  */
-import { mountTopbar } from '../../../shell/js/shell/topbar-panel.js';
-import { modalSheet } from '../../../shell/js/shell/modal-sheet.js';
-import { mountAiChat } from '../../../shell/js/shell/ai-panel.js';
-import { mountAccountWindow, layerFromPath } from '../../../shell/js/shell/account/window.js';
-import { mountAccountLayer } from '../../../shell/js/shell/account/cmd/layer.js';
-import { mountIdentityLayer } from '../../../shell/js/shell/identity/layer.js';
-import { whoami as identityWhoami, hasMarker as identityMarker } from '../../../shell/js/shell/identity/api.js';
-import { KEY_SPACE_PASSWORD } from '../../../shell/js/lib/key-names.js';
-import { onKeyboardHeight } from '../../../shell/js/shell/vk.js';
-import * as prefs from '../../../shell/js/lib/prefs-write.js';
-import * as terminal from '../../../shell/js/shell/terminal.js';
+import { mountTopbar } from '../../../shell/js/topbar/topbar-panel.js';
+import { modalSheet } from '../../../shell/js/ui/modal-sheet.js';
+import { mountAiChat } from '../../../shell/js/ai/ai-panel.js';
+import { mountAccountWindow, layerFromPath } from '../../../shell/js/account/window.js';
+import { mountAccountLayer } from '../../../shell/js/account/cmd/layer.js';
+import { mountIdentityLayer } from '../../../shell/js/identity/layer.js';
+import { whoami as identityWhoami, hasMarker as identityMarker } from '../../../shell/js/identity/api.js';
+import { KEY_SPACE_PASSWORD } from '../../../shell/js/core/key-names.js';
+import { onKeyboardHeight } from '../../../shell/js/ui/vk.js';
+import * as prefs from '../../../shell/js/prefs/prefs-write.js';
+import * as terminal from '../../../shell/js/term/terminal.js';
 
 function boot() {
   mountTopbar({

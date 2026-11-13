@@ -89,15 +89,21 @@ space/
 | `core/` | 无依赖的小工具：util、b64、events、sgx、key-names |
 | `i18n/` | i18n、lang-boot、lang-path |
 | `prefs/` | prefs、prefs-write、storage、cloud-sync、profile、ui-cookie、ui-cookie-read |
-| `ui/` | toast、dialog-behavior、layout-mode、palette-scheme、scheduler |
+| `ui/` | toast、dialog-behavior、layout-mode、palette-scheme、scheduler；外壳的 modal-sheet、sheet、vk、scrollfx、favicon |
 | `features/` | features、feat-flags.d.ts |
 | `status/` | uptime、status-view、diag-jumptrace |
-| `auth/` | 现 `js/auth/` 三个文件 + sudo |
-| `term/`、`account/`、`identity/`、`nav/`、`ai/`…… | 现 `js/shell/` 的子目录和平铺文件，按功能归组 |
-| `apps/` | 首页、状态页（现 `js/apps/`、`js/entries/`；daymark-today 是首页卡片，跟首页走） |
+| `auth/` | 现 `js/auth/` 三个文件 + sudo + 进站守卫 guard（原 `shell/space/guard.js`） |
+| `term/` | 终端：原 `shell/term/` 整个子目录 + terminal、suggest |
+| `account/`、`identity/` | 原 `shell/account/`、`shell/identity/` 整个子目录 |
+| `nav/` | nav、navhistory、layout |
+| `topbar/` | 顶栏：topbar-panel、head-buttons、quick-panel |
+| `ai/` | ai-panel |
+| `apps/` | 首页、状态页（现 `js/apps/`；daymark-today 是首页卡片，跟首页走）；全站公共启动 core（原 `shell/core.js`，只有页面入口用它）；页面入口在 `apps/entries/`（原 `js/entries/`） |
 | `music/` | 共用播放器：music-core、music-player |
 
-精确的文件 → 组对照在拆 lib 的那个 PR 里列出，以那份为准。
+精确的文件 → 组对照见第 2 步 PR 正文（与上表一致）。
+
+**分层**（check-layers 规则 1–4、6，下层不许 import 上层）：基础层 `core/ i18n/ prefs/ ui/ features/ status/` 只引基础层，且不许有鉴权接口；`auth/` 只引基础层和自己；功能组 `term/ account/ identity/ nav/ ai/ topbar/ music/` 可引基础层、`auth/` 和彼此，不许引 `apps/`；`apps/` 不许引 `apps/entries/`。`assets/shell/js/` 下只允许上表这些组（规则 26），另加根目录的 `tsconfig.json`。
 
 ## 2. 落点：新文件放哪
 
@@ -156,8 +162,8 @@ space/
 | 顺序 | 一处 | 状态 |
 |---|---|---|
 | 0 | 本文件 + check-layers 加 23–27（红线 + 落点 + 待迁移表 + 例外表）；顺手修掉现有的两处红线：文章排序 `partials/blog/posts-sorted.html` 首页和奇趣都在用，挪进 `partials/shell/` | 已合（#444） |
-| 1 | `assets/js/` → `assets/shell/js/`（整体挪，不拆） | 进行中 |
-| 2 | 拆 `lib/` 和 shell 平铺文件，按 §1.1 分组 | 未开始 |
+| 1 | `assets/js/` → `assets/shell/js/`（整体挪，不拆） | 已合（#445） |
+| 2 | 拆 `lib/` 和 shell 平铺文件，按 §1.1 分组 | 进行中 |
 | 3 | `assets/css/` → `assets/shell/css/` | 未开始 |
 | 4 | `layouts/partials/` 的 Platform 部分 → `partials/shell/` | 未开始 |
 | 5 | `data/` 的 Platform 部分 → `data/shell/`；`palettes.yaml` 改名 `data/shell/palette-source.yaml`，避开和 `data/shell/palettes.json` 撞键 | 未开始 |

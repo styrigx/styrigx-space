@@ -220,7 +220,7 @@ test('JS 字符串表（语言包化 2026-11-07）：i18nTable(表) 的 tx(键) 
   for (const f of walk(path.join(REPO, 'space/web/assets/shell/js'))) {
     const src = readFileSync(f, 'utf8');
     const m = /const (\w+) = i18nTable\('([\w-]+)'\)/.exec(src);
-    if (!m || f.endsWith(path.join('lib', 'i18n.js'))) continue;
+    if (!m || f.endsWith(path.join('i18n', 'i18n.js'))) continue;
     const [, fn, table] = m;
     const re = new RegExp('\\b' + fn + "\\('([\\w.-]+)'[,)]", 'g');
     for (const [, key] of src.matchAll(re)) {
@@ -314,8 +314,8 @@ test('全仓不再按语言二选一写文案（语言包化第二部分）：�
      - workers/curio-core/src/api：收藏的名字 / 简介是内容，库里本来就是 name_zh / name_en 两列（导入导出照列取；导入的「未归类」分类名两列都写）
      - workers/daymark-core/src/search-index.js：按语言拼地址和索引 id（语言路由，不是文案）
      - workers/ai/src/core/prompt.js：AI 的系统提示词按语言各一份（提示词是给模型的，不是界面）
-     - space/web/assets/shell/js/lib/palette-scheme.js：调色板名 / 情绪描述（调色板数据，与 gen-palettes 同一份，另行整理） */
-  const ALLOW = /^(workers\/curio-core\/src\/api\/|workers\/daymark-core\/src\/search-index\.js$|workers\/ai\/src\/core\/prompt\.js$|space\/web\/assets\/shell\/js\/lib\/palette-scheme\.js$)/;
+     - space/web/assets/shell/js/ui/palette-scheme.js：调色板名 / 情绪描述（调色板数据，与 gen-palettes 同一份，另行整理） */
+  const ALLOW = /^(workers\/curio-core\/src\/api\/|workers\/daymark-core\/src\/search-index\.js$|workers\/ai\/src\/core\/prompt\.js$|space\/web\/assets\/shell\/js\/ui\/palette-scheme\.js$)/;
   const SKIP = /^(tests\/|dist\/)|\/vendor\/|\/public\/|\/node_modules\//;
   const TERN = /(?<![\w.$])(?:en|isEn|isZh|zh|ctx\.en|opts\.en)\s*\?(?![.?])/;
   const ZHOBJ = /\{\s*zh\s*:/;

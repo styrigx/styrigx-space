@@ -7,7 +7,7 @@
  * 每个预设生成一段 :root[data-palette="<id>"]。默认色板 terra（陶土）不写 data-palette，所以 terra 同时写在 :root 上（也兜住未知的 data-palette 值）。
  * 运行时 <html> 上的 dark 类只表示「当前是深套」（首帧按调色板查表设置），选择器里不再用它。
  * 变量名：--sgx-<角色>（bg-gradient 拆成 --sgx-bg-gradient-1..3；状态层 --sgx-state-color / -hover / -focus / -pressed / -selected / -dragged），
- * 由 space/web/assets/shell/js/lib/palette-scheme.js 的 roleDecls / toneDecls 出。每个预设另写 --sgx-seed（= 色板种子）。
+ * 由 space/web/assets/shell/js/ui/palette-scheme.js 的 roleDecls / toneDecls 出。每个预设另写 --sgx-seed（= 色板种子）。
  *
  * 用法：node space/scripts/gen-palettes.mjs          重新生成
  *       node space/scripts/gen-palettes.mjs --check  只核对（不一致 exit 1，单测 / CI 用）
@@ -16,7 +16,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { roleDecls, toneDecls, presetRoles, PRESETS, DEFAULT_ID } from '../web/assets/shell/js/lib/palette-scheme.js';
+import { roleDecls, toneDecls, presetRoles, PRESETS, DEFAULT_ID } from '../web/assets/shell/js/ui/palette-scheme.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const JSON_PATH = path.join(REPO, 'space/web/data/palette-roles.json');

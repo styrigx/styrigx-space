@@ -46,10 +46,10 @@ for (const f of ['space/web/assets/css/input.css', 'space/web/assets/css/shell/s
 }
 
 test('<html data-sgx-account-session>：首帧没有登录标记 nobody、有标记 out；whoami 后访客 nobody / <名> out（名字写 --sgx-ps-user 与 .sgx-envps-u）/ root in', () => {
-  const lm = read('space/web/assets/shell/js/lib/layout-mode.js');
+  const lm = read('space/web/assets/shell/js/ui/layout-mode.js');
   assert.doesNotMatch(lm, /sgx-account-signed-in=1\(/, '旧标记的正则没了');
   assert.match(lm, /setAttribute\('data-sgx-account-session',\/\(\?:\^\|;\\s\*\)sgx-id=1\(\?:;\|\$\)\/\.test\(document\.cookie\|\|''\)\?'out':'nobody'\)/);
-  const tp = read('space/web/assets/shell/js/shell/topbar-panel.js');
+  const tp = read('space/web/assets/shell/js/topbar/topbar-panel.js');
   assert.match(tp, /de\.setAttribute\('data-sgx-account-session', !nm \? 'nobody' : nm === 'root' \? 'in' : 'out'\);/);
   assert.match(tp, /de\.style\.setProperty\('--sgx-ps-user', '"' \+ nm \+ '"'\);/);
   assert.match(tp, /querySelectorAll\('\.sgx-envps-u'\)/);

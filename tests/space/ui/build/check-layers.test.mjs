@@ -154,31 +154,32 @@ test('check-layers：注释里的 import（含 JSDoc 类型）不算', () => {
     "/* import * as x from '../apps/chat.js'; */",
     "const u = 'https://example.com/x'; // import('../apps/chat.js')",
   ].join('\n');
-  assert.deepEqual(layers.checkFile(REPO, join(REPO, FE + 'lib/util.js'), code), []);
+  assert.deepEqual(layers.checkFile(REPO, join(REPO, FE + 'core/util.js'), code), []);
 });
 
-test('check-layers：前端层方向', () => {
+test('check-layers：前端层方向（基础层 → auth → 功能组 → apps → apps/entries）', () => {
   const root = fixture({
-    [FE + 'lib/a.js']: "import { b } from './b.js';\nimport { s } from '../shell/s.js';\nimport { x } from '../auth/x.js';\nimport { p } from '../apps/p.js';",
-    [FE + 'lib/b.js']: 'export const b = 1;',
-    [FE + 'auth/x.js']: "import { b } from '../lib/b.js';\nimport { y } from './y.js';\nimport { s } from '../shell/s.js';\nimport { p } from '../apps/p.js';",
+    [FE + 'core/a.js']: "import { b } from '../prefs/b.js';\nimport { s } from '../term/s.js';\nimport { x } from '../auth/x.js';\nimport { p } from '../apps/p.js';",
+    [FE + 'prefs/b.js']: 'export const b = 1;',
+    [FE + 'auth/x.js']: "import { b } from '../prefs/b.js';\nimport { y } from './y.js';\nimport { s } from '../term/s.js';\nimport { p } from '../apps/p.js';",
     [FE + 'auth/y.js']: 'export const y = 1;',
-    [FE + 'shell/s.js']: "import { x } from '../auth/x.js';\nimport { b } from '../lib/b.js';\nimport { p } from '../apps/p.js';",
-    [FE + 'apps/p.js']: "import { s } from '../shell/s.js';\nimport { x } from '../auth/x.js';\nimport { e } from '../entries/e.js';",
-    [FE + 'entries/e.js']: "import { p } from '../apps/p.js';\nimport { k } from '../../../../../../workers/space-core/src/core/k.js';",
+    [FE + 'term/s.js']: "import { x } from '../auth/x.js';\nimport { b } from '../prefs/b.js';\nimport { t } from '../topbar/t.js';\nimport { p } from '../apps/p.js';",
+    [FE + 'topbar/t.js']: 'export const t = 1;',
+    [FE + 'apps/p.js']: "import { s } from '../term/s.js';\nimport { x } from '../auth/x.js';\nimport { e } from './entries/e.js';",
+    [FE + 'apps/entries/e.js']: "import { p } from '../p.js';\nimport { k } from '../../../../../../../workers/space-core/src/core/k.js';",
     [GW + 'src/core/k.js']: 'export const k = 1;',
   });
   try {
     const { errors } = layers.checkRepo(root);
     const want = [
-      'space/web/assets/shell/js/lib/a.js: lib/ 禁止 import shell/',
-      'space/web/assets/shell/js/lib/a.js: lib/ 禁止 import auth/',
-      'space/web/assets/shell/js/lib/a.js: lib/ 禁止 import apps/',
-      'space/web/assets/shell/js/auth/x.js: auth/ 禁止 import shell/',
+      'space/web/assets/shell/js/core/a.js: core/ 禁止 import term/',
+      'space/web/assets/shell/js/core/a.js: core/ 禁止 import auth/',
+      'space/web/assets/shell/js/core/a.js: core/ 禁止 import apps/',
+      'space/web/assets/shell/js/auth/x.js: auth/ 禁止 import term/',
       'space/web/assets/shell/js/auth/x.js: auth/ 禁止 import apps/',
-      'space/web/assets/shell/js/shell/s.js: shell/ 禁止 import apps/',
+      'space/web/assets/shell/js/term/s.js: term/ 禁止 import apps/',
       'space/web/assets/shell/js/apps/p.js: apps/ 禁止 import entries/',
-      'space/web/assets/shell/js/entries/e.js: 前端禁止 import space/web/assets/shell/js/ 以外的文件',
+      'space/web/assets/shell/js/apps/entries/e.js: 前端禁止 import space/web/assets/shell/js/ 以外的文件',
     ];
     for (const w of want) assert.ok(errors.some((e) => e.startsWith(w)), '缺：' + w + '\n' + errors.join('\n'));
     assert.equal(errors.length, want.length, errors.join('\n'));
@@ -187,8 +188,8 @@ test('check-layers：前端层方向', () => {
   }
 });
 
-test('check-layers：lib/ 不得包含鉴权逻辑（鉴权接口地址、navigator.credentials）；auth/ 可以', () => {
-  const lib = join(REPO, FE + 'lib/util.js');
+test('check-layers：基础层不得包含鉴权逻辑（鉴权接口地址、navigator.credentials）；auth/ 可以', () => {
+  const lib = join(REPO, FE + 'core/util.js');
   for (const code of [
     "fetch('/api/lock-now', { method: 'POST' });",
     "fetch('/api/space-auth');",
@@ -197,7 +198,7 @@ test('check-layers：lib/ 不得包含鉴权逻辑（鉴权接口地址、naviga
   ]) {
     const errs = layers.checkFile(REPO, lib, code);
     assert.equal(errs.length, 1, code);
-    assert.match(errs[0], /lib\/ 不得包含鉴权逻辑/);
+    assert.match(errs[0], /基础层 core\/ 不得包含鉴权逻辑/);
   }
   assert.deepEqual(layers.checkFile(REPO, lib, "fetch('/api/status'); fetch('/api/accounting-x'); // /api/lock-now"), []);
   assert.deepEqual(layers.checkFile(REPO, join(REPO, FE + 'auth/lock-now.js'), "fetch('/api/lock-now');"), []);
@@ -272,10 +273,10 @@ test('check-frontend 规则 3：openSheet( 只许白名单文件（P4-3 §6.7 �
   assert.equal(frontend.SHEET_ALLOW.has('space/web/assets/shell/js/apps/settings.js'), false);
   assert.equal(frontend.SHEET_ALLOW.has('space/web/assets/shell/js/apps/space.js'), false);
   /* 2026-11-08 账号整页删了、头像改成账号终端里的行内选项：白名单只剩 sheet.js 本身 */
-  for (const f of ['space/web/assets/shell/js/apps/account.js', 'space/web/assets/shell/js/apps/account-apps.js', 'space/web/assets/shell/js/apps/avatar-edit.js', 'space/web/assets/shell/js/shell/account/avatar-edit.js']) {
+  for (const f of ['space/web/assets/shell/js/apps/account.js', 'space/web/assets/shell/js/apps/account-apps.js', 'space/web/assets/shell/js/apps/avatar-edit.js', 'space/web/assets/shell/js/account/avatar-edit.js']) {
     assert.equal(frontend.SHEET_ALLOW.has(f), false, f);
   }
-  for (const f of ['space/web/assets/shell/js/shell/sheet.js']) {
+  for (const f of ['space/web/assets/shell/js/ui/sheet.js']) {
     assert.ok(frontend.SHEET_ALLOW.has(f), f);
     assert.deepEqual(frontend.checkSource(f, 'openSheet({});'), [], f);
   }
@@ -347,8 +348,8 @@ test('规则 16：注释、ACCOUNT_VERIFIER.authorize()、首帧提示属性名�
 test('规则 22：账号 Worker / 账号前端里出现退役旧名（含注释）报错；别处不管；名单只在 retired-names.json', () => {
   const errs = layers.checkFile(REPO, join(REPO, AC + 'src/core/session.js'), "// 原来叫 verifyAccountSession\nconst a = 'root-reset';\nconst b = 'reset-recovery-key';");
   assert.deepEqual(errs.map((e) => e.replace(/（.*$/, '')).sort(), [AC + 'src/core/session.js:1: 退役旧名 verifyAccountSession', AC + 'src/core/session.js:2: 退役旧名 root-reset'].sort());
-  assert.deepEqual(layers.checkFile(REPO, join(REPO, 'space/web/assets/shell/js/shell/account/api.js'), "post('/api/account/session', { action: 'password' })"), []);
-  assert.ok(layers.checkFile(REPO, join(REPO, 'space/web/assets/shell/js/shell/account/api.js'), "post('/api/account', { action: 'login-password' })").some((e) => /login-password/.test(e)));
+  assert.deepEqual(layers.checkFile(REPO, join(REPO, 'space/web/assets/shell/js/account/api.js'), "post('/api/account/session', { action: 'password' })"), []);
+  assert.ok(layers.checkFile(REPO, join(REPO, 'space/web/assets/shell/js/account/api.js'), "post('/api/account', { action: 'login-password' })").some((e) => /login-password/.test(e)));
   assert.deepEqual(layers.checkFile(REPO, join(REPO, 'space/scripts/x.mjs'), "const a = 'root-reset';"), [], '范围外不管');
   assert.ok(layers.retiredNames().includes('SGX_ACCOUNT_ROOT_KEY'));
 });
@@ -583,10 +584,10 @@ test('check-layers 25：前端不许引用 assets/ 以外，相对引用要解�
 });
 
 test('check-layers 26：落点白名单 + 待迁移表（只许删不许加）', () => {
-  const root = spaceFixture({}, { pending: [W + 'assets/js/old.js', W + 'assets/js/gone.js', W + 'assets/shell/js/moved.js'] });
+  const root = spaceFixture({}, { pending: [W + 'assets/js/old.js', W + 'assets/js/gone.js', W + 'assets/shell/js/core/moved.js'] });
   try {
     const files = [
-      W + 'assets/shell/js/moved.js', W + 'assets/curio/js/ok.js', W + 'layouts/index.html', W + 'layouts/shell/player.html',
+      W + 'assets/shell/js/core/moved.js', W + 'assets/curio/js/ok.js', W + 'layouts/index.html', W + 'layouts/shell/player.html',
       W + 'layouts/partials/shell/p.html', W + 'data/shell/nav.json', 'space/scripts/build/build-css.cjs', 'space/README.md',
       W + 'assets/js/old.js',
       W + 'assets/js/new.js', W + 'assets/curio/x.js', W + 'layouts/partials/loose.html', W + 'data/loose.yaml', 'space/scripts/loose.mjs',
@@ -596,7 +597,7 @@ test('check-layers 26：落点白名单 + 待迁移表（只许删不许加）',
     const want = [
       'assets/js/new.js: 放错了地方', 'assets/curio/x.js: 放错了地方', 'partials/loose.html: 放错了地方',
       'data/loose.yaml: 放错了地方', 'space/scripts/loose.mjs: 放错了地方',
-      'assets/js/gone.js 已经不在了', 'assets/shell/js/moved.js 已在目标位置',
+      'assets/js/gone.js 已经不在了', 'assets/shell/js/core/moved.js 已在目标位置',
     ];
     for (const w of want) assert.ok(errors.some((e) => e.includes(w)), '缺：' + w + '\n' + errors.join('\n'));
     assert.equal(errors.length, want.length, errors.join('\n'));

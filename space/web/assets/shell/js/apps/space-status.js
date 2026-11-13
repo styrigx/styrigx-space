@@ -18,13 +18,13 @@
  * - 页底「进站凭证使用记录」折叠区（<details id="st-audit">）：默认收起，第一次展开才请求 GET /api/space-audit（KV list + 最多 50 次 get，
  *   所以不随页面加载、也不随 60 秒刷新）；成功后本页不再重复取，失败可点「重试」，401 只提示重新解锁，403（v6 身份不是 root，2b）提示 su root。
  *   页面不做角色判断（进门二值，没有角色）；接口照样由服务端判断。
- * 渲染全在 lib/status-view.js（纯函数，单测覆盖）；这里只管 DOM 和请求。
+ * 渲染全在 status/status-view.js（纯函数，单测覆盖）；这里只管 DOM 和请求。
  */
-import { on } from '../lib/events.js';
-import { askSudo } from '../lib/sudo.js';
-import { loadI18n, pageLang } from '../lib/i18n.js';
-import { visibleInterval } from '../lib/scheduler.js';
-import { bannerInfo, bjDay, buildSlots, esc, fmtBjTime, isEmptySummary, renderAudit, renderIncidents, renderQuota, renderSite, renderUnits, renderUsage, slotText, unitList } from '../lib/status-view.js';
+import { on } from '../core/events.js';
+import { askSudo } from '../auth/sudo.js';
+import { loadI18n, pageLang } from '../i18n/i18n.js';
+import { visibleInterval } from '../ui/scheduler.js';
+import { bannerInfo, bjDay, buildSlots, esc, fmtBjTime, isEmptySummary, renderAudit, renderIncidents, renderQuota, renderSite, renderUnits, renderUsage, slotText, unitList } from '../status/status-view.js';
 
 export const STATUS_API = '/api/status';
 export const AUDIT_API = '/api/space-audit';

@@ -1,5 +1,5 @@
 /**
- * 服务状态「用量」区块（PR3，space/web/assets/shell/js/lib/status-view.js）：数字 / 字节格式、百分比、进度条等级（> 70% 琥珀、> 90% 红）、
+ * 服务状态「用量」区块（PR3，space/web/assets/shell/js/status/status-view.js）：数字 / 字节格式、百分比、进度条等级（> 70% 琥珀、> 90% 红）、
  * 条目顺序、某项拿不到、usage = null 的提示、「更新于 N 分钟前（北京时间）」、转义。假数据：tests/fixtures/status-summary.cjs usage()。
  * 运行：node --test tests/space/ui/status/status-usage-view.test.mjs
  */
@@ -9,7 +9,7 @@ import { jsDict } from '../../../fixtures/strings.mjs';
 import { readFileSync } from 'node:fs';
 import {
   fmtCount, fmtBytes, usagePct, fmtUsagePct, usageLevel, usageItems, renderUsage, USAGE_WARN, USAGE_CRIT,
-} from '../../../../space/web/assets/shell/js/lib/status-view.js';
+} from '../../../../space/web/assets/shell/js/status/status-view.js';
 import fx from '../../../fixtures/status-summary.cjs';
 
 /* 文案读主站字符串表 js.status（语言包化 2026-11-07：partials/status-i18n.html 输出 $tr.js.status），和页面上一致 */

@@ -17,7 +17,7 @@
 
 2.2 **没有弹层**。验证、确认、选择都在命令行或行内完成：
 - MUST NOT 使用原生 `alert` / `confirm` / `prompt`（`space/scripts/check-frontend.mjs` 规则 1）。
-- 底部弹层 `openSheet(` 只许出现在白名单（`SHEET_ALLOW`，现只有 `shell/sheet.js`），新调用一律拦下（规则 3）；选项改行内展开单选。
+- 底部弹层 `openSheet(` 只许出现在白名单（`SHEET_ALLOW`，现只有 `ui/sheet.js`），新调用一律拦下（规则 3）；选项改行内展开单选。
 - 每个终端状态（终端各层、reset、账号窗口）MUST 有退出路径（`^C`、`exit`、`‹ 返回`）。
 
 2.3 **外观改动需要单独确认**。布局、配色、字体、窗口形态的改动 MUST 单独给拥有者看设计，不得夹在一组修复里合并（2026-11-09 手机 AI 底部半屏卡 #351 上线后撤回 #358 的教训）。
@@ -28,7 +28,7 @@
 
 ## 3. 布局模式
 
-3.1 只有两种布局：`phone` / `desktop`（界面叫 Mobile / DeX），写在 `<html data-sgx-layout>`；规则在 `assets/shell/js/lib/layout-mode.js`（首帧前内联），与 `lib/prefs.js` `resolveLayout()` 同一条规则（单测对表）。
+3.1 只有两种布局：`phone` / `desktop`（界面叫 Mobile / DeX），写在 `<html data-sgx-layout>`；规则在 `assets/shell/js/ui/layout-mode.js`（首帧前内联），与 `prefs/prefs.js` `resolveLayout()` 同一条规则（单测对表）。
 
 3.2 偏好存 localStorage `sgx-layout` = `phone` / `auto` / `desktop`（旧值 `mobile` → `phone`，`dex` / `pc` → `desktop`）。
 
@@ -80,7 +80,7 @@
 
 ## 7. 提示符规则
 
-7.1 全站终端的提示符按身份（服务端说了算，`shell/term/core/who.js`；ADR-0005 §2.3）：
+7.1 全站终端的提示符按身份（服务端说了算，`term/core/who.js`；ADR-0005 §2.3）：
 
 | 身份 | 提示符 |
 |---|---|
@@ -103,7 +103,7 @@
 
 7.4 AI 回答行的身份恒为 `grayai`，主机与符号跟随 §7.2：`grayai@space:~$ --reply` / `grayai@account:~# --reply`。
 
-7.5 实现：`shell/term/core/who.js`（`PS_USER`、`PS_RESET`、`ps1`）、`shell/space/commands.js`（`PS_RESET`、`ENV_GUEST`、`ENV_ROOT`、`envPrompt`）、`shell/account/commands.js`（`PS_GUEST`、`PS_ROOT`、`PS_RESET`）、`layouts/partials/sgx-envps.html`、`input.css` 的 `.sgx-ai-msg::before`。
+7.5 实现：`term/core/who.js`（`PS_USER`、`PS_RESET`、`ps1`）、`shell/space/commands.js`（`PS_RESET`、`ENV_GUEST`、`ENV_ROOT`、`envPrompt`）、`account/commands.js`（`PS_GUEST`、`PS_ROOT`、`PS_RESET`）、`layouts/partials/sgx-envps.html`、`input.css` 的 `.sgx-ai-msg::before`。
 
 ## 8. 细节约定
 

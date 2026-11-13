@@ -13,9 +13,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { createShell, TERM_EN } from '../../../../space/web/assets/shell/js/shell/terminal.js';
-import { mountAuthErr } from '../../../../space/web/assets/shell/js/shell/account/cmd/auth-err.js';
-import { mountProxy } from '../../../../space/web/assets/shell/js/shell/account/proxy.js';
+import { createShell, TERM_EN } from '../../../../space/web/assets/shell/js/term/terminal.js';
+import { mountAuthErr } from '../../../../space/web/assets/shell/js/account/cmd/auth-err.js';
+import { mountProxy } from '../../../../space/web/assets/shell/js/account/proxy.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -146,7 +146,7 @@ test('账号层 sub：服务端 401 → 先 su <用户>；403 forbidden → 先 
 });
 
 test('子站 / 博客终端挂 v6 身份层（全站一个终端：su / su root / exit / lock 在奇趣、日刻、博客也能用）', () => {
-  for (const f of ['space/web/assets/curio/js/sgx/topbar-host.js', 'space/web/assets/daymark/js/sgx/topbar-host.js', 'space/web/assets/blog/js/entries/topnav.ts', 'space/web/assets/shell/js/shell/quick-panel.js']) {
+  for (const f of ['space/web/assets/curio/js/sgx/topbar-host.js', 'space/web/assets/daymark/js/sgx/topbar-host.js', 'space/web/assets/blog/js/entries/topnav.ts', 'space/web/assets/shell/js/topbar/quick-panel.js']) {
     const s = rd(f);
     assert.match(s, /\n\s+identityTerm: mountIdentityLayer,\n/, f);
     assert.match(s, /\n\s+identityWhoami: identityWhoami,\n/, f);

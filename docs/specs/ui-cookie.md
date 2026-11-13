@@ -16,9 +16,9 @@
 
 | 角色 | 文件 |
 |---|---|
-| 字段表、版本、编解码、读端 `SgxUI` | `space/web/assets/shell/js/lib/ui-cookie-read.js` |
-| 写端 `syncUiCookie()` | `space/web/assets/shell/js/lib/prefs-write.js`（`lib/ui-cookie.js` 只转导出） |
-| 首帧语言跳转 | `space/web/assets/shell/js/lib/lang-boot.js` |
+| 字段表、版本、编解码、读端 `SgxUI` | `space/web/assets/shell/js/prefs/ui-cookie-read.js` |
+| 写端 `syncUiCookie()` | `space/web/assets/shell/js/prefs/prefs-write.js`（`prefs/ui-cookie.js` 只转导出） |
+| 首帧语言跳转 | `space/web/assets/shell/js/i18n/lang-boot.js` |
 | 契约夹具 | `tests/fixtures/ui-cookie-contract.json`（`space/scripts/gen-ui-cookie-contract.mjs` 跑真写端生成） |
 
 ## 2. 不变式
@@ -122,7 +122,7 @@ node --test tests/space/ui/shell/ui-cookie-contract.test.mjs
 
 ## 9. 子站读端
 
-9.1 子站模板直接内联主站读端（`resources.Get "shell/js/lib/ui-cookie-read.js"`），没有副本。各站在读端后面加的一小段：博客 `layouts/partials/blog/sgx-inherit.html`，奇趣 / 日刻 `assets/<站>/js/sgx/ui-inherit-run.js`。
+9.1 子站模板直接内联主站读端（`resources.Get "shell/js/prefs/ui-cookie-read.js"`），没有副本。各站在读端后面加的一小段：博客 `layouts/partials/blog/sgx-inherit.html`，奇趣 / 日刻 `assets/<站>/js/sgx/ui-inherit-run.js`。
 
 9.2 博客 `sgx-inherit.html` 有三个 `<script>`：① `lang-boot.js`；② `ui-cookie-read.js`；③ 博客胶水（只管外观）。（3.0 起 `entries/inherit.ts` 删除，子站不再加载 `palette-scheme.js`。）
 

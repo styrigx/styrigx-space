@@ -2,7 +2,7 @@
 # （底色 OKLCH L ≥ 0.6 为浅套：11 浅 14 深）；没有深浅模式和自定义主题色。x* 撞色 id 删除（旧值 x<id> 迁到 <id>）。默认 terra（陶土，深套）。
 # group = 分组（cool 冷调 / nature 自然 / warm 暖调 / floral 花色 / neutral 中性），只作参考。
 # 顺序 = 快捷面板顺序（四站同一份）：2026-11-12 起先深后浅、段内按色相（底色只有深 L≈0.20 / 浅 L≈0.955 两档，只跳一次是唯一单调排法）；加新色按深浅进段、段内按色相插。
-# 加颜色：这里加一项，在 space/web/assets/shell/js/lib/palette-scheme.js 的 THEMES 加同 id、同 group、同背景色的一行（6 个前景从 FG_POOL 里挑），
+# 加颜色：这里加一项，在 space/web/assets/shell/js/ui/palette-scheme.js 的 THEMES 加同 id、同 group、同背景色的一行（6 个前景从 FG_POOL 里挑），
 # 再跑 node space/scripts/gen-palettes.mjs --roles（重建 space/web/data/palette-roles.json 并写进 input.css）和 node space/scripts/gen-shell.mjs；space/web/data/features.yaml 的 palette 选项同步加。
 # settings 风格页（setcat-theme.html）和快捷面板（baseof.html）共用 site.Data.palettes.palettes；色块颜色走 partials/palette-tile-vars.html。
 # 单一数据源：颜色值只在 palette-scheme.js 的 THEMES / FG_POOL；这里的 c / zh / en / group 是副本，单测（palette-scheme.test.mjs）逐项核对，不一致就红。

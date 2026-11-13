@@ -1,5 +1,5 @@
 /**
- * 终端（v5 S5 终端合一，term-design-v5；引擎 space/web/assets/shell/js/shell/terminal.js，接线 shell/topbar-panel.js）：一个终端、一个会话、一份历史。
+ * 终端（v5 S5 终端合一，term-design-v5；引擎 space/web/assets/shell/js/term/terminal.js，接线 shell/topbar-panel.js）：一个终端、一个会话、一份历史。
  *
  * v5 S7：主页首屏不再嵌终端（换成 neofetch about 卡，提示符跟身份）；主页也用顶栏 >_ / Ctrl K 打开终端窗口（v5 S6）：
  * - 真输入框（有可访问名）+ aria-live=polite 的输出区；欢迎语指向 man（help 删了）；提示符按身份 nobody@space:~$（访客，服务端说了算）
