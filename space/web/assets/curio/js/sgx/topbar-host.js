@@ -50,5 +50,8 @@ function boot() {
     keyboard: onKeyboardHeight,
   });
 }
+/* 页内模态窗（音乐上传 #mu-up-wrap，2026-11-14）用同一个状态机：经典脚本 curio-music.js 拿不到 import，挂到全局。
+ * 本文件在 pagejs 之前同步执行，子页脚本运行时已经有了。 */
+window.SgxModalSheet = modalSheet;
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
 else boot();
