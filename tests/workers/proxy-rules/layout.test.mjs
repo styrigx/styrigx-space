@@ -30,6 +30,7 @@ test('文件清单：入口、路由、接口、命名入口、业务、通用�
     'core/sub/airport.js',
     'core/sub/config.js',
     'core/sub/lock.js',
+    'core/sub/nodes.js',
     'core/sub/parse.js',
     'core/sub/pipeline.js',
     'core/sub/store.js',
@@ -95,8 +96,11 @@ test('wrangler.toml：main 不变，nodejs_compat，6 小时 cron；绑定只有
     assert.ok(!new RegExp(`^\\[+${k}\\b`, 'm').test(toml), k);
 });
 
-test('迁移：一个基线文件，三张表，预置锁行；没有 nodes 表（成品在 sources 行里，设计 v1.7）', () => {
-  assert.deepEqual(readdirSync(join(ROOT, 'migrations')), ['0001_init.sql']);
+test('迁移：基线三张表，预置锁行；没有 nodes 表（成品在 sources 行里，设计 v1.7）；0002 加节点处理三张表（v1.13）', () => {
+  assert.deepEqual(readdirSync(join(ROOT, 'migrations')).sort(), ['0001_init.sql', '0002_map.sql']);
+  const m2 = readFileSync(join(ROOT, 'migrations/0002_map.sql'), 'utf8');
+  assert.deepEqual([...m2.matchAll(/^CREATE TABLE (\w+)/gm)].map((m) => m[1]), ['iso_country', 'map_drop', 'map_flag']);
+  assert.match(m2, /^ALTER TABLE sources ADD COLUMN unmatched /m);
   const sql = readFileSync(join(ROOT, 'migrations/0001_init.sql'), 'utf8');
   assert.deepEqual([...sql.matchAll(/^CREATE TABLE (\w+)/gm)].map((m) => m[1]), ['meta', 'sources', 'lock']);
   assert.match(sql, /INSERT INTO lock \(id, owner, expires\) VALUES \(1, NULL, 0\);/);

@@ -17,7 +17,7 @@ test.use({ viewport: { width: 1280, height: 900 } });
 test.beforeEach(async ({ page }) => { await T.zh(page); });
 
 const SOURCES = [
-  { name: 'Linkcube', type: 'airport', enabled: true, host: 'sub.example.com', nodes: 3, ready: true, lastOkAt: 1, error: '', gen: 1 },
+  { name: 'Linkcube', type: 'airport', enabled: true, host: 'sub.example.com', nodes: 3, unmatched: 1, ready: true, lastOkAt: 1, error: '', gen: 1 },
   { name: 'Cloady', type: 'file', enabled: false, host: '', nodes: 1, ready: true, lastOkAt: 1, error: '', gen: 1 },
 ];
 const PSTATUS = { ok: true, pubkey: 'age1abcdef…uvwxyz', hasKey: true, token: 'sealed', refreshing: false, sources: SOURCES };
@@ -29,7 +29,7 @@ test('sub：公钥头尾、令牌、每个来源一行', async ({ page }) => {
   await typeLine(page, 'sub');
   await expect(log(page)).toContainText('age1abcdef…uvwxyz');
   await expect(log(page)).toContainText('已生成 · 地址用 sub show');
-  await expect(log(page)).toContainText('Linkcube · sub.example.com · 3 个节点 · 启用');
+  await expect(log(page)).toContainText('Linkcube · sub.example.com · 3 个节点 · 未匹配 1 · 启用');
   await expect(log(page)).toContainText('Cloady · 文件 · 1 个节点 · 停用');
   await mode(page, 'cmd');
 });
@@ -103,16 +103,16 @@ test('sub add 同名：确认显示新旧域名；试拉失败 → 未更换', a
   expect(calls.find((c) => c.action === 'proxy/add')).toMatchObject({ name: 'Linkcube', url: 'https://new.example.org/api?token=SECRET' });
 });
 
-test('sub enable | disable <名称>（S9，取代 on / off）：proxy/on、proxy/off；sub on 不再认', async ({ page }) => {
+test('sub on | off <名称>（v1.13，enable / disable 改回 on / off）：proxy/on、proxy/off；sub enable 不再认', async ({ page }) => {
   const calls = await mockAccount(page, {
     handlers: { 'proxy/status': [200, PSTATUS], 'proxy/on': [200, { ok: true }], 'proxy/off': [200, { ok: true }] },
   });
   await T.goPage(page);
   await openTerm(page);
-  await typeLine(page, 'sub disable Linkcube');
+  await typeLine(page, 'sub off Linkcube');
   await expect(log(page)).toContainText('Linkcube 已停用');
   await mode(page, 'cmd');
-  await typeLine(page, 'sub enable Cloady');
+  await typeLine(page, 'sub on Cloady');
   await expect(log(page)).toContainText('Cloady 已启用');
   await mode(page, 'cmd');
   expect(calls.filter((c) => c.action === 'proxy/off' || c.action === 'proxy/on')).toEqual([
@@ -120,7 +120,46 @@ test('sub enable | disable <名称>（S9，取代 on / off）：proxy/on、proxy
     { action: 'proxy/on', name: 'Cloady' },
   ]);
   await typeLine(page, 'clear');
-  await typeLine(page, 'sub on Cloady');
-  await expect(log(page)).toContainText('sub enable <name> | sub disable <name>');
+  await typeLine(page, 'sub enable Cloady');
+  await expect(log(page)).toContainText('sub on <name> | sub off <name>');
   expect(calls.filter((c) => c.action === 'proxy/on')).toHaveLength(1);
+});
+
+test('sub update / map / fp（v1.13）：proxy/update、map、map_set、map_rm、map_ls、fp', async ({ page }) => {
+  const calls = await mockAccount(page, {
+    handlers: {
+      'proxy/status': [200, PSTATUS],
+      'proxy/update': [200, { ok: true, refresh: { ok: true, sources: [{ name: 'Linkcube', ok: true, nodes: 3 }] } }],
+      'proxy/map': [200, { ok: true, flags: [{ word: '港', code: 'HK', flag: '🇭🇰' }], drop: ['剩余', '到期'] }],
+      'proxy/map_set': [200, { ok: true, word: '狮城', code: 'SG', flag: '🇸🇬', changed: false, refresh: { ok: true, sources: [] } }],
+      'proxy/map_rm': [422, { ok: false, error: 'not-found' }],
+      'proxy/map_ls': [200, { ok: true, names: ['未知节点 9'] }],
+      'proxy/fp': [200, { ok: true, fp: 'chrome' }],
+    },
+  });
+  await T.goPage(page);
+  await openTerm(page);
+  await typeLine(page, 'sub update Linkcube');
+  await expect(log(page)).toContainText('已拉取 Linkcube');
+  await mode(page, 'cmd');
+  await typeLine(page, 'sub map');
+  await expect(log(page)).toContainText('港 → 🇭🇰 HK');
+  await expect(log(page)).toContainText('丢弃 剩余 到期');
+  await mode(page, 'cmd');
+  await typeLine(page, 'sub map 狮城 SGP');
+  await expect(log(page)).toContainText('已加映射 狮城 → 🇸🇬 SG');
+  await mode(page, 'cmd');
+  await typeLine(page, 'sub map rm 狮城');
+  await expect(log(page)).toContainText('没有这个源词：狮城');
+  await mode(page, 'cmd');
+  await typeLine(page, 'sub map ls Linkcube');
+  await expect(log(page)).toContainText('未知节点 9');
+  await mode(page, 'cmd');
+  await typeLine(page, 'sub fp');
+  await expect(log(page)).toContainText('指纹 chrome');
+  await mode(page, 'cmd');
+  await typeLine(page, 'sub map 狮城 S1');
+  await expect(log(page)).toContainText('目标词不是国家码');
+  expect(calls.filter((c) => c.action !== 'proxy/status').map((c) => c.action)).toEqual(['proxy/update', 'proxy/map', 'proxy/map_set', 'proxy/map_rm', 'proxy/map_ls', 'proxy/fp']);
+  expect(calls.find((c) => c.action === 'proxy/map_set')).toMatchObject({ word: '狮城', code: 'SGP' });
 });

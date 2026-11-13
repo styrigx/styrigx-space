@@ -37,6 +37,33 @@ export class ProxyAdmin extends WorkerEntrypoint {
   async setEnabled(name, on) { return this.#changed(() => admin.setEnabled(this.env, name, on)); }
   async remove(name) { return this.#changed(() => admin.remove(this.env, name)); }
 
+  /* ---- 节点处理（设计稿 v1.13）---- */
+  async map() { return dbReady(this.env) ? admin.mapList(this.env) : NOT_READY; }
+  async mapLs(name) { return dbReady(this.env) ? admin.mapLs(this.env, name) : NOT_READY; }
+  /** 改词 / 改指纹：开着的机场源用原始节点重新处理，不拉机场 */
+  async mapSet(word, code) { return this.#reprocess(() => admin.mapSet(this.env, word, code)); }
+  async mapRm(word) { return this.#reprocess(() => admin.mapRm(this.env, word)); }
+  async fp(value) {
+    if (!dbReady(this.env)) return NOT_READY;
+    const r = await admin.fp(this.env, value);
+    return r.ok && r.changed ? { ...r, refresh: await runRefresh(this.env, { noFetch: true, airports: true }) } : r;
+  }
+
+  /** sub update：只拉这一个机场源 */
+  async update(name) {
+    if (!dbReady(this.env)) return NOT_READY;
+    const r = await admin.update(this.env, name);
+    if (!r.ok) return r;
+    return { ok: true, refresh: await runRefresh(this.env, { ids: [r.id] }) };
+  }
+
+  /** @param {() => Promise<any>} fn */
+  async #reprocess(fn) {
+    if (!dbReady(this.env)) return NOT_READY;
+    const r = await fn();
+    return r.ok ? { ...r, refresh: await runRefresh(this.env, { noFetch: true, airports: true }) } : r;
+  }
+
   /** @param {() => Promise<any>} fn */
   async #changed(fn) {
     if (!dbReady(this.env)) return NOT_READY;

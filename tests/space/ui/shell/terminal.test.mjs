@@ -70,7 +70,7 @@ test('命令表（v5 S5 + sub v3.1 + S9 profile）：一张表；help / tty / te
   assert.deepEqual(COMMANDS, ['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme', 'find', 'ask', 'sudo', 'lock', 'passwd', 'passkey', 'device', 'profile', 'sub',
     'whoami', 'su', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'rescue'], 'v6 身份命令（P2b）排最后；P3 救援入口 rescue；v6 P4 删 share；应用授权删 app（定稿 v5.3 §十二）');
   for (const gone of ['help', 'tty', 'tempkey', 'sub-key', 'sub-link', 'sub-refresh', 'sub-mv', 'share', 'app']) assert.ok(!COMMANDS.includes(gone), gone);
-  assert.deepEqual(ARGS.sub, ['show', 'add', 'upload', 'mv', 'rm', 'enable', 'disable', 'key', 'token']);
+  assert.deepEqual(ARGS.sub, ['show', 'add', 'upload', 'mv', 'rm', 'on', 'off', 'update', 'map', 'fp', 'key', 'token']);
   assert.equal(ARGS.app, undefined);
   assert.deepEqual(ARGS.profile, ['set', 'avatar']);
   assert.deepEqual(ARGS.sudo, [], 'v6 P4：旧写法 styrigx / root / -v 的补全删了（v6 写法的补全不在本 PR 加）');
@@ -111,8 +111,9 @@ test('complete：第三个词（S9）：sub token → reset、profile set → �
   assert.deepEqual(complete('sub t'), { line: 'sub token ', options: [] }, 'token 还有第三个词：补完加空格');
   assert.deepEqual(complete('sub token '), { line: 'sub token reset', options: [] });
   assert.deepEqual(complete('sub token r'), { line: 'sub token reset', options: [] });
-  assert.deepEqual(complete('sub e'), { line: 'sub enable', options: [] });
-  assert.deepEqual(complete('sub d'), { line: 'sub disable', options: [] });
+  assert.deepEqual(complete('sub u'), { line: 'sub update', options: [] });
+  assert.deepEqual(complete('sub map '), { line: 'sub map ', options: ['rm', 'ls'] });
+  assert.deepEqual(complete('sub f'), { line: 'sub fp', options: [] });
   assert.deepEqual(complete('profile s'), { line: 'profile set ', options: [] });
   assert.deepEqual(complete('profile set n'), { line: 'profile set n', options: ['name', 'nick'] });
   assert.deepEqual(complete('profile set e'), { line: 'profile set email', options: [] });
@@ -440,9 +441,9 @@ test('代理订阅：open ~/proxy = sub；ls ~/proxy 列来源 / 没登录提示
   assert.equal(text((await run(sh, 'ls proxy')).out[0]), '# sub · ~/account');
   const man = await run(sh, 'man sub');
   assert.equal(man.pager, 'SUB(1)');
-  assert.deepEqual(man.out.map(text).slice(0, 13), ['NAME', '    sub — proxy subscription: status, urls, sources, key and token', '', 'SYNOPSIS',
-    '    sub', '    sub show [name]', '    sub add <name>', '    sub upload <name>', '    sub mv <old> <new>', '    sub rm <name>', '    sub enable | disable <name>', '    sub key', '    sub token reset']);
-  assert.ok(!man.out.map(text).some((l) => /sub on|sub off|on \/ off/.test(l)), 'on / off 改名 enable / disable，没有旧名');
+  assert.deepEqual(man.out.map(text).slice(0, 13), ['NAME', '    sub — proxy subscription: status, urls, sources, node words, fingerprint, key and token', '', 'SYNOPSIS',
+    '    sub', '    sub show [name]', '    sub add <name>', '    sub upload <name>', '    sub mv <old> <new>', '    sub rm <name>', '    sub on | off <name>', '    sub update <name>', '    sub map']);
+  assert.ok(!man.out.map(text).some((l) => /sub enable|sub disable|enable \/ disable/.test(l)), 'enable / disable 改回 on / off，没有旧名');
   assert.ok(man.out.map(text).includes('AUTH'));
   assert.ok(!man.out.map(text).some((l) => /sub-refresh|sub-link|only this once/.test(l)), '没有旧命令、没有「只显示一次」');
   assert.equal((await run(sh, 'man sub-mv')).out[0].cls, 'err');
