@@ -5745,7 +5745,7 @@ html.mu-playing .mu-wrap { padding-bottom: 236px; }
 .mu-now-title { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mu-now-sub { font-size: 12px; color: var(--sgx-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mu-lyrics { position: relative; height: 4.6em; margin: 6px 0 2px; overflow: hidden; font-size: 14px; line-height: 1.5; text-align: center;
-  -webkit-mask-image: linear-gradient(transparent, black 30%, black 70%, transparent); mask-image: linear-gradient(transparent, black 30%, black 70%, transparent); }
+  -webkit-mask-image: linear-gradient(transparent, var(--sgx-text-primary) 30%, var(--sgx-text-primary) 70%, transparent); mask-image: linear-gradient(transparent, var(--sgx-text-primary) 30%, var(--sgx-text-primary) 70%, transparent); }
 .mu-lyrics.hidden { display: none; }
 .mu-lyrics-in { transition: transform .35s ease; }
 .mu-lyrics-in p { margin: 0; padding: 0 4px; color: var(--sgx-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color .2s ease; }
