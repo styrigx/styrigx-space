@@ -38,7 +38,7 @@
   var FONT_SIZES = ['standard', 'small', 'large'];
   var DEFAULT_PAL = 'terra';
   /* 旧版自定义主题色留下的东西（2026-11-12 删除），首帧顺手清掉 */
-  var OLD_CACHE_KEY = 'sgx-shell-accent-css';
+  var OLD_CACHE_KEY = 'sgx-frame-accent-css';
   var OLD_STYLE_ID = 'sgx-accent-roles';
 
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }

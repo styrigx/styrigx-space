@@ -57,11 +57,11 @@ test('湖蓝 lake：写 data-palette="lake"，主色取 lake 的角色（不是�
 
 test('旧自定义主题色：不加载引擎、不插角色样式，旧本站缓存首帧清掉', async ({ page, context }) => {
   await setup(page);
-  await page.addInitScript(() => { try { localStorage.setItem('sgx-shell-accent-css', 'old|#1f8a70\nCSS'); } catch (e) {} });
+  await page.addInitScript(() => { try { localStorage.setItem('sgx-frame-accent-css', 'old|#1f8a70\nCSS'); } catch (e) {} });
   await setCookie(context, enc({ v: 2, mode: 'dark', pal: 'dustyblue', accent: '#1f8a70' }));
   await page.goto(PAGE);
   await expect(page.locator('#sgx-accent-js, #sgx-accent-roles')).toHaveCount(0);
-  expect(await page.evaluate(() => localStorage.getItem('sgx-shell-accent-css'))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem('sgx-frame-accent-css'))).toBeNull();
   await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#ebf1f5');
 });

@@ -182,14 +182,14 @@ test('共享外壳带上读端 / 图标（2026-11 合站后子站直接用主站
 
 const cookieOf = (name) => 'sgx-ui=' + fx.cases.find((c) => c.name === name).cookie;
 
-test('旧版自定义色留下的东西首帧清掉：<style id="sgx-accent-roles">、本站缓存 sgx-shell-accent-css、内联 --sgx-seed', () => {
-  const s = sandbox({ cookie: cookieOf('湖蓝 lake（深套）'), store: { 'sgx-shell-accent-css': 'oldver|#1f8a70\nOLD' } });
+test('旧版自定义色留下的东西首帧清掉：<style id="sgx-accent-roles">、本站缓存 sgx-frame-accent-css、内联 --sgx-seed', () => {
+  const s = sandbox({ cookie: cookieOf('湖蓝 lake（深套）'), store: { 'sgx-frame-accent-css': 'oldver|#1f8a70\nOLD' } });
   const st = s.head.appendChild(s.ctx.document.createElement('style'));
   st.id = 'sgx-accent-roles';
   s.html.style.setProperty('--sgx-seed', '#1f8a70');
   s.U.apply(s.html);
   assert.equal(s.ctx.document.getElementById('sgx-accent-roles'), null);
-  assert.equal(s.ls.has('sgx-shell-accent-css'), false);
+  assert.equal(s.ls.has('sgx-frame-accent-css'), false);
   assert.equal(s.html.style.getPropertyValue('--sgx-seed'), '');
   assert.equal(s.html.getAttribute('data-palette'), 'lake');
   assert.equal(s.html.classList.contains('dark'), true);
