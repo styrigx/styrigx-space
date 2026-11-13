@@ -195,7 +195,7 @@
         前景 4 → 标签 / chip 装饰（--sgx-tag-*），前景 5–6 只给图表（--sgx-chart-1..6 = 前景 1..6 本色，卡片上不到 3:1 的逐色退到 ink）和设置页色块 / 预览。
      频率：前景 1 为主，前景 2 次之，前景 3–4 少量，前景 5–6 很少。普通图标保持中性（text-secondary），只有关键操作用 primary；
      danger / success 状态色不随主题变；大面积块（名片、面板磁贴）一律中性玻璃，深色 / 饱和档位不铺在文字底下。组件 CSS 只用 Shell + Semantic token，不直接写 --sgx-fg-N。 */
-  /* 调色板派生 token（tag / chart；gen-common 一并复制进 space/web/shared/shell/tokens.css）。
+  /* 调色板派生 token（tag / chart；gen-common 一并复制进 space/web/assets/common/css/tokens.css）。
      --sgx-chart-1..6 不在这里：2026-10-23 PR-G 修订起是引擎算好的角色（前景本色在卡片上 ≥3:1 就用本色，否则逐色退到 ink），随 @gen-palettes 生成 */
   :root {
     --sgx-tag-bg: var(--sgx-fg-4-tint);
@@ -4797,7 +4797,7 @@
    放在 @layer 外：要压过同样不分层的 .sgx-topbar { view-transition-name }。只主站（锁屏只在主站），不进共享外壳。 */
 body.sgx-entry #site-nav { visibility: hidden; }
 body.sgx-entry #site-nav .sgx-topbar { view-transition-name: none; }
-/* @frame:begin topbar-frame（共享外壳：space/scripts/gen/gen-common.mjs 原样抽到 space/web/shared/shell/frame.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
+/* @frame:begin topbar-frame（共享外壳：space/scripts/gen/gen-common.mjs 原样抽到 space/web/assets/common/css/frame.css，子站样式表直接 @import；只用 --sgx-* 角色，不写死颜色） */
 /* 跨页 View Transitions（2.4.0 D；2026-11-09 Gray 批：搬进共享外壳，四站同站跳转都做，只淡入淡出）：
    同源跨文档跳转自动交叉淡化 180ms（渐进增强，不支持的浏览器忽略）；顶栏挂 view-transition-name 保持不动。
    系统「减弱动效」时连 @view-transition 都不声明（完全不做过渡）；本站「减弱动效」开关（.reduced-motion）只能把动画清零。 */
@@ -5067,7 +5067,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 /* @frame:end wide */
 /* 底部停靠栏高度（main 底部留白用；原地搜索层已在 P4-2 删除） */
 :root { --sgx-bottom-dock-h: 56px; }
-/* @frame:begin panel（共享外壳：space/scripts/gen/gen-common.mjs 原样抽到 space/web/shared/shell/frame.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
+/* @frame:begin panel（共享外壳：space/scripts/gen/gen-common.mjs 原样抽到 space/web/assets/common/css/frame.css，子站样式表直接 @import；只用 --sgx-* 角色，不写死颜色） */
 /* 快捷面板 + AI 窗口（2026-11-04 P5-1，四个站同一套；标记在共享外壳 topbar.html，主站 topbar/quick-panel.js、子站共享外壳 topbar.js 开关）：
    非模态 <dialog>（show()，不进顶层），fixed 铺满「顶栏下沿以下」的区域：dialog 本身就是遮罩（is-open 时 --sgx-scrim），
    z-index 45 = 盖住正文，但在顶栏 #site-nav（50）下面——顶栏不被遮罩压暗、图标照常可点（再点关闭）。两个窗口互斥。

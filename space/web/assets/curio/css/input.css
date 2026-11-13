@@ -125,34 +125,12 @@ html, body {
    能对照主站的部分照主站 styrigx-space space/web/assets/common/css/input.css 一比一搬（各段注明出处）。Curio 封面（游戏封面 / 设备照片）保留原色。 */
 
 
-/* ===== 旧名字 → 角色的别名（同主站 tokens 层的 --m-* 别名），组件不用改名也跟着主题走；不要在这里写颜色值 ===== */
+/* ===== --m-* 别名、布局变量（--nav-h / --sgx-content-*）：2026-11 奇趣 CSS 瘦身上提进平台 tokens.css（gen-common 从主站 tokens 层抽），本站经上面 @import 用同一份。
+   这里只留主站没有的三条（本站定制，不要在这里写颜色值）===== */
 :root {
-  --m-primary: var(--sgx-primary); --m-on-primary: var(--sgx-on-primary);
-  --m-primary-container: var(--sgx-primary-container); --m-on-primary-container: var(--sgx-on-primary-container);
-  /* 填充档（主按钮 / 选中控件）= 前景 1 本色 + 自动挑的 on 色；--m-primary 是 ink（文字 / 图标 / 焦点环） */
-  --m-primary-fill: var(--sgx-primary-fill); --m-on-primary-fill: var(--sgx-on-primary-fill);
-  --m-secondary: var(--sgx-secondary); --m-on-secondary: var(--sgx-on-secondary);
-  --m-secondary-container: var(--sgx-secondary-container); --m-on-secondary-container: var(--sgx-on-secondary-container);
-  --m-tertiary: var(--sgx-tertiary); --m-on-tertiary: var(--sgx-on-tertiary);
-  --m-tertiary-container: var(--sgx-tertiary-container); --m-on-tertiary-container: var(--sgx-on-tertiary-container);
   --m-error: var(--sgx-danger); --m-on-error: var(--sgx-on-danger);
-  --m-inverse-surface: var(--sgx-inverse-surface); --m-inverse-on-surface: var(--sgx-inverse-on-surface);
-  --m-surface: var(--sgx-background); --m-on-surface: var(--sgx-text-primary); --m-on-surface-variant: var(--sgx-text-secondary);
-  --m-container-lowest: var(--sgx-surface-container-lowest); --m-container-low: var(--sgx-surface-container-low);
-  --m-container: var(--sgx-surface-container); --m-container-high: var(--sgx-surface-container-high);
-  --m-container-highest: var(--sgx-surface-container-highest);
-  --m-outline: var(--sgx-outline-variant);
-  /* 页面底 = 背景色第 1 档（光晕铺在上面，同主站） */
-  --m-wallpaper: var(--sgx-bg-1);
   /* 文字 / 链接 / 数字强调 = primary ink */
   --sgx-accent: var(--sgx-primary);
-}
-
-/* ===== 布局变量（同主站 tokens 层）：顶栏下沿 = 上边距 + 顶栏圆（手机 52 → ≥ 840 宽 56），正文从顶栏下沿 + 16px 开始 ===== */
-:root {
-  --nav-h: var(--sgx-tb-h);
-  --sgx-content-gap: 16px;
-  --sgx-content-top: calc(var(--nav-h) + var(--sgx-content-gap) + env(safe-area-inset-top, 0px));
 }
 /* 外壳框最宽（Mobile 640 / DeX 1440）由共享外壳按 <html data-sgx-layout> 定（四站同一条布局规则，baseof __sgxLayout()）；
    本站自己的 layout-phone / layout-dex 类只管弹层样式，不再改 --sgx-content-max（P4-3 顶栏长度统一） */

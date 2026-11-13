@@ -1,6 +1,6 @@
 /* 基础排版：最早取自 @navfolio/theme-default 的 global.css（MIT，Copyright (c) 2026 Navfolio；
    其中 Bear Blog 部分 MIT，https://github.com/HermanMartinus/bearblog/blob/master/LICENSE.md）。
-   颜色只用共享外壳的色彩角色（--sgx-*，sgx-frame.css）。 */
+   颜色只用共享外壳的色彩角色（--sgx-*，共享外壳 tokens.css）。 */
 
 :root {
   --layout-frame-width: 1168px;
