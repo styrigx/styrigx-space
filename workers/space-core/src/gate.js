@@ -300,7 +300,7 @@ async function handleRequest(context) {
 const MAIN_HOST = 'styrigx.com';
 
 /**
- * 主域名下的子站前缀：第一段路径 → 配置。新增子站加一项 + atlas/web/<站>/ 包（space/scripts/assemble.mjs 的 SITES 同步加）。
+ * 主域名下的子站前缀：第一段路径 → 配置。新增子站加一项 + space/web/ 下的 content/<站>/、layouts/<站>/、assets/<站>/（space/scripts/check/check-worker-routes.mjs 的 SUBSITES 同步加）。
  */
 export const SUBSITES = Object.freeze({
   blog: { site: 'blog' },

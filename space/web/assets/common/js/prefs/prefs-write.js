@@ -1,6 +1,6 @@
 /**
  * @fileoverview 外观写端（2026-11-04 P5-1，定案第 5 条：四站共用一个写端）。
- * 源在这里（从 prefs/prefs.js / prefs/ui-cookie.js 抽出），gen-common 原样复制成共享外壳 space/web/shared/shell/prefs-write.js，三个子站 sync-shell 同步。
+ * 源在这里（从 prefs/prefs.js / prefs/ui-cookie.js 抽出），2026-11 合站后四站同一个 Hugo 站，直接引用本文件（assets/common/js/prefs/prefs-write.js），没有副本。
  * 自成一体：不 import 任何东西（子站原样复制）；cookie 的字段表 / 编解码用页面上已有的 window.SgxUI（ui-cookie-read.js：主站 frame/apps/core.js 引入，子站 <head> 内联）。
  *
  * 写什么：
