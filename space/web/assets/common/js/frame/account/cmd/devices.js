@@ -76,7 +76,7 @@ export function mountDevices(C) {
       if (!ok) return;
       const d = list[n - 1];
       if (!d) { C.err(t('devices.noSuch')); C.note('devices.lsFirst', 'device'); return; }
-      if (d.current) { C.note('devices.currentHint', 'exit'); return; }
+      if (d.current) { C.note('devices.currentHint', 'lock'); return; }
       yn(tf('devices.rmAsk', { n: d.path || '' }), function () {
         C.setMode('busy');
         api.devices.revoke(d.n || n).then(function (/** @type {any} */ res) {

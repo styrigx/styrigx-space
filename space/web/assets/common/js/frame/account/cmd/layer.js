@@ -44,7 +44,7 @@ export function mountAccountLayer(o) {
   /** @param {string} k @param {Record<string, string|number>} v */
   const tf = function (k, v) { let s = t(k); for (const n in v) s = s.split('{' + n + '}').join(String(v[n])); return s; };
   /** auth/post-json.js errText 用的是旧的平铺键名：这里接到新表上 @param {string} k */
-  const errT = function (k) { return k === 'devCurrent' ? tf('devices.currentHint', { x: 'exit' }) : t('common.' + k); };
+  const errT = function (k) { return k === 'devCurrent' ? tf('devices.currentHint', { x: 'lock' }) : t('common.' + k); };
   const reload = o.reload || function () { try { location.reload(); } catch (e) {} };
   /* sub upload 的文件选择框挂在这个不上页面的节点上 */
   const root = doc.createElement('div');
