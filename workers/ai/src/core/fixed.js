@@ -29,7 +29,7 @@ export function parseCount(q) {
 
 const MOVIE_RE = /电影|影片|片子|看过|观影|movie|film/i;
 const RECENT_RE = /最近|近来|近期|最新|新看|上次|最后|recent|latest|last|newest/i;
-const MUSIC_RE = /专辑|曲目|歌单|歌曲|歌手|乐队|音乐|这首|首歌|唱的|album|track|song|music|artist|singer|band/i;
+const MUSIC_RE = /专辑|单曲|曲目|歌单|歌曲|歌手|乐队|音乐|这首|首歌|唱的|album|track|song|music|artist|singer|band/i;
 
 /**
  * 认意图（纯函数）。
@@ -61,12 +61,12 @@ function dur(s) {
 
 /* 上下文标签：英文是底（EN），其他语言是覆盖层（LAYERS），缺的键回退英文（同 curio-core search-index.js 的语言包写法） */
 const EN = {
-  movies: 'Recently watched movies', moviesWhere: 'Curio › Movies', music: 'Albums and tracks', musicWhere: 'Curio › Music',
+  movies: 'Recently watched movies', moviesWhere: 'Curio › Movies', music: 'Albums and tracks', musicWhere: 'Curio › Music', single: 'single',
   rated: 'rated ', watched: 'watched ', review: '. Review: ', sep: ', ', open: ' (', close: ')',
 };
 /** @type {Record<string, Partial<typeof EN>>} */
 const LAYERS = {
-  zh: { movies: '最近看的电影', moviesWhere: '奇趣 › 电影', music: '专辑与曲目', musicWhere: '奇趣 › 音乐', rated: '评分 ', watched: '观看 ', review: '。短评：', sep: '，', open: '（', close: '）' },
+  zh: { movies: '最近看的电影', moviesWhere: '奇趣 › 电影', music: '专辑与曲目', musicWhere: '奇趣 › 音乐', single: '单曲', rated: '评分 ', watched: '观看 ', review: '。短评：', sep: '，', open: '（', close: '）' },
 };
 /** @param {string} lang @returns {typeof EN} */
 function labels(lang) {
@@ -90,7 +90,8 @@ export function toHit(name, r, lang) {
   }
   if (name === 'music' && Array.isArray(r.albums) && r.albums.length) {
     const blocks = r.albums.map((/** @type {any} */ a) => {
-      const head = a.title + (a.artist ? ' — ' + a.artist : '') + (a.year ? ' (' + a.year + ')' : '');
+      /* 单曲（kind=single，v1.13 ②）标「单曲」，不当专辑讲 */
+      const head = a.title + (a.artist ? ' — ' + a.artist : '') + (a.year ? ' (' + a.year + ')' : '') + (a.kind === 'single' ? ' [' + T.single + ']' : '');
       const tracks = (a.tracks || []).map((/** @type {any} */ t) => '  ' + (t.no ? t.no + '. ' : '') + t.title + (dur(t.duration) ? ' ' + dur(t.duration) : ''));
       return [head, ...tracks].join('\n');
     });

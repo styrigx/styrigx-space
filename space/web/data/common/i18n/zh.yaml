@@ -58,6 +58,7 @@ js:
     speed: 倍速 {s}×
     showLyrics: 展开全部歌词
     hideLyrics: 收起歌词
+    singles: 单曲
   core:
     pkCancelled: 已取消
     pkTimeout: 超时，请重试

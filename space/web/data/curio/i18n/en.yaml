@@ -151,6 +151,12 @@ music:
   chooseTracks: Choose tracks
   coverOptional: Cover (optional)
   lyricsLrcOptionalMatched: Lyrics .lrc (optional, matched by file name)
+  kind: Type
+  kindAlbum: Album
+  kindSingle: Single
+  singles: Singles
+  deleteSingle: Delete single
+  delete: Delete
   trackOrderFollowsThe: 'Track order follows the number at the start of each file name (01, 02…). Each audio file can be up to 95 MB: mp3, m4a, aac, flac, ogg, opus, wav. The cover is resized to 1600 px.'
   upload: Upload
 curioCommon:
@@ -361,3 +367,13 @@ js:
     shuffleOn: 'Shuffle: on'
     shuffleOff: 'Shuffle: off'
     noPermission: Your current user doesn’t have permission for this.
+    albumName: Album
+    songName: Song title
+    uploadAlbum: Upload album
+    uploadSingle: Upload single
+    chooseOne: Choose a track
+    lrcOne: Lyrics .lrc (optional)
+    needSong: Give the song a title.
+    singleFull: This single already has its track.
+    delSingle: Delete the single “{name}” and its file?
+    delSingleBtn: Delete single “{name}”

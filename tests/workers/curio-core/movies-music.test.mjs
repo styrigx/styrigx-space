@@ -186,7 +186,7 @@ test('音乐三层（v5 S3）：歌单 / 封面公开且不带音频地址；听
     const r = await call(e, '/curio/api/music', { who });
     assert.equal(r.status, 200, String(who));
     const text = await r.clone().text();
-    assert.deepEqual(await r.json(), { ok: true, canWrite: false, albums: [{ id, title: 'Absolution', artist: 'Muse', year: 2003, cover: true, tracks: [{ id: tid, no: 1, title: 'Intro', duration: 22 }] }] }, String(who));
+    assert.deepEqual(await r.json(), { ok: true, canWrite: false, albums: [{ id, kind: 'album', title: 'Absolution', artist: 'Muse', year: 2003, cover: true, tracks: [{ id: tid, no: 1, title: 'Intro', duration: 22 }] }] }, String(who));
     assert.doesNotMatch(text, /music-stream|music\/|"src"|"key"|r2_key|token|"url"/, '歌单里没有音频地址 / R2 key / 令牌');
   }
   const own = await (await call(e, '/curio/api/music', { who: 'owner' })).json();
@@ -266,7 +266,7 @@ test('上传：音频类型白名单、要 Content-Length（411）、单文件�
   await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'track.edit', id: tid, lrc: '[00:01.00]I am on a lonely road' } });
   const list = (await (await call(e, '/curio/api/music', { who: 'owner' })).json()).albums;
   assert.equal(list.length, 1);
-  assert.deepEqual({ ...list[0], tracks: undefined }, { id, title: 'Blue', artist: 'Joni Mitchell', year: 1971, cover: true, tracks: undefined });
+  assert.deepEqual({ ...list[0], tracks: undefined }, { id, kind: 'album', title: 'Blue', artist: 'Joni Mitchell', year: 1971, cover: true, tracks: undefined });
   assert.deepEqual(list[0].tracks.map((t) => [t.no, t.title, t.duration, t.lrc]), [[1, 'All I Want', 212, true], [2, 'My Old Man', 215, false]]);
 });
 
@@ -481,4 +481,110 @@ test('上限按 kind 分开算：专辑 100、单曲 500；单曲记录不占专
   const ok = await MU.applyMusicOp(db, MU.parseMusicOp({ op: 'album.add', title: '第 100 张' }));
   assert.ok(!('error' in ok), JSON.stringify(ok));
   assert.deepEqual(await MU.applyMusicOp(db, MU.parseMusicOp({ op: 'album.add', title: '第 101 张' })), { error: 'limit' });
+});
+
+/* ================= 单曲 / 专辑分类（音乐 v1.13 ②；Gray 2026-11-14 17:33 定） ================= */
+
+test('单曲：album.add 收 kind（缺省 album、别的值 bad-kind）；listAlbums 每条带 kind；上限按 kind 走（单曲 500 满了 409 limit）', async () => {
+  assert.deepEqual(MU.parseMusicOp({ op: 'album.add', title: 'A' }).fields.kind, 'album');
+  assert.deepEqual(MU.parseMusicOp({ op: 'album.add', title: 'A', kind: 'single' }).fields.kind, 'single');
+  assert.deepEqual(MU.parseMusicOp({ op: 'album.add', title: 'A', kind: 'ep' }), { error: 'bad-kind' });
+  const e = makeEnv();
+  const a = await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Blue', artist: 'Joni Mitchell' } });
+  assert.equal(a.status, 200);
+  const s = await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Both Sides Now', artist: 'Joni Mitchell', kind: 'single' } });
+  assert.equal(s.status, 200);
+  const sj = await s.json();
+  assert.deepEqual(sj.albums.map((x) => [x.title, x.kind]), [['Blue', 'album'], ['Both Sides Now', 'single']]);
+  assert.equal((await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'x', kind: 'ep' } })).status, 400);
+  const list = await (await call(e, '/curio/api/music', { who: null })).json();
+  assert.deepEqual(list.albums.map((x) => x.kind), ['album', 'single'], '访客的歌单也带 kind');
+  assert.equal(e.db.raw.prepare('SELECT kind FROM music_albums WHERE id = ?').get(sj.id).kind, 'single');
+  /* 单曲上限 500，专辑 100：各算各的 */
+  const db = makeD1();
+  await MU.ensureMusicSchema(db);
+  const ins = db.raw.prepare('INSERT INTO music_albums (title, kind) VALUES (?, ?)');
+  for (let i = 0; i < 100; i++) ins.run('a' + i, 'album');
+  for (let i = 0; i < 499; i++) ins.run('s' + i, 'single');
+  assert.deepEqual(await MU.applyMusicOp(db, MU.parseMusicOp({ op: 'album.add', title: '专辑满了' })), { error: 'limit' });
+  const ok = await MU.applyMusicOp(db, MU.parseMusicOp({ op: 'album.add', title: '第 500 首', kind: 'single' }));
+  assert.ok(ok.id, '专辑满了不挡单曲');
+  assert.deepEqual(await MU.applyMusicOp(db, MU.parseMusicOp({ op: 'album.add', title: '第 501 首', kind: 'single' })), { error: 'limit' });
+});
+
+test('单曲：只能有 1 首，第 2 首 409 single-full（不写 R2）；专辑照旧多首；封面不受影响', async () => {
+  const e = makeEnv();
+  const sid = await album(e, { kind: 'single', title: 'River' });
+  const r1 = await upTrack(e, sid, 'no=1&title=River&duration=240');
+  assert.equal(r1.status, 200);
+  const keys = e.r2m.m.size;
+  const r2 = await upTrack(e, sid, 'no=2&title=Again&duration=10');
+  assert.equal(r2.status, 409);
+  assert.deepEqual(await r2.json(), { ok: false, error: 'single-full' });
+  assert.equal(e.r2m.m.size, keys, '被拒的那首没写进 R2');
+  assert.equal((await call(e, `/curio/api/music-upload?album=${sid}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' })).status, 200);
+  const aid = await album(e);
+  assert.equal((await upTrack(e, aid, 'no=1&title=a')).status, 200);
+  assert.equal((await upTrack(e, aid, 'no=2&title=b')).status, 200);
+  const list = await (await call(e, '/curio/api/music', { who: 'owner' })).json();
+  assert.deepEqual(list.albums.map((x) => [x.kind, x.tracks.length]), [['single', 1], ['album', 2]]);
+});
+
+test('album.edit 改 kind：专辑 ≤1 首才能转单曲（否则 409 single-tracks）；单曲转专辑直接转；两个方向都按目标上限（超限 409 limit）；坏值 bad-kind', async () => {
+  assert.deepEqual(MU.parseMusicOp({ op: 'album.edit', id: 1, kind: 'x' }), { error: 'bad-kind' });
+  assert.deepEqual(MU.parseMusicOp({ op: 'album.edit', id: 1, kind: 'single' }), { op: 'album.edit', id: 1, fields: { kind: 'single' } });
+  const e = makeEnv();
+  const edit = (body) => call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.edit', ...body } });
+  const kindOf = (id) => e.db.raw.prepare('SELECT kind FROM music_albums WHERE id = ?').get(id).kind;
+  /* 空专辑、1 首的专辑 → 单曲可以 */
+  const a0 = await album(e, { title: 'Empty' });
+  assert.equal((await edit({ id: a0, kind: 'single' })).status, 200);
+  assert.equal(kindOf(a0), 'single');
+  const a1 = await album(e, { title: 'One' });
+  await upTrack(e, a1, 'no=1&title=x');
+  const r = await edit({ id: a1, kind: 'single', title: 'One (single)' });
+  assert.equal(r.status, 200);
+  assert.deepEqual((await r.json()).albums.find((x) => x.id === a1).kind, 'single');
+  assert.equal(e.db.raw.prepare('SELECT title FROM music_albums WHERE id = ?').get(a1).title, 'One (single)', '同时改别的字段照常');
+  /* 2 首的专辑 → 单曲 409 single-tracks，没改 */
+  const a2 = await album(e, { title: 'Two' });
+  await upTrack(e, a2, 'no=1&title=x');
+  await upTrack(e, a2, 'no=2&title=y');
+  const bad = await edit({ id: a2, kind: 'single' });
+  assert.equal(bad.status, 409);
+  assert.equal((await bad.json()).error, 'single-tracks');
+  assert.equal(kindOf(a2), 'album');
+  /* 单曲 → 专辑直接转；转了以后能再传第 2 首 */
+  assert.equal((await edit({ id: a1, kind: 'album' })).status, 200);
+  assert.equal(kindOf(a1), 'album');
+  assert.equal((await upTrack(e, a1, 'no=2&title=z')).status, 200);
+  /* 一样的 kind 当没改；不在 404 */
+  assert.equal((await edit({ id: a2, kind: 'album' })).status, 200);
+  assert.equal((await edit({ id: 999, kind: 'album' })).status, 404);
+  /* 按目标上限：专辑满 100 时单曲转不了专辑；单曲满 500 时专辑转不了单曲 */
+  const db = makeD1();
+  await MU.ensureMusicSchema(db);
+  const ins = db.raw.prepare('INSERT INTO music_albums (title, kind) VALUES (?, ?)');
+  for (let i = 0; i < 100; i++) ins.run('a' + i, 'album');
+  for (let i = 0; i < 500; i++) ins.run('s' + i, 'single');
+  const sId = Number(db.raw.prepare("SELECT id FROM music_albums WHERE kind = 'single' LIMIT 1").get().id);
+  const aId = Number(db.raw.prepare("SELECT id FROM music_albums WHERE kind = 'album' LIMIT 1").get().id);
+  assert.deepEqual(await MU.applyMusicOp(db, MU.parseMusicOp({ op: 'album.edit', id: sId, kind: 'album' })), { error: 'limit' });
+  assert.deepEqual(await MU.applyMusicOp(db, MU.parseMusicOp({ op: 'album.edit', id: aId, kind: 'single' })), { error: 'limit' });
+  db.raw.prepare('DELETE FROM music_albums WHERE id = ?').run(aId);
+  assert.deepEqual(await MU.applyMusicOp(db, MU.parseMusicOp({ op: 'album.edit', id: sId, kind: 'album' })), { removed: [] }, '专辑有空位就能转');
+});
+
+test('单曲进索引 / AI 读接口带 kind：索引副标题标「单曲」/ Single；reader 每条带 kind', async () => {
+  const e = makeEnv();
+  const sid = await album(e, { kind: 'single', title: 'Big Yellow Taxi' });
+  await upTrack(e, sid, 'no=1&title=' + encodeURIComponent('Big Yellow Taxi') + '&duration=135');
+  const aid = await album(e);
+  const ix = await SI.buildIndex(e.db);
+  assert.equal(ix.items.find((it) => it.id === 'album:' + sid).subtitle, '音乐 · 单曲 · Joni Mitchell · 1971');
+  assert.equal(ix.items.find((it) => it.id === 'album:' + sid + ':en').subtitle, 'Music · Single · Joni Mitchell · 1971');
+  assert.equal(ix.items.find((it) => it.id === 'album:' + aid).subtitle, '音乐 · Joni Mitchell · 1971', '专辑照旧');
+  const RD = await import(W + '/src/reader.js');
+  const r = await RD.runQuery({ D1_MUSIC: e.db }, 'music', { q: 'joni mitchell 的单曲' });
+  assert.deepEqual(r.albums.map((a) => [a.title, a.kind]), [['Big Yellow Taxi', 'single'], ['Blue', 'album']]);
 });
