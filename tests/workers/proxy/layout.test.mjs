@@ -1,8 +1,8 @@
 /**
- * 规则集反代 + 代理订阅 styrigx-proxy-rules：目录结构（workers/README.md 的骨架）。
+ * 规则集反代 + 代理订阅 styrigx-proxy：目录结构（workers/README.md 的骨架）。
  * index.js 只接线（默认 handler + 命名入口 ProxyAdmin）；来源一个文件一个；依赖只沿 index → app / rpc → router → api → core → lib；
  * 绑定只有 D1 D1_PROXY、Secrets Store SGX_PROXY_DB_KEY、自绑 SELF、限流 RL_SUB；公网没有管理 / 刷新路径。
- * 运行：node --test tests/workers/proxy-rules/*.test.mjs
+ * 运行：node --test tests/workers/proxy/*.test.mjs
  */
 import '../account/_cf-workers.mjs';
 import { test } from 'node:test';
@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-const ROOT = new URL('../../../workers/proxy-rules/', import.meta.url).pathname;
+const ROOT = new URL('../../../workers/proxy/', import.meta.url).pathname;
 const SRC = join(ROOT, 'src');
 const walk = (d) => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
 const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -55,8 +55,8 @@ test('文件清单：入口、路由、接口、命名入口、业务、通用�
 test('index.js 只再导出 app.js 的默认 handler 和命名入口 ProxyAdmin', async () => {
   assert.deepEqual(strip(readFileSync(join(SRC, 'index.js'), 'utf8')).trim().split('\n').map((l) => l.trim()),
     ["export { default } from './app.js';", "export { ProxyAdmin } from './rpc/proxy-admin.js';", "export { ProxyRefresher } from './rpc/proxy-refresher.js';"]);
-  const mod = await import('../../../workers/proxy-rules/src/index.js');
-  const app = (await import('../../../workers/proxy-rules/src/app.js')).default;
+  const mod = await import('../../../workers/proxy/src/index.js');
+  const app = (await import('../../../workers/proxy/src/app.js')).default;
   assert.equal(mod.default, app);
   assert.equal(typeof app.fetch, 'function');
   assert.equal(typeof app.scheduled, 'function');
@@ -81,14 +81,14 @@ test('依赖方向：只许相对 import（外加 cloudflare:workers、node:cryp
 
 test('wrangler.toml：main 不变，nodejs_compat，6 小时 cron；绑定只有 D1_PROXY / SGX_PROXY_DB_KEY / SELF（自己的 ProxyRefresher）/ RL_SUB，没有 KV、变量', () => {
   const toml = readFileSync(join(ROOT, 'wrangler.toml'), 'utf8').replace(/^\s*#.*$/gm, '');
-  assert.match(toml, /^name = "styrigx-proxy-rules"$/m);
+  assert.match(toml, /^name = "styrigx-proxy"$/m);
   assert.match(toml, /^main = "src\/index\.js"$/m);
   assert.match(toml, /^compatibility_flags = \["nodejs_compat"\]$/m);
   assert.match(toml, /^crons = \["0 \*\/6 \* \* \*"\]$/m);
   assert.match(toml, /^workers_dev = false$/m);
   assert.match(toml, /^preview_urls = false$/m);
   assert.deepEqual([...toml.matchAll(/^(?:binding|name) = "([A-Z0-9_]+)"$/gm)].map((m) => m[1]), ['D1_PROXY', 'SGX_PROXY_DB_KEY', 'SELF', 'RL_SUB']);
-  assert.match(toml, /\[\[services\]\]\s*binding = "SELF"\s*service = "styrigx-proxy-rules"\s*entrypoint = "ProxyRefresher"/);
+  assert.match(toml, /\[\[services\]\]\s*binding = "SELF"\s*service = "styrigx-proxy"\s*entrypoint = "ProxyRefresher"/);
   assert.equal([...toml.matchAll(/^\[\[services\]\]$/gm)].length, 1);
   assert.match(toml, /database_name = "styrigx-proxy"/);
   assert.match(toml, /database_id = "[0-9a-f-]{36}"/);

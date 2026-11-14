@@ -1,8 +1,8 @@
-# styrigx-proxy-rules
+# styrigx-proxy
 
 ## 职责
 
-两件事，都在自定义域名 `proxy-rules.styrigx.com`：
+两件事，都在自定义域名 `proxy.styrigx.com`：
 
 1. **规则集加速反代**：只放行登记过的来源里的规则集文件，其他路径一律 404，不当开放代理用。响应头全部重建：只带 Content-Type（按后缀）、Cache-Control、ETag、Last-Modified、CORS 和本 Worker 的诊断头（`X-Proxy-Rules-*`），上游的 CSP、HSTS、Set-Cookie 等一律不透传。不验会话、不发 cookie。每个上游等响应头最多 8 秒，超时换下一个。
 2. **代理订阅**（设计稿 v1.7）：把几个机场订阅和上传的配置文件，每个来源各自抽出 `proxies:`、用手机的 age 公钥加密，手机 CMFA 按 `/s/<令牌>/<来源名>` 一源一个 provider 拉取（`age-secret-key` 解密）。Worker 只有公钥，只能加密。
@@ -55,7 +55,7 @@ src/
 
 | 路径 | 方法 | 结果 |
 |---|---|---|
-| `/`、`/healthz` | 任意 | 200 `styrigx-proxy-rules ok`（styrigx-status 每分钟测 `/healthz`） |
+| `/`、`/healthz` | 任意 | 200 `styrigx-proxy ok`（styrigx-status 每分钟测 `/healthz`） |
 | `/MetaCubeX/meta-rules-dat/meta/geo/<geosite\|geoip>/<名字>.<mrs\|yaml\|list>` | GET、HEAD | 命中缓存直接回；否则依次试上游，都不行回 404 / 502 |
 | `/styrigx/mihomo-rules/release/<geosite\|geoip>/<名字>.<mrs\|yaml>` | GET、HEAD | 同上 |
 | `/s/<令牌>/<来源名>` | GET、HEAD | 先限流（429）；令牌对、来源开着且有成品 → 200 age 密文（`no-store`）；其他一律 404，不跳转 |
@@ -86,4 +86,4 @@ HEAD 不读也不写缓存。
 
 ## 数据与迁移
 
-D1 `styrigx-proxy`：`migrations/0001_init.sql`（`meta`、`sources`、`lock`，预置锁行）。源文件不落库，只抽 `proxies:`。部署：`.github/workflows/deploy.yml` 的 `deploy-proxy-rules-worker`（先 `d1 migrations apply styrigx-proxy`，再部署、冒烟，失败回滚代码），独立部署，不等也不挡网关和 Pages。测试：`tests/workers/proxy-rules/`（`proxy-rules.test.mjs` MetaCubeX、`own-repo.test.mjs` 自有仓、`sub.test.mjs` 代理订阅、`layout.test.mjs` 目录结构）；account 侧门卫在 `tests/workers/account/api-proxy.test.mjs`。
+D1 `styrigx-proxy`：`migrations/0001_init.sql`（`meta`、`sources`、`lock`，预置锁行）。源文件不落库，只抽 `proxies:`。部署：`.github/workflows/deploy.yml` 的 `deploy-proxy-rules-worker`（先 `d1 migrations apply styrigx-proxy`，再部署、冒烟，失败回滚代码），独立部署，不等也不挡网关和 Pages。测试：`tests/workers/proxy/`（`proxy-rules.test.mjs` MetaCubeX、`own-repo.test.mjs` 自有仓、`sub.test.mjs` 代理订阅、`layout.test.mjs` 目录结构）；account 侧门卫在 `tests/workers/account/api-proxy.test.mjs`。

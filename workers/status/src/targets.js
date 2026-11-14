@@ -16,7 +16,7 @@
  */
 export const TARGETS = [
   { site: 'space', name: 'Home', url: 'https://styrigx.com/', expect: [200] },
-  { site: 'proxy-rules', name: 'Proxy rules', url: 'https://proxy-rules.styrigx.com/healthz', expect: [200] },
+  { site: 'proxy-rules', name: 'Proxy rules', url: 'https://proxy.styrigx.com/healthz', expect: [200] },
   { site: 'ai', name: 'AI', url: 'https://styrigx-ai/healthz', binding: 'AI_SERVICE', expect: [200] },
 ];
 

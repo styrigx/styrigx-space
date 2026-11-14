@@ -92,7 +92,7 @@ Sloan Gray（styrigx）的个人数字空间：一个终端风格的个人网站
                                        └─ 服务绑定 → styrigx-status    监测与用量
        ──► styrigx.com/curio/api/*   styrigx-curio-core    奇趣接口（D1 + R2）
        ──► styrigx.com/daymark/api/* styrigx-daymark-core  日刻接口（D1）
-       ──► proxy-rules.styrigx.com   styrigx-proxy-rules   规则集加速反代
+       ──► proxy.styrigx.com   styrigx-proxy   规则集加速反代
 ```
 
 请求路径、Worker 分工、前后端分层和 CI 守住的边界规则见 [系统总览 SGX-ARCH-001](docs/architecture/overview.md)。
@@ -139,7 +139,7 @@ SGX_TEST_NO_LOCK=1 hugo server -s space/web
 ```bash
 # 单元测试（Worker + 主站前端），先 npm run build:css
 node --test tests/workers/space-core/*.test.mjs tests/workers/account/*.test.mjs tests/workers/ai/*.test.mjs \
-  tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs "tests/space/ui/**/*.test.mjs"
+  tests/workers/status/*.test.mjs tests/workers/proxy/*.test.mjs "tests/space/ui/**/*.test.mjs"
 
 npm run build && npm run test:sites                                   # 子站单测（先构建）
 npx playwright test --config=tests/config/playwright.config.js        # 主站 e2e 与视觉回归

@@ -191,7 +191,7 @@ const LIB_AUTH_RE = /\/api\/(?:lock-|space-|account\b)|navigator\s*\.\s*credenti
 
 const EXTERNAL_OK = new Set(['cloudflare:workers']);
 /** 规则 14 的按文件例外（只此一处）：proxy-rules 的 age 加密（wrangler.toml 开 nodejs_compat） */
-export const EXTERNAL_BY_FILE = Object.freeze({ 'workers/proxy-rules/src/lib/age.js': Object.freeze(['node:crypto']) });
+export const EXTERNAL_BY_FILE = Object.freeze({ 'workers/proxy/src/lib/age.js': Object.freeze(['node:crypto']) });
 
 /* 规则 15 */
 export const SHARED_DIR = 'workers/shared';

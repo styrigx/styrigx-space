@@ -181,7 +181,7 @@ export function siteName(s, t) {
   return (id && t('site_' + id)) || (s && s.name) || id;
 }
 
-/** 地址的域名（如 proxy-rules.styrigx.com） @param {string} url */
+/** 地址的域名（如 proxy.styrigx.com） @param {string} url */
 export function hostOf(url) {
   try {
     return new URL(url).host;

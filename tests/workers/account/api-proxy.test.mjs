@@ -1,7 +1,7 @@
 /**
  * POST /api/account/proxy（代理订阅管理，经 AccountService 命名入口；终端 sub 指令 v3.1）——v6 P4 起只认 v6 会话（root 档）：
  * - 没有 v6 会话 / 不够 root（styrigx）→ 401，都不调 PROXY
- * - 门卫通过才调服务绑定 PROXY（styrigx-proxy-rules 的 ProxyAdmin），不认识的 action 400 action、参数不对 400 params、
+ * - 门卫通过才调服务绑定 PROXY（styrigx-proxy 的 ProxyAdmin），不认识的 action 400 action、参数不对 400 params、
  *   没绑 503 config、RPC 抛错 / 回的不是对象 503 upstream
  * - ProxyAdmin 的业务失败原样回 422；show / token 回令牌 + 下载地址前缀
  * 只是把旧会话下的这些用例改用 v6 会话重写（原 api-proxy.test.mjs，随旧账号会话删除），接口行为不变。
@@ -101,10 +101,10 @@ test('show / token 回令牌和下载地址前缀；key 转给 setKey，PQ 公�
   const ctx = await makeEnv(); const { proxy } = ctx;
   const sh = await post(ctx, { action: 'show' });
   assert.equal(sh.status, 200);
-  assert.deepEqual(await sh.json(), { ok: true, token: 'S'.repeat(43), base: 'https://proxy-rules.styrigx.com/s/' });
+  assert.deepEqual(await sh.json(), { ok: true, token: 'S'.repeat(43), base: 'https://proxy.styrigx.com/s/' });
   const tk = await post(ctx, { action: 'token' });
   assert.equal(tk.status, 200);
-  assert.deepEqual(await tk.json(), { ok: true, token: 'T'.repeat(43), base: 'https://proxy-rules.styrigx.com/s/' });
+  assert.deepEqual(await tk.json(), { ok: true, token: 'T'.repeat(43), base: 'https://proxy.styrigx.com/s/' });
   assert.deepEqual(proxy.calls.map((c) => c[0]), ['showToken', 'rotateToken']);
   assert.equal((await post(ctx, { action: 'key', pubkey: 'age1abc' })).status, 200);
   const pq = await post(ctx, { action: 'key', pubkey: 'age1pq1abc' });

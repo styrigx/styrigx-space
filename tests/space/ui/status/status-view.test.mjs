@@ -123,7 +123,7 @@ test('站名 / 域名 / 原因 / 最近一次检查', () => {
   /* AI 助手走服务绑定：域名显示成 Worker 名 */
   assert.equal(hostOf('https://styrigx-ai/healthz'), 'styrigx-ai');
   assert.equal(hostOf('https://styrigx.com/robots.txt'), 'styrigx.com');
-  assert.equal(hostOf('https://proxy-rules.styrigx.com/healthz'), 'proxy-rules.styrigx.com');
+  assert.equal(hostOf('https://proxy.styrigx.com/healthz'), 'proxy.styrigx.com');
   assert.equal(hostOf('not a url'), '');
   assert.equal(causeText('timeout', ZH.t), '超时');
   assert.equal(causeText('network', EN.t), 'Connection failed');

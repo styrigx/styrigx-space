@@ -119,7 +119,7 @@ test('真 SQL：连续 3 分钟 502 开故障，第 4 分钟恢复关上；每�
   /* 先塞一条 8 天前的旧记录 */
   db.raw.prepare('INSERT INTO status_checks (site, at, ok, code, ms) VALUES (?, ?, 1, 200, 10)').run('space', t0 - 8 * 24 * 60 * M);
   await runOnce(env, t0, fakeFetch({}));
-  for (let i = 1; i <= 3; i++) await runOnce(env, t0 + i * M, fakeFetch({ 'https://proxy-rules.styrigx.com/healthz': 502 }));
+  for (let i = 1; i <= 3; i++) await runOnce(env, t0 + i * M, fakeFetch({ 'https://proxy.styrigx.com/healthz': 502 }));
   let inc = db.raw.prepare('SELECT * FROM status_incidents').all();
   assert.equal(inc.length, 1);
   assert.deepEqual([inc[0].site, inc[0].started_at, inc[0].ended_at, inc[0].cause], ['proxy-rules', t0 + M, null, 'HTTP 502']);
@@ -142,7 +142,7 @@ test('真 SQL：汇总——当前状态、24 小时 / 30 天可用率、每日�
   const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db, ...SVC };
   const M = 60000;
   const t0 = Date.UTC(2026, 9, 22, 4, 1);
-  for (let i = 0; i < 4; i++) await runOnce(env, t0 + i * M, fakeFetch(i < 3 ? { 'https://proxy-rules.styrigx.com/healthz': 'network' } : {}));
+  for (let i = 0; i < 4; i++) await runOnce(env, t0 + i * M, fakeFetch(i < 3 ? { 'https://proxy.styrigx.com/healthz': 'network' } : {}));
   const s = await summary(db, t0 + 4 * M);
   assert.equal(s.ok, true);
   assert.equal(s.today, '2026-10-22');
@@ -211,7 +211,7 @@ test('真 SQL：第一次失败时间存在 state 里，恢复清零', { skip: !
   const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db, ...SVC };
   const M = 60000;
   const t0 = Date.UTC(2026, 9, 23, 4, 1);
-  const bad = fakeFetch({ 'https://proxy-rules.styrigx.com/healthz': 502 });
+  const bad = fakeFetch({ 'https://proxy.styrigx.com/healthz': 502 });
   await runOnce(env, t0, bad);
   await runOnce(env, t0 + M, bad);
   assert.equal((await loadPrev(db)).get('proxy-rules').firstFailAt, t0);
@@ -233,7 +233,7 @@ test('服务绑定：ai 走 env 里的绑定（不走公网 fetch）；绑定 20
     (u, init) => { pub.push(String(u)); return Promise.resolve(new Response('', { status: 200 })); });
   assert.deepEqual(seen.map((x) => x[0]), ['https://styrigx-ai/healthz']);
   assert.ok(seen.every((x) => x[1] === 'manual'));
-  assert.ok(!pub.some((u) => /healthz$/.test(u) && !/proxy-rules/.test(u)), pub.join(' '));
+  assert.ok(!pub.some((u) => /healthz$/.test(u) && !/proxy\.styrigx\.com/.test(u)), pub.join(' '));
   const by = Object.fromEntries(p.checks.map((c) => [c.site, c]));
   assert.deepEqual([by.ai.ok, by.ai.code], [1, 200]);
   const p503 = await runOnce({ D1_UPTIME_MONITOR: db, AI_SERVICE: svc(503) }, Date.UTC(2026, 9, 28, 4, 2), fakeFetch({}));
