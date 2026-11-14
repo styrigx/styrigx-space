@@ -323,3 +323,14 @@ test('单曲 / 专辑分类的纯函数：nowSub（单曲只显示歌手）、sp
   const r = PL.remoteState({ album: 2, list: [{ title: 'River' }], i: 0 }, true, [alb, s1]);
   assert.deepEqual(r, { type: 'player-state', on: true, playing: true, title: 'River', artist: 'Joni Mitchell' });
 });
+
+test('durText：元数据到了用真实 duration；没到 / NaN / Infinity / 0 用曲目已知时长；都没有 --:--', () => {
+  assert.equal(CORE.durText(1.2, 240), '0:01');
+  assert.equal(CORE.durText(NaN, 240), '4:00');
+  assert.equal(CORE.durText(Infinity, 269), '4:29');
+  assert.equal(CORE.durText(0, 271), '4:31');
+  assert.equal(CORE.durText(undefined, 3725), '1:02:05');
+  assert.equal(CORE.durText(NaN, 0), '--:--');
+  assert.equal(CORE.durText(NaN, undefined), '--:--');
+  assert.equal(CORE.durText(245.6, 0), '4:05');
+});

@@ -118,6 +118,8 @@ T.up = function(i, n, name){ return tr('up', { i: i, n: n, name: name }); };
 T.partial = function(n){ return tr('partial', { n: n }); };
 T.chosen = function(n){ return tr('chosen', { n: n }); };
 T.speed = function(s){ return tr('speed', { s: s }); };
+/** 删除键图标（同 curio/icon.html trash） */
+var TRASH = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>';
 var NOTE = '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>';
 
 /* all = 接口回的全部记录；albums = 其中的专辑（封面横滑，cur 是下标）；singles = 单曲（列表）；sec = 当前分段 'album' / 'single' */
@@ -185,10 +187,13 @@ function renderSingles(){
   if (sec !== 'single') { box.innerHTML = ''; return; }
   box.innerHTML = singles.map(function(a, i){
     var t = a.tracks[0], on = !!P.state.queue && P.state.i >= 0 && P.state.album === a.id;
-    return '<li><button type="button" class="mu-single' + (on ? ' on' : '') + '" data-s="' + i + '"' + (on ? ' aria-current="true"' : '') + (t ? '' : ' disabled') + '>'
+    return '<li' + (canWrite ? ' class="mu-single-row"' : '') + '><button type="button" class="mu-single' + (on ? ' on' : '') + '" data-s="' + i + '"' + (on ? ' aria-current="true"' : '') + (t ? '' : ' disabled') + '>'
       + '<span class="mu-single-im" aria-hidden="true">' + (a.cover ? '<img src="' + coverUrl(a) + '" alt="" loading="lazy" decoding="async" onerror="this.remove()">' : '') + '<span class="mu-cover-ph">' + NOTE + '</span></span>'
       + '<span class="mu-single-tx"><b>' + esc(a.title) + '</b><i>' + esc(a.artist || '') + '</i></span>'
-      + '<span class="mu-track-dur">' + (t && t.duration ? fmtTime(t.duration) : '') + '</span></button></li>';
+      + '<span class="mu-track-dur">' + (t && t.duration ? fmtTime(t.duration) : '') + '</span></button>'
+      /* 删除单曲（同「删除专辑」权限：接口回 canWrite 才画；点了先弹确认） */
+      + (canWrite ? '<button type="button" class="mu-single-del" data-del="' + a.id + '" aria-label="' + esc(tr('delSingleBtn', { name: a.title })) + '" title="' + esc(tr('delSingleBtn', { name: a.title })) + '">' + TRASH + '</button>' : '')
+      + '</li>';
   }).join('');
 }
 function renderCovers(){
@@ -236,6 +241,8 @@ $('#mu-seg').addEventListener('click', function(e){
 });
 /* 单曲：点一行从这首开始，单曲区当播放列表 */
 $('#mu-singles').addEventListener('click', function(e){
+  var d = e.target.closest('[data-del]');
+  if (d) return askDelSingle(Number(d.dataset.del));
   var b = e.target.closest('[data-s]');
   if (!b) return;
   if (viewOnly) return askSudo();
@@ -302,6 +309,8 @@ function paintTrack(t, st){
   var a = all.filter(function(x){ return x.id === st.album; })[0];
   $('#mu-now-title').textContent = t.title;
   $('#mu-now-sub').textContent = CORE.nowSub(a);  /* 单曲只显示歌手 */
+  $('#mu-time').textContent = fmtTime(0); $('#mu-seek').value = '0';
+  $('#mu-dur').textContent = CORE.durText(NaN, t.duration);  /* 元数据到之前先用已知时长 */
   setLyrics(t.lrc);
   $('#mu-player').classList.remove('hidden');
   doc.documentElement.classList.add('mu-playing');
@@ -357,7 +366,10 @@ audio.addEventListener('timeupdate', function(){
   if (!seeking && audio.duration) { $('#mu-seek').value = String(Math.round(audio.currentTime / audio.duration * 1000)); $('#mu-time').textContent = fmtTime(audio.currentTime); }
   syncLyrics();
 });
-audio.addEventListener('loadedmetadata', function(){ $('#mu-dur').textContent = fmtTime(audio.duration); });
+/** 总时长：元数据到了用真实 duration，没到 / 不可用用曲目已知时长（CORE.durText） */
+function paintDur(){ var t = P.state.list[P.state.i]; $('#mu-dur').textContent = CORE.durText(audio.duration, t && t.duration); }
+audio.addEventListener('loadedmetadata', paintDur);
+audio.addEventListener('durationchange', paintDur);
 
 /* ---------- 删除专辑 ---------- */
 $('#mu-album-del').addEventListener('click', function(){
@@ -369,6 +381,36 @@ $('#mu-album-del').addEventListener('click', function(){
       setData(j.albums); renderCovers(); renderAlbum(); toast(T.deleted);
     }).catch(function(e){ if (!e.sgxLocked) toast(failMsg(e)); });
   });
+});
+
+/* ---------- 删除单曲（v1.13 ②，Gray 2026-11-14 18:40）：每行一个删除键，先弹确认（悬浮卡片 <dialog class="sgx-qp sgx-up mu-del">，同上传窗，不从底部升起），
+   确认后复用 album.del（单曲 = kind=single 的专辑记录，连音频 / 封面一起删）；回来的歌单重画，单曲区空了按 pickSection 回到专辑、分段随之隐藏 ---------- */
+var delDlg = $('#mu-del-wrap'), delId = 0;
+var delSheet = G.SgxModalSheet ? G.SgxModalSheet(delDlg, doc.createElement('span') /* 共享状态机要一个同步 aria-expanded 的按钮；删除键是每行画的，给个占位 */, { ms: 240, reducedMs: 120, stateKey: 'sgxMuDel', modal: false, onOpen: function(){ upLock(true); }, onClosed: function(){ upLock(false); delId = 0; } })
+  : { open: function(){ if (!delDlg.open) { delDlg.show(); delDlg.classList.add('is-open'); upLock(true); } }, close: function(){ if (delDlg.open) { delDlg.classList.remove('is-open'); delDlg.close(); } upLock(false); delId = 0; } };
+/** 弹确认：id = 单曲记录 id */
+function askDelSingle(id){
+  var a = singles.filter(function(x){ return x.id === id; })[0];
+  if (!a || !canWrite) return;
+  delId = id;
+  $('#mu-del-msg').textContent = tr('delSingle', { name: a.title });
+  $('#mu-del-ok').disabled = false;
+  delSheet.open();
+  try { $('#mu-del-cancel').focus(); } catch (e) {}
+}
+delDlg.addEventListener('click', function(e){ if (e.target === delDlg) delSheet.close(); });
+$('#mu-del-x').addEventListener('click', function(){ delSheet.close(); });
+$('#mu-del-cancel').addEventListener('click', function(){ delSheet.close(); });
+$('#mu-del-ok').addEventListener('click', function(){
+  var id = delId, ok = this;
+  if (!id) return delSheet.close();
+  ok.disabled = true;
+  req('POST', '/curio/api/music', { op: 'album.del', id: id }).then(function(j){
+    if (P.state.album === id) {  /* 正在放这首：停下、收起播放条（同删专辑） */
+      P.reset(); lyr = { lines: [], line: -2 }; $('#mu-player').classList.add('hidden'); doc.documentElement.classList.remove('mu-playing'); }
+    delSheet.close();
+    setData(j.albums); renderCovers(); renderAlbum(); toast(T.deleted);
+  }).catch(function(e){ ok.disabled = false; delSheet.close(); if (!e.sgxLocked) toast(failMsg(e)); });
 });
 
 /* ---------- 上传 ---------- */

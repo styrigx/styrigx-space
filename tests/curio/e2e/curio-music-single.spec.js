@@ -3,6 +3,8 @@
 // - 音乐页（方案 A）：两边都有才显示分段「专辑 · 单曲」；单曲 = 列表（小封面 · 歌名 · 歌手 · 时长），点一行就播；单曲区当播放列表，放完接下一首（按需签下一首的令牌），到尾停
 // - 副标题：单曲只显示歌手（奇趣页播放条、弹出播放器）；哪边为空只显示有的那边
 // - 弹出播放器：专辑列表末尾多一项「单曲」；?album=<单曲 id> 落在单曲组
+// - 删除单曲（Gray 2026-11-14 18:40）：能写才有每行删除键；先弹确认（悬浮 <dialog class="sgx-qp sgx-up mu-del">，不从底部升起），确认后 album.del、列表刷新，单曲删光分段隐藏
+// - 播放条总时长：音频元数据到之前用曲目已知时长（列表里那个），到了换成真实 duration（夹具音频只有 1 秒，所以到了以后是 0:01）
 const { test, expect } = require('@playwright/test');
 
 test.use({ locale: 'zh-CN' });
@@ -25,8 +27,9 @@ const SINGLES = [
   { id: 33, kind: 'single', title: 'Both Sides Now', artist: 'Joni Mitchell', year: 1969, cover: false, tracks: [t(43, 1, 'Both Sides Now', { duration: 271 })] },
 ];
 
-/** list：初始歌单；有写权限（owner） */
-async function mockMusic(page, list) {
+/** list：初始歌单；opts.canWrite 默认 true（站长） */
+async function mockMusic(page, list, opts = {}) {
+  const canWrite = opts.canWrite !== false;
   await page.route('**/avatar/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>' }));
   await page.route('**/api/lock-session-check', (r) => r.fulfill({ json: { ok: true } }));
   const calls = [];
@@ -34,11 +37,12 @@ async function mockMusic(page, list) {
   await page.route('**/api/music-cover**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
   await page.route('**/api/music', async (r) => {
     const req = r.request();
-    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite: true, albums } });
+    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite, albums } });
     const b = req.postDataJSON();
     calls.push(b);
     let id;
     if (b.op === 'album.add') { id = 90; albums.push({ id, kind: b.kind || 'album', title: b.title, artist: b.artist, year: b.year, cover: false, tracks: [] }); }
+    if (b.op === 'album.del') albums = albums.filter((x) => x.id !== b.id);
     return r.fulfill({ json: { ok: true, canWrite: true, id, albums } });
   });
   await page.route('**/api/music-upload**', async (r) => {
@@ -194,4 +198,94 @@ test('弹出播放器：专辑列表末尾多一项「单曲」；选它曲目�
   await expect(page.locator('#mp-album')).toHaveText('Blue');
   await page.goto('/curio/zh/music/player/?album=32');
   await expect(page.locator('#mp-tracks .mu-track')).toHaveCount(3);
+});
+
+test('删除单曲：每行删除键（仅能写）；先弹悬浮确认卡片（不从底部升起），取消不删；确认 → album.del、列表刷新、提示「已删除」；正在放的被删就停；删光后分段隐藏回到专辑', async ({ page }) => {
+  const calls = await mockMusic(page, [ALBUM, ...SINGLES]);
+  /* 这条用 30 秒的音频：River 删之前一直在放（1 秒的会自己接到下一首） */
+  const LONG = wav(30);
+  await page.route('**/api/music-stream**', (r) => r.fulfill({ status: 200, headers: { 'Content-Type': 'audio/wav', 'Accept-Ranges': 'bytes', 'Content-Length': String(LONG.length) }, body: LONG }));
+  await page.goto('/curio/zh/music/');
+  await page.locator('#mu-seg [data-sec="single"]').click();
+  await expect(page.locator('#mu-singles .mu-single-del')).toHaveCount(3);
+  await expect(page.locator('#mu-singles .mu-single-del').nth(1)).toHaveAttribute('aria-label', '删除单曲「晴天」');
+  /* 先放 River，等会儿删它 */
+  await page.locator('#mu-singles [data-s="0"]').click();
+  await expect.poll(() => plays(calls)).toEqual([31]);
+  await expect(page.locator('#mu-player')).toBeVisible();
+  /* 删除键不触发播放 */
+  await page.locator('#mu-singles [data-del="32"]').click();
+  const dlg = page.locator('#mu-del-wrap');
+  await expect(dlg).toHaveJSProperty('open', true);
+  await expect(dlg).toHaveClass(/sgx-qp/);
+  await expect(dlg).toHaveClass(/sgx-up/);
+  await expect(page.locator('#mu-del-msg')).toHaveText('确定删除单曲「晴天」（连同音频文件）吗？');
+  expect(plays(calls)).toEqual([31]);
+  /* 悬浮卡片：贴近顶部、四周留白，不是贴底的底部弹层 */
+  const vp = page.viewportSize();
+  await expect(dlg.locator('.sgx-qp-sheet')).toHaveCSS('opacity', '1');
+  const box = await dlg.locator('.sgx-qp-sheet').boundingBox();
+  expect(box.y).toBeLessThan(vp.height / 2);
+  expect(box.y + box.height).toBeLessThan(vp.height - 40);
+  expect(box.x).toBeGreaterThan(0);
+  /* 取消：不删 */
+  await page.locator('#mu-del-cancel').click();
+  await expect(dlg).toHaveJSProperty('open', false);
+  expect(calls.filter((c) => c.op === 'album.del')).toEqual([]);
+  await expect(page.locator('#mu-singles .mu-single-tx b')).toHaveText(['River', '晴天', 'Both Sides Now']);
+  /* 确认：删晴天（不在放），播放条不动 */
+  await page.locator('#mu-singles [data-del="32"]').click();
+  await page.locator('#mu-del-ok').click();
+  await expect(dlg).toHaveJSProperty('open', false);
+  expect(calls.filter((c) => c.op === 'album.del')).toEqual([{ op: 'album.del', id: 32 }]);
+  await expect(page.locator('#mu-singles .mu-single-tx b')).toHaveText(['River', 'Both Sides Now']);
+  await expect(page.locator('#bk-toast')).toHaveText('已删除');
+  await expect(page.locator('#mu-player')).toBeVisible();
+  /* 删正在放的 River：播放条收起 */
+  await page.locator('#mu-singles [data-del="31"]').click();
+  await page.locator('#mu-del-ok').click();
+  await expect(page.locator('#mu-singles .mu-single-tx b')).toHaveText(['Both Sides Now']);
+  await expect(page.locator('#mu-player')).toBeHidden();
+  /* 删光：单曲区空了 → 分段隐藏，回到专辑 */
+  await page.locator('#mu-singles [data-del="33"]').click();
+  await page.locator('#mu-del-ok').click();
+  await expect(page.locator('#mu-seg')).toBeHidden();
+  await expect(page.locator('#mu-singles')).toBeHidden();
+  await expect(page.locator('.mu-cover')).toHaveCount(1);
+  await expect(page.locator('#mu-album-title')).toHaveText('Blue');
+  expect(calls.filter((c) => c.op === 'album.del').map((c) => c.id)).toEqual([32, 31, 33]);
+});
+
+test('删除单曲：没有写权限（canWrite=false）不画删除键', async ({ page }) => {
+  await mockMusic(page, SINGLES, { canWrite: false });
+  await page.goto('/curio/zh/music/');
+  await expect(page.locator('#mu-singles .mu-single')).toHaveCount(3);
+  await expect(page.locator('#mu-singles .mu-single-del')).toHaveCount(0);
+});
+
+test('播放条总时长：音频元数据到之前显示曲目已知时长（4:00），到了换真实 duration（夹具 1 秒 → 0:01）；奇趣页和弹出播放器一样', async ({ page }) => {
+  await mockMusic(page, [ALBUM, ...SINGLES]);
+  /* 先扣住音频流：元数据到不了 */
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await page.route('**/api/music-stream**', async (r) => { await gate; await r.fulfill({ status: 200, headers: { 'Content-Type': 'audio/wav', 'Accept-Ranges': 'bytes', 'Content-Length': String(WAV.length) }, body: WAV }); });
+  await page.goto('/curio/zh/music/');
+  await page.locator('#mu-seg [data-sec="single"]').click();
+  await page.locator('#mu-singles [data-s="0"]').click();
+  await expect(page.locator('#mu-now-title')).toHaveText('River');
+  await expect(page.locator('#mu-dur')).toHaveText('4:00');
+  await expect(page.locator('#mu-time')).toHaveText('0:00');
+  release();
+  await expect(page.locator('#mu-dur')).toHaveText('0:01');
+
+  let release2;
+  const gate2 = new Promise((r) => { release2 = r; });
+  await page.unroute('**/api/music-stream**');
+  await page.route('**/api/music-stream**', async (r) => { await gate2; await r.fulfill({ status: 200, headers: { 'Content-Type': 'audio/wav', 'Accept-Ranges': 'bytes', 'Content-Length': String(WAV.length) }, body: WAV }); });
+  await page.goto('/curio/zh/music/player/?album=32');
+  await page.locator('#mp-tracks [data-t="1"]').click();
+  await expect(page.locator('#mp-title')).toHaveText('晴天');
+  await expect(page.locator('#mp-dur')).toHaveText('4:29');
+  release2();
+  await expect(page.locator('#mp-dur')).toHaveText('0:01');
 });

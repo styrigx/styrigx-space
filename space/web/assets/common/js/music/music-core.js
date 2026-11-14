@@ -63,6 +63,14 @@ function fmtTime(s){
   var p = function(n){ return (n < 10 ? '0' : '') + n; };
   return h ? h + ':' + p(m) + ':' + p(x) : m + ':' + p(x);
 }
+/**
+ * 播放条总时长：音频元数据到了（有限且 > 0）用真实 duration；没到（换曲后、加载中、流式 Infinity）用曲目已知时长（库里上传时量的）；都没有 --:--。
+ * 换曲时先画已知时长，免得停在上一首的时长或 0:00。 @param {number} media audio.duration @param {number} known 曲目 duration（秒）
+ */
+function durText(media, known){
+  if (isFinite(media) && media > 0) return fmtTime(media);
+  return Number(known) > 0 ? fmtTime(known) : '--:--';
+}
 /** LRC → [{t 秒, text}]，按时间排；一行多个时间戳各算一条；[ar:] 这类标签、空行丢掉 */
 function parseLrc(src){
   var out = [];
@@ -222,7 +230,7 @@ function createPlayer(o){
   };
 }
 
-var api = { isSingle: isSingle, nowSub: nowSub, SPEEDS: SPEEDS, PLAYER_SPEEDS: PLAYER_SPEEDS, MODE_KEY: MODE_KEY, readMode: readMode, saveMode: saveMode, shuffleOrder: shuffleOrder, CHANNEL: CHANNEL, RENEW_MS: RENEW_MS, nextSpeed: nextSpeed, fmtTime: fmtTime, parseLrc: parseLrc, lrcIndex: lrcIndex, createPlayer: createPlayer };
+var api = { isSingle: isSingle, nowSub: nowSub, SPEEDS: SPEEDS, PLAYER_SPEEDS: PLAYER_SPEEDS, MODE_KEY: MODE_KEY, readMode: readMode, saveMode: saveMode, shuffleOrder: shuffleOrder, CHANNEL: CHANNEL, RENEW_MS: RENEW_MS, nextSpeed: nextSpeed, fmtTime: fmtTime, durText: durText, parseLrc: parseLrc, lrcIndex: lrcIndex, createPlayer: createPlayer };
 if (typeof module !== 'undefined' && module.exports) { module.exports = api; return; }
 G.SgxMusicCore = api;
 })();

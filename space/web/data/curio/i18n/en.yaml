@@ -155,6 +155,8 @@ music:
   kindAlbum: Album
   kindSingle: Single
   singles: Singles
+  deleteSingle: Delete single
+  delete: Delete
   trackOrderFollowsThe: 'Track order follows the number at the start of each file name (01, 02…). Each audio file can be up to 95 MB: mp3, m4a, aac, flac, ogg, opus, wav. The cover is resized to 1600 px.'
   upload: Upload
 curioCommon:
@@ -373,3 +375,5 @@ js:
     lrcOne: Lyrics .lrc (optional)
     needSong: Give the song a title.
     singleFull: This single already has its track.
+    delSingle: Delete the single “{name}” and its file?
+    delSingleBtn: Delete single “{name}”

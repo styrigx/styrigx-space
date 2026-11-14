@@ -176,6 +176,8 @@ function paintTrack(t, st){
   $('#mp-album').textContent = a && !CORE.isSingle(a) ? a.title : '';
   paintCover(a);
   setLyrics(t.lrc);
+  $('#mp-time').textContent = CORE.fmtTime(0); $('#mp-seek').value = '0';
+  $('#mp-dur').textContent = CORE.durText(NaN, t.duration);  /* 元数据到之前先用已知时长 */
   doc.title = t.title + ' | ' + baseTitle;
   if (a) { var k = CORE.isSingle(a) ? singlesIdx() : albums.indexOf(a); if (k >= 0 && k !== cur) { cur = k; } }
   renderTracks();
@@ -277,7 +279,10 @@ audio.addEventListener('timeupdate', function(){
   syncLyrics();
   mediaPos();
 });
-audio.addEventListener('loadedmetadata', function(){ $('#mp-dur').textContent = CORE.fmtTime(audio.duration); mediaPos(); });
+/** 总时长：元数据到了用真实 duration，没到 / 不可用用曲目已知时长（CORE.durText） */
+function paintDur(){ var t = P.state.list[P.state.i]; $('#mp-dur').textContent = CORE.durText(audio.duration, t && t.duration); }
+audio.addEventListener('loadedmetadata', function(){ paintDur(); mediaPos(); });
+audio.addEventListener('durationchange', paintDur);
 /* 专辑列表：可收起；点一张换专辑（换列表，不自动开播） */
 $('#mp-albums-btn').addEventListener('click', function(){
   var open = this.getAttribute('aria-expanded') !== 'true';

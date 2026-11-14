@@ -97,6 +97,22 @@
   </div>
 </dialog>
 
+{{/* ===== 删除单曲确认（v1.13 ②，Gray 2026-11-14 18:40）：同上传窗的悬浮卡片 <dialog class="sgx-qp sgx-up mu-del">，不要底部升起；
+   内容照共用确认框（一句话 + 取消 / 删除，删除用错误色）。只有能写（canWrite）时列表才画删除键；接口复用 album.del（单曲 = kind=single 的专辑记录）。 ===== */}}
+<dialog id="mu-del-wrap" class="sgx-qp sgx-up mu-del" role="alertdialog" aria-labelledby="mu-del-title" aria-describedby="mu-del-msg">
+  <div class="sgx-qp-sheet" tabindex="-1">
+    <div class="mu-up-head">
+      <h2 id="mu-del-title" class="mu-up-title">{{ $tr.music.deleteSingle }}</h2>
+      <button id="mu-del-x" type="button" class="mu-up-x" aria-label="{{ $tr.music.close }}">{{ partial "curio/icon.html" (dict "name" "x-mark" "uid" "mud-x") }}</button>
+    </div>
+    <p id="mu-del-msg" class="mu-del-msg"></p>
+    <div class="mu-up-foot mu-del-foot">
+      <button id="mu-del-cancel" type="button" class="mu-del-no">{{ $tr.curioCommon.cancel }}</button>
+      <button id="mu-del-ok" type="button" class="mu-del-ok disabled:opacity-50">{{ $tr.music.delete }}</button>
+    </div>
+  </div>
+</dialog>
+
 {{ partial "curio/common.html" (dict "tr" $tr "lang" $lang) }}
 {{ end }}
 
