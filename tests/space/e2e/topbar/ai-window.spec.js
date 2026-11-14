@@ -70,6 +70,42 @@ test.describe('AI 窗口（ai-v1，按设计稿）', () => {
     expect(posts).toBe(0);
   });
 
+  test('R-28：AI 窗口锁 → 终端 su 成功（sgx:session live ok）→ 收终端、回 AI 窗口并解锁；没登录就关终端不算', async ({ page }) => {
+    let authed = false;
+    await go(page, '/zh/status/');
+    await page.route('**/api/ai', (r) => authed
+      ? r.fulfill(json({ ok: true, default: 'g4', canChoose: false, models: [{ id: 'g4', label: 'Gemma 4' }] }))
+      : r.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"error":"unauthorized"}' }));
+    await page.locator('.sgx-tb-ai').click();
+    const ai = page.locator('#sgx-ai');
+    const chip = ai.locator('[data-ai-model]');
+    const term = page.locator('#sgx-term');
+    const su = () => page.evaluate(() => window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: true, live: true } })));
+    /* 没登录就 Esc 关终端：之后别处 su 成功不回 AI */
+    await chip.click();
+    await expect(term).toHaveAttribute('open', '');
+    await page.keyboard.press('Escape');
+    await expect(term).not.toHaveAttribute('open', '');
+    await su();
+    await page.waitForTimeout(400);
+    await expect(ai).not.toHaveAttribute('open', '');
+    /* 从 AI 锁来、su 成功：终端收起，AI 窗口重开、锁标没了 */
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: false, live: true } })));
+    await page.locator('.sgx-tb-ai').click();
+    await expect(chip).toHaveClass(/is-locked/);
+    await chip.click();
+    await expect(term).toHaveAttribute('open', '');
+    await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
+    authed = true;
+    await page.waitForTimeout(600);
+    await su();
+    await expect(term).not.toHaveAttribute('open', '');
+    await expect(ai).toHaveAttribute('open', '');
+    await expect(chip).not.toHaveClass(/is-locked/);
+    await expect(chip).toHaveText(/Gemma 4/);
+    await page.waitForTimeout(800);
+  });
+
   test('模型胶囊：登了账号能在窗口里换（写 sgx-ai-model，发问带上）；回答下站内链接成来源卡片、建议问题点了就问', async ({ page }) => {
     let body = null;
     await go(page, '/zh/status/');

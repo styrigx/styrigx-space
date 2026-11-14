@@ -48,9 +48,9 @@ export const PROFILE_KEY = 'sgx-profile';
 /** 邮箱格式（与主站 prefs/profile.js EMAIL_RE 同一条） */
 const EMAIL_RE = /^[^\s@<>()",;:\\]+@[^\s@<>()",;:\\]+\.[^\s@<>()",;:\\.]{2,}$/;
 
-/** 请人进站（= auth/sudo.js SUDO_EVENT；本文件只许 import term/**，抄一份）：顶栏终端预填 su （v6 割接；topbar/panel.js 接） @param {Document} doc */
+/** 请人进站（= auth/sudo.js SUDO_EVENT；本文件只许 import term/**，抄一份）：顶栏终端预填 su （v6 割接；topbar/panel.js 接）；detail.from = 'ai'：su 成功后回 AI 窗口（R-28） @param {Document} doc */
 function askSudo(doc) {
-  try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {}
+  try { doc.dispatchEvent(new CustomEvent('sgx:sudo', { detail: { from: 'ai' } })); } catch (e) {}
 }
 /** 英文底（源文本，没有页面字符串表时用）；页面上以 #sgx-i18n-frame 的 ai 节为准——已是「英文 ← 页面语言」的合并，缺键回退英文（语言包化 2026-11-07） */
 const STR_EN = {
