@@ -1,7 +1,5 @@
 # styrigx-space-core
 
-> 已被 v6 定稿取代（见 `docs/decisions/ADR-0006-identity-v6.md`）。
-
 ## 职责
 
 站点核心 Worker（进站 v3 L2 起，原鉴权网关 `styrigx-auth-gateway`；分享链接 Worker `styrigx-share` 并入）：进站会话、锁屏凭证和分享链接的全部后端代码在这里。承接 `styrigx.com` 整站请求（含子站 `/blog/`、`/curio/`、`/daymark/`，按路径前缀走子站关口）：先验进站会话，页面验完回源 Pages 取静态文件，接口在本 Worker 回答或经服务绑定转给内部 Worker。Pages 本身只放静态文件（配置见 `space/web/wrangler.toml`）。

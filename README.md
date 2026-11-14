@@ -1,5 +1,3 @@
-> 已被 v6 定稿取代（见 `docs/decisions/ADR-0006-identity-v6.md`）。
-
 <div align="center">
 
 中文 | [English](README.en.md)

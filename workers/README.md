@@ -1,7 +1,5 @@
 # workers/：Worker 骨架契约
 
-> 已被 v6 定稿取代（见 `docs/decisions/ADR-0006-identity-v6.md`）。
-
 本目录一个 Worker 一个子目录，目录名 = Cloudflare 上的 Worker 名去掉 `styrigx-` 前缀（`workers/space-core/` ↔ `styrigx-space-core`）。这份文件是 Worker 骨架的唯一出处：新 Worker 照它起步，大 Worker 照它对齐。各 Worker 自己的 `README.md` 只写本 Worker（职责 / 入口 / 路由 / 绑定 / 钥匙 / 数据与迁移），不复述这里。系统分层（L0–L6）、锁屏和账号的整体设计见 [`docs/architecture/overview.md`](../docs/architecture/overview.md)，这里不重复。
 
 ## 1. 骨架
