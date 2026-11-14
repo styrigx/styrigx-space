@@ -1,6 +1,6 @@
 /**
  * POST /api/account/proxy：代理订阅管理（终端 sub 指令 v3.1）。本 Worker 只做门卫：v6 会话、路由档 root（permits 判过；sudo 借来的 root 也算；
- * 没有 → 401 session），然后经服务绑定 PROXY 调 styrigx-proxy-rules 的命名入口 ProxyAdmin。v6 P4 起旧进站会话 / 账号 session / reauth 票删除。
+ * 没有 → 401 session），然后经服务绑定 PROXY 调 styrigx-proxy 的命名入口 ProxyAdmin。v6 P4 起旧进站会话 / 账号 session / reauth 票删除。
  * 本 Worker 不绑代理订阅的 D1、不绑 SGX_PROXY_DB_KEY，也不留任何订阅数据。
  *
  * { action }（同源）：
@@ -24,7 +24,7 @@ import { readPost, guarded, clientAddress, v6Admitted, auditActor } from './_req
 import { writeUserAudit } from '../../core/user-audit.js';
 import { dbReady } from '../../lib/db.js';
 
-export const SUB_BASE = 'https://proxy-rules.styrigx.com/s/';
+export const SUB_BASE = 'https://proxy.styrigx.com/s/';
 const MAX_TEXT = 2 * 1024 * 1024;
 
 const ACTIONS = new Set(['status', 'show', 'token', 'key', 'add', 'upload', 'mv', 'on', 'off', 'rm', 'update', 'map', 'map_set', 'map_rm', 'map_ls', 'fp']);

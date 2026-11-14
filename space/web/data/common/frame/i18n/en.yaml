@@ -263,7 +263,7 @@ manBody:
       - "token reset: makes a new token (asks y/N when one exists); every old url stops working at once."
     auth: "root only; show, key and token reset need no reauth"
     notes:
-      - "Urls are https://proxy-rules.styrigx.com/s/<token>/<name>; every output is age-encrypted to your public key."
+      - "Urls are https://proxy.styrigx.com/s/<token>/<name>; every output is age-encrypted to your public key."
       - "The server keeps the token sealed with its own key, so sub show can print it again."
       - "Adding, uploading, on, off, removing or changing the key refreshes once automatically; airports also refresh every 6 hours. Changing words or the fingerprint reprocesses airports from their stored nodes without fetching. Uploaded files are never processed."
       - "Names use A–Z a–z 0–9 _ - (1–32). At most 20 sources, 800 nodes each, 2 MB per file; at most 100 map words and 50 drop words. Post-quantum keys (age1pq1…) are not supported yet."

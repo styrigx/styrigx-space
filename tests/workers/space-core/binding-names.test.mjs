@@ -143,8 +143,8 @@ test('预览统一用测试资源（2026-10-29）：站点核心 / 账号的预�
 });
 
 test('进站 v3 L2b：站点核心 D1 / KV = styrigx-space-core（网关 + 分享链接一个绑定、记录表 d1_migrations_core），监测 D1 = 自己的 styrigx-status；搜索索引 KV 读写两边一起换；账号 D1 / KV 不动；旧库只剩脚本里的来源', () => {
-  const CORE_D1 = '1354c898-aacd-4122-92de-0ae39a3fcc1a';
-  const STATUS_D1 = '38719f10-fdff-43fd-bcbb-387a6b734f55';
+  const CORE_D1 = '38082c1c-9619-4461-9cd4-a9820bf0e784';
+  const STATUS_D1 = 'ee1246de-2233-431a-8819-ba2931347a32';
   const CORE_KV = '4bcdb84f205541b9b6c8d230bc2b106f';
   const OLD_SPACE = /39d037fe-6ab3-410d-a090-4d7ce8d48d83|608cf3e27184481cbca2922950506d87|styrigx-space-gateway/;
   const top = (p) => code(read(p)).split(/^\[env\.preview\]$/m)[0];

@@ -293,7 +293,7 @@ const WORKER_JOBS = {
   /* P4-2b：search-index、chat 退役，ai 接过索引上传（2026-11-05 起环境 / token 为 STYRIGX_AI_DEPLOY） */
   'deploy-ai-worker': { dir: 'workers/ai', secret: 'STYRIGX_AI_DEPLOY', internal: true },
   'deploy-status-worker': { dir: 'workers/status', secret: 'STYRIGX_STATUS_DEPLOY', internal: true },
-  'deploy-proxy-rules-worker': { dir: 'workers/proxy-rules', secret: 'STYRIGX_PROXY_RULES_DEPLOY', internal: false },
+  'deploy-proxy-rules-worker': { dir: 'workers/proxy', secret: 'STYRIGX_PROXY_RULES_DEPLOY', internal: false },
   'deploy-space-core': { dir: 'workers/space-core', secret: 'STYRIGX_SPACE_CORE_DEPLOY', internal: false },
   'deploy-account-worker': { dir: 'workers/account', secret: 'STYRIGX_ACCOUNT_DEPLOY', internal: false },
   /* 2026-11-14 Atlas 后端合并：原 deploy-curio-core / deploy-daymark-core 合成一个 job（GitHub 环境 / 环境密钥名字同 token） */

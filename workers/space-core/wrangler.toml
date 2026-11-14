@@ -100,7 +100,7 @@ namespace_id = "2804"
 simple = { limit = 10, period = 60 }
 
 # ---- 数据绑定（正式 D1）----
-# 进站 v3 L2b（2026-11-09）：新库 styrigx-space-core（1354c898-…），一套迁移（migrations/，起点 0001_baseline.sql）、一张迁移记录表 d1_migrations_core、
+# 进站 v3 L2b（2026-11-09）：新库 styrigx-space-core（2026-11-14 同名重建到 WNAM：38082c1c-…），一套迁移（migrations/，起点 0001_baseline.sql）、一张迁移记录表 d1_migrations_core、
 # 一个绑定 D1_SPACE（L2 的第二个绑定 D1_SHARE_LINK 并掉）。数据由 L2b 的一次性搬迁（d1-cutover，见 git 历史 PR #338）从旧库原样搬来；
 # 旧库已于 L3（2026-11-09）删除。监测表在自己的库 styrigx-status（workers/status/wrangler.toml），本 Worker 不碰。
 # 进站的认证状态全部在 D1（强一致），不绑定任何 KV。
@@ -114,7 +114,7 @@ simple = { limit = 10, period = 60 }
 [[d1_databases]]
 binding = "D1_SPACE"
 database_name = "styrigx-space-core"
-database_id = "1354c898-aacd-4122-92de-0ae39a3fcc1a"
+database_id = "38082c1c-9619-4461-9cd4-a9820bf0e784"
 migrations_dir = "migrations"
 migrations_table = "d1_migrations_core"
 

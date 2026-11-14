@@ -1,24 +1,24 @@
 /**
  * 代理订阅（设计稿 v1.7）：管理操作、刷新流水线、下载 /s/<令牌>/<来源名>、命名入口 ProxyAdmin。
  * D1 用 node:sqlite 替身（_helpers.mjs），age 成品用测试自己的解密核对（手机 CMFA 同一格式，P0 真机已过）。
- * 运行：node --test tests/workers/proxy-rules/*.test.mjs
+ * 运行：node --test tests/workers/proxy/*.test.mjs
  */
 import '../account/_cf-workers.mjs';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeProxyD1, ageIdentity, ageDecrypt, DB_KEY } from './_helpers.mjs';
 
-const app = (await import('../../../workers/proxy-rules/src/app.js')).default;
-const admin = await import('../../../workers/proxy-rules/src/core/sub/admin.js');
-const { runRefresh } = await import('../../../workers/proxy-rules/src/core/sub/pipeline.js');
-const { extractProxies } = await import('../../../workers/proxy-rules/src/core/sub/parse.js');
-const { acquire } = await import('../../../workers/proxy-rules/src/core/sub/lock.js');
-const { ProxyAdmin } = await import('../../../workers/proxy-rules/src/rpc/proxy-admin.js');
-const { ProxyRefresher } = await import('../../../workers/proxy-rules/src/rpc/proxy-refresher.js');
-const { open } = await import('../../../workers/proxy-rules/src/lib/aes.js');
-const { importDbKey } = await import('../../../workers/proxy-rules/src/lib/aes.js');
+const app = (await import('../../../workers/proxy/src/app.js')).default;
+const admin = await import('../../../workers/proxy/src/core/sub/admin.js');
+const { runRefresh } = await import('../../../workers/proxy/src/core/sub/pipeline.js');
+const { extractProxies } = await import('../../../workers/proxy/src/core/sub/parse.js');
+const { acquire } = await import('../../../workers/proxy/src/core/sub/lock.js');
+const { ProxyAdmin } = await import('../../../workers/proxy/src/rpc/proxy-admin.js');
+const { ProxyRefresher } = await import('../../../workers/proxy/src/rpc/proxy-refresher.js');
+const { open } = await import('../../../workers/proxy/src/lib/aes.js');
+const { importDbKey } = await import('../../../workers/proxy/src/lib/aes.js');
 
-const BASE = 'https://proxy-rules.styrigx.com';
+const BASE = 'https://proxy.styrigx.com';
 const AIRPORT = 'https://sub.example.com/api/v1/client/subscribe?token=SECRET123';
 const yamlOf = (names) => 'port: 7890\nrules:\n  - MATCH,DIRECT\nproxy-groups: []\nproxies:\n' + names.map((n) => `  - { name: "${n}", type: ss, server: 192.0.2.1, port: 8388, cipher: aes-256-gcm, password: p }`).join('\n') + '\n';
 
@@ -197,7 +197,7 @@ test('令牌（sub v3.1）：哈希 + 封存原文同一次写；sub show 随时
 test('令牌只有哈希（封存上线前生成的）：下载照常；状态 hash-only；sub show 回 token-unsealed，换新后可重印', async () => {
   await admin.setKey(env, id.recipient);
   const old = 'o'.repeat(43);
-  const { hashToken } = await import('../../../workers/proxy-rules/src/lib/token.js');
+  const { hashToken } = await import('../../../workers/proxy/src/lib/token.js');
   env.D1_PROXY.raw.prepare("INSERT INTO meta (k, v) VALUES ('token_hash', ?)").run(await hashToken(old));
   await admin.upload(env, 'F', yamlOf(['X']));
   await runRefresh(env, { fetchFn });
@@ -376,7 +376,7 @@ test('绑了 SELF：每个源各走一次 ProxyRefresher 调用（各算各的 C
 });
 
 /* ---- v1.13 节点处理：sub map / sub fp / sub update ---- */
-const N = await import('../../../workers/proxy-rules/src/core/sub/nodes.js');
+const N = await import('../../../workers/proxy/src/core/sub/nodes.js');
 
 test('nodes：丢弃 → 去旧图标（任何位置）→ 加国旗 → 指纹 → 重名 #n；短词整词匹配；文件源不走这里', () => {
   const rules = { drop: ['剩余'], flags: [{ word: 'us', flag: '🇺🇸' }, { word: '香港', flag: '🇭🇰' }], fp: 'safari' };

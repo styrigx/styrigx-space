@@ -92,7 +92,7 @@ browser ──► styrigx.com/*            styrigx-space-core   space session, p
                                        └─ service binding → styrigx-status    monitoring and usage
         ──► styrigx.com/curio/api/*   styrigx-curio-core    Curio API (D1 + R2)
         ──► styrigx.com/daymark/api/* styrigx-daymark-core  Daymark API (D1)
-        ──► proxy-rules.styrigx.com   styrigx-proxy-rules   rule-set accelerating proxy
+        ──► proxy.styrigx.com   styrigx-proxy   rule-set accelerating proxy
 ```
 
 Request paths, Worker responsibilities, front-end / back-end layering and the boundary rules CI enforces: [System overview SGX-ARCH-001](docs/architecture/overview.md).
@@ -139,7 +139,7 @@ From the repository root:
 ```bash
 # Unit tests (Workers + main-site front end); run npm run build:css first
 node --test tests/workers/space-core/*.test.mjs tests/workers/account/*.test.mjs tests/workers/ai/*.test.mjs \
-  tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs "tests/space/ui/**/*.test.mjs"
+  tests/workers/status/*.test.mjs tests/workers/proxy/*.test.mjs "tests/space/ui/**/*.test.mjs"
 
 npm run build && npm run test:sites                                   # sub-site unit tests (build first)
 npx playwright test --config=tests/config/playwright.config.js        # main-site e2e and visual regression

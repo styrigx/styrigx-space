@@ -55,14 +55,14 @@ head_sampling_rate = 1
 [[d1_databases]]
 binding = "D1_UPTIME_MONITOR"
 database_name = "styrigx-status"
-database_id = "38719f10-fdff-43fd-bcbb-387a6b734f55"
+database_id = "ee1246de-2233-431a-8819-ba2931347a32"
 migrations_dir = "migrations"
 migrations_table = "d1_migrations_status"
 
 [[d1_databases]]
 binding = "D1_CLOUDFLARE_USAGE"
 database_name = "styrigx-status"
-database_id = "38719f10-fdff-43fd-bcbb-387a6b734f55"
+database_id = "ee1246de-2233-431a-8819-ba2931347a32"
 
 [[services]]
 binding = "AI_SERVICE"

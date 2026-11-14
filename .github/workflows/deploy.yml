@@ -63,7 +63,7 @@ jobs:
         # 先确认 node:sqlite 可用：没有它 D1 的真 SQL 测试会静默跳过
         run: |
           node -e "require('node:sqlite')" || { echo "::error::node:sqlite unavailable, D1 SQL tests would be skipped"; exit 1; }
-          node --test tests/workers/space-core/*.test.mjs tests/workers/account/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs "tests/space/ui/**/*.test.mjs"
+          node --test tests/workers/space-core/*.test.mjs tests/workers/account/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy/*.test.mjs "tests/space/ui/**/*.test.mjs"
 
   build:
     # 生产构建只做一次（2026-11 合站：主站和三个子站同一个 Hugo 站，一次构建）：打包 dry-run、生成物同步、分层 / 前端守卫、CSP、产物检查、搜索索引、子站单测、站点树检查、路由检查、stylelint。
@@ -127,9 +127,9 @@ jobs:
         working-directory: workers/status
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-status-dist
 
-      - name: Proxy rules Worker bundle check (styrigx-proxy-rules, dry-run)
-        working-directory: workers/proxy-rules
-        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-proxy-rules-dist
+      - name: Proxy rules Worker bundle check (styrigx-proxy, dry-run)
+        working-directory: workers/proxy
+        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-proxy-dist
 
       - name: Curio core Worker bundle check (styrigx-curio-core, dry-run)
         # 子站接口 Worker（2026-11-02 从 styrigx-atlas 搬来；2026-11-14 起不再部署，由 atlas-core 接替；下线前保留打包检查）
@@ -1405,9 +1405,9 @@ jobs:
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-proxy-rules-worker:
-    # 规则集反代 + 代理订阅 styrigx-proxy-rules（workers/proxy-rules）：独立部署，不等也不挡网关和 Pages。
-    # 公开地址只有自定义域名 proxy-rules.styrigx.com（wrangler.toml 的 routes，custom_domain）。
-    # token：Cloudflare 上 styrigx-proxy-rules-deploy = GitHub 环境 STYRIGX_PROXY_RULES_DEPLOY 里的同名密钥，
+    # 规则集反代 + 代理订阅 styrigx-proxy（workers/proxy）：独立部署，不等也不挡网关和 Pages。
+    # 公开地址只有自定义域名 proxy.styrigx.com（wrangler.toml 的 routes，custom_domain）。
+    # token：Cloudflare 上 styrigx-proxy-deploy = GitHub 环境 STYRIGX_PROXY_RULES_DEPLOY 里的同名密钥，
     # 权限 Workers Scripts 编辑 + D1 编辑（styrigx-proxy 迁移）+ Secrets Store 编辑（SGX_PROXY_DB_KEY 绑定）+ styrigx.com 的 Workers Routes 编辑；环境只允许 main。
     # 步骤：D1 迁移（migrations/；已迁过的跳过，失败要让 job 红）→ 记录线上版本 → 部署 → 冒烟 → 失败回滚（只回代码，不回迁移）。
     # account 的 /api/account/proxy 经服务绑定 PROXY 调本 Worker 的 ProxyAdmin；两边各自部署，本 Worker 没部署完的那一两分钟 account 回 503 upstream。
@@ -1433,7 +1433,7 @@ jobs:
         with:
           apiToken: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/proxy-rules
+          workingDirectory: workers/proxy
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: d1 migrations apply styrigx-proxy --remote
 
@@ -1442,26 +1442,26 @@ jobs:
         # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（读部署状态只要 Workers Scripts，已有）
         id: live
         continue-on-error: true
-        working-directory: workers/proxy-rules
+        working-directory: workers/proxy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
-      - name: Deploy proxy rules Worker (styrigx-proxy-rules)
+      - name: Deploy proxy rules Worker (styrigx-proxy)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/proxy-rules
+          workingDirectory: workers/proxy
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
 
-      - name: Smoke test proxy-rules.styrigx.com
+      - name: Smoke test proxy.styrigx.com
         # 只发只读请求。新域名第一次绑定要等证书签发，最多重试 12 次（约 2 分钟）。
         run: |
           set -u
-          B=https://proxy-rules.styrigx.com
+          B=https://proxy.styrigx.com
           check() { # 路径 期望状态码
             for i in $(seq 1 12); do
               code=$(curl -sS -o /dev/null -w '%{http_code}' "$B$1" || true)
@@ -1492,7 +1492,7 @@ jobs:
         # 前面任何一步失败且记到了部署前版本：线上已经不是那个版本就 wrangler rollback 回去并核对；线上没变（上传阶段就失败）什么都不做。
         # 只换代码版本：D1 迁移、KV 数据、Secrets Store、路由不回滚。job 照样红，后面依赖它的 job 不部署
         if: failure() && steps.live.outputs.version != ''
-        working-directory: workers/proxy-rules
+        working-directory: workers/proxy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -1801,7 +1801,7 @@ jobs:
     # 没有路由，不需要 Workers Routes 权限；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-ai-worker, deploy-status-worker]
+    needs: [quality, passkey-e2e, deploy-ai-worker, deploy-status-worker, deploy-proxy-rules-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_ACCOUNT_DEPLOY

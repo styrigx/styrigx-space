@@ -13,7 +13,7 @@ export async function userAgent(env, now, fetchFn = fetch) {
   if (now - checked > UA_CHECK_MS) {
     try {
       const r = await fetchFn('https://api.github.com/repos/MetaCubeX/mihomo/releases/latest', {
-        headers: { 'user-agent': 'styrigx-proxy-rules', accept: 'application/vnd.github+json' },
+        headers: { 'user-agent': 'styrigx-proxy', accept: 'application/vnd.github+json' },
         signal: AbortSignal.timeout(5000),
       });
       if (r.ok) {

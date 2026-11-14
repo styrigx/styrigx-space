@@ -82,7 +82,7 @@ test('proxy（root 档）：su root 后 status / show / rm 直接到 ProxyAdmin�
   assert.equal((await call(env, 'POST', '/api/account/proxy', { cookie: rt, body: { action: 'status' } })).status, 200);
   const show = await call(env, 'POST', '/api/account/proxy', { cookie: rt, body: { action: 'show' } });
   assert.equal(show.status, 200);
-  assert.equal(show.json.base, 'https://proxy-rules.styrigx.com/s/');
+  assert.equal(show.json.base, 'https://proxy.styrigx.com/s/');
   assert.equal((await call(env, 'POST', '/api/account/proxy', { cookie: rt, body: { action: 'add', name: 'jc', url: 'https://sub.example.com/x?token=SECRET' } })).status, 200);
   assert.equal((await call(env, 'POST', '/api/account/proxy', { cookie: rt, body: { action: 'rm', name: 'jc' } })).status, 200);
   assert.deepEqual(env.PROXY.calls.map((c) => c[0]), ['status', 'showToken', 'addAirport', 'remove']);

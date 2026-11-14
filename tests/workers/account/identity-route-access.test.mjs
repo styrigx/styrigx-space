@@ -21,7 +21,7 @@ const gw = await import(W + 'space-core/src/router.js');
 const acc = await import(W + 'account/src/router.js');
 const curio = await import(W + 'curio-core/src/routes.js');
 const daymark = await import(W + 'daymark-core/src/routes.js');
-const proxy = await import(W + 'proxy-rules/src/router.js');
+const proxy = await import(W + 'proxy/src/router.js');
 const ai = await import(W + 'ai/src/router.js');
 
 const METHODS = ['Get', 'Post', 'Put', 'Delete', 'Head', 'Patch', 'Options'];

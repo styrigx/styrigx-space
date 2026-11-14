@@ -4,7 +4,7 @@
  * 规则：
  * 1. 只认表里逐条写出的「主机 + 方法 + 路径」；不在表里的接口一律拒绝（fail closed）。页面和静态文件（不在 /api/、/<子站>/api/ 下）
  *    一律 public，不进表（同 v5 S3：整站放开）。
- * 2. 路径参数只有两种，各自精确一段：/s/:token/:source（代理订阅，两段，主机 proxy-rules.styrigx.com）、/avatar/:file。
+ * 2. 路径参数只有两种，各自精确一段：/s/:token/:source（代理订阅，两段，主机 proxy.styrigx.com）、/avatar/:file。
  *    （/s/:code 分享短链一段的那条 v6 P4 删除，两段的代理订阅不受影响。）
  * 3. 一条路由下有多个 action / op 的（POST { action }），level 是进这个接口的最低一档；某个 action 要更高的档写在 actions 里，
  *    由接口在读完 body 后按同一张表判断（levelOf(method, path, { action })）。网关 admit 只看路由这一档。
@@ -29,8 +29,8 @@ import { ACCESS_LEVELS } from './groups.js';
 
 /** 主站主机（网关、账号转发、子站接口 Worker 都在这里） */
 export const MAIN_HOST = 'styrigx.com';
-/** 代理订阅 / 规则集的主机（styrigx-proxy-rules 的自定义域名，不经网关） */
-export const PROXY_HOST = 'proxy-rules.styrigx.com';
+/** 代理订阅 / 规则集的主机（styrigx-proxy 的自定义域名，不经网关） */
+export const PROXY_HOST = 'proxy.styrigx.com';
 
 /**
  * @typedef {{ host?: string, method: string, path: string, level: string, worker: string, why: string,
@@ -66,7 +66,7 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'POST', path: '/api/account/devices', level: 'webmaster', worker: 'account', why: '设备会话（全站视图：列出全站会话，2g 按 sgx-device 合并同一台设备）',
     actions: { list: 'webmaster', revoke: 'root', 'revoke-all': 'root' },
     decided: '定稿 v5.5 §五：设备会话的列表与踢出属后台控制，root 档（站长 sudo），列表为全站视图；§七：站长打开账号页时设备卡列表直接可读，只有改动才预填 sudo（Gray 2026-11-11 19:59）→ list webmaster、revoke / revoke-all root' }),
-  R({ method: 'POST', path: '/api/account/proxy', level: 'root', worker: 'account', why: '代理订阅管理 sub（转 styrigx-proxy-rules ProxyAdmin；含令牌、age 公钥）',
+  R({ method: 'POST', path: '/api/account/proxy', level: 'root', worker: 'account', why: '代理订阅管理 sub（转 styrigx-proxy ProxyAdmin；含令牌、age 公钥）',
     actions: { status: 'root', show: 'root', token: 'root', key: 'root', add: 'root', mv: 'root', on: 'root', off: 'root', upload: 'root', rm: 'root', update: 'root', map: 'root', map_set: 'root', map_rm: 'root', map_ls: 'root', fp: 'root' },
     decided: 'Gray 2026-11-11 定 root，不加新组' }),
   R({ method: 'PUT', path: '/api/avatar', level: 'webmaster', worker: 'account', why: '换站点头像（全站一份配置，归站长 styrigx）', decided: '定稿 v5.5 §五：avatar、prefs 写入 webmaster（站长 + root）；§七：全站只有一份配置（Gray 2026-11-11 18:10–18:39）' }),
@@ -118,7 +118,7 @@ export const ROUTE_ACCESS = Object.freeze([
     decided: 'Gray 2026-11-11 定 root：删整个专题 = 结构删除' }),
   R({ method: 'GET', path: '/daymark/api/days', level: 'public', worker: 'daymark-core', why: '按日浏览' }),
 
-  /* ---------- 代理订阅 / 规则集 styrigx-proxy-rules（proxy-rules.styrigx.com，不经网关；workers/proxy-rules/src/router.js） ---------- */
+  /* ---------- 代理订阅 / 规则集 styrigx-proxy（proxy.styrigx.com，不经网关；workers/proxy/src/router.js） ---------- */
   R({ host: PROXY_HOST, method: 'GET', path: '/s/:token/:source', level: 'public', worker: 'proxy-rules', why: '代理订阅下载：令牌 + age 密文就是凭证（两段，保留）' }),
   R({ host: PROXY_HOST, method: 'HEAD', path: '/s/:token/:source', level: 'public', worker: 'proxy-rules', why: '同上' }),
   R({ host: PROXY_HOST, method: 'GET', path: '/:rules', level: 'public', worker: 'proxy-rules', why: '规则集反代（core/sources.js 白名单里的来源路径）' }),
