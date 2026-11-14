@@ -1411,11 +1411,12 @@ jobs:
     # 权限 Workers Scripts 编辑 + D1 编辑（styrigx-proxy 迁移）+ Secrets Store 编辑（SGX_PROXY_DB_KEY 绑定）+ styrigx.com 的 Workers Routes 编辑；环境只允许 main。
     # 步骤：D1 迁移（migrations/；已迁过的跳过，失败要让 job 红）→ 记录线上版本 → 部署 → 冒烟 → 失败回滚（只回代码，不回迁移）。
     # account 的 /api/account/proxy 经服务绑定 PROXY 调本 Worker 的 ProxyAdmin；两边各自部署，本 Worker 没部署完的那一两分钟 account 回 503 upstream。
-    # 排在 ai、atlas-core（2026-11-14 前是 curio-core、daymark-core）之后（2026-11-10）：免费账号整个账号只有 5 个 Cron Trigger，
-    # 那三个先部署（crons = [] 清掉自己的每小时 Cron，改由 status 调），本 Worker 的 6 小时 Cron 才有名额。
+    # 排在 ai 之后（2026-11-10）：免费账号整个账号只有 5 个 Cron Trigger，ai 先部署（crons = [] 清掉自己的每小时 Cron，改由 status 调）。
+    # 2026-11-14 起不再等 atlas-core：curio-core、daymark-core 已下线，atlas-core 线上本来就 crons = []；
+    # 反过来 account 要等本 Worker（服务绑定 PROXY → styrigx-proxy 的目标得先存在），而 atlas-core 排在 account 之后，再等它就成环。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-ai-worker, deploy-atlas-core]
+    needs: [quality, passkey-e2e, deploy-ai-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_PROXY_RULES_DEPLOY
