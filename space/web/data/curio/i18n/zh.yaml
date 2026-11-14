@@ -149,6 +149,10 @@ music:
   chooseTracks: 选音频（可多选）
   coverOptional: 封面（可选）
   lyricsLrcOptionalMatched: 歌词 .lrc（可选，按文件名对上曲目）
+  kind: 类型
+  kindAlbum: 专辑
+  kindSingle: 单曲
+  singles: 单曲
   trackOrderFollowsThe: 曲序按文件名开头的数字（01、02……）。单个音频文件不超过 95 MB，支持 mp3、m4a、aac、flac、ogg、opus、wav。封面会缩到 1600 像素。
   upload: 上传
 curioCommon:
@@ -351,3 +355,11 @@ js:
     shuffleOn: 随机播放：开
     shuffleOff: 随机播放：关
     noPermission: 当前用户没有这个权限。
+    albumName: 专辑名
+    songName: 歌名
+    uploadAlbum: 上传专辑
+    uploadSingle: 上传单曲
+    chooseOne: 选音频
+    lrcOne: 歌词 .lrc（可选）
+    needSong: 填一下歌名。
+    singleFull: 这首单曲已经有音频了。

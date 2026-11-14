@@ -5,7 +5,7 @@
 // 上限：音频单文件 95 MB（MUSIC_LIMITS.trackBytes；Workers 请求体上限 100 MB），要带 Content-Length（没有 411）；封面 3 MB。
 // 音频类型看 Content-Type（AUDIO_TYPES 白名单，回放原样带回 + nosniff）；封面看头几个字节（webp / jpeg / png）。
 // R2_MUSIC：music/<专辑>/<曲序>-<时间>.<扩展名>、music/<专辑>/cover-<时间>.<扩展名>；换封面删旧的。
-// → 曲目 {ok:true, id}；封面 {ok:true}。400 参数不对 / 不是音频图片；404 专辑不在；409 曲目满了；413 太大
+// → 曲目 {ok:true, id}；封面 {ok:true}。400 参数不对 / 不是音频图片；404 专辑不在；409 曲目满了（专辑 200 首 limit；单曲已有 1 首 single-full）；413 太大
 import { err, json, methodNotAllowed } from './_lib.js';
 import { sniffImage } from './_image.js';
 import { musicOrigin, ensureMusicSchema, MUSIC_LIMITS, AUDIO_TYPES, trackKey } from './_music.js';
@@ -34,7 +34,7 @@ export async function onRequestPost(context) {
   if (Number.isFinite(len) && len > max) return err('too-large', 413);
   const db = env.D1_MUSIC;
   await ensureMusicSchema(db);
-  const album = await db.prepare('SELECT id, cover FROM music_albums WHERE id = ?1').bind(albumId).first();
+  const album = await db.prepare('SELECT id, cover, kind FROM music_albums WHERE id = ?1').bind(albumId).first();
   if (!album) return err('not-found', 404);
   const now = Date.now();
 
@@ -61,6 +61,7 @@ export async function onRequestPost(context) {
   if (no === null || duration === null) return err('bad-params', 400);
   if (!title) return err('bad-title', 400);
   const n = await db.prepare('SELECT COUNT(*) AS n FROM music_tracks WHERE album_id = ?1').bind(albumId).first();
+  if (album.kind === 'single' && n && n.n >= 1) return err('single-full', 409);
   if (n && n.n >= MUSIC_LIMITS.tracks) return err('limit', 409);
   const key = trackKey(albumId, no, ext, now);
   try {

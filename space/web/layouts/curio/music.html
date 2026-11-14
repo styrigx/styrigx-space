@@ -11,6 +11,11 @@
 {{ partial "curio/page-head.html" (dict "page" . "id" "music" "tr" $tr "lang" $lang "grep" false "cmds" (slice (dict "id" "mu-upload" "k" "cp *.flac curio/music/ +" "d" $tr.cmd.upload))) }}
   <section id="cu-pane-music" class="cu-pane" aria-label="{{ $tr.music.music }}">
     <div id="mu-app" class="hidden">
+      {{/* 分段「专辑 · 单曲」（音乐 v1.13 ② 方案 A，Gray 2026-11-14 17:33）：两边都有才显示；哪边为空只显示有的那边。专辑 = 下面的封面横滑；单曲 = #mu-singles 列表 */}}
+      <div id="mu-seg" class="sgx-chips cu-chips mu-seg hidden" role="tablist" aria-label="{{ $tr.music.kind }}">
+        <button type="button" role="tab" class="sgx-chip" data-sec="album" aria-selected="true" aria-controls="mu-covers">{{ $tr.music.kindAlbum }}</button>
+        <button type="button" role="tab" class="sgx-chip" data-sec="single" aria-selected="false" aria-controls="mu-singles">{{ $tr.music.kindSingle }}</button>
+      </div>
       <div id="mu-covers" class="mu-covers" role="list" aria-label="{{ $tr.music.albums }}"></div>
       <div id="mu-dots" class="mu-dots" aria-hidden="true"></div>
       <div class="mu-head">
@@ -21,6 +26,7 @@
         <button id="mu-play-all" type="button" class="mu-play-all" aria-label="{{ $tr.music.playAlbum }}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg><svg class="mu-ic-lock" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
       </div>
       <ol id="mu-tracks" class="mu-tracks" aria-label="{{ $tr.music.tracks }}"></ol>
+      <ul id="mu-singles" class="mu-tracks mu-singles hidden" aria-label="{{ $tr.music.singles }}"></ul>
       <div class="mu-album-acts"><button id="mu-album-del" type="button" class="cu-btn-text mu-del-btn">{{ $tr.music.deleteAlbum }}</button></div>
       <p id="mu-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant">{{ $tr.music.noAlbumsYetTap }}</p>
     </div>
@@ -64,14 +70,19 @@
       <h2 id="mu-up-title" class="mu-up-title">{{ $tr.music.uploadAlbum2 }}</h2>
       <button id="mu-up-x" type="button" class="mu-up-x" aria-label="{{ $tr.music.close }}">{{ partial "curio/icon.html" (dict "name" "x-mark" "uid" "muu-x") }}</button>
     </div>
+    {{/* 分段「专辑 | 单曲」（默认专辑；v1.13 ②）：单曲 = 「专辑名」改「歌名」、音频 / 歌词单选、不显示曲序说明，曲名 = 歌名 */}}
+    <div id="mu-up-kind" class="sgx-chips cu-chips mu-up-kind" role="tablist" aria-label="{{ $tr.music.kind }}">
+      <button type="button" role="tab" class="sgx-chip" data-kind="album" aria-selected="true">{{ $tr.music.kindAlbum }}</button>
+      <button type="button" role="tab" class="sgx-chip" data-kind="single" aria-selected="false">{{ $tr.music.kindSingle }}</button>
+    </div>
     <form id="mu-up-form" class="mu-up-body" novalidate>
       <div class="mu-up-col">
-      <label class="cu-field"><span>{{ $tr.music.album }}</span><input id="mu-up-name" type="text" maxlength="120" autocomplete="off"></label>
+      <label class="cu-field"><span id="mu-up-name-l">{{ $tr.music.album }}</span><input id="mu-up-name" type="text" maxlength="120" autocomplete="off"></label>
       <div class="it-two">
         <label class="cu-field"><span>{{ $tr.music.artist }}</span><input id="mu-up-artist" type="text" maxlength="120" autocomplete="off"></label>
         <label class="cu-field"><span>{{ $tr.music.year }}</span><input id="mu-up-year" type="number" inputmode="numeric" min="1900" max="2100" step="1"></label>
       </div>
-      <p class="text-xs text-m-on-surface-variant">{{ $tr.music.trackOrderFollowsThe }}</p>
+      <p id="mu-up-note" class="text-xs text-m-on-surface-variant">{{ $tr.music.trackOrderFollowsThe }}</p>
       <p id="mu-up-msg" class="hidden text-sm"></p>
       </div>
       <div class="mu-up-col">

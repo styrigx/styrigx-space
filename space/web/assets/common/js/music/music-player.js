@@ -14,6 +14,9 @@
  *   - 登录过期提示：签令牌 401（没进站 / 进站过期，listen 档拒）→ 一句提示 +「登录」（发 sgx:sudo，顶栏终端预填 su ；第 7 步进 Platform 前是借 curio.js 的 SgxCurioUI.sudo，同一个事件），
  *     403 → 没有权限；都不静默卡住。页面带网关标记 data-sgx-lock-session="locked" 时一打开就提示。
  *   - 单窗口（2c）：窗口名 sgx-music-player，顶栏音乐图标（topbar/panel.js mountMusic）按这个名字找，已开就切过来不重开。
+ * 单曲（音乐 v1.13 ②，Gray 2026-11-14 17:33）：专辑列表最后多一项「单曲」（有单曲才有），选它曲目表 = 全部单曲，点一首从那首开始，
+ *   单曲区当播放列表（共用核 playQueue，按需为下一首签令牌；顺序 / 随机、到尾停同专辑）。正在播是单曲时副标题只显示歌手，不显示专辑名（#mp-album 空），
+ *   Media Session 的 album 也空；顶栏遥控（remoteState）本来就只给歌手。
  * 地址可带 ?album=<编号> 先显示那张专辑（入口 2c 用得上），没有就第一张。
  */
 (function(){
@@ -49,6 +52,17 @@ function makeTr(dict, lang){
  * on = 有一首在播或暂停着（没开播 / 放完停了是 false，遥控只显示入口）；title / artist 给遥控层画字。
  * @param {{ album: number, list: any[], i: number }} st 共用核的 state @param {boolean} playing @param {any[]} albums
  */
+/**
+ * 播放器的「专辑列表」：专辑照原顺序，有单曲时最后加一项单曲组 {singles:true, id:-1, title, items:[单曲记录], tracks:[每首单曲的那一首]}。
+ * @param {any[]} list GET /curio/api/music 的 albums（每条带 kind） @param {string} label 单曲组的名字
+ */
+function groupsOf(list, label){
+  var al = [], sg = [];
+  (list || []).forEach(function(a){ (CORE.isSingle(a) ? sg : al).push(a); });
+  sg = sg.filter(function(a){ return a.tracks && a.tracks.length; });
+  if (sg.length) al.push({ singles: true, id: -1, title: label || '', artist: '', cover: false, items: sg, tracks: sg.map(function(a){ var t = a.tracks[0]; return { id: t.id, no: 0, title: a.title, duration: t.duration }; }) });
+  return al;
+}
 function remoteState(st, playing, albums){
   var t = st && st.i >= 0 ? st.list[st.i] : null;
   var a = null;
@@ -56,7 +70,7 @@ function remoteState(st, playing, albums){
   return { type: 'player-state', on: !!t, playing: !!t && !!playing, title: t ? String(t.title || '') : '', artist: t ? String((a && a.artist) || '') : '' };
 }
 
-var pure = { albumOf: albumOf, failKind: failKind, artworkOf: artworkOf, remoteState: remoteState };
+var pure = { albumOf: albumOf, failKind: failKind, artworkOf: artworkOf, remoteState: remoteState, groupsOf: groupsOf };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxMusicPlayer = pure;
 
@@ -77,7 +91,8 @@ G.addEventListener('pagehide', function(){ try { if (!G.opener) G.name = ''; } c
 var store = null;
 try { store = G.localStorage; } catch (e) { store = null; }
 
-var albums = [], cur = 0, speed = 1, lyr = { lines: [], line: -2 };
+/* all = 接口回的全部记录（专辑 + 单曲）；albums = 列表里的项（专辑 + 末尾的单曲组，groupsOf），cur 是它的下标 */
+var all = [], albums = [], cur = 0, speed = 1, lyr = { lines: [], line: -2 };
 var audio = $('#mp-audio');
 var viewOnly = doc.documentElement.getAttribute('data-sgx-lock-session') === 'locked';
 var P = CORE.createPlayer({
@@ -104,7 +119,15 @@ function req(method, url, body){
   });
 }
 function album(){ return albums[cur] || null; }
-function albumById(id){ return albums.filter(function(a){ return a.id === id; })[0] || null; }
+function albumById(id){ return all.filter(function(a){ return a.id === id; })[0] || null; }
+/** 单曲组在列表里的下标（没有 -1） */
+function singlesIdx(){ for (var k = 0; k < albums.length; k++) if (albums[k].singles) return k; return -1; }
+/** 曲目表第 i 行是不是正在放的 */
+function isOn(a, i){
+  var st = P.state;
+  if (st.i < 0) return false;
+  return a.singles ? !!st.queue && st.album === a.items[i].id : !st.queue && st.album === a.id && st.i === i;
+}
 function coverUrl(a){ return '/curio/api/music-cover?album=' + a.id; }
 
 /* ---------- 提示（登录过期 / 没权限 / 出错） ---------- */
@@ -123,16 +146,16 @@ function renderAlbums(){
   $('#mp-albums').innerHTML = albums.map(function(a, i){
     return '<li><button type="button" class="mp-alb' + (i === cur ? ' on' : '') + '" data-a="' + i + '"' + (i === cur ? ' aria-current="true"' : '') + '>'
       + '<span class="mp-alb-im">' + (a.cover ? '<img src="' + coverUrl(a) + '" alt="" loading="lazy" decoding="async" onerror="this.remove()">' : '') + '</span>'
-      + '<span class="mp-alb-tx"><b>' + esc(a.title) + '</b><i>' + esc(a.artist || '') + '</i></span></button></li>';
+      + '<span class="mp-alb-tx"><b>' + esc(a.title) + '</b><i>' + esc(a.singles ? tr('tracks', { n: a.tracks.length }) : a.artist || '') + '</i></span></button></li>';
   }).join('');
 }
 function renderTracks(){
   var a = album();
   $('#mp-tracks-sub').textContent = a ? ' · ' + a.title + ' · ' + tr('tracks', { n: a.tracks.length }) : '';
   $('#mp-tracks').innerHTML = a ? a.tracks.map(function(t, i){
-    var on = P.state.album === a.id && P.state.i === i;
+    var on = isOn(a, i);
     return '<li><button type="button" class="mu-track' + (on ? ' on' : '') + '" data-t="' + i + '"' + (on ? ' aria-current="true"' : '') + '>'
-      + '<span class="mu-track-no">' + (t.no || i + 1) + '</span><span class="mu-track-title">' + esc(t.title) + '</span>'
+      + '<span class="mu-track-no">' + (t.no || i + 1) + '</span><span class="mu-track-title">' + esc(t.title) + (a.singles && a.items[i].artist ? ' <span class="mp-h-sub">· ' + esc(a.items[i].artist) + '</span>' : '') + '</span>'
       + '<span class="mu-track-dur">' + (t.duration ? CORE.fmtTime(t.duration) : '') + '</span></button></li>';
   }).join('') : '';
   doc.querySelectorAll('.mp-alb').forEach(function(b, i){ b.classList.toggle('on', i === cur); if (i === cur) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current'); });
@@ -149,11 +172,12 @@ function paintTrack(t, st){
   $('#mp-now-k').classList.remove('hidden');
   $('#mp-title').textContent = t.title;
   $('#mp-artist').textContent = a && a.artist || '';
-  $('#mp-album').textContent = a ? a.title : '';
+  /* 单曲：副标题只显示歌手，不显示专辑名（Gray 2026-11-14 17:33） */
+  $('#mp-album').textContent = a && !CORE.isSingle(a) ? a.title : '';
   paintCover(a);
   setLyrics(t.lrc);
   doc.title = t.title + ' | ' + baseTitle;
-  if (a) { var k = albums.indexOf(a); if (k >= 0 && k !== cur) { cur = k; } }
+  if (a) { var k = CORE.isSingle(a) ? singlesIdx() : albums.indexOf(a); if (k >= 0 && k !== cur) { cur = k; } }
   renderTracks();
   mediaMeta(t, a);
 }
@@ -172,7 +196,7 @@ function syncState(){
    单开一个频道对象：共用核那个的 onmessage 管防同时响，两边互不干扰（同一页的两个频道对象也互相收得到，核只认 type=playing） */
 var rc = null;
 try { if (typeof G.BroadcastChannel === 'function') rc = new G.BroadcastChannel(CORE.CHANNEL); } catch (e) { rc = null; }
-function tell(){ if (rc) { try { rc.postMessage(remoteState(P.state, P.playing(), albums)); } catch (e) {} } }
+function tell(){ if (rc) { try { rc.postMessage(remoteState(P.state, P.playing(), all)); } catch (e) {} } }
 if (rc) rc.onmessage = function(ev){
   var m = ev && ev.data;
   if (!m) return;
@@ -215,6 +239,7 @@ function playFrom(i){
   var a = album();
   if (!a || !a.tracks.length) return;
   if (viewOnly) { note('locked'); return; }
+  if (a.singles) { P.playQueue(a.items.map(function(x){ return x.id; }), i); return; }
   P.playFrom(a.id, i);
 }
 $('#mp-tracks').addEventListener('click', function(e){ var b = e.target.closest('[data-t]'); if (b) playFrom(Number(b.dataset.t)); });
@@ -269,7 +294,7 @@ $('#mp-albums').addEventListener('click', function(e){
 function mediaMeta(t, a){
   var ms = G.navigator && G.navigator.mediaSession;
   if (!ms || typeof G.MediaMetadata !== 'function') return;
-  try { ms.metadata = new G.MediaMetadata({ title: t.title, artist: a && a.artist || '', album: a ? a.title : '', artwork: artworkOf(a) }); } catch (e) {}
+  try { ms.metadata = new G.MediaMetadata({ title: t.title, artist: a && a.artist || '', album: a && !CORE.isSingle(a) ? a.title : '', artwork: artworkOf(a) }); } catch (e) {}
 }
 function mediaPos(){
   var ms = G.navigator && G.navigator.mediaSession;
@@ -298,10 +323,12 @@ G.addEventListener('storage', function(e){
 syncVol();
 function done(){ doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); }); }
 req('GET', '/curio/api/music').then(function(j){
-  albums = j.albums || [];
+  all = j.albums || [];
+  albums = groupsOf(all, tr('singles'));
   done();
   if (!albums.length) { var em = $('#mp-empty'); em.textContent = tr('empty'); em.classList.remove('hidden'); return; }
   var want = albumOf(G.location.search), k = albums.map(function(a){ return a.id; }).indexOf(want);
+  if (k < 0 && want && CORE.isSingle(albumById(want))) k = singlesIdx();
   cur = k < 0 ? 0 : k;
   $('#mp-app').classList.remove('hidden');
   renderAlbums(); renderTracks();

@@ -209,6 +209,22 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 :root[data-sgx-layout="desktop"] .mu-up-col > .cu-file { flex: 1 1 0; display: flex; align-items: center; justify-content: center; }
 :root[data-sgx-layout="desktop"] .mu-up-foot { display: flex; justify-content: flex-end; padding: 12px 24px 14px; }
 :root[data-sgx-layout="desktop"] .mu-up-go { width: auto; min-width: 160px; padding: 0 24px; }
+/* 上传窗分段「专辑 | 单曲」（v1.13 ②）：头部细线下一行，共享 .sgx-chip（选中同 .cu-chips aria-selected） */
+.mu-up-kind { flex: none; margin: 0; padding: 12px 16px 0; }
+:root[data-sgx-layout="desktop"] .mu-up-kind { padding: 18px 24px 0; }
+.mu-up-kind.hidden, .mu-seg.hidden { display: none; }
+/* 音乐页分段「专辑 · 单曲」（方案 A，Gray 2026-11-14 17:33）：封面横滑上方；单曲 = 列表（小封面 · 歌名 · 歌手 · 时长），外框同曲目表 .mu-tracks */
+.mu-seg { justify-content: center; margin: 4px 0 14px; }
+.mu-single { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 8px 16px 8px 10px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.mu-singles li + li .mu-single { border-top: 1px solid var(--sgx-divider); }
+.mu-single-im { position: relative; flex: none; width: 46px; height: 46px; border-radius: 10px; overflow: hidden; background: var(--sgx-surface-container-high, var(--sgx-surface-container)); color: var(--sgx-text-tertiary); }
+.mu-single-im img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+.mu-single-im .mu-cover-ph svg { width: 22px; height: 22px; }
+.mu-single-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mu-single-tx b { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-single-tx i { font-style: normal; font-size: 13px; color: var(--sgx-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-single.on .mu-single-tx b { color: var(--sgx-primary); font-weight: 700; }
+.mu-single:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 /* 标题栏 = 终端窗口标题栏：左三点，中间等宽小标题，右关闭 */
 .bk-titlebar { position: relative; display: grid; grid-template-columns: 64px 1fr 64px; align-items: center; height: 44px; flex-shrink: 0; margin-bottom: 14px; padding: 0 6px 0 14px;
   border-bottom: 1px solid var(--sgx-term-line); background: var(--sgx-surface-container-low); border-radius: 14px 14px 0 0; }

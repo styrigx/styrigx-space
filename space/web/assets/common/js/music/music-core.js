@@ -10,6 +10,9 @@
  *   - 播放模式（2b，方案 v1.13 §7.1 / §7.2）：顺序 / 随机。随机 = 专辑内把曲序打乱成一个队列（不重复、当前这首排第一），
  *     放完一轮重新打乱、新一轮第一首避开刚放完的那首；切回顺序从正在播的这首按曲序往下。默认顺序；调用方按本地设置 setShuffle。
  *     模式记在 localStorage「sgx-music-mode」（readMode / saveMode），奇趣页和弹出播放器共用这一个设置。
+ *   - 单曲区当播放列表（音乐 v1.13 ②，Gray 2026-11-14 17:33）：playQueue(专辑 id 列表, i)——每首单曲是一条 kind=single 的记录，令牌仍按记录签；
+ *     列表里每一首各记各的令牌和过期时间，切到哪首才按需签哪首（同一个 sign / POST /curio/api/music-play）。顺序 / 随机、到尾停、续签都和专辑同一套。
+ *     state.album 始终是正在放的那条记录（单曲时 = 这首单曲的记录 id），state.queue 不为空 = 单曲列表模式。
  * 只管声音和状态，不画界面：画什么由调用方的 onTrack / onChange / onStop 决定。
  */
 (function(){
@@ -46,6 +49,13 @@ function shuffleOrder(n, first, avoid, rand){
   else if (avoid >= 0 && n > 1 && a[0] === avoid) { var k = 1 + Math.floor(r() * (n - 1)); a[0] = a[k]; a[k] = avoid; }
   return a;
 }
+/** 记录是不是单曲（GET /curio/api/music 每条带 kind，v1.13 ②） */
+function isSingle(a){ return !!a && a.kind === 'single'; }
+/**
+ * 正在播的副标题（奇趣音乐页播放条、弹出播放器、顶栏遥控一个规矩；Gray 2026-11-14 17:33）：
+ * 专辑「专辑名 · 歌手」；单曲只显示歌手，不显示专辑名（单曲的记录标题就是歌名，已经在标题里）。
+ */
+function nowSub(a){ if (!a) return ''; return isSingle(a) ? String(a.artist || '') : [a.title, a.artist].filter(Boolean).join(' · '); }
 /** 秒 → m:ss（≥ 1 小时 h:mm:ss） */
 function fmtTime(s){
   s = Math.max(0, Math.floor(Number(s) || 0));
@@ -89,7 +99,7 @@ function createPlayer(o){
   var audio = o.audio;
   var now = o.now || function(){ return Date.now(); };
   var id = Math.random().toString(36).slice(2) + now().toString(36);
-  var st = { album: 0, list: [], i: -1, expires: 0, retried: false, speed: 1, shuffle: false, order: [] };
+  var st = { album: 0, list: [], i: -1, expires: 0, retried: false, speed: 1, shuffle: false, order: [], queue: null, exp: [] };
   var rand = o.random || Math.random;
   /** 放的顺序（曲目下标）：顺序 = 0..n-1；随机 = 打乱、first 排第一 */
   function makeOrder(first, avoid){
@@ -105,15 +115,31 @@ function createPlayer(o){
   function playing(){ return !audio.paused && !audio.ended; }
 
   function session(albumId){
-    if (st.album === albumId && st.list.length && now() < st.expires - RENEW_MS) return Promise.resolve();
+    if (!st.queue && st.album === albumId && st.list.length && now() < st.expires - RENEW_MS) return Promise.resolve();
     return o.sign(albumId).then(function(j){
+      st.queue = null; st.exp = [];
       st.album = albumId; st.list = (j && j.tracks) || []; st.expires = now() + ((j && j.ttl) || 600000);
     });
   }
+  /** 单曲列表模式：第 i 首的令牌还够用就不签，否则签它那条记录（单曲只有 1 首，取 tracks[0]） */
+  function ensureItem(i){
+    var t = st.list[i];
+    if (t && t.src && now() < (st.exp[i] || 0) - RENEW_MS) return Promise.resolve();
+    var q = st.queue;
+    return o.sign(q[i]).then(function(j){
+      var x = j && j.tracks && j.tracks[0];
+      if (!x) throw Object.assign(new Error('empty'), { code: 'empty' });
+      if (st.queue !== q) return;
+      st.list[i] = x; st.exp[i] = now() + ((j && j.ttl) || 600000);
+    });
+  }
+  /** 放第 i 首前确保令牌：专辑模式 = 整张专辑一枚；单曲列表 = 这一首自己的 */
+  function ready(i){ return st.queue ? ensureItem(i) : session(st.album); }
   function start(i, at){
     var t = st.list[i];
-    if (!t) { stop(); return; }
+    if (!t || !t.src) { stop(); return; }
     st.i = i; st.retried = false;
+    if (st.queue) st.album = st.queue[i];
     audio.src = t.src;
     audio.defaultPlaybackRate = st.speed; audio.playbackRate = st.speed;
     if (at) audio.currentTime = at;
@@ -125,6 +151,17 @@ function createPlayer(o){
   function playFrom(albumId, i){
     return session(albumId).then(function(){ st.order = makeOrder(i, -1); start(i, 0); }).catch(function(e){ fire('onError', e, 'play'); });
   }
+  /**
+   * 单曲列表：ids = 单曲记录 id（按列表顺序），从第 i 首开始放。列表和上次一样就留着已签的令牌。
+   * @param {number[]} ids @param {number} i
+   */
+  function playQueue(ids, i){
+    ids = (ids || []).slice();
+    var same = st.queue && st.queue.length === ids.length && st.queue.every(function(x, k){ return x === ids[k]; });
+    if (!same) { st.queue = ids; st.list = ids.map(function(){ return null; }); st.exp = []; st.expires = 0; }
+    if (!(i >= 0 && i < ids.length)) return Promise.resolve();
+    return ensureItem(i).then(function(){ st.order = makeOrder(i, -1); start(i, 0); }).catch(function(e){ fire('onError', e, 'play'); });
+  }
   /** 按放的顺序走 d 步（上一首 -1 / 下一首 +1）；到头：顺序不动，随机的「下一首」重新打乱接着放（ended 也走这里） */
   function step(d){
     if (st.i < 0) return Promise.resolve();
@@ -133,7 +170,7 @@ function createPlayer(o){
     if (p >= 0 && p < st.order.length) j = st.order[p];
     else if (d > 0 && st.shuffle && st.list.length) { st.order = makeOrder(-1, st.i); j = st.order[0]; }
     else return Promise.resolve();
-    return session(st.album).then(function(){ start(j, 0); }).catch(function(e){ fire('onError', e, 'step'); });
+    return ready(j).then(function(){ start(j, 0); }).catch(function(e){ fire('onError', e, 'step'); });
   }
   /** 切播放模式：随机 = 以正在播的这首为第一首重新打乱；顺序 = 从正在播的这首按曲序往下 */
   function setShuffle(on){
@@ -153,7 +190,7 @@ function createPlayer(o){
   /** 清空（专辑被删 / 切到只看模式）：停声、去掉地址、忘掉令牌 */
   function reset(){
     audio.pause(); audio.removeAttribute('src');
-    st.album = 0; st.list = []; st.i = -1; st.expires = 0; st.retried = false; st.order = [];
+    st.album = 0; st.list = []; st.i = -1; st.expires = 0; st.retried = false; st.order = []; st.queue = null; st.exp = [];
     fire('onStop', st);
   }
   function setSpeed(s){ st.speed = s; audio.defaultPlaybackRate = s; audio.playbackRate = s; }
@@ -169,8 +206,8 @@ function createPlayer(o){
   audio.addEventListener('error', function(){
     if (st.i < 0 || st.retried) return;
     var at = audio.currentTime || 0, i = st.i;
-    st.expires = 0;
-    session(st.album).then(function(){ start(i, at); st.retried = true; }).catch(function(e){ fire('onError', e, 'retry'); });
+    if (st.queue) st.exp[i] = 0; else st.expires = 0;
+    ready(i).then(function(){ start(i, at); st.retried = true; }).catch(function(e){ fire('onError', e, 'retry'); });
   });
   /* 防同时响：别的页开播了，这边暂停 */
   if (ch) ch.onmessage = function(ev){
@@ -180,12 +217,12 @@ function createPlayer(o){
 
   return {
     state: st, id: id,
-    session: session, start: start, playFrom: playFrom, step: step, prev: prev, next: next,
+    session: session, start: start, playFrom: playFrom, playQueue: playQueue, step: step, prev: prev, next: next,
     toggle: toggle, stop: stop, reset: reset, setSpeed: setSpeed, setShuffle: setShuffle, playing: playing,
   };
 }
 
-var api = { SPEEDS: SPEEDS, PLAYER_SPEEDS: PLAYER_SPEEDS, MODE_KEY: MODE_KEY, readMode: readMode, saveMode: saveMode, shuffleOrder: shuffleOrder, CHANNEL: CHANNEL, RENEW_MS: RENEW_MS, nextSpeed: nextSpeed, fmtTime: fmtTime, parseLrc: parseLrc, lrcIndex: lrcIndex, createPlayer: createPlayer };
+var api = { isSingle: isSingle, nowSub: nowSub, SPEEDS: SPEEDS, PLAYER_SPEEDS: PLAYER_SPEEDS, MODE_KEY: MODE_KEY, readMode: readMode, saveMode: saveMode, shuffleOrder: shuffleOrder, CHANNEL: CHANNEL, RENEW_MS: RENEW_MS, nextSpeed: nextSpeed, fmtTime: fmtTime, parseLrc: parseLrc, lrcIndex: lrcIndex, createPlayer: createPlayer };
 if (typeof module !== 'undefined' && module.exports) { module.exports = api; return; }
 G.SgxMusicCore = api;
 })();
