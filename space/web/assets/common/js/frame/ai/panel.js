@@ -197,16 +197,19 @@ export function clearModel(store) {
 export function isBadModel(status, j) {
   return status === 400 && !!j && j.error === 'bad_model';
 }
-/** 网关 / 服务端错误 → 文案键 @param {number} status @param {any} j */
+/** 网关 / 服务端错误 → 文案键 @param {number} status @param {any} j
+ *  流里的 event: error 只带 code（workers/ai ask.js：daily_limit / rate_limited / model_unavailable / upstream），
+ *  不带 error；两个字段都认（#347 偏离 R-20：daily_limit 以前落到通用失败文案）。 */
 export function errKey(status, j) {
-  const e = j && typeof j.error === 'string' ? j.error : '';
+  const e = j && typeof j.error === 'string' ? j.error : j && typeof j.code === 'string' ? j.code : '';
   if (status === 401) return 'unauthorized';
   /* 2b：有 v6 身份但不在 ai 组（网关 403 forbidden）：不是「没登录」，不上锁、不预填 su */
   if (status === 403 && e === 'forbidden') return 'forbidden';
   if (status === 429) return e === 'busy' ? 'busy' : 'cooldown';
   if (status === 400 && e === 'too-long') return 'tooLong';
   if (status === 413) return 'tooLong';
-  if (e === 'quota') return 'quota';
+  if (e === 'quota' || e === 'daily_limit') return 'quota';
+  if (e === 'rate_limited') return 'busy';
   return 'fail';
 }
 

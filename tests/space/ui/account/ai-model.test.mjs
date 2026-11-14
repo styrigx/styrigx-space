@@ -77,3 +77,12 @@ test('2026-11-08 Gray 04:45：账号页 / 账号下拉都没有 AI 模型行，a
   assert.doesNotMatch(rd('space/web/assets/common/js/frame/topbar/panel.js'), /val\('ai'/);
   assert.match(tb, /data-ai-model aria-expanded="false" aria-controls="sgx-ai-models"/);
 });
+
+test('R-20：流里 event: error 的 code → 文案键（daily_limit → quota，rate_limited → busy，其余 → fail）', () => {
+  assert.equal(AP.errKey(0, { code: 'daily_limit' }), 'quota');
+  assert.equal(AP.errKey(0, { code: 'rate_limited' }), 'busy');
+  assert.equal(AP.errKey(0, { code: 'model_unavailable' }), 'fail');
+  assert.equal(AP.errKey(0, { code: 'upstream' }), 'fail');
+  assert.equal(AP.errKey(0, { error: 'quota' }), 'quota');
+  assert.equal(AP.errKey(0, null), 'fail');
+});
