@@ -1,7 +1,5 @@
 # 术语表
 
-> 已被 v6 定稿取代（见 `docs/decisions/ADR-0006-identity-v6.md`）。
-
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-DOC-001 |

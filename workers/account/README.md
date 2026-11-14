@@ -1,7 +1,5 @@
 # styrigx-account
 
-> 已被 v6 定稿取代（见 `docs/decisions/ADR-0006-identity-v6.md`）。
-
 ## 职责
 
 账号 Worker：主人账号的完整账号系统。账号身份（账号密码、账号通行密钥、恢复密钥、已登录设备、session / reauth / reset 三张票、审计）和账号名下的数据（头像、个人资料、设置云同步）都在这里；网关 `styrigx-space-core` 里没有任何账号鉴权代码。本 Worker 不调网关、不绑任何锁屏数据或钥匙（没有 `[[services]]`）。
