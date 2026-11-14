@@ -40,7 +40,7 @@ const TEXT_MAX = 2000;
 /* KV 单值上限 25 MiB；留余量，超了就去掉 text（标题、副标题还能搜） */
 const VALUE_MAX = 24 * 1024 * 1024;
 
-/* 页签名、设备类型、游戏状态：和页面上一样（字符串表 atlas/web/curio/data/i18n/<语言>.yaml 的 entries / js.curioItems）。
+/* 页签名、设备类型、游戏状态：和页面上一样（字符串表 space/web/data/curio/i18n/<语言>.yaml 的 entries / js.curioItems）。
    语言包化第二部分（2026-11-07）：英文是底（EN），其他语言是覆盖层（LAYERS），缺的键回退英文；加语言 = LAYERS 加一份 */
 const EN = {
   finds: 'Finds', devices: 'Devices', games: 'Games', movies: 'Movies', music: 'Music', rating: 'Rating', watched: 'Watched', artist: 'Artist', director: 'Director', original: 'Original title',
@@ -68,7 +68,7 @@ export function labels(lang) {
     kinds: Object.assign({}, EN.kinds, o.kinds), status: Object.assign({}, EN.status, o.status),
   };
 }
-/** 本站语言（同 atlas/web/curio/hugo.yaml languages）；默认语言英文，不带前缀。加语言：这里加一项 + 字符串表（索引里的条目顺序沿用 zh、en） */
+/** 本站语言（同 space/web/hugo.yaml languages）；默认语言英文，不带前缀。加语言：这里加一项 + 字符串表（索引里的条目顺序沿用 zh、en） */
 export const LANGS = Object.freeze(['zh', 'en']);
 export const DEFAULT_LANG = 'en';
 

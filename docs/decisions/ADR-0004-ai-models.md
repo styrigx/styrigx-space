@@ -33,6 +33,8 @@
 
 2.7 **谁能选模型**：只有带账号结论头 `X-Styrigx-Account-Session: 1` 的请求，`body.model` 才生效；只进站、未登录账号的请求一律用默认模型。
 
+2.8 **响应头 `X-Styrigx-AI-Model` 是选中的模型**：在开流前就定下，流中途因 429 换到 Flash-Lite 时响应头仍是选中的那条（例如 3.8 Flash），不反映实际用的模型。按现状追认（#300–#400 偏离收尾定稿 v3.2 R-21，2026-11-14）。
+
 2.8 Worker placement 固定在美国区（`gcp:us-east4`），避免 Gemini「User location is not supported」。
 
 ## 3. 实施记录

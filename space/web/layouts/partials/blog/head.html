@@ -15,7 +15,7 @@
 <meta name="theme-color" content="{{ .tokens.background }}">
 {{- end }}{{ end }}
 {{ partial "blog/sgx-inherit.html" (dict "alt" .alt) }}
-{{- /* 布局模式：共享外壳 layout-mode.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，四站同一条规则 __sgxLayout()（手机 / 桌面，P4-3 PR-4b）；
+{{- /* 布局模式：共享外壳 layout-mode.js（assets/common/js/，四站同一份，勿另抄）原样内联，四站同一条规则 __sgxLayout()（手机 / 桌面，P4-3 PR-4b）；
    结果写 <html data-sgx-layout>（外壳按它定顶栏宽）和 layout-mobile / layout-dex 类（博客没有自己的布局开关，快捷面板布局行改了偏好就调 __applyLayout） */}}
 <script>{{ (resources.Get "common/js/ui/layout-mode.js" | minify).Content | safeJS }}</script>
 <script>
