@@ -179,7 +179,7 @@ palette-scheme.js
 | 状态层 | `state-color`（已解析成颜色）、`state-hover` / `-focus` / `-pressed` / `-selected` / `-dragged`（不透明度） |
 | 固定状态色 | `danger` / `success` / `warning` / `info` 各四个（本色、`on-*`、`*-container`、`on-*-container`） |
 | 图表 | `chart-1..6` |
-| 功能 | `night-card` / `on-night-card`、`lock-*`、`daymark-*` |
+| 功能 | `lock-*`、`daymark-*` |
 
 单测覆盖每一个导出的可读组合：审计表（on 色 / 容器字 / 正文 / 链接 / 控件）、合成玻璃、焦点环、图表、固定状态色、`fg-N-on` / `fg-N`、`fg-N-ink` 在 tint 和所有表面上。
 

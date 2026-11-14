@@ -142,7 +142,7 @@ test('palette-list.json：22 套七色调色板（每项带 group / bg / 6 前�
       for (let i = 1; i <= 6; i++) assert.equal(t['chart-' + i], ROLES.presets[x.id].roles['chart-' + i], `${x.id} ${m} chart-${i}`);
       // 完整导出：填充档、固定状态色、焦点环、状态层、前景四档都在
       for (const k of ['primary-fill', 'on-primary-fill', 'focus-ring', 'danger', 'on-danger-container', 'success', 'success-container', 'warning', 'on-warning',
-        'warning-container', 'info', 'on-info-container', 'state-color', 'state-hover', 'state-pressed', 'fg-1-on', 'fg-6-on', 'night-card', 'switch-track-on'])
+        'warning-container', 'info', 'on-info-container', 'state-color', 'state-hover', 'state-pressed', 'fg-1-on', 'fg-6-on', 'switch-track-on'])
         assert.ok(t[k] !== undefined && t[k] !== '', `${x.id} ${m} ${k}`);
       // tokens.css 里同名变量同值
       assert.ok(files['tokens.css'].includes(`--sgx-bg-1: ${t['bg-1']};`), `${x.id} ${m} bg-1 in tokens.css`);

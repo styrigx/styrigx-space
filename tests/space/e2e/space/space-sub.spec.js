@@ -235,18 +235,19 @@ test.describe('unlock methods entry relocation', () => {
     await expect(pg.locator('#sgx-unlock-link')).toHaveCount(0);
   });
 
-  test('进站 v3 L1：安全页三页删除——静态站里没有页面，_redirects 301 到盾牌 /#sec / #sec=keys / #sec=tempkeys（中英）', async ({ page: pg }) => {
+  test('进站 v3 L1：安全页删除——静态站里没有页面，_redirects 301 到盾牌 /#sec / #sec=keys（中英）；tempkeys 的 301 已删（R-29）', async ({ page: pg }) => {
     const fs = require('fs');
     const path = require('path');
     const rd = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'static', '_redirects'), 'utf8');
     for (const pre of ['', '/zh']) {
-      for (const [from, hash] of [['/security/', '#sec'], ['/security/lock/', '#sec=keys'], ['/security/tempkeys/', '#sec=tempkeys']]) {
+      for (const [from, hash] of [['/security/', '#sec'], ['/security/lock/', '#sec=keys']]) {
         const esc = (x) => x.replace(/[/.#=]/g, (c) => '\\' + c);
         expect(rd, pre + from).toMatch(new RegExp('^' + esc(pre + from) + '\\s+' + esc(pre + '/' + hash) + '\\s+301$', 'm'));
         const r = await pg.request.get(pre + from + 'index.html', { maxRedirects: 0 });
         expect(r.status(), pre + from + 'index.html').toBe(404);
       }
     }
+    expect(rd).not.toMatch(/tempkeys/);
   });
 });
 

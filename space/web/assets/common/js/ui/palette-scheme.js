@@ -226,16 +226,7 @@ function build(spec, mode) {
   r['link'] = oklch(t.link, D ? Math.min(aC * 0.8, 0.13) : Math.max(aC, 0.02), aH);
   r['link-visited'] = oklch(t.linkVisited, D ? Math.min(Te.c * 0.8, 0.12) : Te.c, wrap((accent === 'tertiary' ? P.h : Te.h)));
   }
-  // 首页夜间时钟卡（特殊功能卡，2026-10-23 PR-G 修订）：不再是整块饱和深色（芥末主色压深后整块发棕），改成克制的局部撞色——
-  // spec.night 指定色族（默认 t = 第三色）的浅底（亮 L 0.905 / 暗 L 0.30，低彩度），CSS 里按材质的 88% 不透明铺；
-  // 字 = 同色相深墨 / 浅色（on-night-card ≥ 7:1，单测核对）
-  { const nk = spec.night || 't', F = nk === 'p' ? { h: pH, c: P.c } : nk === 't' ? Te : S;
-    r['night-card'] = oklch(D ? 0.30 : 0.905, Math.min(F.c * (D ? 0.45 : 0.35), D ? 0.05 : 0.045), F.h);
-    r['on-night-card'] = oklch(D ? 0.93 : 0.27, Math.min(F.c * 0.5, 0.07), F.h); }
-  // 七色（v4）表面比旧阶梯亮：深套夜间卡和 surface 至少拉开 1.25:1，不够就同色相往亮挪（字随后由审计保证 ≥ 7:1）
-  if (D && SV) { const o = hexToOklch(r['night-card']); let L = o.l;
-    for (let i = 0; i < 40 && contrast(r['night-card'], r['surface']) < 1.25; i++) { L += 0.005; r['night-card'] = oklch(L, Math.min(o.c, 0.05), o.h); } }
-  if (pin && pin.roles) Object.assign(r, pin.roles); // 后面才算的角色（night-card 等）也按钉死值
+  if (pin && pin.roles) Object.assign(r, pin.roles); // 后面才算的角色也按钉死值
   Object.defineProperty(r, '__dark', { value: D, enumerable: false });
   applyAliases(r, spec);
   return r;
@@ -338,7 +329,6 @@ function checks() {
   c.push(['switch-thumb-on', 'switch-track-on', 3, 'ui']);
   c.push(['switch-thumb-off', 'switch-track-off', 3, 'ui']);
   c.push(['slider-thumb', 'slider-inactive', 3, 'ui']);
-  c.push(['on-night-card', 'night-card', 7, 'text']);
   c.push(['on-chip-selected', 'chip-selected', 4.5, 'text']);
   c.push(['on-nav-selected', 'nav-selected', 4.5, 'text']);
   c.push(['on-fab', 'fab', 4.5, 'text']);
@@ -542,7 +532,7 @@ const DEFAULT_ID = 'terra';
 /* 设计稿钉死的取值（2026-11 UI 重设计对齐 PR-A，设计稿 tb4.html 的 :root 变量；Gray 10:43「照稿」）：
    默认色板 terra 的深色档 = 稿的暖黑底 #161412 / 卡 #1d1b19 / 线 #2c2825、文字 #ece6dc / #8f877d / #5e5851、强调赤陶 #de7a58。
    只钉这几项（其余角色照公式），钉完照常过对比度审计：稿的 --dim #5e5851 在底上不到 4.5:1，审计会把 text-tertiary 提亮到刚好够（可读性底线优先）。
-   night-card 见下面注释。n = 深色中性色相 / 彩度（稿的灰带一点暖：h 67.5、C 0.005），没钉的表面（container / highest 等）也跟着同一色相。
+   n = 深色中性色相 / 彩度（稿的灰带一点暖：h 67.5、C 0.005），没钉的表面（container / highest 等）也跟着同一色相。
    tones = 色调 token：bg-1 页面底、fg-1 前景 1（= primary-fill，保持「填充 = 前景 1 本色」）。 */
 const PINS = {
   terra: {
@@ -552,8 +542,6 @@ const PINS = {
         primary: '#de7a58', 'primary-fill': '#de7a58',
         // 七色（2026-11-12）：底 #161412 / 面 #1d1b19 / 字 #ece6dc 走 seven（见 PRESETS），容器阶梯由底→字混出，不再逐个钉
         'outline-variant': '#2c2825', 'text-primary': '#ece6dc', 'text-secondary': '#8f877d', 'text-tertiary': '#5e5851',
-        // 首页夜间时钟卡：卡面 #1d1b19 比公式的 surface 亮，公式值 #42232e 对卡面不到 1.25:1，这里同色相提一档
-        'night-card': '#472932',
       },
       tones: { 'bg-1': '#161412', 'fg-1': '#de7a58' },
     },
@@ -573,7 +561,7 @@ function themeSpec(th) {
     pc: { h: f1.h, c: Math.min(Math.min(f1.c, 0.17) * 0.35, 0.05) }, // 选中底 = 前景 1 的 tint 档
     s: cap(f2), t: cap(f3), n, d: { h: 27, c: 0.19 },
     blobs: [{ h: B.h, c: Math.min(bc * 0.3, 0.045) }, { h: B.h, c: Math.min(bc * 0.25, 0.04) }, { h: B.h, c: Math.min(bc * 0.2, 0.035) }],
-    accent: 'primary', night: 't',
+    accent: 'primary',
     state: th.group === 'neutral' ? MONO : th.group === 'warm' ? WARM : STD,
   };
 }

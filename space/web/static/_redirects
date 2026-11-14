@@ -30,7 +30,5 @@
 /zh/account/sync/  /zh/#acct  301
 /security/  /#sec  301
 /security/lock/  /#sec=keys  301
-/security/tempkeys/  /#sec=tempkeys  301
 /zh/security/  /zh/#sec  301
 /zh/security/lock/  /zh/#sec=keys  301
-/zh/security/tempkeys/  /zh/#sec=tempkeys  301
