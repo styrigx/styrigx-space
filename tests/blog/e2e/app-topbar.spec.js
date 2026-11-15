@@ -147,11 +147,13 @@ test.describe('博客首页（对齐 PR-C，设计稿 pg=blog）：一页文章�
     await expect(page.locator('[data-pg-less]')).toHaveText('-- less (2/3) --');
   });
 
-  test('chips 就地筛选（R-08：分类 = tech / muse / devices / life，chips 固定「全部 / 技术 / Muse / 设备 / 生活」）：点分类 → 只剩该分类的文章、chip 主题色当前项、地址 ?cat=；点「全部」回来；行里的 #分类 同样筛选', async ({ page }) => {
+  test('chips 就地筛选（R-08：分类 = tech / muse / devices / life，chips 按稿的顺序、空分类先藏（Gray 2026-11-15）→ 现在是「全部 / 技术 / Muse」）：点分类 → 只剩该分类的文章、chip 主题色当前项、地址 ?cat=；点「全部」回来；行里的 #分类 同样筛选', async ({ page }) => {
     await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
     await listReady(page);
-    await expect(page.locator('.blog-chips [data-chip]')).toHaveText([/^全部 \d+$/, /^技术 \d+$/, /^Muse \d+$/, /^设备 \d+$/, /^生活 \d+$/]);
-    expect(await page.locator('.blog-chips [data-chip]:not([data-chip=""])').evaluateAll((els) => els.map((e) => e.getAttribute('data-chip')))).toEqual(['tech', 'muse', 'devices', 'life']);
+    await expect(page.locator('.blog-chips [data-chip]')).toHaveText([/^全部 \d+$/, /^技术 \d+$/, /^Muse \d+$/]);
+    expect(await page.locator('.blog-chips [data-chip]:not([data-chip=""])').evaluateAll((els) => els.map((e) => e.getAttribute('data-chip')))).toEqual(['tech', 'muse']);
+    /* 每个 chip 的篇数都 > 0 */
+    for (const t of await page.locator('.blog-chips [data-chip] i').allTextContents()) expect(Number(t.trim())).toBeGreaterThan(0);
     const chip = page.locator('.blog-chips [data-chip]:not([data-chip=""])').first();
     const n = Number(((await chip.locator('i').textContent()) || '0').trim());
     const slug = await chip.getAttribute('data-chip');
@@ -165,6 +167,17 @@ test.describe('博客首页（对齐 PR-C，设计稿 pg=blog）：一页文章�
     await page.locator('[data-post] .sgx-pl-tg[href*="?cat="]').first().click();
     await expect(page).toHaveURL(/\/blog\/zh\/\?cat=/);
     await expect(page.locator('[data-post]:visible')).not.toHaveCount(0);
+  });
+
+  test('空分类（没有 chip）：?cat=devices 不跳回全部，一行提示「筛选：设备 · 0 篇 清除」，列表为空', async ({ page }) => {
+    await page.goto('/blog/zh/?cat=devices', { waitUntil: 'domcontentloaded' });
+    await listReady(page);
+    await expect(page).toHaveURL(/\?cat=devices$/);
+    await expect(page.locator('[data-blog-filter-note]')).toBeVisible();
+    await expect(page.locator('[data-filter-text]')).toHaveText('筛选：设备 · 0 篇');
+    await expect(page.locator('[data-post]:visible')).toHaveCount(0);
+    await page.locator('[data-blog-filter-note] a').click();
+    await expect(page).toHaveURL(/\/blog\/zh\/$/);
   });
 
   test('不在 chips 里的标签（目录页 / 文章页的 #标签 链接）：一行筛选提示「筛选：#标签 · n 篇 清除」', async ({ page }) => {

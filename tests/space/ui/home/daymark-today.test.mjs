@@ -54,7 +54,7 @@ test('paintDaymark：有句子 → 正文 / 译文 / 出处 / 日期画进槽位
   assert.equal(slots.trans.textContent, 'Become who you are.');
   assert.equal(slots.trans.classList.contains('hidden'), false);
   assert.equal(slots.by.textContent, '— 尼采《快乐的科学》');
-  assert.equal(slots.day.textContent, '10月21日');
+  assert.equal(slots.day.textContent, '2026-10-21', 'R-05：日期按设计稿写 YYYY-MM-DD');
   assert.equal(slots.body.classList.contains('hidden'), false);
   assert.equal(slots.empty.classList.contains('hidden'), true);
   assert.equal(root.classList.contains('hidden'), false);
@@ -83,7 +83,10 @@ test('模板：主页 #w-daymark 有同一套 data-dm 槽位（day / body / text
   const idx = readFileSync(new URL('../../../../space/web/layouts/index.html', import.meta.url), 'utf8');
   const blk = (idx.match(/<a id="w-daymark"[\s\S]*?<\/a>/) || [''])[0];
   assert.ok(blk, '#w-daymark');
-  for (const k of ['day', 'body', 'text', 'trans', 'by', 'empty']) assert.match(blk, new RegExp('data-dm="' + k + '"'), k);
+  for (const k of ['day', 'body', 'text', 'trans', 'by', 'empty', 'counts']) assert.match(blk, new RegExp('data-dm="' + k + '"'), k);
   assert.match(blk, /tapToKeepOne/);
+  /* R-05：第二行「余响 · 日期」+ 计数槽默认 hidden */
+  assert.match(blk, /\$tr\.index\.dmWindow/);
+  assert.match(blk, /<span data-dm="counts" hidden><\/span>/);
   assert.doesNotMatch(blk, /dm-w-/, '旧大引号卡片样式不再用');
 });

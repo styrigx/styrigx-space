@@ -1,7 +1,7 @@
 {{- /* 博客首页（2026-11 对齐 PR-C，设计稿 tb4.html pg=blog / m=1）：一页就是全部文章——
    页头「ls -lt blog/ · 博客_ · 写下来的东西。共 N 篇 · 最近更新」→ 一行分类 chips（全部 N / 各分类 n，选中主题色描边）+ 右侧虚线 chip「tree blog/ →」（目录页）
    → 按年分组的文章行（日期 │ 标题 │ #分类 │ n min，下一行两行摘要，虚线分隔）→ less 风格分页条（-- less (1/N) --  空格 下一页 │ 1 · 2 · 3 … N →）。
-   分类 = front matter categories（2026-11-15 R-08 起全部文章都写了：tech / muse / devices / life，chips 固定这四个、显示名走 i18n）；
+   分类 = front matter categories（2026-11-15 R-08 起全部文章都写了：tech / muse / devices / life，chips 按稿的顺序、只出有文章的分类（空分类先藏，Gray 2026-11-15）、显示名走 i18n）；
    没有任何文章写 categories 时退回标签（data-cat-field 记着用的是哪个）。
    筛选（chips、目录页 / 文章页的 #标签链接 → ?tag= / ?cat=）和分页（?page=）在页面里做（assets/blog/js/blog/blog-list.js）；不跑脚本时整份列表照常显示。
    旧地址 #posts、#topics[/tag|category|series/<slug>]（专题面板时代）由脚本转到对应的筛选 / 目录页。 */ -}}
@@ -16,6 +16,8 @@
 {{- $tree := (site.GetPage "/blog/tree").RelPermalink -}}
 {{- $names := dict }}{{ range partial "blog/groups.html" (dict "posts" $posts "field" "tags") }}{{ $names = merge $names (dict (printf "tag:%s" .slug) .name) }}{{ end -}}
 {{- range partial "blog/groups.html" (dict "posts" $posts "field" "categories") }}{{ $names = merge $names (dict (printf "cat:%s" .slug) .name) }}{{ end -}}
+{{- /* 四个分类的显示名都给（空分类没有 chip，?cat=devices 的筛选提示也要显示「设备」而不是 slug） */ -}}
+{{- range partial "blog/cats.html" . }}{{ $names = merge $names (dict (printf "cat:%s" .slug) .name) }}{{ end -}}
 {{- $lastDate := "" }}{{ with index $posts 0 }}{{ $lastDate = .Date.Format "2006-01-02" }}{{ end -}}
 {{- /* 日期整段不折行（2026-11-09 细节 6：手机上原来在连字符处断成 2026-10- / 11） */ -}}
 {{- $desc := i18n "blogLede" (dict "Count" (len $posts)) | htmlEscape }}{{ with $lastDate }}{{ $desc = printf "%s · %s" $desc (i18n "lastUpdated" (dict "Date" (printf `<span class="sgx-nw">%s</span>` .))) }}{{ end }}{{ $desc = $desc | safeHTML -}}
@@ -26,11 +28,12 @@
   <nav class="sgx-chips blog-chips" aria-label="{{ i18n "categories" }}">
     <a class="sgx-chip" href="{{ .RelPermalink }}" data-chip="" aria-current="true">{{ i18n "chipAll" }} <i>{{ len $posts }}</i></a>
     {{- if eq $cf "categories" }}
-    {{- /* 分类 chips（R-08）：固定四个、按稿的顺序（技术 / Muse / 设备 / 生活），没有文章的也列出（0） */}}
+    {{- /* 分类 chips（R-08）：按稿的顺序（技术 / Muse / 设备 / 生活）；没有文章的分类先不出 chip（Gray 2026-11-15 14:01「空分类先藏」）。
+       ?cat= 指到空分类时不跳回全部：blog-list.js 找不到对应 chip → 显示「筛选：设备 · 0 篇 · 清除」（显示名来自 data-names 的四个 cat:） */}}
     {{- $cn := dict }}{{ range $cats }}{{ $cn = merge $cn (dict .slug .count) }}{{ end }}
-    {{- range partial "blog/cats.html" . }}
-    <a class="sgx-chip" href="{{ $.RelPermalink }}?cat={{ .slug | urlquery }}" data-chip="{{ .slug }}">{{ .name }} <i>{{ index $cn .slug | default 0 }}</i></a>
-    {{- end }}
+    {{- range partial "blog/cats.html" . }}{{ $n := index $cn .slug | default 0 }}{{ if gt $n 0 }}
+    <a class="sgx-chip" href="{{ $.RelPermalink }}?cat={{ .slug | urlquery }}" data-chip="{{ .slug }}">{{ .name }} <i>{{ $n }}</i></a>
+    {{- end }}{{ end }}
     {{- else }}
     {{- range first 6 $cats }}
     <a class="sgx-chip" href="{{ $.RelPermalink }}?{{ cond (eq $cf "tags") "tag" "cat" }}={{ .slug | urlquery }}" data-chip="{{ .slug }}">{{ .name }} <i>{{ .count }}</i></a>

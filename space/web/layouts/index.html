@@ -114,7 +114,10 @@
       <span class="home-qt-body" data-dm="body">
         <span class="home-qt-text" data-dm="text"></span>
         <span class="home-qt-trans hidden" data-dm="trans"></span>
-        <small class="home-qt-meta"><span data-dm="by"></span><span class="home-qt-sep" aria-hidden="true"> · </span><span data-dm="day"></span></small>
+        {{- /* 小字两行（2026-11-15 偏离收尾 P3 / R-05，Gray 16:20 定）：上「— 作者《出处》」（没有就不占行）；
+           下按设计稿 tb4.html 主页 [03]「余响 · YYYY-MM-DD · 拾录 N · 百味 N」，计数前端运行时取（daymark-today.js mountDaymarkCounts），取不到只留「余响 · 日期」 */}}
+        <small class="home-qt-meta" data-dm="by"></small>
+        <small class="home-qt-meta home-qt-stats"><span>{{ $tr.index.dmWindow }}</span><span class="home-qt-sep" aria-hidden="true"> · </span><span data-dm="day"></span><span data-dm="counts" hidden></span></small>
       </span>
       <span class="home-qt-body hidden" data-dm="empty">
         <span class="home-qt-text">{{ $tr.index.noLineForToday }}</span>

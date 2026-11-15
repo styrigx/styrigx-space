@@ -21,6 +21,7 @@ home:
   daymark: Daymark
   daymarkLabel: "[03] Daymark · line of the day"
 index:
+  dmWindow: Echo
   noLineForToday: No line for today yet
   tapToKeepOne: Tap to keep one in Daymark
 # 共用播放器页（layouts/common/player.html；2026-11 第 7 步从 data/curio/i18n 搬来）
@@ -89,6 +90,7 @@ js:
     homeStatusUp: "STATUS: ONLINE · {up}/{n} ACTIVE"
     homeStatusDown: "STATUS: DEGRADED · {up}/{n} ACTIVE"
     dmSourceWrap: '{s}'
+    dmCounts: " · Trove {q} · Flavors {f}"
   status:
     activeUp: active (running)
     activeDown: degraded

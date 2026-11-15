@@ -18,6 +18,7 @@ home:
   daymark: 日刻
   daymarkLabel: "[03] 日刻 · 今日一句"
 index:
+  dmWindow: 余响
   noLineForToday: 今天还没有句子
   tapToKeepOne: 点开日刻，记下一句
 # 共用播放器页（layouts/common/player.html；2026-11 第 7 步从 data/curio/i18n 搬来）
@@ -85,6 +86,7 @@ js:
     homeStatusUp: "STATUS: ONLINE · {up}/{n} ACTIVE"
     homeStatusDown: "STATUS: DEGRADED · {up}/{n} ACTIVE"
     dmSourceWrap: 《{s}》
+    dmCounts: " · 拾录 {q} · 百味 {f}"
   status:
     activeUp: active (running)
     activeDown: degraded

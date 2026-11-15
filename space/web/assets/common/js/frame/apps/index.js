@@ -6,7 +6,7 @@
  * - hero：$ 行标语打字轮播（apps/home-typer.js）；# 行签名 motto 空值时整行隐藏（跟 sgx-profile-changed）
  * mountHome() 由 apps/entries/entry-space.js 在加载时调一次（先于 initCore，事件监听在外壳取数之前挂好）。
  */
-import { mountDaymarkToday } from './daymark-today.js';
+import { mountDaymarkToday, mountDaymarkCounts } from './daymark-today.js';
 import { i18nTable } from '../../i18n/i18n.js';
 import { PROFILE_EVENT } from '../../prefs/profile.js';
 import { mountTyper } from './home-typer.js';
@@ -119,6 +119,8 @@ export function mountHome(o) {
     if (dmBusy) { dmBusy = false; document.dispatchEvent(new CustomEvent('sgx-busy', { detail: false })); }
   } });
   else if (dmWait) dmWait.hidden = true;
+  /* 日刻小字「 · 拾录 N · 百味 N」（R-05）：和今日一句各拉各的，失败只是不显示计数 */
+  if (dm) mountDaymarkCounts(dm);
 
   /* 首屏胶囊：外壳每次画 NAVIGATE STATUS 时发 sgx:status-cells（[04] 旷野 status 小卡 2026-11-12 随旷野删除） */
   const pill = document.querySelector('[data-home-status]');
