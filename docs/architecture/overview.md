@@ -44,7 +44,7 @@ styrigx-space-core（路由 styrigx.com/*）
 
 styrigx.com/curio/api/*   → styrigx-curio-core   ─┐ 服务绑定 SPACE（SpaceVerifier）
 styrigx.com/daymark/api/* → styrigx-daymark-core ─┘ 回问站点核心：进站会话 + 账号结论
-proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站点核心）
+proxy.styrigx.com   → styrigx-proxy（自定义域名，不经站点核心）
 ```
 
 3.1 Cloudflare 按最具体的路由匹配：`styrigx.com/curio/api/*`、`styrigx.com/daymark/api/*` 归接口 Worker，其余 `styrigx.com/*` 都归站点核心。不带 `*` 的路由遇到查询串不命中，所以站点核心 MUST 使用整站通配路由（`space/scripts/lib/cf-routes.mjs` 按线上实测建模，`check-worker-routes.mjs` 在 CI 核对）。
@@ -63,7 +63,7 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 | `styrigx-status` | 站点监测（每分钟）、Cloudflare 用量（每小时）、每日任务（经服务绑定 `JOB_SPACE` 清理过期 / 作废的分享链接；`JOB_ACCOUNT` 删到期满 30 天的用户，v6 P2c） | 服务绑定 `STATUS` |
 | `styrigx-curio-core` | 奇趣数据接口 | 路由 `styrigx.com/curio/api/*` |
 | `styrigx-daymark-core` | 日刻数据接口 | 路由 `styrigx.com/daymark/api/*` |
-| `styrigx-proxy-rules` | 规则集加速反代（来源：MetaCubeX/meta-rules-dat、自有仓 styrigx/mihomo-rules release）+ 代理订阅（`/s/<令牌>/<来源名>`，age 加密；管理经 account `/api/account/proxy` → 服务绑定 ProxyAdmin） | 自定义域名 `proxy-rules.styrigx.com` |
+| `styrigx-proxy` | 规则集加速反代（来源：MetaCubeX/meta-rules-dat、自有仓 styrigx/mihomo-rules release）+ 代理订阅（`/s/<令牌>/<来源名>`，age 加密；管理经 account `/api/account/proxy` → 服务绑定 ProxyAdmin） | 自定义域名 `proxy.styrigx.com` |
 
 绑定、数据库与 Secret 名见 SGX-OPS-002；每个 Worker 的细节见 `workers/<名字>/README.md`。
 

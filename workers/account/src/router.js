@@ -3,7 +3,7 @@
  *
  * 管站点账号的全部身份和数据：
  * - 账号（api/account/，一个入口一个文件；子路径就是入口名）：POST /api/account/devices（自己的 v6 会话）、
- *   /proxy（代理订阅管理：经服务绑定 PROXY 转给 styrigx-proxy-rules 的 ProxyAdmin）。v6 P4（定稿 v5.2 §十三）起旧账号会话的
+ *   /proxy（代理订阅管理：经服务绑定 PROXY 转给 styrigx-proxy 的 ProxyAdmin）。v6 P4（定稿 v5.2 §十三）起旧账号会话的
  *   GET /api/account（状态）、/session（sudo root 登录）、/reauth、/reset（旧恢复密钥）、/keys 删除；
  *   应用授权 /grants 删除（定稿 v5.3 §十二）。
  * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（v6 会话，档见 core/route-access.js）→ KV_PROFILE

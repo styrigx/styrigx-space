@@ -105,7 +105,7 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(cards).toHaveCount(3);
       await expect(page.locator('.st-skel')).toHaveCount(0);
       await expect(cards.locator('.st-name')).toHaveText(['主站', '规则集', 'AI 助手']);
-      await expect(cards.locator('.st-host')).toHaveText(['styrigx.com', 'proxy-rules.styrigx.com', 'styrigx-ai']);
+      await expect(cards.locator('.st-host')).toHaveText(['styrigx.com', 'proxy.styrigx.com', 'styrigx-ai']);
       await expect(cards.locator('.st-chip')).toHaveText(['● 正常', '● 正常', '● 正常']);
       await expect(cards.first().locator('.st-meta')).toContainText('延迟 123 ms');
       await expect(cards.first().locator('.st-meta')).toContainText('刚刚检查');

@@ -1,17 +1,17 @@
 /**
- * 规则集反代 styrigx-proxy-rules：自有仓 styrigx/mihomo-rules release 分支（core/sources/own-repo.js）。
+ * 规则集反代 styrigx-proxy：自有仓 styrigx/mihomo-rules release 分支（core/sources/own-repo.js）。
  * 白名单（只认 geosite / geoip 下 [a-z0-9-] 名字的 .mrs / .yaml）、上游顺序（raw 在前）、缓存 1 小时，
  * 以及两个来源互不串（MetaCubeX 仍 24 小时）。
- * 运行：node --test tests/workers/proxy-rules/*.test.mjs
+ * 运行：node --test tests/workers/proxy/*.test.mjs
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import worker from '../../../workers/proxy-rules/src/app.js';
-import { ALLOW, upstreamUrls, CACHE_TTL } from '../../../workers/proxy-rules/src/core/sources/own-repo.js';
-import * as metacubex from '../../../workers/proxy-rules/src/core/sources/metacubex.js';
-import { matchSource, SOURCES } from '../../../workers/proxy-rules/src/core/sources.js';
+import worker from '../../../workers/proxy/src/app.js';
+import { ALLOW, upstreamUrls, CACHE_TTL } from '../../../workers/proxy/src/core/sources/own-repo.js';
+import * as metacubex from '../../../workers/proxy/src/core/sources/metacubex.js';
+import { matchSource, SOURCES } from '../../../workers/proxy/src/core/sources.js';
 
-const BASE = 'https://proxy-rules.styrigx.com';
+const BASE = 'https://proxy.styrigx.com';
 const P = '/styrigx/mihomo-rules/release/';
 
 /* mihomo-rules README 里的 13 个规则集（release 分支每个各一份 .mrs + .yaml） */

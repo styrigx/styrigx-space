@@ -1,4 +1,4 @@
--- styrigx-proxy：代理订阅（设计稿 v1.7）。只绑 styrigx-proxy-rules。
+-- styrigx-proxy：代理订阅（设计稿 v1.7）。只绑 styrigx-proxy。
 -- 明文只有：公钥、令牌哈希、UA、来源名 / 类型 / 开关 / 机场域名 / 节点数 / 时间 / 错误类别。
 -- 机场链接、各源节点用 SGX_PROXY_DB_KEY（AES-256-GCM）加密；下载成品 armor 用手机的 age 公钥加密。
 
