@@ -181,16 +181,37 @@ function esc(s){
 }
 /** 请人进站：顶栏终端预填 su （topbar/panel.js 接 sgx:sudo，= common/js/auth/sudo.js SUDO_EVENT）；子页经 SgxCurioUI.sudo 用同一个 */
 function askSudo(){ try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {} }
+/* D-3 a′「先验后发票」（偏离稿 v3.12 第 9 节）：root 档的操作（奇趣导出 / 导入，音乐删专辑经 SgxCurioUI.sudoTicket）。当前身份是 root → 直接发；
+   否则在 window 上登记待办（键名同 common/js/auth/sudo.js SUDO_GRANT_KEY）并预填终端 sudo 行，回车验过自己的凭据后终端交回一次性票，
+   带 X-Sgx-Sudo 头只发一次真请求（文件只传一遍）。没回车就一直等，下次点会顶掉这笔待办。 */
+var SUDO_GRANT_KEY = '__sgxSudoGrant', SUDO_HEADER = 'X-Sgx-Sudo';
+function whoIsRoot(){
+  return fetch('/api/identity', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: '{"action":"whoami"}' })
+    .then(function(r){ return r.json(); }).then(function(j){ return !!(j && j.user && j.user.root); }, function(){ return false; });
+}
+/** @returns {Promise<string>} 票（root 时空串） */
+function sudoTicket(line, grant){
+  return whoIsRoot().then(function(root){
+    if (root) return '';
+    return new Promise(function(resolve){
+      G[SUDO_GRANT_KEY] = { line: line, grant: grant, done: resolve, at: Date.now() };
+      try { doc.dispatchEvent(new CustomEvent('sgx:sudo', { detail: { line: line } })); } catch (e) {}
+    });
+  });
+}
+/** 票 → 请求头 @param {string} t @param {Object} [h] */
+function sudoHeaders(t, h){ h = h || {}; if (t) h[SUDO_HEADER] = t; return h; }
+
 function getJSON(url){
   return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   });
 }
-function send(url, body, type){
+function send(url, body, type, extra){
   return fetch(url, {
     method: 'POST', credentials: 'same-origin',
-    headers: { 'Content-Type': type || 'application/json' },
+    headers: sudoHeaders(extra || '', { 'Content-Type': type || 'application/json' }),
     body: type ? body : JSON.stringify(body),
   }).then(function(r){
     return r.json().catch(function(){ return {}; }).then(function(j){
@@ -336,7 +357,7 @@ function onItemRoute(fn){
     goItem(Number(a.getAttribute('data-item')) || 0);
   });
 }
-G.SgxCurioUI = { ask: function(m, l, f){ ask(m, l, f); }, toast: function(m){ toast(m); }, sudo: askSudo, openOverlay: openOverlay, closeOverlay: closeOverlay, signin: applySignin,
+G.SgxCurioUI = { ask: function(m, l, f){ ask(m, l, f); }, toast: function(m){ toast(m); }, sudo: askSudo, sudoTicket: sudoTicket, openOverlay: openOverlay, closeOverlay: closeOverlay, signin: applySignin,
   itemId: function(){ return itemIdOf(G.location.search); }, showItem: showItem, showList: showList, goItem: goItem, onItemRoute: onItemRoute, slug: slugOf };
 /* 直接打开 / 刷新条目页：列表先藏起来，等本页脚本拿到数据再画条目（免得先闪一下列表） */
 if (itemIdOf(G.location.search) && doc.getElementById('cu-item')) listParts().forEach(function(el){ el.hidden = true; });
@@ -607,7 +628,9 @@ function runImport(){
   btn.disabled = true;
   impMsg(T.importing);
   return impFile.text().then(function(text){
-    return send('/curio/api/import' + ($('#imp-private').checked ? '' : '?private=0'), text, 'text/html');
+    return sudoTicket('sudo curio import', { method: 'POST', path: '/curio/api/import' }).then(function(t){
+      return send('/curio/api/import' + ($('#imp-private').checked ? '' : '?private=0'), text, 'text/html', t);
+    });
   }).then(function(j){
     cats = j.cats || [];
     render();
@@ -620,6 +643,23 @@ function runImport(){
   });
 }
 $('#imp-go').addEventListener('click', function(){ runImport(); });
+
+/* 导出（D-3 a′）：不再直接跟下载链接走（非 root 会下到一份 403），先拿票，再取文件存下来 */
+$('#menu-export').addEventListener('click', function(e){
+  e.preventDefault();
+  var href = this.getAttribute('href');
+  sudoTicket('sudo curio export', { method: 'GET', path: '/curio/api/export' }).then(function(t){
+    return fetch(href, { credentials: 'same-origin', cache: 'no-store', headers: sudoHeaders(t) });
+  }).then(function(r){
+    if (!r.ok) return r.json().catch(function(){ return {}; }).then(function(j){ throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error }); });
+    var m = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '');
+    return r.blob().then(function(b){
+      var u = URL.createObjectURL(b), a = doc.createElement('a');
+      a.href = u; a.download = m ? m[1] : 'curio.html'; doc.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(u); }, 1000);
+    });
+  }).catch(function(err){ toast(errText(err)); });
+});
 
 /* ---------- 启动 ---------- */
 function boot(){

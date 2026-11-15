@@ -283,6 +283,26 @@ export function mountIdentityLayer(o) {
   };
 
   /**
+   * D-3 a′「先验后发票」：页面上 root 档的操作（奇趣导出 / 导入 / 删专辑、日刻删专题）预填的 sudo 行回车后到这里——
+   * root 不用票 → done('')；不是 sudoers → 一行红字；否则先验自己的凭据（同 sudo），POST /api/identity sudo-grant 领一次性票 → done(票)。
+   * 票只交回页面（不打印、不存）。
+   * @param {{method:string, path:string, action?:string}} grant @param {string} label @param {(ticket: string) => void} done
+   */
+  C.sudoGrant = function (grant, label, done) {
+    const u = me();
+    if (!u) { C.err(t('notSignedIn')); return; }
+    if (u.root) { done(''); C.ok(t('sudoGranted')); return; }
+    if (!u.sudoers) { C.err(t('notSudoers', { u: u.name })); return; }
+    proofOf(t('pwFor', { u: u.name }), 'sudo-challenge', function (proof) {
+      C.setMode('busy');
+      api.post('sudo-grant', Object.assign({ command: grant }, proof)).then(function (r) {
+        if (r.j && r.j.ok && typeof r.j.ticket === 'string') { done(r.j.ticket); C.ok(t('sudoGranted')); C.toCmd(); return; }
+        fail(r, label); C.toCmd();
+      }, net);
+    });
+  };
+
+  /**
    * sudo 借 root 跑一条账号命令（sudo device … / sudo sub …；定稿 v5.5 §四、§七）：root 不用 sudo → done(null)；
    * 不是 sudoers → 一行红字；否则先验自己的凭据（同 sudo <命令> 的「[sudo] password for <自己>:」），done(via)：
    * via() 每次回一份证明（密码这一条命令里沿用同一个；通行密钥第一次用刚拿到的，之后每次重新验，challenge 一次一用）。

@@ -1,6 +1,7 @@
 import { layer, notHere, nth, FLOW } from './gate.js';
 import { isV6 } from '../../core/who.js';
 import { SUDO_CMDS } from '../../core/ident-args.js';
+import { takeSudoGrant } from '../../core/sudo-grant.js';
 
 /**
  * sudo（v6，定稿 v5.2 §六：sudoers 用户每次输自己的凭据，借 root 执行一条，不发票据，不压栈）：
@@ -8,6 +9,7 @@ import { SUDO_CMDS } from '../../core/ident-args.js';
  * sudo passkey … → 身份层回 rootCreds（定稿 §十：sudo 不能动 root 的凭据）。
  * sudo device … / sudo sub …（P4-3，定稿 v5.5 §四「后台数据控制……站长用 sudo 提权」）：借 root 跑账号层这一条（sudo app 随 app 命令删除，定稿 v5.3 §十二）。
  *   用法行 / man SYNOPSIS 维持 main 原文。
+ * 页面预填的 sudo 行（D-3 a′，term/core/sudo-grant.js）：原样回车 → 身份层 sudoGrant 领一次性票交回页面；改过的行按普通命令解析。
  * 旧写法 sudo styrigx / sudo root / sudo -v 删干净（定稿 §十三 P4；不留「已移除」提示，Gray 2026-11-12 15:59），落到用法行。
  */
 export default {
@@ -18,6 +20,14 @@ export default {
   group: 'sudoers',
   /** @param {any} p @param {any} x @param {string} [line0] 原样的一行（sub 的来源名大小写敏感） */
   run: function (p, x, line0) {
+    /* D-3 a′：页面预填的这一行（奇趣导出 / 导入 / 删专辑、日刻删专题）→ 验自己的凭据、领一次性票交回页面（term/core/sudo-grant.js） */
+    const pend = takeSudoGrant(String(line0 || ''));
+    if (pend) {
+      const I = layer(x, /** @type {any} */ ('ident'));
+      if (!I) return notHere(x, pend.line);
+      I.sudoGrant(pend.grant, pend.line.replace(/^sudo\s+/, ''), pend.done);
+      return FLOW;
+    }
     const a0 = (p.args[0] || '').toLowerCase();
     if (SUDO_CMDS.indexOf(a0) !== -1 || (a0 === 'passkey' && isV6(x.who()))) {
       const I = layer(x, /** @type {any} */ ('ident'));

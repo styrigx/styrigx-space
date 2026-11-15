@@ -19,6 +19,8 @@
  * | who                      | user    | 会话与身份路径（root via styrigx）；普通用户只看自己，root 看全部 |
  * | sudo-challenge / sudo    | sudoers | 每次输自己的凭据，借 root 执行一条（useradd / userdel / usermod / passwd <名> / groups <名> / who）；不发票据、不压栈；
  * |                          |         | 不能动 root 的凭据（passwd / passkey 一律拒） |
+ * | sudo-grant（D-3 a′）     | sudoers | command = { method, path, action? }：别的 Worker（atlas-core）上标了 sudoTicket 的 root 接口；验自己的凭据后
+ * |                          |         | 发一次性票（core/sudo-ticket.js，60 秒、绑会话 + 方法 + 路径 + action），前端带 X-Sgx-Sudo 头发真请求 |
  * | （sudo，P2c）            | sudoers | command = { method, path, body? }：借 root 执行账号 Worker 里任何一条接口（api/sudo-route.js）；
  * |                          |         | 同样每次验自己的凭据、不发票据、不压栈；root 的凭据接口（/api/account/keys、reset）与身份接口本身拒绝 |
  * | useradd / userdel / usermod / passwd-user | root | 用户管理（core/user-admin.js）；passwd-user 对站长 styrigx 拒（protected），
@@ -43,6 +45,7 @@ import { useradd, userdel, usermod, passwdReset, groupsOf, whoList, userByName }
 import { V6_PURPOSE, v6AssertionChallenge, v6CheckAssertion, v6RegistrationChallenge, v6AddPasskey, v6PasskeyViews, v6DeletePasskey } from '../core/identity-passkey.js';
 import { rpConfig, rpConfigMissing } from '../core/config.js';
 import { sudoTarget, runSudoRoute } from './sudo-route.js';
+import { ticketTarget, issueSudoTicket } from '../core/sudo-ticket.js';
 import { rescue as rescueIssue } from '../core/rescue.js';
 import { deviceMarkFor, deviceCookie } from '../core/device-mark.js';
 
@@ -441,6 +444,25 @@ async function dispatch(c) {
       const r = await runAdmin(env, sub, cmd, { identity, sessionId: adm.sessionId, sudo: true });
       await audit('sudo ' + (r.audit || sub), r.ok);
       return r.res;
+    }
+
+    case 'sudo-grant': {
+      /* D-3 a′「先验后发票」：别的 Worker（atlas-core）上 root 档的接口——先在这里验自己的凭据（用途同 sudo），验过发一次性票
+         （core/sudo-ticket.js：绑 uid + 会话 + 方法 + 路径 + action，60 秒，只能用一次）；前端带 X-Sgx-Sudo 头发真请求，
+         atlas-core 经 space-core 交 AccountVerifier.sudoAdmit 核销。凭据不出本 Worker；票不进审计、不进日志。 */
+      const cmd = body.command && typeof body.command === 'object' && !Array.isArray(body.command) ? body.command : {};
+      const tg = ticketTarget(cmd);
+      if (!tg.ok) return apiError(tg.status, tg.error);
+      const v = await verifyCreds(env, ip, body, { uid: identity.uid }, V6_PURPOSE.sudo);
+      if (!v.ok) { await audit('login-fail sudo', false); return credError(v.error); }
+      let t;
+      try {
+        t = await issueSudoTicket(env, { uid: identity.uid, sessionId: adm.sessionId, method: tg.method, path: tg.path, action: tg.action }, now);
+      } catch (e) {
+        return apiError(503, 'server');
+      }
+      await audit('sudo ' + tg.method + ' ' + tg.path.replace(/[^a-z0-9/\-]/gi, '').slice(0, 64) + (tg.action ? ' ' + tg.action : ''), true); /* action 已过 ticketTarget 的白名单（[a-z0-9.-]） */
+      return ok({ ticket: t.ticket, expiresAt: t.expiresAt });
     }
 
     case 'useradd':

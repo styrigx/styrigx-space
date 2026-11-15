@@ -16,3 +16,4 @@ export function askSudo(doc, line) {
   const d = doc || document;
   try { d.dispatchEvent(line ? new CustomEvent(SUDO_EVENT, { detail: { line: line } }) : new CustomEvent(SUDO_EVENT)); } catch (e) {}
 }
+
