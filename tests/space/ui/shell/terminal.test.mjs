@@ -335,7 +335,7 @@ test('要输入 / 验证的命令交给两层上下文（flow，输出和输入�
   flow('u:root', 'profile avatar');
   flow('u:root', 'sub mv Linkcube LinkCube2');
   flow('u:root', 'SUB show Linkcube');
-  assert.deepEqual(calls.splice(0), [['ident.cmdPasswd', ''], ['acct.passkeyList'], ['acct.cmdPasskeyAdd', true], ['acct.passkeyRm', 2], ['acct.deviceList'], ['acct.deviceRm', 3], ['acct.deviceRmAll'],
+  assert.deepEqual(calls.splice(0), [['ident.cmdPasswd', ''], ['acct.passkeyList'], ['acct.cmdPasskeyAdd', true, undefined], ['acct.passkeyRm', 2, undefined], ['acct.deviceList'], ['acct.deviceRm', 3], ['acct.deviceRmAll'],
     ['acct.profileShow'], ['acct.profileSet', 'sign', 'Stay  Hungry'], ['acct.profileSet', 'nick', 'Styrigx'], ['acct.profileAvatar'],
     ['acct.cmdSub', 'sub mv Linkcube LinkCube2'], ['acct.cmdSub', 'SUB show Linkcube']], 'sub 传原样的一行（来源名大小写不变）；profile set 的值原样');
   assert.equal(text(sh('u:root').exec('device rm x', v).out[0]), TERM_EN.usageDevice);

@@ -16,7 +16,8 @@ import { CHALLENGE_TTL } from './config.js';
 import { verifyRegistration, passkeyView } from './passkey.js';
 
 /** challenge 用途（account_challenge.purpose；和旧账号的 session / reauth / keys-add / reset-add 分开） */
-export const V6_PURPOSE = Object.freeze({ su: 'v6-su', sudo: 'v6-sudo', add: 'v6-add' });
+/** 通行密钥 challenge 的用途：su、sudo、self（自己改凭据前验证，R-34）、add（注册）各自分开，防止串用 */
+export const V6_PURPOSE = Object.freeze({ su: 'v6-su', sudo: 'v6-sudo', self: 'v6-self', add: 'v6-add' });
 
 /** @param {any} row */
 function rec(row) {
@@ -33,7 +34,7 @@ export async function listUserPasskeys(env, uid) {
 
 /**
  * 断言第一步（su / sudo）：发 challenge，不列钥匙。
- * @param {any} env @param {{rpId:string}} rp @param {string} purpose V6_PURPOSE.su | .sudo
+ * @param {any} env @param {{rpId:string}} rp @param {string} purpose V6_PURPOSE.su | .sudo | .self
  */
 export async function v6AssertionChallenge(env, rp, purpose) {
   const challenge = randB64(32);

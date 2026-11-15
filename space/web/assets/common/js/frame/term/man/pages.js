@@ -21,8 +21,17 @@ export const PAGES = Object.freeze({
   open: { d: 'open a path: a site, daymark/today or the account card', syn: ['open [<path>]'], see: ['cd', 'ls'] },
   history: { d: 'list this session’s commands', syn: ['history'] },
   exit: { d: 'leave one layer, or close the terminal', syn: ['exit'], see: ['lock', 'su'], desc: ['Back one layer (root → styrigx → visitor; a rescue session goes straight to visitor). Not signed in: close the terminal.'] },
-  passwd: { d: 'change the account password', syn: ['passwd'], auth: 'signed in; asks your current password first', see: ['passkey'] },
-  passkey: { d: 'list, add or remove account passkeys', syn: ['passkey [add | rm <n>]'], auth: 'signed in', see: ['passwd', 'device'] },
+  /* R-34（稿 v3.11 第 8 节）：passwd 三种用法；passkey add、rm 先验证 */
+  passwd: {
+    d: 'change the account password', syn: ['passwd', 'passwd <name>'],
+    desc: [
+      'passwd: change your own password. root and styrigx first verify with the current password or a passkey; other users type the current password.',
+      'passwd <name> (root, or sudo passwd <name>): one-time password for an ordinary user. styrigx’s credentials can’t be reset this way.',
+      'In a rescue session: passwd resets root’s password; passwd styrigx gives the webmaster a one-time password.',
+    ],
+    auth: 'signed in; asks your current password first', see: ['passkey', 'rescue'],
+  },
+  passkey: { d: 'list, add or remove account passkeys', syn: ['passkey [add | rm <n>]'], auth: 'signed in; add and rm first ask for your password or a passkey', see: ['passwd', 'device'] },
   device: { d: 'list signed-in devices, or sign one out', syn: ['device [rm <n>]', 'device rm --all'], opt: [['--all', 'sign out every other device.']], auth: 'signed in', see: ['passkey'] },
   profile: {
     d: 'show or change your profile and photo', syn: ['profile [avatar]', 'profile set name | nick | sign | email <value>'],
@@ -86,7 +95,7 @@ export const PAGES = Object.freeze({
   /* v6 P3 救援入口（定稿 v5.2 §九；文字同 v6 命令手册「救援」节） */
   rescue: {
     d: 'enter the recovery key → a 15-min root rescue session', syn: ['rescue'],
-    desc: ['Only: passwd, passkey, whoami, groups, exit, lock', 'A used key can’t be used again; after a rescue, set a new value in Cloudflare'],
+    desc: ['Only: passwd, passkey, whoami, groups, exit, lock', 'passwd styrigx: one-time password for the webmaster (no other name)', 'A used key can’t be used again; after a rescue, set a new value in Cloudflare'],
     notes: ['Changing the key isn’t done in the terminal; Gray changes it in the Cloudflare dashboard'],
   },
 });

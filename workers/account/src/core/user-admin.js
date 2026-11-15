@@ -10,6 +10,8 @@
  * - usermod -aG / -rG：加组过 canJoinGroup；减掉最后一个 wheel / sudoers 成员时先回 last-member 警告，调用方带 force 才执行。
  * - passwd <名>：发一次性密码（同 useradd），该用户会话全部作废（epoch +1）。不能对 root 用：root 的凭据只能在
  *   su root 或救援会话里用 passwd 自己改（sudo 夺不走 root，定稿 v4 §十）。
+ *   R-34（稿 v3.11 第 8 节，Gray 2026-11-15 02:07 / 02:29）：正常 root（su root 或 sudo）对站长 styrigx 一律拒（protected-webmaster）；
+ *   救援会话只收 styrigx（按 uid 判），其他目标一律拒。
  * 每次凭据 / 组 / 期限变更都 bump epoch（core/users.js）。审计由调用方（api/identity.js）写。
  *
  * 只 import lib/ 和 core/。
@@ -124,16 +126,24 @@ export async function usermod(env, q, now) {
 }
 
 /**
- * passwd <名>（root 替别人重置）：发一次性密码，该用户会话全部作废。目标是 root → 拒绝（root-creds）。
- * @param {any} env @param {any} name @param {number} [now]
+ * passwd <名>（root 替别人重置）：发一次性密码，该用户会话全部作废。
+ * 正常（rescue 不给 / false）：目标是 root → root-creds；目标是站长 styrigx → protected-webmaster（R-34）。
+ * 救援（rescue=true）：只收站长 styrigx（按 uid 判），其他目标 → protected-rescue。
+ * @param {any} env @param {any} name @param {number} [now] @param {{rescue?:boolean}} [opts]
  * @returns {Promise<{ok:true, uid:number, password:string, passwordExpiresAt:number}|{ok:false, error:string}>}
  */
-export async function passwdReset(env, name, now) {
+export async function passwdReset(env, name, now, opts) {
   const t = typeof now === 'number' ? now : Date.now();
+  const rescue = !!(opts && opts.rescue === true);
   if (typeof name !== 'string' || !name) return { ok: false, error: 'name' };
   const u = await userByName(env, name);
-  if (!u) return { ok: false, error: 'no-user' };
-  if (u.uid === ROOT_UID) return { ok: false, error: 'root-creds' };
+  if (rescue) {
+    if (!u || u.uid !== STYRIGX_UID) return { ok: false, error: 'rescue-target' }; /* 救援里不分「没这个人」和「不许」：一律拒 */
+  } else {
+    if (!u) return { ok: false, error: 'no-user' };
+    if (u.uid === ROOT_UID) return { ok: false, error: 'root-creds' };
+    if (u.uid === STYRIGX_UID) return { ok: false, error: 'protected-webmaster' };
+  }
   const password = oneTimePassword();
   await savePasswordFor(env, u.uid, password, { mustChange: true, now: t });
   await credentialsChanged(env, u.uid, {});

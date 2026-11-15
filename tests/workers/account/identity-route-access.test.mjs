@@ -160,7 +160,7 @@ test('摘要快照：各档路由数（改表必须改这里）', () => {
 test('/api/identity（P2）：每个 action 一档；救援白名单 = RESCUE_COMMANDS 对应的 action；rescueOf 只放列出的', () => {
   const lv = (a) => RA.levelOf('POST', '/api/identity', { action: a });
   for (const a of ['whoami', 'su-challenge', 'su', 'exit', 'idle', 'lock']) assert.equal(lv(a), 'public', a);
-  for (const a of ['passwd', 'groups', 'who']) assert.equal(lv(a), 'user', a);
+  for (const a of ['passwd', 'groups', 'who', 'self-challenge']) assert.equal(lv(a), 'user', a);
   /* 定稿 v5.5 §五：通行密钥增删 webmaster，passkey 列表同样 webmaster；普通用户只能 passwd（§八） */
   for (const a of ['passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete']) assert.equal(lv(a), 'webmaster', a);
   for (const a of ['sudo', 'sudo-challenge']) assert.equal(lv(a), 'sudoers', a);
@@ -170,7 +170,8 @@ test('/api/identity（P2）：每个 action 一档；救援白名单 = RESCUE_CO
   const cmdOf = (a) => a.split('-')[0];
   assert.deepEqual([...new Set(rescue.map(cmdOf))].sort(), [...G.RESCUE_COMMANDS].sort(), '救援白名单 = passwd、passkey、whoami、groups、exit、lock');
   for (const a of rescue) assert.equal(RA.rescueOf('POST', '/api/identity', { action: a }), true, a);
-  for (const a of ['su', 'sudo', 'useradd', 'userdel', 'usermod', 'passwd-user', 'who', 'idle']) assert.equal(RA.rescueOf('POST', '/api/identity', { action: a }), false, a);
+  for (const a of ['su', 'sudo', 'useradd', 'userdel', 'usermod', 'who', 'idle', 'self-challenge']) assert.equal(RA.rescueOf('POST', '/api/identity', { action: a }), false, a);
+  assert.equal(RA.rescueOf('POST', '/api/identity', { action: 'passwd-user' }), true, 'R-34：救援放 passwd styrigx（目标服务端限定）');
   assert.equal(RA.rescueOf('POST', '/api/identity'), false, '没给 action 不放');
   assert.equal(RA.rescueOf('POST', '/api/account/keys'), false, '/api/account/keys v6 P4 删除');
   assert.equal(RA.rescueOf('GET', '/api/status'), false);

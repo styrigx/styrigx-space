@@ -752,19 +752,20 @@ test('passkey ls / add / rm：只管自己的；add 的 user.id = 已有钥匙�
   assert.equal(ch.json.user.displayName, 'Sloan Gray', '钥匙显示名：第一行站长名、第二行用户名（Gray 2026-11-12）');
   assert.equal(ch.json.excludeCredentials.length, 1);
   const cred = await fx.makeAttestationCredential(ch.json.challenge, 'styrigx.com', ORIGIN);
-  const forged = await id(env, { action: 'passkey-add', cid: ch.json.cid, credential: cred, handle: 'h-alice', as: 1000 }, t1);
+  const PF = { proof: { password: PW.styrigx } };
+  const forged = await id(env, { action: 'passkey-add', cid: ch.json.cid, credential: cred, handle: 'h-alice', as: 1000, ...PF }, t1, freshIp());
   assert.equal(forged.status, 403, 'handle 对不上 challenge 的用途 → challenge 无效');
   const ch2 = await id(env, { action: 'passkey-add-challenge', as: 1000 }, t1);
   const cred2 = await fx.makeAttestationCredential(ch2.json.challenge, 'styrigx.com', ORIGIN);
-  const add = await id(env, { action: 'passkey-add', cid: ch2.json.cid, credential: cred2, handle: ch2.json.user.id, name: 'S24', as: 1000 }, t1);
+  const add = await id(env, { action: 'passkey-add', cid: ch2.json.cid, credential: cred2, handle: ch2.json.user.id, name: 'S24', as: 1000, ...PF }, t1, freshIp());
   assert.equal(add.status, 200, JSON.stringify(add.json));
   assert.equal((await id(env, { action: 'whoami' }, t1)).json.user.name, 'styrigx', '当前会话续命');
   assert.equal((await id(env, { action: 'whoami' }, t2)).json.user, null, '其他会话作废');
   const l1 = await id(env, { action: 'passkey-list', as: 1000 }, t1);
   assert.deepEqual(l1.json.passkeys.map((k) => k.n), [1, 2]);
   assert.equal(rows(env, 'SELECT user_handle FROM account_user_passkey WHERE uid = 1000 ORDER BY rowid')[1].user_handle, 'h-sty');
-  assert.equal((await id(env, { action: 'passkey-delete', n: 2, as: 1000 }, t1)).status, 200);
-  assert.equal((await id(env, { action: 'passkey-delete', n: 2, as: 1000 }, t1)).status, 404);
+  assert.equal((await id(env, { action: 'passkey-delete', n: 2, as: 1000, ...PF }, t1, freshIp())).status, 200);
+  assert.equal((await id(env, { action: 'passkey-delete', n: 2, as: 1000, ...PF }, t1, freshIp())).status, 404);
   assert.equal(rows(env, 'SELECT * FROM account_user_passkey WHERE uid = 1001').length, 1, 'alice 的钥匙没动');
 });
 
@@ -952,4 +953,56 @@ test('P2c sudo 不能动 root 的凭据（栈顶必须是 root）：sudo 下 ide
   await suRoot(env, tok);
   const p = await id(env, { action: 'passwd', current: PW.root, password: 'root-pass-02x', as: 0 }, tok, freshIp());
   assert.equal(p.status, 200, JSON.stringify(p.json));
+});
+
+/* ---------------- R-34（稿 v3.11 第 8 节）：凭据管理与救援重置站长 ---------------- */
+
+test('R-34 root（su root 或 sudo）passwd styrigx → 403 protected（target webmaster），站长会话不动；普通用户照旧发一次性密码', async () => {
+  const env = await setup();
+  const tok = await login(env, 'styrigx');
+  const other = await login(env, 'styrigx');
+  await suRoot(env, tok);
+  const r = await id(env, { action: 'passwd-user', name: 'styrigx' }, tok);
+  assert.equal(r.status, 403);
+  assert.deepEqual([r.json.error, r.json.target], ['protected', 'webmaster']);
+  assert.equal((await id(env, { action: 'whoami' }, other)).json.user.name, 'styrigx', '站长别的会话没被作废');
+  assert.equal((await id(env, { action: 'passwd-user', name: 'alice' }, tok)).status, 200);
+  await id(env, { action: 'exit' }, tok);
+  const s = await id(env, { action: 'sudo', password: PW.styrigx, command: { action: 'passwd-user', name: 'styrigx' } }, tok, freshIp());
+  assert.equal(s.status, 403);
+  assert.equal(s.json.target, 'webmaster');
+  assert.ok(rows(env, 'SELECT command, ok FROM account_user_audit').some((a) => a.command === 'sudo passwd styrigx' && Number(a.ok) === 0));
+});
+
+test('R-34 自己改凭据先验证：passwd / passkey add / passkey rm 收 proof（当前密码或任一把自己的通行密钥，challenge 用途 v6-self，su / sudo 的不能串用）；不带或错 → 401 并写 login-fail', async () => {
+  const env = await setup();
+  const sk = await seedV6Passkey(env, 1000, 'h-sty');
+  const tok = await login(env, 'styrigx');
+  /* passwd：通行密钥证明 */
+  const ch = await id(env, { action: 'self-challenge' }, tok);
+  assert.equal(ch.status, 200);
+  const viaKey = await id(env, { action: 'passwd', proof: { cid: ch.json.cid, credential: await fx.assertion(sk.kp, sk.credId, ch.json.challenge, 'h-sty', { signCount: 1 }) }, password: 'sty-pass-02', as: 1000 }, tok, freshIp());
+  assert.equal(viaKey.status, 200, JSON.stringify(viaKey.json));
+  /* su 的 challenge 不能拿来改凭据 */
+  const chSu = await id(env, { action: 'su-challenge' }, tok);
+  const cross = await id(env, { action: 'passwd', proof: { cid: chSu.json.cid, credential: await fx.assertion(sk.kp, sk.credId, chSu.json.challenge, 'h-sty', { signCount: 2 }) }, password: 'sty-pass-03', as: 1000 }, tok, freshIp());
+  assert.equal(cross.status, 401);
+  /* passwd：密码证明（proof.password；旧写法 current 也收） */
+  assert.equal((await id(env, { action: 'passwd', proof: { password: 'wrong-pass-9' }, password: 'sty-pass-03', as: 1000 }, tok, freshIp())).status, 401);
+  assert.equal((await id(env, { action: 'passwd', proof: { password: 'sty-pass-02' }, password: 'sty-pass-03', as: 1000 }, tok, freshIp())).status, 200);
+  /* passkey add：不带证明 → 401（注册 challenge 不消耗） */
+  const reg = await id(env, { action: 'passkey-add-challenge', as: 1000 }, tok);
+  const cred = await fx.makeAttestationCredential(reg.json.challenge, 'styrigx.com', ORIGIN);
+  const bare = { action: 'passkey-add', cid: reg.json.cid, credential: cred, handle: reg.json.user.id, as: 1000 };
+  assert.equal((await id(env, bare, tok, freshIp())).status, 401);
+  assert.equal((await id(env, { ...bare, proof: { password: 'sty-pass-03' } }, tok, freshIp())).status, 200);
+  /* passkey rm：不带 → 401；用待删的那把验证可以；删到最后一把也可以 */
+  assert.equal((await id(env, { action: 'passkey-delete', n: 2, as: 1000 }, tok, freshIp())).status, 401);
+  assert.equal((await id(env, { action: 'passkey-delete', n: 2, as: 1000, proof: { password: 'sty-pass-03' } }, tok, freshIp())).status, 200);
+  const ch2 = await id(env, { action: 'self-challenge' }, tok);
+  const last = await id(env, { action: 'passkey-delete', n: 1, as: 1000, proof: { cid: ch2.json.cid, credential: await fx.assertion(sk.kp, sk.credId, ch2.json.challenge, 'h-sty', { signCount: 5 }) } }, tok, freshIp());
+  assert.equal(last.status, 200, '用待删那把验证、删最后一把');
+  assert.equal(rows(env, 'SELECT * FROM account_user_passkey WHERE uid = 1000').length, 0);
+  const audit = rows(env, 'SELECT command FROM account_user_audit').map((a) => a.command);
+  for (const c of ['login-fail passwd', 'login-fail passkey add', 'login-fail passkey rm']) assert.ok(audit.includes(c), c);
 });
