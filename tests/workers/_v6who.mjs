@@ -1,5 +1,5 @@
 /**
- * 子站接口 Worker（curio-core / daymark-core）单测共用：网关 SpaceVerifier 的 v6 替身，按「谁」给结论（应用授权与旧结论 conclusion() 删除后，
+ * 子站接口 Worker（atlas-core 的奇趣 / 日刻，2026-11-14 前是 curio-core / daymark-core）单测共用：网关 SpaceVerifier 的 v6 替身，按「谁」给结论（应用授权与旧结论 conclusion() 删除后，
  * 定稿 v5.3 §十二：奇趣 / 日刻只经 SpaceVerifier.admit 问 v6 会话的档）。
  *
  * 放行判断用真的账号路由表 + permits（_v6admit.mjs admitFor），身份按「谁」，不看 cookie 的值（请求里仍要带 sgx-session，

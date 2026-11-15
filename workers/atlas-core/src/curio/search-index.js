@@ -190,7 +190,7 @@ export function albumItems(a, tracks) {
 /**
  * 从 D1 读全部收藏、设备、游戏、电影、音乐（页面上的顺序），拼成索引值。
  * 一个 batch 跨 cats / links / devices / games / movies / music 几套数据（同一快照），用主表 links 那套的绑定 D1_FINDS 执行
- * （D1_FINDS / D1_DEVICES / D1_GAMES / D1_MOVIES / D1_MUSIC 是同一个库 styrigx-curio-core）。
+ * （D1_FINDS / D1_DEVICES / D1_GAMES / D1_MOVIES / D1_MUSIC 是同一个库 styrigx-atlas-core）。
  * @param {any} db  D1_FINDS
  */
 export async function buildIndex(db, now = Date.now()) {

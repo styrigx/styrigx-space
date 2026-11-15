@@ -16,8 +16,8 @@ const VR = await import(SCRIPT);
 
 const GOOD = () => [
   { id: 'r1', pattern: 'styrigx.com/*', script: 'styrigx-space-core' },
-  { id: 'r4', pattern: 'styrigx.com/curio/api/*', script: 'styrigx-curio-core' },
-  { id: 'r5', pattern: 'styrigx.com/daymark/api/*', script: 'styrigx-daymark-core' },
+  { id: 'r4', pattern: 'styrigx.com/curio/api/*', script: 'styrigx-atlas-core' },
+  { id: 'r5', pattern: 'styrigx.com/daymark/api/*', script: 'styrigx-atlas-core' },
 ];
 
 test('verifyRoutes：styrigx.com/* 归 styrigx-space-core、没有短链两条 → 没有错误；子站接口路由不管', () => {

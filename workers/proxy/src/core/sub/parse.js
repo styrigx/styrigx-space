@@ -44,7 +44,7 @@ export function extractProxies(text, opts = {}) {
  * @param {Record<string, unknown>[]} proxies @param {number} gen
  */
 export function providerText(proxies, gen) {
-  return '# styrigx proxy-rules ' + new Date(gen).toISOString() + '\n' + JSON.stringify({ proxies }) + '\n';
+  return '# styrigx proxy ' + new Date(gen).toISOString() + '\n' + JSON.stringify({ proxies }) + '\n';
 }
 
 /* ---------- 节点链接列表 → mihomo 节点（定稿 §4 第 1 步，Gray 2026-11-12 01:01） ----------

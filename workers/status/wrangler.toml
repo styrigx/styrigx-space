@@ -36,7 +36,7 @@ preview_urls = false
 mode = "smart"
 
 [triggers]
-# 第一条：每分钟检查各站；第二条：每小时 41 分收一次用量，同一轮叫 daymark-core、curio-core、ai 的每小时任务（index.js 按 event.cron 分流，src/hourly.js），
+# 第一条：每分钟检查各站；第二条：每小时 41 分收一次用量，同一轮叫 atlas-core、ai 的每小时任务（index.js 按 event.cron 分流，src/hourly.js），
 # 03:41 CST 那一轮另清理过期分享链接（src/daily.js，v5 S2，不另加 Cron）。
 # 注意：免费账号整个账号最多 5 个 Cron Trigger（https://developers.cloudflare.com/workers/platform/limits/），这里占 2 个；
 # 2026-11-10 起另外三个 Worker 不自带 Cron（让出名额给 proxy-rules），全账号共 3 个：这里 2 个 + proxy-rules 1 个。

@@ -3,7 +3,7 @@
 # D1 styrigx-atlas-core、R2 styrigx-atlas-core（Standard）2026-11-14 04:50 建好（Gray 点头），数据 04:51 从旧两库一桶迁入。
 # 2026-11-14 16:31 D1 统一迁到 WNAM（经临时库两跳，同名重建：0137776d-…）；R2 迁 WNAM 另行。
 # 路由：切换窗口里先用 Cloudflare 路由接口把旧两个 Worker 的两条路由直接改指本 Worker（不留空档），本 PR 合并后由 deploy-atlas-core 按这里接管。
-# 旧 workers/curio-core、workers/daymark-core 不再部署（CI job 已删），下线时连目录删。
+# 旧 Worker 已下线，workers/ 下的旧目录已删（2026-11-14 合并进 atlas-core）。
 # 绑定名和旧 Worker 一字不差（D1_FINDS…D1_MUSIC、D1_QUOTES 全指同一个库，R2_PHOTOS / R2_MUSIC 同一个桶），业务代码不改。
 
 name = "styrigx-atlas-core"

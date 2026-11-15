@@ -1,14 +1,14 @@
 // styrigx-atlas-core（workers/atlas-core，Atlas 后端合并 PR1，2026-11-14）：
-// - 平移的两份代码和旧目录逐字一致（旧 Worker 下线前，改业务代码要两边一起改）
+// - 旧 workers/curio-core、workers/daymark-core 2026-11-14 下线后删目录；两边业务用例迁到本目录 curio*.test.mjs / daymark*.test.mjs
 // - 分流：/curio/api/* 交奇趣、/daymark/api/* 交日刻、其他 404；两边真跑在同一个 SQLite 库上（同一个 D1）
-// - 迁移 0001_curio + 0002_daymark 的结构 = 旧两个库按旧迁移跑完的结构（不含种子数据）
+// - 迁移 0001_curio + 0002_daymark 的结构 = 代码里的建表语句（SCHEMA / ITEM_SCHEMA / MOVIE_SCHEMA / MUSIC_SCHEMA、日刻 SCHEMA），不含种子数据
 // - HourlyJob：先奇趣后日刻，一边失败不拖另一边
-// - wrangler.toml：PR1 不挂路由、不开 workers.dev、无 Cron；绑定名和旧两个 Worker 一字不差，D1 / R2 各只一个
+// - wrangler.toml：挂 /curio/api/*、/daymark/api/*，不开 workers.dev、无 Cron；绑定名沿用旧两个 Worker 的，D1 / R2 各只一个
 // 运行：node --test tests/workers/atlas-core/*.test.mjs（CI 用 Node 22，node:sqlite）
 import '../account/_cf-workers.mjs'; /* cloudflare:workers 替身：日刻 index.js 再导出 HourlyJob、rpc/* 用 WorkerEntrypoint */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -21,45 +21,34 @@ const worker = app.default;
 const { HourlyJob } = await import(A + '/src/rpc/hourly-job.js');
 const DR = await import(A + '/src/rpc/daymark-reader.js');
 
-/** 目录下所有文件（相对路径） */
-function walk(dir, base = dir) {
-  return readdirSync(dir).flatMap((n) => {
-    const p = path.join(dir, n);
-    return statSync(p).isDirectory() ? walk(p, base) : [path.relative(base, p)];
-  }).sort();
-}
-
-/* 旧 Worker 里只管接线、在 Atlas 由 src/index.js / src/rpc/hourly-job.js 接手的文件，不平移 */
-const NOT_MOVED = { curio: ['index.js', 'rpc/hourly-job.js'], daymark: [] };
-
-for (const [name, old] of [['curio', 'curio-core'], ['daymark', 'daymark-core']]) {
-  test(`平移：src/${name}/ 和 workers/${old}/src/ 逐字一致`, () => {
-    const from = REPO + '/workers/' + old + '/src';
-    const to = A + '/src/' + name;
-    assert.deepEqual(walk(to), walk(from).filter((f) => !NOT_MOVED[name].includes(f)));
-    for (const f of walk(to)) assert.equal(readFileSync(path.join(to, f), 'utf8'), readFileSync(path.join(from, f), 'utf8'), f);
-  });
-}
-
 /** 按迁移文件建库，返回 { 表名: 建表语句 }（只看表和索引，去掉 sqlite 内部表） */
 function schemaOf(files) {
   const db = new DatabaseSync(':memory:');
   for (const f of files) db.exec(readFileSync(f, 'utf8'));
   const rows = db.prepare("SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name").all();
-  return Object.fromEntries(rows.map((r) => [r.type + ' ' + r.name, String(r.sql).replace(/\s+/g, ' ').replace(/IF NOT EXISTS /g, '')]));
+  return Object.fromEntries(rows.map((r) => [r.type + ' ' + r.name, String(r.sql).replace(/\s+/g, ' ').replace(/IF NOT EXISTS /g, '').replace(/\( /g, '(').replace(/ (?=[),])/g, '')]));
 }
 const mig = (w) => readdirSync(REPO + '/workers/' + w + '/migrations').filter((n) => n.endsWith('.sql')).sort().map((n) => REPO + '/workers/' + w + '/migrations/' + n);
 
-test('迁移：0001_curio + 0002_daymark 的结构 = 旧两个库的结构（不含种子）', () => {
+test('迁移：只有 0001_curio + 0002_daymark，结构 = 代码里的建表语句（不含种子）', async () => {
   const atlas = mig('atlas-core');
   assert.deepEqual(atlas.map((f) => path.basename(f)), ['0001_curio.sql', '0002_daymark.sql']);
-  const old = { ...schemaOf(mig('curio-core')), ...schemaOf(mig('daymark-core')) };
-  assert.deepEqual(schemaOf(atlas), old);
-  /* 只有结构：新库建出来是空的，数据由迁移脚本从旧库拷 */
+  const C = A + '/src/curio/api/';
+  const code = [
+    ...(await import(C + '_store.js')).SCHEMA, ...(await import(C + '_items.js')).ITEM_SCHEMA,
+    ...(await import(C + '_movies.js')).MOVIE_SCHEMA, ...(await import(C + '_music.js')).MUSIC_SCHEMA,
+    ...(await import(A + '/src/daymark/api/_quotes.js')).SCHEMA,
+  ];
+  const db = new DatabaseSync(':memory:');
+  for (const s of code) db.exec(s);
+  const fromCode = Object.fromEntries(db.prepare("SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name").all()
+    .map((r) => [r.type + ' ' + r.name, String(r.sql).replace(/\s+/g, ' ').replace(/IF NOT EXISTS /g, '').replace(/\( /g, '(').replace(/ (?=[),])/g, '')]));
+  assert.deepEqual(schemaOf(atlas), fromCode);
+  /* 只有结构：新库建出来是空的，数据 2026-11-14 从旧库拷入 */
   for (const f of atlas) assert.doesNotMatch(readFileSync(f, 'utf8'), /\bINSERT\b/i, path.basename(f));
 });
 
-/** node:sqlite 包成 D1 的样子（同 tests/workers/daymark-core/core.test.mjs） */
+/** node:sqlite 包成 D1 的样子（同 daymark.test.mjs） */
 function makeD1(db) {
   const stmt = (sql, args = []) => ({
     bind: (...a) => stmt(sql, a),
@@ -179,10 +168,8 @@ function bindings(toml, block) {
   return out;
 }
 
-test('wrangler.toml：挂 /curio/api/*、/daymark/api/* 两条路由 / 不开 workers.dev / 无 Cron；绑定名和旧两个 Worker 一致，D1、R2 各一个叫 styrigx-atlas-core', () => {
+test('wrangler.toml：挂 /curio/api/*、/daymark/api/* 两条路由 / 不开 workers.dev / 无 Cron；绑定名沿用旧两个 Worker 的，D1、R2 各一个叫 styrigx-atlas-core', () => {
   const t = readFileSync(A + '/wrangler.toml', 'utf8');
-  const curio = readFileSync(REPO + '/workers/curio-core/wrangler.toml', 'utf8');
-  const daymark = readFileSync(REPO + '/workers/daymark-core/wrangler.toml', 'utf8');
   assert.match(t, /^name = "styrigx-atlas-core"$/m);
   assert.match(t, /^main = "src\/index.js"$/m);
   assert.match(t, /^workers_dev = false$/m);
@@ -191,15 +178,19 @@ test('wrangler.toml：挂 /curio/api/*、/daymark/api/* 两条路由 / 不开 wo
   assert.equal([...t.matchAll(/^zone_name = "styrigx\.com"$/gm)].length, 2);
   assert.match(t, /^crons = \[\]$/m);
 
-  for (const block of ['d1_databases', 'r2_buckets', 'services', 'kv_namespaces']) {
-    const want = [...bindings(curio, block), ...bindings(daymark, block)].map((b) => b.binding);
-    assert.deepEqual(bindings(t, block).map((b) => b.binding).sort(), [...new Set(want)].sort(), block);
-  }
+  /* 绑定名沿用旧两个 Worker 的（业务代码按这些名字取） */
+  const want = {
+    d1_databases: ['D1_DEVICES', 'D1_FINDS', 'D1_GAMES', 'D1_MOVIES', 'D1_MUSIC', 'D1_QUOTES'],
+    r2_buckets: ['R2_MUSIC', 'R2_PHOTOS'], services: ['SPACE'], kv_namespaces: ['KV_SEARCH_INDEX'],
+  };
+  for (const [block, names] of Object.entries(want)) assert.deepEqual(bindings(t, block).map((b) => b.binding).sort(), names, block);
+  assert.equal(bindings(t, 'd1_databases').filter((b) => b.migrations_dir).length, 1, 'migrations_dir 只配一次');
   assert.deepEqual([...new Set(bindings(t, 'd1_databases').map((b) => b.database_name))], ['styrigx-atlas-core']);
   assert.equal(new Set(bindings(t, 'd1_databases').map((b) => b.database_id)).size, 1);
   assert.deepEqual([...new Set(bindings(t, 'r2_buckets').map((b) => b.bucket_name))], ['styrigx-atlas-core']);
   assert.deepEqual(bindings(t, 'services'), [{ binding: 'SPACE', service: 'styrigx-space-core', entrypoint: 'SpaceVerifier' }]);
-  assert.equal(bindings(t, 'kv_namespaces')[0].id, bindings(curio, 'kv_namespaces')[0].id);
+  assert.equal(bindings(t, 'kv_namespaces')[0].id, '4bcdb84f205541b9b6c8d230bc2b106f', '全站搜索索引 KV（styrigx-space-core），ai 读的同一个');
+  assert.doesNotMatch(t, /secret|api_key|token/i, '不持钥匙');
 });
 
 test('DaymarkReader.today（R-35，给 styrigx-ai）：和 GET /daymark/api/today 同一句；只出公开句子，不带 note / 可见性；没绑库 → ok:false 不抛', async () => {

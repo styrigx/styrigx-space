@@ -11,7 +11,7 @@
 
 1.1 本表只列**名字**（资源名、绑定名、Secret 名），来源是各 `wrangler.toml`。资源 id、namespace id、Secrets Store id、token 值 MUST NOT 出现在文档里；需要时查对应的 `wrangler.toml` 或 Cloudflare 后台。
 
-1.2 命名约定：站点 = Pages 项目 + `<站>-core` Worker + 同名 D1（`styrigx-space` / `styrigx-space-core`，`styrigx-curio-core`，`styrigx-daymark-core`）。绑定名 = `<类型前缀>_<存放的内容>`（`D1_QUOTES`、`R2_PHOTOS`、`KV_SEARCH_INDEX`）。
+1.2 命名约定：站点 = Pages 项目 + `<站>-core` Worker + 同名 D1（`styrigx-space` / `styrigx-space-core`；奇趣、日刻共用 `styrigx-atlas-core`）。绑定名 = `<类型前缀>_<存放的内容>`（`D1_QUOTES`、`R2_PHOTOS`、`KV_SEARCH_INDEX`）。
 
 1.3 预览 / 测试资源所有 Worker 只用一个 `styrigx-test-preview`（`tests/workers/space-core/preview-resources.test.mjs` 守卫）。
 
@@ -31,8 +31,7 @@
 | `styrigx-account` | 无路由；命名入口 `AccountService`、`AccountVerifier` | — |
 | `styrigx-ai` | 无路由；placement `gcp:us-east4` | `41 * * * *`（语义索引同步） |
 | `styrigx-status` | 无路由 | `* * * * *`（监测）、`41 * * * *`（用量） |
-| `styrigx-curio-core` | 路由 `styrigx.com/curio/api/*`；命名入口 `CurioReader` | `23 * * * *` |
-| `styrigx-daymark-core` | 路由 `styrigx.com/daymark/api/*` | `17 * * * *` |
+| `styrigx-atlas-core` | 路由 `styrigx.com/curio/api/*`、`styrigx.com/daymark/api/*`；命名入口 `CurioReader`、`DaymarkReader`、`HourlyJob` | —（每小时由 status 经 `JOB_ATLAS` 调） |
 | `styrigx-proxy` | 自定义域名 `proxy.styrigx.com` | D1 `styrigx-proxy`、Secrets Store `SGX_PROXY_DB_KEY`、Rate Limiting `RL_SUB`、自绑 `SELF`；cron 每 6 小时 |
 
 全部 Worker：`workers_dev = false`、`preview_urls = false`，开启 observability。
@@ -46,8 +45,7 @@
 | `styrigx-space-core` | `D1_SPACE`（space-core） | 进站：纪元、解锁密码、通行密钥、user handle、challenge、输错计数、恢复钥匙审计；分享链接 `share_*`；AI 全站限流计数。迁移表 `d1_migrations_core` |
 | `styrigx-account` | `D1_ACCOUNT`（account） | `account_*` 表、`settings_sync`（`wb_daily` v6 P4 删除，见 `docs/architecture/archive/ops/v6-p4-drop-wellbeing.sql`） |
 | `styrigx-status` | `D1_UPTIME_MONITOR`、`D1_CLOUDFLARE_USAGE`（status） | `status_*` 表。迁移表 `d1_migrations_status` |
-| `styrigx-curio-core` | `D1_FINDS`、`D1_DEVICES`、`D1_GAMES`、`D1_MOVIES`、`D1_MUSIC`（curio-core） | 收藏、设备、游戏、电影、音乐 |
-| `styrigx-daymark-core` | `D1_QUOTES`（daymark-core） | 句子、专题、`daily_pick` |
+| `styrigx-atlas-core` | `D1_FINDS`、`D1_DEVICES`、`D1_GAMES`、`D1_MOVIES`、`D1_MUSIC`、`D1_QUOTES`（atlas-core，同一个库） | 收藏、设备、游戏、电影、音乐；句子、专题、`daily_pick` |
 | `styrigx-proxy` | `D1_PROXY`（proxy-rules） | 代理订阅：`meta`（公钥、令牌哈希与封存的令牌、UA）、`sources`（机场链接与节点密文、成品 age 密文）、`lock` |
 | `styrigx-test-preview` | 各 Worker 的 `env.preview` | 预览 / 测试共用 |
 
@@ -55,14 +53,14 @@
 
 | 命名空间 | 绑定（Worker） | 内容 |
 |---|---|---|
-| `styrigx-space-core` | `KV_SEARCH_INDEX`（ai 读、curio-core / daymark-core 写） | 搜索索引 `site:space`、`site:blog`、`site:curio`、`site:daymark`；模型登记 `ai:models`；语义同步状态 `ai:recall:<站>` |
+| `styrigx-space-core` | `KV_SEARCH_INDEX`（ai 读、atlas-core 写） | 搜索索引 `site:space`、`site:blog`、`site:curio`、`site:daymark`；模型登记 `ai:models`；语义同步状态 `ai:recall:<站>` |
 | 账号 KV（命名空间名不在代码中） | `KV_PROFILE`（account） | 只放公开数据：头像 `avatar:*`、个人资料 `profile` |
 
 ### 4.3 R2
 
 | 桶 | 绑定（Worker） | 内容 |
 |---|---|---|
-| `styrigx-curio-core` | `R2_PHOTOS`、`R2_MUSIC`（curio-core） | 照片 `photos/`、音乐 `music/`、书签导入备份 |
+| `styrigx-atlas-core` | `R2_PHOTOS`、`R2_MUSIC`（atlas-core，同一个桶） | 照片 `photos/`、音乐 `music/`、书签导入备份 |
 
 ### 4.4 其他
 
@@ -85,7 +83,8 @@
 | status | `AI_SERVICE` | `styrigx-ai` |
 | ai | `CURIO` | `styrigx-atlas-core`（`CurioReader`） |
 | ai | `DAYMARK` | `styrigx-atlas-core`（`DaymarkReader`，R-35 今日一句） |
-| curio-core、daymark-core | `SPACE` | `styrigx-space-core`（`SpaceVerifier`） |
+| status | `JOB_ATLAS` | `styrigx-atlas-core`（`HourlyJob`） |
+| atlas-core | `SPACE` | `styrigx-space-core`（`SpaceVerifier`） |
 
 ## 5. Secrets Store
 

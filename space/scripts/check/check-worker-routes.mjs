@@ -14,8 +14,9 @@
  * 3. 路由不重复，只登记 styrigx.com（旧图志域名的 301 和接口 Worker 的旧路由已于 P4-3 PR-1 删除，别的域名一律报错）
  * 4. 子站（合并 PR3：styrigx.com/blog/ /curio/ /daymark/）必须登记的路径（含各站首页 + 查询串、RSS、站点地图）和三站产物里的每个页面
  *    都归网关（v5 S3 起页面公开，网关按路径前缀注入会话标记）
- * 5. 两个子站接口 Worker（workers/curio-core、workers/daymark-core 的 wrangler.toml）：styrigx.com/<站>/api/* 必须登记、归它们，
- *    只许登记这一条；网关不得有更具体的规则抢走，它们也不得抢走网关的接口、主站页面和子站页面
+ * 5. 子站接口 Worker styrigx-atlas-core（workers/atlas-core/wrangler.toml；2026-11-14 由 curio-core、daymark-core 合并而来）：
+ *    styrigx.com/curio/api/*、styrigx.com/daymark/api/* 必须登记、归它，只许登记这两条；网关不得有更具体的规则抢走，
+ *    它也不得抢走网关的接口、主站页面和子站页面
  * 6. 没有公开地址的 Worker（NO_ROUTE_WORKERS：P4-1 起 styrigx-ai）：wrangler.toml 一条路由都没有，workers_dev / preview_urls 关，
  *    只经网关的服务绑定进来
  * 静态资源现在也进网关（整站通配），由 src/app.js 原样回源（主站静态目录、子站静态后缀）；单测 auth-flow-2026-10-21 覆盖。
@@ -53,13 +54,12 @@ const SUBSITE_MUST = ['/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?
   '/curio/', '/curio/?x=1', '/curio/zh/', '/curio/sitemap.xml', '/curio/sitemap.xml?a',
   '/curio/finds/', '/curio/zh/devices/', '/curio/games/', '/curio/movies/', '/curio/zh/music/',
   '/daymark/', '/daymark/?x=1', '/daymark/zh/', '/daymark/sitemap.xml', '/daymark/sitemap.xml?a'];
-/* 两个子站接口 Worker：必须登记的路由和归它们的样例路径（主域名） */
+/* 子站接口 Worker：必须登记的路由（每个站一条 /<站>/api/*）和归它的样例路径（主域名） */
 export const CORE_WORKERS = [
-  { name: 'curio-core', label: '奇趣接口 Worker（styrigx-curio-core）', dir: 'workers/curio-core', site: 'curio',
+  { name: 'atlas-core', label: '内容层接口 Worker（styrigx-atlas-core）', dir: 'workers/atlas-core', sites: ['curio', 'daymark'],
     samples: ['/curio/api/links', '/curio/api/icon?id=1', '/curio/api/import', '/curio/api/export', '/curio/api/preview?url=x', '/curio/api/photo?kind=device&id=1',
-      '/curio/api/movies', '/curio/api/music', '/curio/api/music-upload?album=1&kind=track', '/curio/api/music-play', '/curio/api/music-stream?t=x&id=1', '/curio/api/music-cover?album=1'] },
-  { name: 'daymark-core', label: '日刻接口 Worker（styrigx-daymark-core）', dir: 'workers/daymark-core', site: 'daymark',
-    samples: ['/daymark/api/quotes', '/daymark/api/today', '/daymark/api/today?x=1', '/daymark/api/collections', '/daymark/api/days'] },
+      '/curio/api/movies', '/curio/api/music', '/curio/api/music-upload?album=1&kind=track', '/curio/api/music-play', '/curio/api/music-stream?t=x&id=1', '/curio/api/music-cover?album=1',
+      '/daymark/api/quotes', '/daymark/api/today', '/daymark/api/today?x=1', '/daymark/api/collections', '/daymark/api/days'] },
 ];
 
 /** space/web/public 里的 a/b/index.html → /a/b/；其他 .html 原样 */
@@ -149,11 +149,11 @@ export function checkSplit(gateway, workers, gatewayApis, pagePaths) {
 }
 
 /**
- * 两个子站接口 Worker（合并 PR3）：styrigx.com/<站>/api/* 必须登记且归它；
- * 只许登记本站接口前缀（不许写宽）；网关、另一个接口 Worker 都不得抢它的路径；它也不得抢网关的接口、主站页面、子站页面、
+ * 子站接口 Worker（合并 PR3；2026-11-14 起是 styrigx-atlas-core 一个）：它负责的每个站 styrigx.com/<站>/api/* 必须登记且归它；
+ * 只许登记这些站的接口前缀（不许写宽）；网关、别的接口 Worker 都不得抢它的路径；它也不得抢网关的接口、主站页面、子站页面、
  * 子站必须过网关的路径。
  * @param {string[]} gateway 网关的路由
- * @param {{name:string, label:string, site:string, routes:string[], samples:string[]}[]} cores
+ * @param {{name:string, label:string, sites:string[], routes:string[], samples:string[]}[]} cores
  * @param {string[]} gatewayApis 网关路由表里的接口（含转发路径）
  * @param {string[]} pagePaths 主站页面 + 子站页面（/<站>/…）
  */
@@ -168,9 +168,9 @@ export function checkCores(gateway, cores, gatewayApis, pagePaths) {
     return 'gateway';
   };
   for (const c of cores) {
-    const allowed = new Set([HOST + '/' + c.site + '/api/*']);
+    const allowed = new Set(c.sites.map((s) => HOST + '/' + s + '/api/*'));
     if (new Set(c.routes).size !== c.routes.length) errors.push(c.label + '有重复路由');
-    if (!c.routes.includes(HOST + '/' + c.site + '/api/*')) errors.push(c.label + '没有登记主域名路由 ' + HOST + '/' + c.site + '/api/*');
+    for (const a of allowed) if (!c.routes.includes(a)) errors.push(c.label + '没有登记主域名路由 ' + a);
     for (const r of c.routes) {
       if (!allowed.has(r)) errors.push(c.label + '只许登记本站接口前缀（' + [...allowed].join('、') + '）：' + r);
       if (gateway.includes(r)) errors.push('两个 Worker 登记了同一条路由：' + r);

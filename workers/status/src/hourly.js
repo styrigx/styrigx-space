@@ -1,6 +1,6 @@
 /**
  * @fileoverview 每小时任务（2026-11-10）：免费账号整个账号只有 5 个 Cron Trigger，
- * ai / curio-core / daymark-core 原来各占一个每小时 Cron，现在并进本 Worker 的 "41 * * * *"，
+ * ai / curio-core / daymark-core（后两个 2026-11-14 合并进 atlas-core）原来各占一个每小时 Cron，现在并进本 Worker 的 "41 * * * *"，
  * 经服务绑定调它们的命名入口 HourlyJob.run(at)。任务代码仍在各自 Worker 里，这里只按顺序叫：
  *   1. atlas（奇趣 + 日刻，2026-11-14 合并成一个 Worker，内部先奇趣后日刻）重建 KV 搜索索引（内容没变不写）
  *   2. 结束后 ai 再把索引同步进 Vectorize（原来 17 / 23 分重建、41 分同步，顺序不变）

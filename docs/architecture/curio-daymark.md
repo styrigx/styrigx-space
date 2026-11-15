@@ -10,16 +10,15 @@
 
 ## 1. 范围
 
-两个带数据的子站：页面在 `space/web/` 的 Hugo 站里，数据接口各有一个 Worker。两站结构相同，本文合并描述，差异分列。
+两个带数据的子站：页面在 `space/web/` 的 Hugo 站里，数据接口同在一个 Worker `styrigx-atlas-core`（2026-11-14 由原 `styrigx-curio-core`、`styrigx-daymark-core` 合并进 atlas-core）。两站结构相同，本文合并描述，差异分列。
 
 | | 奇趣 | 日刻 |
 |---|---|---|
 | 地址 | `https://styrigx.com/curio/`，中文 `/curio/zh/` | `https://styrigx.com/daymark/`，中文 `/daymark/zh/` |
-| 接口 | `styrigx.com/curio/api/*` → `styrigx-curio-core` | `styrigx.com/daymark/api/*` → `styrigx-daymark-core` |
-| Worker 目录 | `workers/curio-core/` | `workers/daymark-core/` |
-| 数据 | D1 `styrigx-curio-core`；R2 `styrigx-curio-core` | D1 `styrigx-daymark-core` |
-| 测试 | `tests/curio/`、`tests/workers/curio-core/` | `tests/daymark/`、`tests/workers/daymark-core/` |
-| 种子脚本 | `space/scripts/curio/gen-seed-sql.mjs`（`data/seed.json` → `migrations/0002_seed.sql`） | `space/scripts/daymark/gen-seed-sql.mjs`（→ `migrations/0003_seed_quotes.sql`） |
+| 接口 | `styrigx.com/curio/api/*` → `styrigx-atlas-core` | `styrigx.com/daymark/api/*` → `styrigx-atlas-core` |
+| Worker 代码 | `workers/atlas-core/src/curio/` | `workers/atlas-core/src/daymark/` |
+| 数据 | D1 `styrigx-atlas-core`；R2 `styrigx-atlas-core`（两站共用） | D1 `styrigx-atlas-core`（两站共用） |
+| 测试 | `tests/curio/`、`tests/workers/atlas-core/curio*.test.mjs` | `tests/daymark/`、`tests/workers/atlas-core/daymark*.test.mjs` |
 
 ## 2. 页面
 
@@ -37,7 +36,7 @@
 
 ## 3. 接口
 
-3.1 两个 Worker 的接口在 `src/routes.js` 登记，与 `src/api/` 一一对应（单测核对）；`_` 开头的是接口共用模块。
+3.1 两站的接口各在 `workers/atlas-core/src/<站>/routes.js` 登记，与同目录 `api/` 一一对应（单测核对）；`_` 开头的是接口共用模块。
 
 | 奇趣 `/curio/api/*` | 鉴权 |
 |---|---|
@@ -54,11 +53,11 @@
 | `days` | GET 公开：往前几天的「今日一句」（只读 `daily_pick`，最多 31 天） |
 | `quotes`、`collections` | GET 公开（未登录账号只有公开句子）；写：进站 + 同源 + 账号会话 + `daymark.write` |
 
-3.2 访问档（v5 S3）：每个 Worker 的 `src/routes.js` 有自己的 `ROUTE_ACCESS`（方法 + 路径精确匹配，表里没有的一律要进站，fail closed；单测对整张表快照）。要进站的接口经服务绑定 `SPACE`（`SpaceVerifier.conclusion()`）问站点核心，没有进站会话 401；写操作再看账号结论里的作用域。公开读不拒绝，只在要私密行 / `canWrite` 时问结论。
+3.2 访问档（v5 S3）：每站的 `src/<站>/routes.js` 有自己的 `ROUTE_ACCESS`（方法 + 路径精确匹配，表里没有的一律要进站，fail closed；单测对整张表快照）。要进站的接口经服务绑定 `SPACE`（`SpaceVerifier.conclusion()`）问站点核心，没有进站会话 401；写操作再看账号结论里的作用域。公开读不拒绝，只在要私密行 / `canWrite` 时问结论。
 
-3.3 搜索索引：写接口成功后重建、每小时兜底（2026-11-10 起由 styrigx-status 的 41 分 Cron 经服务绑定调各自的 `HourlyJob`），写 KV `KV_SEARCH_INDEX` 的 `site:curio` / `site:daymark`（内容没变不写；私密条目标 `private`）。
+3.3 搜索索引：写接口成功后重建、每小时兜底（2026-11-10 起由 styrigx-status 的 41 分 Cron 经服务绑定 `JOB_ATLAS` 调 atlas-core 的 `HourlyJob`，先奇趣后日刻），写 KV `KV_SEARCH_INDEX` 的 `site:curio` / `site:daymark`（内容没变不写；私密条目标 `private`）。
 
-3.4 奇趣另有 RPC 入口 `CurioReader`（`src/rpc/reader.js`），给 `styrigx-ai` 做只读固定查询（最近电影、专辑曲目等），模型不写 SQL。日刻另有 `DaymarkReader`（atlas-core `src/rpc/daymark-reader.js`，R-35）：问句带「今天 + 日刻」时给 `styrigx-ai` 今日一句（只出公开句子，同 `GET /daymark/api/today`）。
+3.4 奇趣另有 RPC 入口 `CurioReader`（atlas-core `src/curio/rpc/reader.js`），给 `styrigx-ai` 做只读固定查询（最近电影、专辑曲目等），模型不写 SQL。日刻另有 `DaymarkReader`（atlas-core `src/rpc/daymark-reader.js`，R-35）：问句带「今天 + 日刻」时给 `styrigx-ai` 今日一句（只出公开句子，同 `GET /daymark/api/today`）。
 
 3.5 奇趣图片响应 `private, no-cache` + ETag + `Vary: Cookie`，304 排在会话与可见性检查之后。
 
@@ -66,8 +65,8 @@
 
 4.1 迁移文件 `NNNN_snake_case.sql`，已上线的文件 MUST NOT 改名、重新编号或修改；只进不退，新迁移 MUST 兼容旧代码（部署回滚不回滚 D1）。
 
-4.2 现有迁移：奇趣 `0001_init` … `0004_movies_music`；日刻 `0001_init` … `0006_daily_pick_set_by_grant`（`daily_pick.set_by` 现在取 `'auto'` 或 `'grant'`）。
+4.2 现有迁移（`workers/atlas-core/migrations/`）：`0001_curio`、`0002_daymark`，只有结构，等于原两个 Worker 各自旧迁移跑完的结果（数据 2026-11-14 从旧库拷入；`daily_pick.set_by` 取 `'auto'` 或 `'grant'`）。旧迁移和种子脚本随旧目录删除，见 git 历史。
 
 ## 5. 部署
 
-由 `.github/workflows/deploy.yml` 的 `deploy-curio-core`、`deploy-daymark-core` 部署，排在 `deploy-space-core` 之后（服务绑定 `SPACE` 要它先在）。见 SGX-OPS-001。
+由 `.github/workflows/deploy.yml` 的 `deploy-atlas-core` 部署，排在 `deploy-space-core` 之后（服务绑定 `SPACE` 要它先在）。见 SGX-OPS-001。

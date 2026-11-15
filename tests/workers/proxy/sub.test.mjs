@@ -240,7 +240,7 @@ test('刷新：每源单独加密；用 mihomo UA；手机能解；下载 /s/<�
   const armor = await res.text();
   assert.match(armor, /^-----BEGIN AGE ENCRYPTED FILE-----\n/);
   const plain = await ageDecrypt(armor, id);
-  assert.match(plain, /^# styrigx proxy-rules /);
+  assert.match(plain, /^# styrigx proxy /);
   const ap = JSON.parse(plain.split('\n')[1]).proxies;
   assert.deepEqual(ap.map((p) => p.name), ['🇭🇰 HK 01', '🇯🇵 JP 01', '🇭🇰 HK 01 #2'], '机场源：按初始映射词加国旗');
   assert.ok(ap.every((p) => p['client-fingerprint'] === 'chrome'), '指纹默认 chrome');

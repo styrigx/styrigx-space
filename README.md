@@ -88,8 +88,8 @@ Sloan Gray（styrigx）的个人数字空间：一个终端风格的个人网站
                                        ├─ 服务绑定 → styrigx-account   账号与授权（无公开路由）
                                        ├─ 服务绑定 → styrigx-ai        站内 AI 对话
                                        └─ 服务绑定 → styrigx-status    监测与用量
-       ──► styrigx.com/curio/api/*   styrigx-curio-core    奇趣接口（D1 + R2）
-       ──► styrigx.com/daymark/api/* styrigx-daymark-core  日刻接口（D1）
+       ──► styrigx.com/curio/api/*   styrigx-atlas-core    奇趣、日刻接口（同一个 D1 + R2）
+       ──► styrigx.com/daymark/api/* styrigx-atlas-core
        ──► proxy.styrigx.com   styrigx-proxy   规则集加速反代
 ```
 

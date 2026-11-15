@@ -1,9 +1,8 @@
-// styrigx-daymark-core · 全站搜索索引（workers/core/src/search-index.js）：
+// 日刻 · 全站搜索索引（workers/atlas-core/src/daymark/search-index.js，2026-11-14 合并进 atlas-core）：
 // - 每句出 zh + en 两条：标题截断、署名同页面、text 全文 ≤2000、链到作者分组或拾录
 // - 私密句子 private:true；随手一笔只进私密句子的 text，公开句子的索引里搜不到
 // - 写接口成功后 waitUntil 重建并 put site:daymark；读接口、失败的写不触发
 // - Cron scheduled 重建；KV / D1 出错只打日志，接口照常返回
-// - wrangler.toml：KV_SEARCH_INDEX 绑定 + 每小时 Cron
 // SQL 用 node:sqlite 真跑（CI 用 Node 22）。
 // 运行：node --test tests/workers/search-index.test.mjs
 import '../account/_cf-workers.mjs'; /* cloudflare:workers 替身：index.js 再导出 HourlyJob（WorkerEntrypoint） */
@@ -16,9 +15,9 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const W = REPO + '/workers/daymark-core';
-const worker = (await import(W + '/src/index.js')).default;
-const S = await import(W + '/src/search-index.js');
+const W = REPO + '/workers/atlas-core/src/daymark';
+const worker = (await import(W + '/index.js')).default;
+const S = await import(W + '/search-index.js');
 
 /** node:sqlite 包成 D1 的样子（同 core.test.mjs） */
 function makeD1(db = new DatabaseSync(':memory:')) {
@@ -248,10 +247,4 @@ test('出错不影响接口：KV 抛错、没绑 KV、D1 读失败都只打日�
   /* scheduled 同样不抛 */
   logs = await quiet(async () => { await worker.scheduled({}, { D1_QUOTES: badDb, KV_SEARCH_INDEX: makeKV() }, makeCtx()); });
   assert.ok(logs.some((l) => l.includes('[daymark-search] rebuild failed')));
-});
-
-test('wrangler.toml：KV_SEARCH_INDEX 绑 styrigx-space-core（进站 v3 L2b 前 styrigx-space-gateway），不自带 Cron', () => {
-  const t = readFileSync(W + '/wrangler.toml', 'utf8');
-  assert.match(t, /\[\[kv_namespaces\]\]\nbinding = "KV_SEARCH_INDEX"\nid = "4bcdb84f205541b9b6c8d230bc2b106f"/);
-  assert.match(t, /^crons = \[\]$/m, '不自带 Cron：每小时由 status 经 JOB_DAYMARK 调 HourlyJob（2026-11-10）');
 });

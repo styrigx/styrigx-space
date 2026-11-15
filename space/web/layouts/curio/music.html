@@ -1,9 +1,9 @@
 {{ define "main" }}
 {{ $lang := .Lang }}{{ $tr := partialCached "common/tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
 {{/* 奇趣 › 音乐（/curio/music/，中文 /curio/zh/music/；P4-3 奇趣拆页新增）：数字专辑，curio-music.js 画。
-   三层（v5 S3；接口档在 workers/curio-core/src/routes.js ROUTE_ACCESS）：歌单 / 封面谁都能看（GET /curio/api/music 不带任何音频地址）；
+   三层（v5 S3；接口档在 workers/atlas-core/src/curio/routes.js ROUTE_ACCESS）：歌单 / 封面谁都能看（GET /curio/api/music 不带任何音频地址）；
    听要进站（没进站 = 只看模式：播放键是锁、播放条只显示专辑，点播放发 sgx:sudo，顶栏终端预填 sudo styrigx）；
-   上传 / 删除要账号会话 + curio.write（接口回 canWrite 才显示）。noindex（baseof），不进站点地图 / 全站搜索 / AI 召回。
+   上传 / 删除要账号会话 + curio.write（接口回 canWrite 才显示）。公开页，不带 noindex（R-23）；站点地图只列奇趣首页，本页不单列；元数据进全站搜索 / AI 召回（site:curio 索引）。
    播放器交互借 jojo.best/music 的思路（只借交互）：封面横滑切专辑、整张按曲序播放、歌词跟着滚、倍速 0.75 / 1 / 1.25 / 1.5 / 2；随机播放（和弹出播放器共用本地设置）。
    播放走短链：/curio/api/music-play 签一枚随机令牌（10 分钟），<audio> 的地址是 /curio/api/music-stream?t=…&id=…（支持 Range，拖进度）。
    上传：「上传专辑」弹层，多个音频 + 可选封面 + 可选 .lrc 歌词，浏览器直传（单个音频 ≤ 95 MB）。 */}}

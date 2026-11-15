@@ -103,7 +103,7 @@
 
 7.4 AI 回答行的身份恒为 `grayai`，主机与符号跟随 §7.2：`grayai@space:~$ --reply` / `grayai@account:~# --reply`。
 
-7.5 实现：`term/core/who.js`（`PS_USER`、`PS_RESET`、`ps1`）、`shell/space/commands.js`（`PS_RESET`、`ENV_GUEST`、`ENV_ROOT`、`envPrompt`）、`account/commands.js`（`PS_GUEST`、`PS_ROOT`、`PS_RESET`）、`layouts/partials/common/frame/env-prompt.html`、`input.css` 的 `.sgx-ai-msg::before`。
+7.5 实现（路径相对 `space/web/`）：终端提示符在 `assets/common/js/frame/term/core/who.js`（`PS_GUEST`、`ps1`、`title`、`pageStateFor`）；环境提示符模板 `layouts/partials/common/frame/env-prompt.html`（`.sgx-envps-n` / `-g` / `-r` 三种都写），首帧由 `assets/common/js/ui/layout-mode.js`（`__sgxAccountPs`）写 `data-sgx-account-session`，名字 `.sgx-envps-u` 由 `assets/common/js/frame/topbar/panel.js` 按 whoami 写，显示规则在 `frame.css` 的 `.sgx-envps-*`；AI 回答行在 `input.css` 的 `.sgx-ai-msg[data-role="assistant"]::before`。旧路径 `shell/space/commands.js`、`account/commands.js` 的 `PS_*` / `ENV_*` 常量已不存在。
 
 ## 8. 细节约定
 

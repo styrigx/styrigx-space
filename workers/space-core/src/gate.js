@@ -289,7 +289,7 @@ async function handleRequest(context) {
  * 会话检查由网关统一做（合并 PR3，2026-11-03）；v5 S3 起和主站同一套放行（admit + 访问表 accessOf）。
  *
  * 子站 Pages 不持有任何公钥、不带验票代码。网关整站通配 styrigx.com/*（路由见 wrangler.toml）；
- * styrigx.com/curio/api/*、styrigx.com/daymark/api/* 是更具体的路由，归两个接口 Worker（workers/curio-core、workers/daymark-core，各有自己的访问表），不进网关：
+ * styrigx.com/curio/api/*、styrigx.com/daymark/api/* 是更具体的路由，归接口 Worker styrigx-atlas-core（workers/atlas-core；奇趣、日刻各有自己的访问表），不进网关：
  *   - 页面、RSS、站点地图、index.json：公开，HTML 注入会话状态（valid / locked）+ private, no-store
  *   - /<站>/api/*（正常归接口 Worker，漏到网关时）：访问表默认 entry，没进站 401 JSON
  *   - 静态资源后缀（js/css/字体/图片）直接回源，不验会话；/curio/、/daymark/ 下像图片的回答由 Pages 的 _worker.js 404

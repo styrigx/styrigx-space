@@ -201,8 +201,9 @@ test('弹出播放器页（音乐第二步 2b；2026-11 第 7 步进 Platform）
   assert.match(player, /<script id="sgx-i18n-curioPlayer"/);
 });
 
-test('不被收录、外观和语言跟主站（ui-inherit-run 在样式前）', () => {
-  assert.match(base, /<meta name="robots" content="noindex">/);
+test('收录按 R-23：公开页不带 noindex，只有会话后面的电影页和 404 带；外观和语言跟主站（ui-inherit-run 在样式前）', () => {
+  assert.match(base, /\{\{ if or \$is404 \(eq \.Layout "movies"\) \}\}<meta name="robots" content="noindex">\n\{\{ end -\}\}/);
+  assert.equal((base.match(/<meta name="robots"/g) || []).length, 1, 'robots 只有这一处、带条件');
   assert.ok(base.indexOf('ui-inherit-run.js') < base.indexOf('css/main.css'));
   assert.doesNotMatch(base + index + finds + devices + games + movies + music, /daymark|日刻分区|dm-/);
   /* 站点地图只列首页（子页、尤其电影 / 音乐不进） */

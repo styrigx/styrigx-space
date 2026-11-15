@@ -2,8 +2,8 @@
  * @fileoverview Cron（每小时，wrangler.toml [triggers]）：把各站索引切段、嵌入、写进 Vectorize（2026-11 AI 语义召回）。
  *
  * 为什么在 styrigx-ai、为什么读 KV：各站的内容早就由各自的主人导出成 KV site:<站名>（主站 / 博客由 CI 从生产构建写，
- * 奇趣 / 日刻由 curio-core / daymark-core 从自己的 D1 写，改内容即重建 + 每小时兜底）。这份 KV 就是各库的只读出口：
- * 这里只读它，不绑任何 D1，库还是只有各自的 core 能碰（避免一处绑定所有库）。账号库 styrigx-account 从来不进 KV 索引，这里也就碰不到。
+ * 奇趣 / 日刻由 atlas-core 从自己的 D1 写，改内容即重建 + 每小时兜底）。这份 KV 就是各库的只读出口：
+ * 这里只读它，不绑任何 D1，库还是只有各自的 core（space-core / atlas-core）能碰（避免一处绑定所有库）。账号库 styrigx-account 从来不进 KV 索引，这里也就碰不到。
  *
  * 每个站：
  *   1. 读 KV site:<站名>；没有 / 坏的 → 跳过（不删向量：可能只是这一轮没读到）。

@@ -1,4 +1,4 @@
-// workers/curio-core/src/api/music-upload.js
+// workers/atlas-core/src/curio/api/music-upload.js
 // POST /api/music-upload?album=N&kind=track&no=K&title=…&duration=S   body = 音频本身（浏览器直传，不分片）
 // POST /api/music-upload?album=N&kind=cover                           body = 封面图片（浏览器先缩到 1600、转 webp）
 // 权限：music 档（进站 + 账号会话 + curio.write，app.js 守卫）+ 同源（_music.js musicOrigin）。

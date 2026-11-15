@@ -1,5 +1,5 @@
 /**
- * @fileoverview styrigx-daymark-core：日刻接口 Worker（路由 styrigx.com/daymark/api/*，见 wrangler.toml）。
+ * @fileoverview 日刻接口（styrigx-atlas-core 的 /daymark/api/*，由 src/app.js 分流进来；2026-11-14 前是独立的 styrigx-daymark-core）。
  *
  * 数据接口都在这里，D1（D1_QUOTES）只绑在本 Worker 上；Pages 只放静态文件。
  * 本 Worker 不持任何钥匙：会话交给主站鉴权网关验（服务绑定 SPACE，见 src/api/_auth.js）。
@@ -135,7 +135,7 @@ export default {
     try {
       return tag(await handle(request, env, ctx));
     } catch (e) {
-      console.error('[daymark-core] unhandled: ' + (e && e.name ? e.name : 'error'));
+      console.error('[daymark] unhandled: ' + (e && e.name ? e.name : 'error'));
       return tag(json(500, { ok: false, error: 'internal' }));
     }
   },

@@ -1,7 +1,7 @@
-// workers/curio-core/src/api/_movies.js
+// workers/atlas-core/src/curio/api/_movies.js
 // 奇趣「电影」子页（/curio/movies/）的数据层：表结构、校验、读写。下划线开头：不是接口（路由表见 src/routes.js）。
 //
-// 表 movies（D1 styrigx-curio-core，绑定 D1_MOVIES；迁移 migrations/0004_movies_music.sql，MOVIE_SCHEMA 只兜底全新的库，两边一致，测试核对）：
+// 表 movies（D1 styrigx-atlas-core，绑定 D1_MOVIES；迁移 migrations/0001_curio.sql，MOVIE_SCHEMA 只兜底全新的库，两边一致，测试核对）：
 //   片名、原名、年份、导演、个人评分 0–5、短评、观看日期、海报（R2 R2_PHOTOS 的 key，photos/movie/…，上传 / 读取走 /api/photo?kind=movie）、排序。
 // 可见性：进门（进站会话）即可读，没有私密条目；写要账号会话 + 作用域 curio.write + 同源（同发现 / 设备 / 游戏，不新造权限）。
 // 不进全站搜索索引 / AI 召回（src/search-index.js 只读 cats / links / devices / games）。

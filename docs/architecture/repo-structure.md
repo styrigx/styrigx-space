@@ -98,7 +98,6 @@ hugo server -s space/web   # /、/blog/、/curio/、/daymark/ 一起
 | `deploy/deploy-rollback.mjs`、`deploy/deploy-rollback-floor.json` | 部署失败自动回滚与回滚下限 |
 | `deploy/ci-local.sh` | 本地按 CI 顺序跑 |
 | `blog/` | 博客：`build-css.mjs`、`build-search-index.mjs`、`gen-code-tokens.mjs`、`serve-static.mjs` |
-| `curio/`、`daymark/` | 种子 SQL 生成：`gen-seed-sql.mjs` |
 
 ## 5. `workers/`
 

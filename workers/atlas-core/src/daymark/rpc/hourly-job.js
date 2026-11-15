@@ -13,7 +13,7 @@ export class HourlyJob extends WorkerEntrypoint {
       await rebuildSearchIndex(this.env, Date.now(), { skipUnchanged: true });
       return { ok: true };
     } catch (e) {
-      console.error('[daymark-core] hourly failed', e && /** @type {any} */ (e).name);
+      console.error('[daymark] hourly failed', e && /** @type {any} */ (e).name);
       return { ok: false };
     }
   }

@@ -1,4 +1,4 @@
-// workers/curio-core/src/api/music-cover.js
+// workers/atlas-core/src/curio/api/music-cover.js
 // GET /api/music-cover?album=N   专辑封面，public（v5 S3：和歌单同档；封面走这条，和音频 /api/music-stream 分开）。没封面 404。
 // 缓存同照片（_image.js）：private, no-cache + ETag（由 R2 key 算，换封面换 key）+ Vary: Cookie。
 import { err, methodNotAllowed } from './_lib.js';

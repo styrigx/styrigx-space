@@ -1,4 +1,4 @@
-// styrigx-curio-core 照片兜底清扫（src/photo-sweep.js）：
+// 奇趣照片兜底清扫（workers/atlas-core/src/curio/photo-sweep.js，2026-11-14 合并进 atlas-core）：
 // - 只删 photos/ 下没被 devices.photo / games.cover 引用、且上传超过 1 小时的
 // - icons/、imports/ 不动；D1 读不到整轮不删
 // - Cron 只在 UTC 19 点那轮扫
@@ -10,9 +10,9 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const W = REPO + '/workers/curio-core';
-const S = await import(W + '/src/photo-sweep.js');
-const worker = (await import(W + '/src/app.js')).default;
+const W = REPO + '/workers/atlas-core/src/curio';
+const S = await import(W + '/photo-sweep.js');
+const worker = (await import(W + '/app.js')).default;
 
 function makeD1() {
   const db = new DatabaseSync(':memory:');
@@ -45,7 +45,7 @@ const OLD = NOW - 2 * 3600e3;
 const FRESH = NOW - 10 * 60e3;
 
 async function seed(db) {
-  const IT = await import(W + '/src/api/_items.js');
+  const IT = await import(W + '/api/_items.js');
   await IT.ensureItemSchema(db);
   db.raw.prepare("INSERT INTO devices (name, photo) VALUES ('S24', 'photos/device/1-100.webp')").run();
   db.raw.prepare("INSERT INTO games (title, cover) VALUES ('Zelda', 'photos/game/1-200.webp')").run();

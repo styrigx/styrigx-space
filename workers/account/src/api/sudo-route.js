@@ -6,7 +6,7 @@
  *   这一次调用里 context.auth.v6() 的结论是 root（uid 0，sudo:true，sudoBy = 真正执行的人）。
  * - 不发票据、不压栈、不写会话：借来的 root 只活在这一次函数调用里，处理函数返回就没了；下一条照样要 sudo。
  * - 目标只认路由表（core/route-access.js）里 worker = account 的行；方法 + 路径 + body.action 必须查得到一档（levelOf），
- *   查不到 → 400 action。别的 Worker 的接口（space-core / curio-core / daymark-core）不在本 Worker，sudo 够不到 → 400 not-here。
+ *   查不到 → 400 action。别的 Worker 的接口（space-core / atlas-core）不在本 Worker，sudo 够不到 → 400 not-here。
  * - 拒绝（SUDO_ROUTE_DENY）：
  *   · /api/identity：身份命令走 command.action 的写法（api/identity.js SUDO_COMMANDS），不能套娃。
  *   （v6 P4 删除的旧账号接口 /api/account/keys、/reset、/session、/reauth 不在路由表里，查不到档 → 400 action。）

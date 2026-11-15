@@ -1,4 +1,4 @@
-// workers/curio-core/src/api/music-play.js
+// workers/atlas-core/src/curio/api/music-play.js
 // POST /api/music-play  body {album: N}   entry 档（进站即可，含分享链接 by=link；app.js 守卫）+ 同源（_music.js musicOrigin）
 // → {ok, expires, ttl, tracks:[{id, no, title, duration, src, lrc}]}：src = /curio/api/music-stream?t=<令牌>&id=<曲目>，
 //   令牌是随机 32 字节（不是 HMAC，不要 secret），存 D1 music_tokens，10 分钟有效，期间同一条地址可多次 Range 请求（拖进度）。
