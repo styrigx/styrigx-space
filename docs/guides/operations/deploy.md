@@ -81,7 +81,7 @@ quality + passkey-e2e
 | `deploy-ai-worker`、`rollback-ai-worker` | `STYRIGX_AI_DEPLOY` |
 | `deploy-status-worker` | `STYRIGX_STATUS_DEPLOY` |
 | `deploy-atlas-core` | `STYRIGX_ATLAS_CORE_DEPLOY` |
-| `deploy-proxy-rules-worker` | `STYRIGX_PROXY_RULES_DEPLOY` |
+| `deploy-proxy-rules-worker` | `STYRIGX_PROXY_DEPLOY` |
 | `build-and-deploy`（及 passkey 预览） | `STYRIGX_SPACE_PAGES_DEPLOY` |
 | 全部 | `CLOUDFLARE_ACCOUNT_ID` |
 
