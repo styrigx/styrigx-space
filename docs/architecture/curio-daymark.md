@@ -58,7 +58,7 @@
 
 3.3 搜索索引：写接口成功后重建、每小时兜底（2026-11-10 起由 styrigx-status 的 41 分 Cron 经服务绑定调各自的 `HourlyJob`），写 KV `KV_SEARCH_INDEX` 的 `site:curio` / `site:daymark`（内容没变不写；私密条目标 `private`）。
 
-3.4 奇趣另有 RPC 入口 `CurioReader`（`src/rpc/reader.js`），给 `styrigx-ai` 做只读固定查询（最近电影、专辑曲目等），模型不写 SQL。
+3.4 奇趣另有 RPC 入口 `CurioReader`（`src/rpc/reader.js`），给 `styrigx-ai` 做只读固定查询（最近电影、专辑曲目等），模型不写 SQL。日刻另有 `DaymarkReader`（atlas-core `src/rpc/daymark-reader.js`，R-35）：问句带「今天 + 日刻」时给 `styrigx-ai` 今日一句（只出公开句子，同 `GET /daymark/api/today`）。
 
 3.5 奇趣图片响应 `private, no-cache` + ETag + `Vary: Cookie`，304 排在会话与可见性检查之后。
 

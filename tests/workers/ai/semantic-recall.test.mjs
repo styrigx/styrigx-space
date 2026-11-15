@@ -328,6 +328,32 @@ test('fixed：调 CURIO.query（只传查询名 + 参数，不传 SQL）；结�
   assert.ok(Date.now() - t0 < F.FIXED_TIMEOUT_MS + 400);
 });
 
+test('fixed：R-35 日刻今日一句——「今天 + 日刻」或「今日一句」才查 DAYMARK.today；上下文带句子、译文、出处、日期；没绑 / 出错 / 没句子 → 空', async () => {
+  for (const q of ['日刻今天那句是什么', '今日一句是什么', "What's today's Daymark quote?", '今天日刻说了啥']) {
+    assert.deepEqual(F.detectIntents(q).map((x) => x.name), ['daymarkToday'], q);
+  }
+  for (const q of ['今天写了一句代码', '日刻是什么', '今天天气怎么样', 'quote of the week']) {
+    assert.deepEqual(F.detectIntents(q).map((x) => x.name).filter((n) => n === 'daymarkToday'), [], q);
+  }
+  let n = 0;
+  const env = { DAYMARK: { async today() { n++; return { ok: true, day: '2026-11-15', quote: { id: 'q1', text: '知者不言', trans: 'Those who know do not speak.', author: '老子', source: '道德经' } }; } } };
+  let hits = await F.fixedHits(env, '日刻今天那句是什么', 'zh');
+  assert.equal(n, 1);
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].site, 'daymark');
+  assert.equal(hits[0].title, '日刻 · 今日一句');
+  assert.equal(hits[0].url, 'https://styrigx.com/daymark/zh/');
+  assert.equal(hits[0].text, '知者不言\n译文：Those who know do not speak.\n出处：老子 · 道德经\n日期（北京时间）：2026-11-15');
+  hits = await F.fixedHits(env, "today's daymark quote", 'en');
+  assert.equal(hits[0].url, 'https://styrigx.com/daymark/');
+  assert.equal(hits[0].title, "Daymark · today's quote");
+  assert.deepEqual(await F.fixedHits({ CURIO: { async query() { return { ok: true }; } } }, '日刻今天那句是什么', 'zh'), [], '没绑 DAYMARK');
+  assert.deepEqual(await F.fixedHits({ DAYMARK: { async today() { throw new Error('rpc'); } } }, '今日一句', 'zh'), []);
+  assert.deepEqual(await F.fixedHits({ DAYMARK: { async today() { return { ok: true, day: '2026-11-15', quote: null }; } } }, '今日一句', 'zh'), []);
+  /* 只绑 DAYMARK 时电影意图跳过、不抛 */
+  assert.deepEqual(await F.fixedHits(env, '最近的电影', 'zh'), []);
+});
+
 test('fixed：单曲（kind=single，音乐 v1.13 ②）标「单曲」/ single，专辑不标；「单曲」也认作音乐意图', () => {
   assert.deepEqual(F.detectIntents('有哪些单曲').map((x) => x.name), ['music']);
   const r = { ok: true, albums: [{ title: 'River', kind: 'single', artist: 'Joni Mitchell', year: 1971, tracks: [{ no: 1, title: 'River', duration: 240 }] }, { title: 'Blue', kind: 'album', artist: 'Joni Mitchell', year: 1971, tracks: [] }] };

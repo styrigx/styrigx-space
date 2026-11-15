@@ -12,8 +12,9 @@ Atlas：内容层的接口 Worker。命名：带 `-core` 的是两层核心，`s
 ## 入口
 
 ```
-src/index.js           部署入口：只接线（default、CurioReader、HourlyJob）
+src/index.js           部署入口：只接线（default、CurioReader、DaymarkReader、HourlyJob）
 src/app.js             按公开地址前缀分流：/curio/api/* → curio/app.js，/daymark/api/* → daymark/index.js，其他 404；runHourly 先奇趣后日刻
+src/rpc/daymark-reader.js DaymarkReader：给 styrigx-ai 的今日一句（R-35）
 src/rpc/hourly-job.js  HourlyJob：给 styrigx-status（切换后 JOB_CURIO / JOB_DAYMARK 合成一条）
 src/curio/             奇趣，workers/curio-core/src 原样平移（不含它的 index.js、rpc/hourly-job.js，由上面接手）；CurioReader 在 curio/rpc/reader.js
 src/daymark/           日刻，workers/daymark-core/src 原样平移

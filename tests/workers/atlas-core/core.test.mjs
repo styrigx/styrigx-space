@@ -19,6 +19,7 @@ const A = REPO + '/workers/atlas-core';
 const app = await import(A + '/src/app.js');
 const worker = app.default;
 const { HourlyJob } = await import(A + '/src/rpc/hourly-job.js');
+const DR = await import(A + '/src/rpc/daymark-reader.js');
 
 /** 目录下所有文件（相对路径） */
 function walk(dir, base = dir) {
@@ -157,10 +158,11 @@ test('HourlyJob：一轮写两个产品的搜索索引；一边失败另一边�
   assert.ok([...bad.kv.keys()].some((k) => k.includes('daymark')));
 });
 
-test('入口：index.js 只接线，导出 default / CurioReader / HourlyJob', () => {
+test('入口：index.js 只接线，导出 default / CurioReader / DaymarkReader / HourlyJob', () => {
   const src = readFileSync(A + '/src/index.js', 'utf8').split('\n').filter((l) => l.startsWith('export')).sort();
   assert.deepEqual(src, [
     "export { CurioReader } from './curio/rpc/reader.js';",
+    "export { DaymarkReader } from './rpc/daymark-reader.js';",
     "export { HourlyJob } from './rpc/hourly-job.js';",
     "export { default } from './app.js';",
   ]);
@@ -198,4 +200,23 @@ test('wrangler.toml：挂 /curio/api/*、/daymark/api/* 两条路由 / 不开 wo
   assert.deepEqual([...new Set(bindings(t, 'r2_buckets').map((b) => b.bucket_name))], ['styrigx-atlas-core']);
   assert.deepEqual(bindings(t, 'services'), [{ binding: 'SPACE', service: 'styrigx-space-core', entrypoint: 'SpaceVerifier' }]);
   assert.equal(bindings(t, 'kv_namespaces')[0].id, bindings(curio, 'kv_namespaces')[0].id);
+});
+
+test('DaymarkReader.today（R-35，给 styrigx-ai）：和 GET /daymark/api/today 同一句；只出公开句子，不带 note / 可见性；没绑库 → ok:false 不抛', async () => {
+  const { db, env } = atlasEnv();
+  let r = await DR.todayPick(env);
+  assert.equal(r.ok, true);
+  assert.equal(r.quote, null, '一句都没有 → null');
+  db.exec("INSERT INTO quotes (id, text, trans, author, source, visibility, note) VALUES ('q1', '公开一句', 'one', '甲', '书', 'public', '秘密笔记'), ('q2', '私密一句', '', '', '', 'private', 'n')");
+  r = await DR.todayPick(env);
+  assert.equal(r.ok, true);
+  assert.match(r.day, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(r.quote.id, 'q1');
+  assert.equal(r.quote.text, '公开一句');
+  assert.equal('note' in r.quote, false);
+  assert.equal('visibility' in r.quote, false);
+  const g = await (await worker.fetch(req('/daymark/api/today'), env, CTX)).json();
+  assert.equal(g.quote.id, r.quote.id, '同 GET 接口锁住的那句');
+  assert.deepEqual(await DR.todayPick({}), { ok: false, error: 'db-binding-missing' });
+  assert.equal(typeof DR.DaymarkReader, 'function');
 });

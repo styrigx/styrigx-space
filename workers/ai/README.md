@@ -34,6 +34,7 @@
 | `AI` | Workers AI | 自营模型：`@cf/google/gemma-4-26b-a4b-it`（Gemma 4，默认）、`@cf/openai/gpt-oss-20b`（GPT-OSS 20B） |
 | `VECTORIZE` | Vectorize | `styrigx-ai-recall`（1024 维、cosine；元数据索引 `private` 布尔），语义召回（2026-11） |
 | `CURIO` | 服务绑定（RPC） | `styrigx-atlas-core` 的 `CurioReader`：只读固定查询（2026-11；2026-11-14 Atlas 后端合并前是 `styrigx-curio-core`） |
+| `DAYMARK` | 服务绑定（RPC） | `styrigx-atlas-core` 的 `DaymarkReader`：今日一句（R-35，2026-11-15；问句带「今天 / 今日 + 日刻」或「今日一句」时进上下文，见 `core/fixed.js`） |
 | `KV_SEARCH_INDEX` | KV（读；只写 `ai:recall:<站名>`） | `styrigx-space-core`（进站 v3 L2b 前是 `styrigx-space-gateway`，再之前 `styrigx-search-index`），键 `site:space`、`site:blog`、`site:daymark`、`site:curio`；模型登记 `ai:models` |
 | `SGX_CHAT_API_KEY` | Secrets Store | 外部模型（Gemini）钥匙，原 styrigx-chat 那把，复用，不新建 |
 
