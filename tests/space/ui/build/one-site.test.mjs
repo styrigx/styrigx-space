@@ -182,9 +182,10 @@ test('子站目录不带 Pages 配置和根文件，也没有 Pages Functions', 
   const robots = read('space/web/static/robots.txt');
   assert.match(robots, /^User-agent: \*\nAllow: \/\n/);
   assert.doesNotMatch(robots, /^Disallow: \/$/m, '不再整站 Disallow');
-  for (const p of ['/api/', '/curio/api/', '/daymark/api/']) assert.match(robots, new RegExp('^Disallow: ' + p.replace(/\//g, '\\/') + '$', 'm'), p);
+  const lines = robots.split('\n');
+  for (const p of ['/api/', '/curio/api/', '/daymark/api/']) assert.ok(lines.includes('Disallow: ' + p), p);
   for (const sm of ['/sitemap.xml', '/blog/sitemap-index.xml', '/curio/sitemap.xml', '/daymark/sitemap.xml']) {
-    assert.match(robots, new RegExp('^Sitemap: https://styrigx\\.com' + sm.replace(/\./g, '\\.') + '$', 'm'), sm);
+    assert.ok(lines.includes('Sitemap: https://styrigx.com' + sm), sm);
   }
   /* Hugo 内置 robots 模板会盖掉 static 那份（#310 起线上只有「User-agent: *」），必须关着 */
   assert.match(read('space/web/hugo.yaml'), /^enableRobotsTXT: false$/m);
