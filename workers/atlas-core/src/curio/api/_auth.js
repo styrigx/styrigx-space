@@ -78,6 +78,11 @@ export function normalizeAdmit(r, action) {
  */
 export function v6Of(context, action) {
   const d = context.data || (context.data = {});
+  /* D-3 a′：带 X-Sgx-Sudo 头的请求只按这张一次性票判（每个请求只核销一次；票对不上就拒，不退回会话本身的档） */
+  if (context.request && context.request.headers && context.request.headers.has(SUDO_HEADER)) {
+    if (!d.sudo) d.sudo = askSudo(context.request, context.env);
+    return d.sudo.then((s) => (!action || action === 'private' || action === s.action ? s.v : s.denied));
+  }
   const cache = d.v6 || (d.v6 = {});
   const k = action || '-';
   if (!cache[k]) cache[k] = askV6(context.request, context.env, action);
@@ -101,6 +106,66 @@ async function askV6(request, env, action) {
   }
 }
 
+/* ---------- D-3 a′：一次性 sudo 票（偏离稿 v3.12 第 9 节） ----------
+ * root 档的接口（导出 / 导入 / 删专辑 / 删专题），sudoers 先在账号 Worker 验自己的凭据领票（POST /api/identity sudo-grant），
+ * 再带 X-Sgx-Sudo: <票> 发这一次真请求；这里经网关 SpaceVerifier.sudoAdmit 交账号 Worker 核销（绑会话 + 方法 + 路径 + action，只能用一次）。
+ * 本 Worker 不见凭据；票不进日志（出错只记错误名）。 */
+
+/** 票的请求头 */
+export const SUDO_HEADER = 'X-Sgx-Sudo';
+const SUDO_TICKET_RE = /^[A-Za-z0-9_-]{43}$/;
+
+/** 票绑的 action 在 body 里的接口（先卡大小再解析；同 _write.js MAX_BODY）：POST /curio/api/music 的 op（album.del） */
+const SUDO_BODY_ACTION = Object.freeze({ 'POST /curio/api/music': 'op' });
+const SUDO_BODY_MAX = 65536;
+
+/** @param {Request} request @param {string} key */
+async function sudoActionOf(request, key) {
+  const field = SUDO_BODY_ACTION[key];
+  if (!field) return '';
+  const len = Number(request.headers.get('Content-Length') || '0');
+  if (len > SUDO_BODY_MAX) return null;
+  let raw = '';
+  try { raw = await request.clone().text(); } catch (e) { return null; }
+  if (raw.length > SUDO_BODY_MAX) return null;
+  try {
+    const b = JSON.parse(raw);
+    const a = b && typeof b === 'object' && typeof b[field] === 'string' ? b[field] : '';
+    return V6_ACTION_RE.test(a) ? a : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * 核销这张票 → { v: 结论, action: 票绑的 action, denied: 别的 action 的结论 }。票对得上 → root（uid 0，sudo）；否则拒
+ * （有会话 cookie 的回 403，没有的 401）。
+ * @param {Request} request @param {Record<string, any>} env
+ */
+async function askSudo(request, env) {
+  const cookie = (request.headers.get('Cookie') || '').slice(0, 8192);
+  const signed = V6_COOKIE_RE.test(cookie);
+  const no = signed ? Object.freeze({ allowed: false, signedIn: true, uid: null, root: false }) : V6_DENIED;
+  const fail = (/** @type {string} */ action) => ({ v: no, action, denied: no });
+  const ticket = request.headers.get(SUDO_HEADER) || '';
+  if (!signed || !SUDO_TICKET_RE.test(ticket)) return fail('');
+  const path = new URL(request.url).pathname;
+  const method = String(request.method || 'GET').toUpperCase();
+  const action = await sudoActionOf(request, method + ' ' + path);
+  if (action === null) return fail('');
+  const g = env && env.SPACE;
+  if (!g || typeof g.sudoAdmit !== 'function') return fail(action);
+  try {
+    const r = await g.sudoAdmit(cookie, ticket, method, path, action ? { action } : {});
+    const ok = !!(r && typeof r === 'object' && r.allowed === true && r.root === true && r.sudo === true && r.uid === 0 && r.action === action);
+    if (!ok) return fail(action);
+    return { v: Object.freeze({ allowed: true, signedIn: true, uid: 0, root: true, sudo: true }), action, denied: no };
+  } catch (e) {
+    console.error('[curio-auth] sudo admit failed: ' + (e && e.name ? e.name : 'error'));
+    return fail(action);
+  }
+}
+
 /** 这次请求是经 v6 新会话放进来的吗（requireEntry / requireScope 放行时记下） @param {any} context */
 export function viaV6(context) {
   return !!(context && context.data && context.data.via === 'v6');
@@ -115,6 +180,7 @@ export async function auditRootOp(context, command) {
   if (!viaV6(context)) return false;
   const v = await v6Of(context);
   if (!v.root) return false;
+  if (v.sudo === true) return false; /* D-3 a′：经票进来的，发票时账号 Worker 已记 sudo <方法> <路径> [action] */
   const g = context.env && context.env.SPACE;
   if (!g || typeof g.auditRoot !== 'function') return false;
   try {

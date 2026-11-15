@@ -20,6 +20,10 @@
  *    2c：POST /api/ai 也挂 private（= webmaster：站长 styrigx + root）——AI 回答召回私密条目、能切模型（GET /api/ai 的 canChoose 问同一条）；
  *    跨奇趣 / 日刻 / 博客的私密内容，对应旧「账号会话」（= 站长本人），不按某一个写组。
  *
+ * 11. sudoTicket（D-3 a′，偏离稿 v3.12 第 9 节）：别的 Worker（atlas-core）上 root 档的接口，sudoers 经 POST /api/identity sudo-grant
+ *    先在账号 Worker 验自己的凭据、领一次性票，再带 X-Sgx-Sudo 头发真请求（core/sudo-ticket.js）。只有标了的行能发票，
+ *    且这一档（带 action 的按 action）必须是 root；表自检兜住。
+ *
  * 判断不在这里：这张表只回答「要哪一档」，够不够由 core/groups.js permits() 判断（全站唯一一处）。
  * 没有公开地址、只经服务绑定 / RPC 进来的入口不进表，列在 SERVICE_ONLY（盘点用）。
  *
@@ -34,7 +38,8 @@ export const PROXY_HOST = 'proxy.styrigx.com';
 
 /**
  * @typedef {{ host?: string, method: string, path: string, level: string, worker: string, why: string,
- *   actions?: Readonly<Record<string, string>>, rescue?: boolean, rescueActions?: ReadonlyArray<string>, del?: 'item'|'bulk', retire?: string, decided?: string }} RouteRule
+ *   actions?: Readonly<Record<string, string>>, rescue?: boolean, rescueActions?: ReadonlyArray<string>, del?: 'item'|'bulk', retire?: string, decided?: string,
+ *   sudoTicket?: boolean }} RouteRule
  */
 
 /** @param {RouteRule} r */
@@ -60,7 +65,7 @@ export const ROUTE_ACCESS = Object.freeze([
       /* R-34（稿 v3.11 第 8 节）：自己改凭据（passwd、passkey add、passkey rm）先验证，通行密钥那条用 self-challenge（用途 v6-self，与 su / sudo 分开） */
       'self-challenge': 'user',
       passwd: 'user', 'passkey-list': 'webmaster', 'passkey-add-challenge': 'webmaster', 'passkey-add': 'webmaster', 'passkey-delete': 'webmaster', groups: 'user', who: 'user',
-      'sudo-challenge': 'sudoers', sudo: 'sudoers',
+      'sudo-challenge': 'sudoers', sudo: 'sudoers', 'sudo-grant': 'sudoers',
       useradd: 'root', userdel: 'root', usermod: 'root', 'passwd-user': 'root',
     },
     /* R-34：救援白名单加 passwd-user（passwd styrigx），服务端只收站长 styrigx（core/user-admin.js passwdReset rescue，按 uid 判） */
@@ -94,10 +99,10 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'DELETE', path: '/curio/api/photo', level: 'curio-write', worker: 'curio-core', why: '删一张照片', del: 'item' }),
   R({ method: 'GET', path: '/curio/api/icon', level: 'public', worker: 'curio-core', why: '网站图标缓存（私密收藏的图标只给 curio-write）', actions: { private: 'curio-write' } }),
   R({ method: 'GET', path: '/curio/api/preview', level: 'curio-write', worker: 'curio-core', why: '添加收藏时抓标题 / 图标（算在写里）' }),
-  R({ method: 'GET', path: '/curio/api/export', level: 'root', worker: 'curio-core', why: '导出全部收藏（含私密）', decided: 'Gray 2026-11-11 定 root：导出全部收藏含私密' }),
-  R({ method: 'POST', path: '/curio/api/import', level: 'root', worker: 'curio-core', why: '批量导入书签（v5 要账号复验 → v6 sudo 每次重验 = root）' }),
+  R({ method: 'GET', path: '/curio/api/export', level: 'root', worker: 'atlas-core', sudoTicket: true, why: '导出全部收藏（含私密）', decided: 'Gray 2026-11-11 定 root：导出全部收藏含私密' }),
+  R({ method: 'POST', path: '/curio/api/import', level: 'root', worker: 'atlas-core', sudoTicket: true, why: '批量导入书签（v5 要账号复验 → v6 sudo 每次重验 = root）' }),
   R({ method: 'GET', path: '/curio/api/music', level: 'public', worker: 'curio-core', why: '歌单（不含音频地址；canWrite 提示给 curio-write）', actions: { private: 'curio-write' } }),
-  R({ method: 'POST', path: '/curio/api/music', level: 'curio-write', worker: 'curio-core', why: 'album.add / edit、track.edit / del（单条）；album.del 连曲目一起删 = 结构删除',
+  R({ method: 'POST', path: '/curio/api/music', level: 'curio-write', worker: 'atlas-core', sudoTicket: true, why: 'album.add / edit、track.edit / del（单条）；album.del 连曲目一起删 = 结构删除',
     actions: { 'album.add': 'curio-write', 'album.edit': 'curio-write', 'track.edit': 'curio-write', 'track.del': 'curio-write', 'album.del': 'root' }, del: 'item' }),
   R({ method: 'GET', path: '/curio/api/music-cover', level: 'public', worker: 'curio-core', why: '专辑封面' }),
   R({ method: 'POST', path: '/curio/api/music-play', level: 'listen', worker: 'curio-core', why: '签播放令牌（听歌）' }),
@@ -117,7 +122,7 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'GET', path: '/daymark/api/collections', level: 'public', worker: 'daymark-core', why: '百味专题列表（含私密句子的部分只给 daymark-write）', actions: { private: 'daymark-write' } }),
   R({ method: 'POST', path: '/daymark/api/collections', level: 'daymark-write', worker: 'daymark-core', why: '新建专题' }),
   R({ method: 'PUT', path: '/daymark/api/collections', level: 'daymark-write', worker: 'daymark-core', why: '改专题 / 重排专题里的句子' }),
-  R({ method: 'DELETE', path: '/daymark/api/collections', level: 'root', worker: 'daymark-core', why: '删整个专题（句子本身不删）= 结构删除', del: 'bulk',
+  R({ method: 'DELETE', path: '/daymark/api/collections', level: 'root', worker: 'atlas-core', sudoTicket: true, why: '删整个专题（句子本身不删）= 结构删除', del: 'bulk',
     decided: 'Gray 2026-11-11 定 root：删整个专题 = 结构删除' }),
   R({ method: 'GET', path: '/daymark/api/days', level: 'public', worker: 'daymark-core', why: '按日浏览' }),
 
@@ -141,8 +146,8 @@ export const SERVICE_ONLY = Object.freeze([
   { worker: 'ai', entry: 'GET /healthz', caller: 'styrigx-status 监测', why: '健康检查' },
   { worker: 'status', entry: 'GET /summary', caller: 'space-core GET /api/status（STATUS）', why: '监测数据（status 组）' },
   { worker: 'account', entry: 'AccountService.fetch', caller: 'space-core FORWARDING（ACCOUNT）', why: '上表 /api/account*、/api/avatar*、/api/profile、/api/prefs、/avatar/*' },
-  { worker: 'account', entry: 'AccountVerifier.admit / auditRoot', caller: 'space-core（ACCOUNT_VERIFIER）', why: 'v6 会话判定（只读）/ root 特权操作留痕（v6 P4 起 authorize 删除）' },
-  { worker: 'space-core', entry: 'SpaceVerifier.admit / auditRoot', caller: 'curio-core、daymark-core（SPACE）', why: 'admit / auditRoot 原样转给账号 Worker（v6 P4 起 session、ShareJanitor、conclusion 删除）' },
+  { worker: 'account', entry: 'AccountVerifier.admit / auditRoot / sudoAdmit', caller: 'space-core（ACCOUNT_VERIFIER）', why: 'v6 会话判定（只读）/ root 特权操作留痕（v6 P4 起 authorize 删除）/ D-3 a′ 一次性 sudo 票核销' },
+  { worker: 'space-core', entry: 'SpaceVerifier.admit / auditRoot / sudoAdmit', caller: 'atlas-core（SPACE）', why: 'admit / auditRoot / sudoAdmit 原样转给账号 Worker（v6 P4 起 session、ShareJanitor、conclusion 删除）' },
   { worker: 'account', entry: 'AccountJanitor.purgeExpiredUsers', caller: 'styrigx-status 每日一轮（JOB_ACCOUNT）', why: '到期满 30 天的用户自动删除（v6 P2c）' },
   { worker: 'proxy-rules', entry: 'ProxyAdmin.*', caller: 'account POST /api/account/proxy（PROXY）', why: '代理订阅管理（root 档在调用方）' },
   { worker: 'curio-core / daymark-core / ai', entry: 'HourlyJob.run', caller: 'styrigx-status 每小时一轮', why: '搜索索引 / 照片清理等定时任务' },
@@ -217,5 +222,10 @@ for (const r of ROUTE_ACCESS) {
   for (const a of r.rescueActions || []) {
     if (r.rescue !== true || !r.actions || !Object.prototype.hasOwnProperty.call(r.actions, a)) throw new Error('route-access: bad rescue action ' + a + ' for ' + r.path);
   }
+}
+for (const r of ROUTE_ACCESS) {
+  if (r.sudoTicket !== true) continue;
+  const roots = [r.level].concat(r.actions ? Object.values(r.actions) : []).filter((l) => l === 'root');
+  if (r.worker === 'account' || roots.length === 0) throw new Error('route-access: bad sudoTicket for ' + r.method + ' ' + r.path);
 }
 if (KEYS.size !== ROUTE_ACCESS.length) throw new Error('route-access: duplicate rule');

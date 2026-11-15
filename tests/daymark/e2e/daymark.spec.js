@@ -34,6 +34,8 @@ async function mock(page, signedIn) {
   const calls = [];
   await page.route('**/avatar/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>' }));
   await page.route('**/api/lock-session-check', (r) => r.fulfill({ json: { ok: true } }));
+  /* D-3 a′：可写会话按 root 模拟（whoami 回 root），root 档操作不走领票；非 whoami 的身份请求放行给别的路由。 */
+  await page.route('**/api/identity', (r) => { const b = r.request().postData() || ''; return (signedIn) && b.includes('"whoami"') ? r.fulfill({ json: { ok: true, user: { root: true } } }) : r.fallback(); });
   await page.route('**/api/today**', (r) => r.fulfill({ json: { ok: true, day: '2026-10-20', quote: { ...QUOTES[0] } } }));
   await page.route('**/api/collections**', async (r) => {
     const req = r.request();

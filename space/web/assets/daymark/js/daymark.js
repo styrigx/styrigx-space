@@ -317,16 +317,37 @@ function reduced(){
 }
 /** 请人进站：顶栏终端预填 su （topbar/panel.js 接 sgx:sudo，= common/js/auth/sudo.js SUDO_EVENT） */
 function askSudo(){ try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {} }
+/* D-3 a′「先验后发票」（偏离稿 v3.12 第 9 节）：root 档的操作（删整个专题）。当前身份是 root → 直接发；
+   否则在 window 上登记待办（键名同 common/js/auth/sudo.js SUDO_GRANT_KEY）并预填终端 sudo 行，回车验过自己的凭据后终端交回一次性票，
+   带 X-Sgx-Sudo 头只发一次真请求（文件只传一遍）。没回车就一直等，下次点会顶掉这笔待办。 */
+var SUDO_GRANT_KEY = '__sgxSudoGrant', SUDO_HEADER = 'X-Sgx-Sudo';
+function whoIsRoot(){
+  return fetch('/api/identity', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: '{"action":"whoami"}' })
+    .then(function(r){ return r.json(); }).then(function(j){ return !!(j && j.user && j.user.root); }, function(){ return false; });
+}
+/** @returns {Promise<string>} 票（root 时空串） */
+function sudoTicket(line, grant){
+  return whoIsRoot().then(function(root){
+    if (root) return '';
+    return new Promise(function(resolve){
+      G[SUDO_GRANT_KEY] = { line: line, grant: grant, done: resolve, at: Date.now() };
+      try { doc.dispatchEvent(new CustomEvent('sgx:sudo', { detail: { line: line } })); } catch (e) {}
+    });
+  });
+}
+/** 票 → 请求头 @param {string} t @param {Object} [h] */
+function sudoHeaders(t, h){ h = h || {}; if (t) h[SUDO_HEADER] = t; return h; }
+
 function getJSON(url){
   return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   });
 }
-function send(method, url, body){
+function send(method, url, body, ticket){
   return fetch(url, {
     method: method, credentials: 'same-origin',
-    headers: body ? { 'Content-Type': 'application/json' } : {},
+    headers: sudoHeaders(ticket || '', body ? { 'Content-Type': 'application/json' } : {}),
     body: body ? JSON.stringify(body) : undefined,
   }).then(function(r){
     return r.json().catch(function(){ return {}; }).then(function(j){
@@ -662,7 +683,9 @@ $('#dm-g-edit').addEventListener('click', function(){ groupEditing = !groupEditi
 $('#dm-g-del').addEventListener('click', function(){
   var col = currentCollection(); if (!col) return;
   ask(T.delCol, T.del, function(){
-    send('DELETE', '/daymark/api/collections?id=' + encodeURIComponent(col.id)).then(function(){
+    sudoTicket('sudo daymark collection rm ' + col.id, { method: 'DELETE', path: '/daymark/api/collections' }).then(function(t){
+      return send('DELETE', '/daymark/api/collections?id=' + encodeURIComponent(col.id), undefined, t);
+    }).then(function(){
       collections = collections.filter(function(c){ return c.id !== col.id; });
       syncQuoteCollections(); groupEditing = false;
       go({ tab: 'flavors' }); toast(T.deleted);
