@@ -4,7 +4,7 @@
 
 | action | 做什么 | 输入 |
 |---|---|---|
-| `setup-hugo` | 装 Hugo；**Hugo 版本与 extended 只在这个文件里定义**（`HUGO_VERSION`、`HUGO_EXTENDED`），装完核对 `hugo version`；把 `HUGO_VERSION` 写进 `$GITHUB_ENV` | 无 |
+| `setup-hugo` | 装 Hugo；**Hugo 版本只在这个文件里定义**（`HUGO_VERSION`），装完核对 `hugo version`；把 `HUGO_VERSION` 写进 `$GITHUB_ENV` | 无 |
 | `setup-node-deps` | actions/setup-node（npm 缓存）+ `npm ci` | `node-version` 或 `node-version-file`（二选一）；`install`（默认 `'true'`） |
 | `setup-playwright` | Playwright Chromium：浏览器按 lockfile 里 `@playwright/test` 的版本缓存，系统库每次照装；可选 Noto CJK 字体（缓存 apt 候选版本的 .deb） | `cjk-fonts`（默认 `'false'`） |
 

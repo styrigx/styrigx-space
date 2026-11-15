@@ -72,7 +72,7 @@ Shared by all four sites:
 
 | Layer | What's used |
 |---|---|
-| Website | [Hugo](https://gohugo.io/) extended (version in [`setup-hugo`](.github/actions/setup-hugo/action.yml)), Tailwind CSS 4, native ES modules (bundled with Hugo `js.Batch`) |
+| Website | [Hugo](https://gohugo.io/) (version in [`setup-hugo`](.github/actions/setup-hugo/action.yml)), Tailwind CSS 4, native ES modules (bundled with Hugo `js.Batch`) |
 | Hosting | Cloudflare Pages (static files only) |
 | Backend | Cloudflare Workers (7), talking over service bindings + RPC |
 | Storage | Cloudflare D1, KV, R2, Vectorize, Secrets Store |
@@ -112,7 +112,7 @@ Full details: [SGX-ARCH-002 Repository layout](docs/architecture/repo-structure.
 
 ## Local development
 
-Requires Node.js 22 (`node:sqlite`) and Hugo extended (version defined in [`.github/actions/setup-hugo/action.yml`](.github/actions/setup-hugo/action.yml)).
+Requires Node.js 22 (`node:sqlite`) and Hugo (version defined in [`.github/actions/setup-hugo/action.yml`](.github/actions/setup-hugo/action.yml)).
 
 ```bash
 git clone https://github.com/styrigx/styrigx-space.git

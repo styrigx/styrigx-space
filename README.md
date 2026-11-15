@@ -72,7 +72,7 @@ Sloan Gray（styrigx）的个人数字空间：一个终端风格的个人网站
 
 | 层 | 用到的 |
 |---|---|
-| 网站 | [Hugo](https://gohugo.io/) extended（版本见 [`setup-hugo`](.github/actions/setup-hugo/action.yml)）、Tailwind CSS 4、原生 ES 模块（Hugo `js.Batch` 打包） |
+| 网站 | [Hugo](https://gohugo.io/)（版本见 [`setup-hugo`](.github/actions/setup-hugo/action.yml)）、Tailwind CSS 4、原生 ES 模块（Hugo `js.Batch` 打包） |
 | 托管 | Cloudflare Pages（只放静态文件） |
 | 后端 | Cloudflare Workers（7 个），服务绑定 + RPC 互相调用 |
 | 存储 | Cloudflare D1、KV、R2、Vectorize、Secrets Store |
@@ -112,7 +112,7 @@ styrigx-space/
 
 ## 本地开发
 
-需要 Node.js 22（`node:sqlite`）和 Hugo extended（版本以 [`.github/actions/setup-hugo/action.yml`](.github/actions/setup-hugo/action.yml) 为准）。
+需要 Node.js 22（`node:sqlite`）和 Hugo（版本以 [`.github/actions/setup-hugo/action.yml`](.github/actions/setup-hugo/action.yml) 为准）。
 
 ```bash
 git clone https://github.com/styrigx/styrigx-space.git
