@@ -131,11 +131,13 @@ test('外观和语言跟主站：baseof 在样式前内联 ui-inherit-run', () =
   assert.ok(base.indexOf('ui-inherit-run.js') < base.indexOf('css/main.css'));
 });
 
-test('robots.txt 只在图志根（root/robots.txt，Disallow: /）：本站不生成（Hugo 内置 robots 模板关掉），space/web/static/daymark 里也不放', () => {
+test('robots.txt 只在图志根（root/robots.txt；R-23 起放开收录，挡 /daymark/api/、列本站 sitemap）：本站不生成（Hugo 内置 robots 模板关掉），space/web/static/daymark 里也不放', () => {
   /* 合站后只有一份 hugo.yaml（space/web/hugo.yaml），robots.txt 只出在根上：本站没有自己的 robots 模板 */
   assert.equal(existsSync(path.join(REPO, 'space/web/layouts/daymark/robots.txt')), false);
   assert.equal(existsSync(path.join(REPO, 'space/web/static/daymark/robots.txt')), false);
-  assert.match(read('space/web/static/robots.txt'), /^User-agent: \*\nDisallow: \/$/m);
+  const robots = read('space/web/static/robots.txt');
+  assert.match(robots, /^Disallow: \/daymark\/api\/$/m);
+  assert.match(robots, /^Sitemap: https:\/\/styrigx\.com\/daymark\/sitemap\.xml$/m);
 });
 
 test('head 内联脚本不打包整份 palette-list.json（预设表 / 深套表在共享读端里；自定义色引擎 2026-11-12 删除）', () => {
