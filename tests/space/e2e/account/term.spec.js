@@ -27,7 +27,7 @@ const settled = (page, id) => page.waitForFunction((i) => document.getElementByI
 
 test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预填命令）', () => {
   /* 终端里的流程见 account/*.spec.js；这里只管入口：头像、卡片的行、旧地址 #acct=…、终端 sudo root、和全站终端互斥 */
-  test('点头像开卡片（非模态、aria-expanded、地址不变）；头像仍是链接；没登录：一行「登录 su root」（Gray 11-11 17:51），没有命令行；esc 关、焦点回头像', async ({ page }) => {
+  test('点头像开卡片（非模态、aria-expanded、地址不变）；头像仍是链接；没登录：登录小展示卡，一行「登录 su」（R-33，预填 su ，Gray 2026-11-14 23:06），没有命令行；esc 关、焦点回头像', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await go(page, '/zh/status/');
     const av = page.locator('.sgx-tb-av');
@@ -42,8 +42,9 @@ test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预�
     await expect(d).toHaveAttribute('data-acct-state', 'guest');
     await expect(d.locator('.sgx-at')).toHaveAttribute('data-at-layer', 'guest');
     await expect(d.locator('[data-at-run]').last()).toContainText('登录账号');
-    await expect(d.locator('[data-at-run]').last()).toHaveAttribute('data-at-run', 'su root');
-    await expect(d.locator('[data-at-run]').last()).toContainText('su root');
+    await expect(d.locator('[data-at-run]').last()).toHaveAttribute('data-at-run', 'su ');
+    await expect(d.locator('[data-at-run]').last()).toContainText('su');
+    await expect(d.locator('[data-at-run]').last()).not.toContainText('su root');
     /* 只展示：没有输入框、没有输出区；没有去 /account/ 子页的链接、没有 accountkey */
     await expect(d.locator('input, [data-at-in], [data-at-log]')).toHaveCount(0);
     await expect(d.locator('a[href*="/account/"]')).toHaveCount(0);

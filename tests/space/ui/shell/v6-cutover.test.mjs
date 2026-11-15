@@ -28,11 +28,12 @@ test('访客入口预填 GUEST_LINE = 「su 」；所有 prefill 都用它；v6 
   assert.match(js, /showTerm\(function \(\) \{ view\.prefill\(GUEST_LINE\); \}\);/, '?entry=… 一律预填 su ');
 });
 
-test('头像 = whoami（定稿 v5.5 §七）：访客 → su ；站长 / root → 账号页（不预填）；访客头像不 aria-disabled，普通用户头像 aria-disabled（只作装饰）', () => {
+test('头像 = whoami（R-33 起）：谁点都开账号小展示卡，头像不 aria-disabled、不拦点击；卡片按身份分三种', () => {
   const js = rd('space/web/assets/common/js/frame/topbar/panel.js');
-  assert.match(js, /if \(!u\) return avGuest\(\) \? GUEST_LINE : '';\s*return '';/);
-  assert.match(js, /if \(avDecor\(\)\) acctBtn\.setAttribute\('aria-disabled', 'true'\);\s*else acctBtn\.removeAttribute\('aria-disabled'\);/);
-  assert.match(js, /if \(avDecor\(\)\) \{ e\.preventDefault\(\); e\.stopImmediatePropagation\(\); return; \}/);
+  assert.doesNotMatch(js, /acctBtn\.setAttribute\('aria-disabled'/);
+  assert.doesNotMatch(js, /acctBtn\.addEventListener\('click'/, '头像点击只走 wire 开账号卡');
+  const win = rd('space/web/assets/common/js/frame/account/window.js');
+  assert.match(win, /setSt\(!u \? 'guest' : u\.root \|\| u\.webmaster === true \? 'in' : 'user'\);/);
   /* 盾牌：按徽章档预填，输入行有字不覆盖 */
   assert.match(js, /const c = shieldCmd\(tierOf\(\)\);\s*if \(c && !view\.input\.value\) view\.prefill\(c\);/);
 });

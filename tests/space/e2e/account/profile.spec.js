@@ -39,10 +39,10 @@ async function mockProfile(page, o = {}) {
   return puts;
 }
 
-test('卡片头部：姓名 · 昵称 · ✓ 已登录；本机缓存盖住默认值；「编辑」→ 终端预填 profile；profile 列出五项', async ({ page }) => {
+test('卡片头部：姓名 · 昵称 · ✓ 已登录；接口值盖住默认值（R-33 起页面总会问公开名片）；「编辑」→ 终端预填 profile；profile 列出五项', async ({ page }) => {
   await page.addInitScript(() => { try { localStorage.setItem('sgx-profile', JSON.stringify({ v: 1, p: { name: 'Test Name', nickname: 'tnick' }, t: 1 })); } catch (e) {} });
   await mockAccount(page, { user: T.V6_USER('styrigx') });
-  await mockProfile(page);
+  await mockProfile(page, { stored: { name: 'Test Name', nickname: 'tnick' } });
   await T.goPage(page);
   const d = await openCard(page);
   await expect(d).toHaveAttribute('data-acct-state', 'in');

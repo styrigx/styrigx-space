@@ -136,30 +136,33 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
     await expect(term(page)).not.toHaveAttribute('open', '');
   });
 
-  test('头像 = whoami：网关标了 locked（访客）= 预填 su （不开账号卡片、不跳页）；v6 root = 开账号卡片（定稿 §七 58–61）', async ({ page }) => {
-    for (const [st, user, want] of [['locked', null, 'su ']]) {
-      await go(page, { user });
-      /* 测试构建没有网关：自己给页面打上网关的标记（后注册的 route 优先），再取一次 */
-      await page.route('**/zh/status/', async (r) => {
-        const res = await r.fetch();
-        const body = (await res.text()).replace(/<html /, '<html data-sgx-lock-session="' + st + '" ');
-        await r.fulfill({ response: res, body });
-      });
-      await page.reload({ waitUntil: 'domcontentloaded' });
-      await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', st);
-      await page.waitForFunction(() => document.documentElement.hasAttribute('data-sgx-layout'));
-      const av = page.locator('.sgx-tb-av');
-      await expect(av).not.toHaveAttribute('aria-disabled', 'true');
-      await expect.poll(async () => {
-        await av.click();
-        const v = await tIn(page).inputValue().catch(() => '');
-        if (v !== want) { await page.keyboard.press('Escape'); }
-        return v;
-      }, { timeout: 10000 }).toBe(want);
-      await expect(term(page)).toHaveAttribute('open', '');
-      await expect(page.locator('#sgx-acct')).not.toHaveAttribute('data-state', 'open');
-      expect(new URL(page.url()).pathname).toBe('/zh/status/');
-    }
+  test('头像 = whoami（R-33）：网关标了 locked（访客）= 弹登录小展示卡（不开终端、不跳页），点「登录」才开终端预填 su ；v6 root = 开账号卡片', async ({ page }) => {
+    await go(page, { user: null });
+    /* 测试构建没有网关：自己给页面打上网关的标记（后注册的 route 优先），再取一次 */
+    await page.route('**/zh/status/', async (r) => {
+      const res = await r.fetch();
+      const body = (await res.text()).replace(/<html /, '<html data-sgx-lock-session="locked" ');
+      await r.fulfill({ response: res, body });
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
+    await page.waitForFunction(() => document.documentElement.hasAttribute('data-sgx-layout'));
+    const av = page.locator('.sgx-tb-av');
+    await expect(av).not.toHaveAttribute('aria-disabled', 'true');
+    const card = page.locator('#sgx-acct');
+    await expect.poll(async () => {
+      await av.click();
+      const st2 = await card.getAttribute('data-acct-state');
+      if (st2 !== 'guest') await page.keyboard.press('Escape');
+      return st2;
+    }, { timeout: 10000 }).toBe('guest');
+    await expect(card).toHaveAttribute('data-state', 'open');
+    await expect(term(page)).not.toHaveAttribute('open', '');
+    await expect(card.locator('.sgx-pop-edit')).toHaveCount(0);
+    await card.locator('.sgx-pop-list [data-at-run]').click();
+    await expect(term(page)).toHaveAttribute('open', '');
+    await expect(tIn(page)).toHaveValue('su ');
+    expect(new URL(page.url()).pathname).toBe('/zh/status/');
     /* v6 root：点头像开账号卡片，不开终端、不预填 */
     await go(page, { user: A.V6_USER('root') });
     await page.route('**/zh/status/', async (r) => {
@@ -180,17 +183,29 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
     expect(new URL(page.url()).pathname).toBe('/zh/status/');
   });
 
-  test('头像（P4-3，定稿 v5.5 §七）：普通用户显示站点头像、只作装饰——aria-disabled，点了不开账号页、不开终端、不跳页', async ({ page }) => {
+  test('头像（R-33）：普通用户显示站点头像，点了弹小展示卡——自己的用户名、✓ 已登录，只一行 lock，没有编辑 / 个人资料 / 设备', async ({ page }) => {
     await go(page, { user: A.V6_USER('alice') });
     const av = page.locator('.sgx-tb-av');
     await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('data-sgx-tier', 'user');
-    await expect(av).toHaveAttribute('aria-disabled', 'true');
+    await expect(av).not.toHaveAttribute('aria-disabled', 'true');
     await expect(av.locator('img')).not.toHaveAttribute('src', /\/avatar\/u\d+-/);
-    /* aria-disabled 的元素 Playwright 视为不可点，force 跳过可操作性等待 */
-    await av.click({ force: true });
-    await page.waitForTimeout(300);
-    await expect(page.locator('#sgx-acct')).not.toHaveAttribute('data-state', 'open');
+    const card = page.locator('#sgx-acct');
+    await expect.poll(async () => {
+      await av.click();
+      const st2 = await card.getAttribute('data-acct-state');
+      if (st2 !== 'user') await page.keyboard.press('Escape');
+      return st2;
+    }, { timeout: 10000 }).toBe('user');
+    await expect(card.locator('.sgx-at')).toHaveAttribute('data-at-layer', 'user');
+    await expect(card.locator('.sgx-pop-who b')).toHaveText('alice');
+    await expect(card.locator('.sgx-pop-who small')).toContainText('已登录');
+    await expect(card.locator('.sgx-pop-edit')).toHaveCount(0);
+    await expect(card.locator('[data-at-run]')).toHaveCount(1);
+    await expect(card.locator('[data-at-run]')).toHaveAttribute('data-at-run', 'lock');
     await expect(term(page)).not.toHaveAttribute('open', '');
+    await card.locator('[data-at-run]').click();
+    await expect(term(page)).toHaveAttribute('open', '');
+    await expect(tIn(page)).toHaveValue('lock');
     expect(new URL(page.url()).pathname).toBe('/zh/status/');
   });
 });

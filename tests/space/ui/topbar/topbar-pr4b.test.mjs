@@ -56,13 +56,13 @@ test('子站布局 / 语言写端（prefs-write.js）：四个入口都把 langP
   }
 });
 
-test('v5 S6 顶栏 E：头像访客态（v6 割接起点了预填 su ，不再是死按钮；有网关标记才判）、>_ 开合终端、盾牌分两态；v5 S7 主页 neofetch 提示符跟身份', () => {
+test('v5 S6 顶栏 E：头像访客态（v6 割接起点了预填 su → R-33 起弹登录小展示卡；有网关标记才判）、>_ 开合终端、盾牌分两态；v5 S7 主页 neofetch 提示符跟身份', () => {
   const js = rd('space/web/assets/common/js/frame/topbar/panel.js');
   /* 头像：同步看终端身份；页面没有网关标记（本地 / 测试构建）不当访客；v6 普通用户（u:<名>）不算访客 */
   assert.match(js, /const avGuest = function \(\) \{\s*if \(!who\) return false;\s*const pg = doc\.documentElement\.getAttribute\('data-sgx-lock-session'\);\s*if \(pg !== 'valid' && pg !== 'locked'\) return false;\s*return who\.get\(\)\.indexOf\('u:'\) !== 0;\s*\};/, 'v6：只有 v6 身份（u:<名>）不算访客（v6 P4 旧身份删了）');
-  assert.match(js, /e\.preventDefault\(\);\s*e\.stopImmediatePropagation\(\);\s*termPrefill\(c\);\s*\}, true\);/);
+  assert.doesNotMatch(js, /acctBtn\.addEventListener\('click'/, 'R-33：访客点头像不再直接开终端，冒泡给 wire 开登录卡');
   assert.doesNotMatch(js, /avDead/, '割接：访客头像不再是死按钮');
-  assert.match(js, /if \(avDecor\(\)\) acctBtn\.setAttribute\('aria-disabled', 'true'\);/, 'P4-3：只有普通用户的头像是装饰（定稿 v5.5 §七）');
+  assert.doesNotMatch(js, /avDecor/, 'R-33：普通用户头像也可点，开只有 lock 的小展示卡');
   /* >_：开合终端（同 Ctrl / ⌘ K）；终端窗口的 opener 是它 */
   assert.match(js, /const termBtn = \/\*\* @type \{HTMLElement\|null\} \*\/ \(doc\.querySelector\('#site-nav \.sgx-tb-term'\)\);/);
   assert.match(js, /const opener = termBtn \|\| navBtn \|\|/);

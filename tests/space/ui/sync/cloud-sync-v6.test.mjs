@@ -67,7 +67,7 @@ test('页面 locked（v6 过期 / 没登录）→ 不请求', async () => {
   assert.equal(calls.length, 0);
 });
 
-test('名片：页面 valid（纯 v6）→ initProfile 发 GET /api/profile；locked 不发', async () => {
+test('名片：页面 valid（纯 v6）→ initProfile 发 GET /api/profile；locked（访客）也发（公开接口，R-33）', async () => {
   document.cookie = 'sgx-id=1';
   P.initProfile();
   await settle();
@@ -77,5 +77,5 @@ test('名片：页面 valid（纯 v6）→ initProfile 发 GET /api/profile；lo
   lockState = 'locked';
   P.initProfile();
   await settle();
-  assert.equal(calls.length, 0);
+  assert.deepEqual(calls.map((c) => c.url), ['/api/profile']);
 });

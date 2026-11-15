@@ -63,7 +63,8 @@ test('访客页（locked）su 成功 → 标记就地切 valid → 云同步立�
   CS.bindSessionSync();
   assert.equal(await CS.initCloudSync(), 'skip', '首帧访客：不拉');
   await settle();
-  assert.equal(calls.length, 0);
+  assert.deepEqual(calls.map((c) => c.method + ' ' + c.url), ['GET /api/profile'], '首帧访客：云同步不拉；名片公开，访客也问（R-33）');
+  calls = [];
   document.cookie = 'sgx-id=1';
   lockState = 'valid';
   fire(true);
