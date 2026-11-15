@@ -11,7 +11,7 @@
  *        按需查、5 分钟缓存，失败只是 quota = null + 原因，不影响其余部分）
  *     503 { ok:false, error:'db' } 库不可用
  */
-import { runOnce, summary } from './monitor.js';
+import { runOnce, summary, aggregate } from './monitor.js';
 import { runUsage, USAGE_CRON } from './usage.js';
 import { readQuota } from './quota.js';
 import { runHourlyJobs } from './hourly.js';
@@ -57,6 +57,9 @@ export default {
         }),
         runDailyJobs(env, at).catch((e) => {
           console.error('[status] daily failed', e && /** @type {any} */ (e).message);
+        }),
+        aggregate(env.D1_UPTIME_MONITOR, at).catch((e) => {
+          console.error('[status] aggregate failed', e && /** @type {any} */ (e).message);
         }),
       ]));
       return;

@@ -28,6 +28,8 @@ const SITES = [
   { site: 'space', name: 'Home', url: 'https://styrigx.com/', ms: 123 },
   { site: 'proxy-rules', name: 'Proxy rules', url: 'https://proxy.styrigx.com/healthz', ms: 61 },
   { site: 'ai', name: 'AI', url: 'https://styrigx-ai/healthz', ms: 140 },
+  { site: 'atlas', name: 'Atlas', url: 'styrigx-atlas-core', ms: 45 },
+  { site: 'account', name: 'Account', url: 'styrigx-account', ms: 38 },
 ];
 
 /** @param {string} day @param {number} n */

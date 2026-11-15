@@ -79,27 +79,27 @@ test('failingBefore：每站只看部署前最近一次', () => {
 
 test('checksQuery：参数化（站名不拼进 SQL），有 / 没有上限两种', () => {
   const a = checksQuery(SITES, 100, null);
-  assert.equal(a.sql, 'SELECT site, at, ok, code, err FROM status_checks WHERE at > ? AND site IN (?, ?) ORDER BY at');
+  assert.match(a.sql, /FROM status_minute m, json_each\(m\.data\) j WHERE m\.at > \? AND json_extract\(j\.value, '\$\.s'\) IN \(\?, \?\) ORDER BY m\.at$/);
+  assert.doesNotMatch(a.sql, /search|chat/);
   assert.deepEqual(a.params, [100, 'search', 'chat']);
   const b = checksQuery(SITES, 100, 200);
-  assert.match(b.sql, /WHERE at > \? AND at <= \? AND site IN/);
+  assert.match(b.sql, /WHERE m\.at > \? AND m\.at <= \? AND json_extract/);
   assert.deepEqual(b.params, [100, 200, 'search', 'chat']);
 });
 
 test('checksQuery：在 status 迁移出的真表上能跑，只取部署之后、指定的站', { skip: !sqlite && 'node:sqlite unavailable' }, () => {
   const db = new sqlite.DatabaseSync(':memory:');
-  db.exec(readFileSync(new URL('../../../workers/status/migrations/0001_baseline.sql', import.meta.url), 'utf8'));
-  const ins = db.prepare('INSERT INTO status_checks (site, at, ok, code, ms, err) VALUES (?, ?, ?, ?, ?, ?)');
-  ins.run('search', 100, 0, 503, 5, 'status');
-  ins.run('search', 200, 1, 200, 5, null);
-  ins.run('chat', 200, 0, 0, 10000, 'timeout');
-  ins.run('space', 200, 0, 0, 1, 'network');
+  for (const f of ['0001_baseline.sql', '0002_status_minute.sql']) db.exec(readFileSync(new URL('../../../workers/status/migrations/' + f, import.meta.url), 'utf8'));
+  /* D-2 C：一分钟一行，一轮全部结果在 data 里 */
+  const ins = db.prepare('INSERT INTO status_minute (at, data) VALUES (?, ?)');
+  ins.run(100, JSON.stringify([{ s: 'search', ok: 0, code: 503, ms: 5, err: 'status' }]));
+  ins.run(200, JSON.stringify([{ s: 'search', ok: 1, code: 200, ms: 5, err: null }, { s: 'chat', ok: 0, code: 0, ms: 10000, err: 'timeout' }, { s: 'space', ok: 0, code: 0, ms: 1, err: 'network' }]));
   const q = checksQuery(SITES, 150, null);
   const rows = db.prepare(q.sql).all(...q.params).map((r) => ({ ...r }));
   assert.deepEqual(rows.map((r) => r.site + '@' + r.at).sort(), ['chat@200', 'search@200']);
   assert.equal(judge(rows, SITES, { confirm: 1 }).verdict, 'fail');
   const plan = db.prepare('EXPLAIN QUERY PLAN ' + q.sql).all(...q.params).map((r) => r.detail).join(' ');
-  assert.match(plan, /status_checks_at/, '走 status_checks_at 索引，不扫全表');
+  assert.match(plan, /status_minute USING INTEGER PRIMARY KEY|SEARCH m USING INTEGER PRIMARY KEY/, '走 at 主键，不扫全表');
 });
 
 test('d1Query：POST …/d1/database/<id>/query，带 Bearer 和参数；401 / 403 是 fatal；网络错不抛', async () => {

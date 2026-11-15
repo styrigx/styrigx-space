@@ -25,6 +25,7 @@ import { askSudo } from '../../auth/sudo.js';
 import { loadI18n, pageLang } from '../../i18n/i18n.js';
 import { visibleInterval } from '../../ui/scheduler.js';
 import { bannerInfo, bjDay, buildSlots, esc, fmtBjTime, isEmptySummary, renderAudit, renderIncidents, renderQuota, renderSite, renderUnits, renderUsage, slotText, unitList } from '../status/view.js';
+import { uptimeDays, uptimeText } from '../status/uptime.js';
 
 export const STATUS_API = '/api/status';
 export const AUDIT_API = '/api/space-audit';
@@ -120,6 +121,9 @@ function init() {
     const b = bannerInfo(data, ctx);
     banner.setAttribute('data-state', b.state);
     /** @type {HTMLElement} */ (banner.querySelector('[data-st="active"]')).textContent = t(b.state === 'up' ? 'activeUp' : 'activeDown');
+    /* R-06：since 行按今天重算（页面可能是几天前构建的） */
+    const since = /** @type {HTMLElement|null} */ (banner.querySelector('[data-st="since"][data-since]'));
+    if (since) { const d = since.getAttribute('data-since') || ''; since.textContent = 'since ' + d + ' · ' + uptimeText(uptimeDays(d, Date.now())); }
     /** @type {HTMLElement} */ (banner.querySelector('[data-st="title"]')).textContent = b.title;
     /** @type {HTMLElement} */ (banner.querySelector('[data-st="sub"]')).textContent = b.sub;
     if (unitsEl) unitsEl.innerHTML = renderUnits(unitList(data, rtt), ctx);

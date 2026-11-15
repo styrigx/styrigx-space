@@ -115,8 +115,8 @@ test('siteState：等待检查 / 故障 / 波动（失败但没到阈值）/ 正
 });
 
 test('站名 / 域名 / 原因 / 最近一次检查', () => {
-  assert.deepEqual(fx.normal().sites.map((s) => siteName(s, ZH.t)), ['主站', '规则集', 'AI 助手']);
-  assert.deepEqual(fx.normal().sites.map((s) => siteName(s, EN.t)), ['Space', 'Proxy rules', 'AI']);
+  assert.deepEqual(fx.normal().sites.map((s) => siteName(s, ZH.t)), ['主站', '规则集', 'AI 助手', '奇趣 · 日刻接口', '账号']);
+  assert.deepEqual(fx.normal().sites.map((s) => siteName(s, EN.t)), ['Space', 'Proxy rules', 'AI', 'Atlas', 'Account']);
   assert.equal(siteName({ site: 'new', name: 'New' }, ZH.t), 'New', '表里没有的站：接口回的英文名（缺键回退英文）');
   /* 退役站不再有固定站名，只按接口给的 zh / en / site 兜底 */
   assert.equal(siteName({ site: 'blog' }, ZH.t), 'blog');
@@ -143,7 +143,7 @@ test('isEmptySummary：没有站 / 全都没检查过 = 空', () => {
 });
 
 test('横幅：全部正常 / 有 1 个故障（列出站名）/ 英文单复数', () => {
-  assert.deepEqual(bannerInfo(fx.normal(), ZH), { state: 'up', title: '全部正常', sub: '3 个服务运行正常', down: 0 });
+  assert.deepEqual(bannerInfo(fx.normal(), ZH), { state: 'up', title: '全部正常', sub: '5 个服务运行正常', down: 0 });
   const d = bannerInfo(fx.oneDown(), ZH);
   assert.equal(d.state, 'down');
   assert.equal(d.title, '有 1 个故障');
@@ -241,37 +241,37 @@ test('renderIncidents：进行中 / 已恢复，北京时间、同一天恢复�
 });
 
 /* ===== 六个 unit（对齐 PR-B：systemctl status space.target） ===== */
-test('UNITS：六个 unit 顺序和来源（四站 = 主站那项，gray-ai = ai，auth = 网关往返）', () => {
-  assert.deepEqual(UNITS.map((u) => u.id), ['space', 'blog', 'curio', 'daymark', 'gray-ai', 'auth']);
-  assert.deepEqual(UNITS.map((u) => u.src), ['space', 'space', 'space', 'space', 'ai', '']);
+test('UNITS：五个 unit 顺序和来源（P4 R-07：一个 Pages 加几个 Worker；proxy 进 unit，Gray 2026-11-15 23:30）', () => {
+  assert.deepEqual(UNITS.map((u) => u.id), ['space', 'atlas', 'account', 'proxy', 'gray-ai']);
+  assert.deepEqual(UNITS.map((u) => u.src), ['space', 'atlas', 'account', 'proxy-rules', 'ai']);
+  assert.ok(!UNITS.some((u) => /blog|curio|daymark|auth|lockkey/.test(u.id + u.host)), '子站行和过时的 auth 行都去掉');
 });
 
-test('unitList：正常数据 → 六个 up，延迟取最近一次检查（取整），auth 用往返；没数据 → pending', () => {
+test('unitList：正常数据 → 五个 up，延迟取各自最近一次检查（取整）；没数据 → pending', () => {
   const l = unitList(fx.normal(), 87.6);
-  assert.equal(l.length, 6);
-  assert.deepEqual(l.map((u) => u.state), ['up', 'up', 'up', 'up', 'up', 'up']);
-  assert.deepEqual(l.map((u) => u.ms), [123, 123, 123, 123, 140, 88]);
-  assert.equal(l[1].host, 'styrigx.com/blog');
+  assert.equal(l.length, 5);
+  assert.deepEqual(l.map((u) => u.state), ['up', 'up', 'up', 'up', 'up']);
+  assert.deepEqual(l.map((u) => u.ms), [123, 45, 38, 61, 140]);
+  assert.equal(l[1].host, 'atlas-core');
   const none = unitList(null, null);
-  assert.deepEqual(none.map((u) => u.state), ['pending', 'pending', 'pending', 'pending', 'pending', 'pending']);
-  assert.deepEqual(none.map((u) => u.ms), [null, null, null, null, null, null]);
+  assert.deepEqual(none.map((u) => u.state), ['pending', 'pending', 'pending', 'pending', 'pending']);
+  assert.deepEqual(none.map((u) => u.ms), [null, null, null, null, null]);
 });
 
-test('unitList：AI 故障 → gray-ai down 且没有延迟，其余照常；还没检查过 → 站点 pending、auth up', () => {
+test('unitList：AI 故障 → gray-ai down 且没有延迟，其余照常；还没检查过 → 全部 pending', () => {
   const l = unitList(fx.oneDown(), null);
   const by = Object.fromEntries(l.map((u) => [u.id, u]));
   assert.equal(by['gray-ai'].state, 'down');
   assert.equal(by['gray-ai'].ms, null);
   assert.equal(by.space.state, 'up');
-  assert.equal(by.auth.state, 'up');
-  assert.equal(by.auth.ms, null, '拿不到往返时延迟为空');
+  assert.equal(by.account.state, 'up');
   const e = unitList(fx.empty(), 40);
-  assert.deepEqual(e.map((u) => u.state), ['pending', 'pending', 'pending', 'pending', 'pending', 'up']);
+  assert.deepEqual(e.map((u) => u.state), ['pending', 'pending', 'pending', 'pending', 'pending']);
 });
 
 test('renderUnits：每行 ● name.service · 状态 · 延迟 · 域名；状态文案中英；转义；空列表为空串', () => {
   const h = renderUnits(unitList(fx.oneDown(), 52), ZH);
-  assert.equal((h.match(/<li class="st-unit"/g) || []).length, 6);
+  assert.equal((h.match(/<li class="st-unit"/g) || []).length, 5);
   assert.match(h, /<li class="st-unit" data-unit="space" data-state="up"><span class="st-dot" aria-hidden="true">●<\/span><span class="st-unit-n" translate="no">space\.service<\/span><span class="st-unit-s" translate="no">[^<]+<\/span><span class="st-unit-ms" translate="no">123ms<\/span><span class="st-unit-h" translate="no">styrigx\.com<\/span><\/li>/);
   assert.match(h, /data-unit="gray-ai" data-state="down">.*?<span class="st-unit-ms" translate="no">—<\/span>/);
   const zhUp = ZH.t('unitActive'); const zhDown = ZH.t('unitFailed');

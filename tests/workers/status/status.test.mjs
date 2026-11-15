@@ -7,14 +7,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { checkOne, plan, dayOf, runOnce, summary, loadPrev, persist } from '../../../workers/status/src/monitor.js';
+import { checkOne, plan, dayOf, runOnce, summary, loadPrev, persist, aggregate, rollup, parseMinute } from '../../../workers/status/src/monitor.js';
 import { TARGETS, FAIL_THRESHOLD, TIMEOUT_MS } from '../../../workers/status/src/targets.js';
 import worker from '../../../workers/status/src/index.js';
 
 let sqlite = null;
 try { sqlite = await import('node:sqlite'); } catch {}
-/* 表结构 = migrations/0001_baseline.sql（进站 v3 L2b：库 styrigx-status，表名带 status_） */
-const SCHEMA = readFileSync(new URL('../../../workers/status/migrations/0001_baseline.sql', import.meta.url), 'utf8');
+/* 表结构 = migrations/0001_baseline.sql + 0002_status_minute.sql（D-2 C；库 styrigx-status，表名带 status_） */
+const BASELINE = readFileSync(new URL('../../../workers/status/migrations/0001_baseline.sql', import.meta.url), 'utf8');
+const SCHEMA = BASELINE + '\n' + readFileSync(new URL('../../../workers/status/migrations/0002_status_minute.sql', import.meta.url), 'utf8');
 
 /** 用 node:sqlite 模拟 D1（prepare / bind / batch / first / all / run） */
 function d1() {
@@ -25,10 +26,13 @@ function d1() {
     bind: (...a) => mk(sql, a),
     _exec() {
       const s = db.prepare(sql);
-      if (/^\s*select/i.test(sql)) return { results: s.all(...args) };
+      if (/^\s*select/i.test(sql) || /\bRETURNING\b/i.test(sql)) return { results: s.all(...args) };
       s.run(...args);
       return { results: [] };
     },
+    async all() { return this._exec(); },
+    async first() { return (this._exec().results || [])[0] || null; },
+    async run() { return this._exec(); },
   });
   return {
     raw: db,
@@ -42,7 +46,8 @@ function d1() {
 
 /** 假服务绑定：AI_SERVICE 的 /healthz 一律 200（真 SQL 那几条只关心公开地址） */
 const okSvc = () => ({ fetch: async () => new Response('{"ok":true}', { status: 200 }) });
-const SVC = { AI_SERVICE: okSvc() };
+const pingSvc = () => ({ ping: async () => ({ ok: true }) });
+const SVC = { AI_SERVICE: okSvc(), JOB_ATLAS: pingSvc(), JOB_ACCOUNT: pingSvc() };
 
 /** 假 fetch：按 url 回状态码；'timeout' 一直不回（等 abort）；'network' 直接抛 */
 function fakeFetch(map) {
@@ -58,11 +63,13 @@ function fakeFetch(map) {
 }
 
 test('地址：2 个公开（主站首页 + 规则集 healthz）+ 1 个服务绑定（P4-2 起 ai 的 /healthz，取代 search / chat），没有 book / muse-invite；旧图志那项 P4-3 PR-1 删除', () => {
-  assert.deepEqual(TARGETS.map((t) => t.site), ['space', 'proxy-rules', 'ai']);
+  assert.deepEqual(TARGETS.map((t) => t.site), ['space', 'proxy-rules', 'ai', 'atlas', 'account']);
   assert.deepEqual(TARGETS.filter((t) => t.binding).map((t) => [t.site, t.binding, new URL(t.url).pathname]),
     [['ai', 'AI_SERVICE', '/healthz']]);
+  /* P4 R-07：atlas-core、account 走现有命名入口绑定的 ping()，不加绑定 */
+  assert.deepEqual(TARGETS.filter((t) => t.rpc).map((t) => [t.site, t.rpc]), [['atlas', 'JOB_ATLAS'], ['account', 'JOB_ACCOUNT']]);
   /* 公开地址都是 styrigx.com 的；服务绑定的主机名不是公网域名（只给绑定用） */
-  for (const t of TARGETS) assert.equal(/styrigx\.com$/.test(new URL(t.url).host), !t.binding, t.site);
+  for (const t of TARGETS.filter((x) => !x.rpc)) assert.equal(/styrigx\.com$/.test(new URL(t.url).host), !t.binding, t.site);
   assert.ok(!TARGETS.some((t) => /book|muse-invite|blog\.|curio\.|daymark\./.test(t.url)));
   assert.equal(FAIL_THRESHOLD, 3);
   assert.equal(TIMEOUT_MS, 10000);
@@ -107,8 +114,9 @@ test('计划：失败 1、2 次不开故障；第 3 次开，起点是第一次�
   p = plan(prev, r(true), 3000);
   assert.deepEqual(p.close, [{ id: 7, ended_at: 3000 }]);
   assert.equal(p.state[0].fails, 0);
-  /* 失败不计耗时进日均 */
-  assert.equal(plan(new Map(), r(false), 1).daily[0].ms, 0);
+  /* D-2 C：一轮全部结果一行；state 只在变化时写 */
+  assert.deepEqual(plan(new Map(), r(false), 1).minute, { at: 1, data: [{ s: 'blog', ok: 0, code: 502, ms: 50, err: 'status' }] });
+  assert.equal(plan(new Map([['blog', { fails: 0, open: null, firstFailAt: 0 }]]), r(true), 9).state.length, 0);
 });
 
 test('真 SQL：连续 3 分钟 502 开故障，第 4 分钟恢复关上；每日汇总累加；7 天前的记录整点清掉', { skip: !sqlite && '需要 node:sqlite' }, async () => {
@@ -116,8 +124,9 @@ test('真 SQL：连续 3 分钟 502 开故障，第 4 分钟恢复关上；每�
   const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db, ...SVC };
   const M = 60000;
   const t0 = Date.UTC(2026, 9, 22, 4, 1); // 北京 12:01
-  /* 先塞一条 8 天前的旧记录 */
+  /* 先塞 8 天前的旧记录（停写的 status_checks 和 status_minute 各一条） */
   db.raw.prepare('INSERT INTO status_checks (site, at, ok, code, ms) VALUES (?, ?, 1, 200, 10)').run('space', t0 - 8 * 24 * 60 * M);
+  db.raw.prepare('INSERT INTO status_minute (at, data) VALUES (?, ?)').run(t0 - 8 * 24 * 60 * M, '[]');
   await runOnce(env, t0, fakeFetch({}));
   for (let i = 1; i <= 3; i++) await runOnce(env, t0 + i * M, fakeFetch({ 'https://proxy.styrigx.com/healthz': 502 }));
   let inc = db.raw.prepare('SELECT * FROM status_incidents').all();
@@ -129,12 +138,17 @@ test('真 SQL：连续 3 分钟 502 开故障，第 4 分钟恢复关上；每�
   await runOnce(env, t0 + 4 * M, fakeFetch({}));
   inc = db.raw.prepare('SELECT * FROM status_incidents').all();
   assert.equal(inc[0].ended_at, t0 + 4 * M);
+  /* 每分钟只写 status_minute 一行，不写 checks / hourly / daily */
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_minute WHERE at >= ?').get(t0).n, 5);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_checks WHERE at >= ?').get(t0).n, 0);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_daily').get().n, 0);
+  /* 整点汇总（41 分那轮）：上一个已结束小时进 hourly、daily；旧记录清掉；再跑一次不重复累加 */
+  await aggregate(db, Date.UTC(2026, 9, 22, 5, 41));
+  await aggregate(db, Date.UTC(2026, 9, 22, 5, 41));
   const day = db.raw.prepare("SELECT * FROM status_daily WHERE site = 'proxy-rules'").all();
   assert.deepEqual([day[0].day, day[0].total, day[0].ok_count], ['2026-10-22', 5, 2]);
-  /* 不是整点：旧记录还在；整点：清掉 */
-  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_checks WHERE at < ?').get(t0).n, 1);
-  await runOnce(env, Date.UTC(2026, 9, 22, 5, 0), fakeFetch({}));
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_checks WHERE at < ?').get(t0).n, 0);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_minute WHERE at < ?').get(t0).n, 0);
 });
 
 test('真 SQL：汇总——当前状态、24 小时 / 30 天可用率、每日、最近检查、故障', { skip: !sqlite && '需要 node:sqlite' }, async () => {
@@ -151,17 +165,25 @@ test('真 SQL：汇总——当前状态、24 小时 / 30 天可用率、每日�
   const curio = s.sites.find((x) => x.site === 'proxy-rules');
   assert.equal(curio.up, true);
   assert.equal(curio.uptime.h24, 25);
-  assert.equal(curio.uptime.d30, 25);
+  /* 还没整点汇总：24 小时格由 status_minute 现算补上；30 天 / 每日要等汇总 */
+  assert.equal(curio.uptime.d30, null);
+  assert.deepEqual(curio.days, []);
   /* 4 次检查都在同一小时：一格，这小时有失败 → 0 */
   assert.equal(curio.recent.length, 1);
   assert.deepEqual(curio.recent.map((x) => x[1]), [0]);
-  assert.deepEqual(curio.days.map((d) => [d.day, d.total, d.ok]), [['2026-10-22', 4, 1]]);
+  assert.deepEqual(curio.last && [curio.last.ok, curio.last.at], [true, t0 + 3 * M]);
+  await aggregate(db, Date.UTC(2026, 9, 22, 5, 41));
+  const s2 = await summary(db, Date.UTC(2026, 9, 22, 5, 42));
+  const c2 = s2.sites.find((x) => x.site === 'proxy-rules');
+  assert.equal(c2.uptime.d30, 25);
+  assert.equal(c2.recent.length, 1, '汇总后同一小时不重复');
+  assert.deepEqual(c2.days.map((d) => [d.day, d.total, d.ok]), [['2026-10-22', 4, 1]]);
   assert.equal(s.incidents.length, 1);
   assert.deepEqual([s.incidents[0].site, s.incidents[0].cause, s.incidents[0].ended_at], ['proxy-rules', 'network', t0 + 3 * M]);
   assert.equal(s.sites.find((x) => x.site === 'space').uptime.h24, 100);
 });
 
-test('写库：一个 batch 写完（检查、每日、状态、开 / 关故障）', async () => {
+test('写库：一个 batch 写完（分钟行、状态变化、开 / 关故障）', async () => {
   const seen = [];
   const db = {
     prepare: (sql) => ({ sql, bind: (...a) => ({ sql, a }) }),
@@ -169,13 +191,13 @@ test('写库：一个 batch 写完（检查、每日、状态、开 / 关故障�
   };
   const p = plan(new Map([['blog', { fails: 2, open: null, firstFailAt: 9 }]]),
     [{ site: 'blog', ok: false, code: 0, ms: 10000, err: 'timeout' }], 100);
-  await persist(db, p, { prune: 1 });
+  await persist(db, p);
   assert.equal(seen.length, 1);
-  const sqls = seen[0].map((x) => x.sql.split(' ').slice(0, 3).join(' '));
-  assert.deepEqual(sqls, ['INSERT INTO status_checks', 'INSERT INTO status_daily', 'INSERT INTO status_hourly', 'INSERT INTO status_state', 'INSERT INTO status_incidents', 'DELETE FROM status_checks']);
-  assert.deepEqual(seen[0][4].a, ['blog', 9, 'timeout']);
+  const sqls = seen[0].map((x) => x.sql.match(/^(INSERT OR REPLACE INTO|INSERT INTO) (\w+)/).slice(1).join(' '));
+  assert.deepEqual(sqls, ['INSERT OR REPLACE INTO status_minute', 'INSERT INTO status_state', 'INSERT INTO status_incidents']);
+  assert.deepEqual(seen[0][2].a, ['blog', 9, 'timeout']);
   /* 状态里带着这一串第一次失败的时间 */
-  assert.equal(seen[0][3].a[2], 9);
+  assert.deepEqual(seen[0][1].a, ['blog', 3, 9]);
 });
 
 test('入口：只认 GET /summary；库出错 503；scheduled 交给 waitUntil', async () => {
@@ -217,6 +239,7 @@ test('真 SQL：第一次失败时间存在 state 里，恢复清零', { skip: !
   assert.equal((await loadPrev(db)).get('proxy-rules').firstFailAt, t0);
   await runOnce(env, t0 + 2 * M, fakeFetch({}));
   assert.equal((await loadPrev(db)).get('proxy-rules').firstFailAt, 0);
+  await aggregate(db, Date.UTC(2026, 9, 23, 5, 41));
   const h = db.raw.prepare("SELECT * FROM status_hourly WHERE site = 'proxy-rules'").all();
   assert.deepEqual([h.length, h[0].total, h[0].ok_count], [1, 3, 1]);
 });
@@ -234,13 +257,13 @@ test('服务绑定：ai 走 env 里的绑定（不走公网 fetch）；绑定 20
   assert.deepEqual(seen.map((x) => x[0]), ['https://styrigx-ai/healthz']);
   assert.ok(seen.every((x) => x[1] === 'manual'));
   assert.ok(!pub.some((u) => /healthz$/.test(u) && !/proxy\.styrigx\.com/.test(u)), pub.join(' '));
-  const by = Object.fromEntries(p.checks.map((c) => [c.site, c]));
+  const by = Object.fromEntries(parseMinute(JSON.stringify(p.minute.data)).map((c) => [c.site, c]));
   assert.deepEqual([by.ai.ok, by.ai.code], [1, 200]);
   const p503 = await runOnce({ D1_UPTIME_MONITOR: db, AI_SERVICE: svc(503) }, Date.UTC(2026, 9, 28, 4, 2), fakeFetch({}));
-  const b503 = Object.fromEntries(p503.checks.map((c) => [c.site, c]));
+  const b503 = Object.fromEntries(parseMinute(JSON.stringify(p503.minute.data)).map((c) => [c.site, c]));
   assert.deepEqual([b503.ai.ok, b503.ai.code, b503.ai.err], [0, 503, 'status']);
   const q = await runOnce({ D1_UPTIME_MONITOR: db }, Date.UTC(2026, 9, 28, 4, 3), fakeFetch({}));
-  const by2 = Object.fromEntries(q.checks.map((c) => [c.site, c]));
+  const by2 = Object.fromEntries(parseMinute(JSON.stringify(q.minute.data)).map((c) => [c.site, c]));
   assert.deepEqual([by2.ai.ok, by2.ai.code, by2.ai.err], [0, 0, 'binding']);
   assert.equal(by2.space.ok, 1);
 });
@@ -264,10 +287,10 @@ test('wrangler.toml：status 绑了 AI_SERVICE → styrigx-ai，没有 SEARCH / 
 
 test('migrations/0001_baseline：只建表建索引（status_ 前缀），没有种子 / 删表 / 删数据；旧迁移只在 migrations-archive/ 留史', () => {
   const dir = new URL('../../../workers/status/', import.meta.url);
-  assert.deepEqual(readdirSync(new URL('migrations/', dir)).sort(), ['0001_baseline.sql']);
+  assert.deepEqual(readdirSync(new URL('migrations/', dir)).sort(), ['0001_baseline.sql', '0002_status_minute.sql']);
   assert.deepEqual(readdirSync(new URL('migrations-archive/', dir)).sort(),
     ['0001_init.sql', '0002_usage.sql', '0003_cut_reads.sql', '0004_quota.sql', '0005_retire_sites.sql']);
-  const sql = SCHEMA.replace(/--[^\n]*/g, '');
+  const sql = BASELINE.replace(/--[^\n]*/g, '');
   const stmts = sql.split(';').map((x) => x.trim()).filter(Boolean);
   for (const st of stmts) assert.match(st, /^CREATE (TABLE|INDEX) IF NOT EXISTS status_[a-z_]+ /, st.slice(0, 60));
   assert.doesNotMatch(sql, /\b(INSERT|DELETE|DROP|UPDATE|ALTER)\b/i);
