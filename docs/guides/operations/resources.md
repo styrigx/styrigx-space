@@ -83,7 +83,8 @@
 | space-core | `STATUS` | `styrigx-status` |
 | space-core | `AI_SERVICE` | `styrigx-ai` |
 | status | `AI_SERVICE` | `styrigx-ai` |
-| ai | `CURIO` | `styrigx-curio-core`（`CurioReader`） |
+| ai | `CURIO` | `styrigx-atlas-core`（`CurioReader`） |
+| ai | `DAYMARK` | `styrigx-atlas-core`（`DaymarkReader`，R-35 今日一句） |
 | curio-core、daymark-core | `SPACE` | `styrigx-space-core`（`SpaceVerifier`） |
 
 ## 5. Secrets Store

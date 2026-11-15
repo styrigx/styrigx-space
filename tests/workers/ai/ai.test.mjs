@@ -394,7 +394,8 @@ test('wrangler.toml：没有公开地址、绑定 AI、索引 KV、Vectorize、�
   /* 2026-11 AI 语义召回 */
   assert.match(toml, /\[\[vectorize\]\]\s*\nbinding = "VECTORIZE"\s*\nindex_name = "styrigx-ai-recall"/);
   assert.match(toml, /\[\[services\]\]\s*\nbinding = "CURIO"\s*\nservice = "styrigx-atlas-core"\s*\nentrypoint = "CurioReader"/);
-  assert.equal((toml.match(/\[\[services\]\]/g) || []).length, 1, '只绑奇趣的只读入口，不绑账号 / 网关');
+  assert.match(toml, /\[\[services\]\]\s*\nbinding = "DAYMARK"\s*\nservice = "styrigx-atlas-core"\s*\nentrypoint = "DaymarkReader"/, 'R-35：日刻今日一句');
+  assert.equal((toml.match(/\[\[services\]\]/g) || []).length, 2, '只绑奇趣、日刻的只读入口，不绑账号 / 网关');
   assert.doesNotMatch(toml, /styrigx-account|AccountService|AccountVerifier/);
   assert.match(toml, /\[placement\]\s*\nregion = "gcp:us-east4"/);
   assert.doesNotMatch(toml, /^mode = "smart"/m, 'region 和 smart 互斥');
