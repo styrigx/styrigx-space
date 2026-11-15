@@ -5,6 +5,7 @@ date: 2026-10-18
 series: ["Styrigx Auth Spec: How It Evolved"]
 seriesOrder: 3
 tags: ["Styrigx UI", "auth", "Security", "Cloudflare"]
+categories: ["tech"]
 ---
 
 > Part of the "Styrigx Auth Spec: How It Evolved" series, following Auth Spec 2.0. There is no written final design for this version; it is pieced together from the PRs of the time.

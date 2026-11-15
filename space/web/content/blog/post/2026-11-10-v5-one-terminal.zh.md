@@ -6,6 +6,7 @@ date: 2026-11-10
 series: ["styrigx 鉴权体系规范的变迁"]
 seriesOrder: 9
 tags: ["Styrigx UI", "鉴权", "安全"]
+categories: ["tech"]
 ---
 
 > 本文是「styrigx 鉴权体系规范的变迁」系列的一篇，接在《账号与进站 V3》之后。依据是 v5 终端设计稿和分期计划。

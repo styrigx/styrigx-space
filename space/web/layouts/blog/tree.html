@@ -4,7 +4,7 @@
        分类视图 = 系列目录（全部篇，按篇序；id="series-<slug>"，旧 #topics/series/<slug> 转到这里）+ 分类目录（系列 + 分类一共前 4 个目录，同设计稿，每个最新 2 篇 + 「… n more」→ 首页筛选）；
        年份视图 = 年 / 月 / 文章。
    - 右「archive」：ls blog/ --by-year（年 + 月份行，字符条 + 篇数）、ls blog/ --tags（#标签 n 纯文字两列 → 首页 ?tag=）。
-   分类字段同首页（partials/blog/cat-field.html：没有文章写 categories 时用标签）。 */ -}}
+   分类字段同首页（partials/blog/cat-field.html：没有文章写 categories 时用标签）；分类目录名写 slug（tech/ muse/ …，同设计稿 pg=tree，R-08）。 */ -}}
 {{ define "head" }}
 {{- $alt := dict "en" ("blog/tree/" | relURL) "zh" ("blog/zh/tree/" | relURL) -}}
 {{ partial "blog/head.html" (dict "page" . "title" .Title "description" .Description "alt" $alt) }}
@@ -41,7 +41,7 @@
       </div>
       <div class="sgx-term-body sgx-tree-out">
         {{- /* 名字栏宽 = 最长的目录名（+ "/" + 2 格间距），至少 22ch：长名字（如 Styrigx UI Auth Spec/）不再把数字挤出栏（2026-11-09 细节 7）。中日韩字按 2ch 算 */ -}}
-        {{- $tdw := 0 }}{{ range $dirs }}{{ $n := .g.name }}{{ $w := add (strings.RuneCount $n) (len (findRE `[^\x00-\x7F]` $n)) }}{{ if gt $w $tdw }}{{ $tdw = $w }}{{ end }}{{ end }}
+        {{- $tdw := 0 }}{{ range $dirs }}{{ $n := cond (and (eq .kind "cat") (eq $cf "categories")) .g.slug .g.name }}{{ $w := add (strings.RuneCount $n) (len (findRE `[^\x00-\x7F]` $n)) }}{{ if gt $w $tdw }}{{ $tdw = $w }}{{ end }}{{ end }}
         <div data-tree-pane="cat" style="--sgx-td: {{ add $tdw 3 }}ch">
           <p class="sgx-tl" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ partial "common/frame/env-prompt.html" "~" }}</span> tree blog/ -L 2</p>
           <p class="sgx-tl"><span class="cb">blog/</span></p>
@@ -56,7 +56,7 @@
           {{- else }}
           {{- $fh := printf "%s?%s=%s" $home $qk ($g.slug | urlquery) }}
           {{- $shown := first 2 $g.posts }}{{ $more := sub $g.count (len $shown) }}
-          <p class="sgx-tl"><span class="tp" aria-hidden="true">{{ cond $last "└── " "├── " }}</span><a class="cb td" href="{{ $fh }}">{{ $g.name }}/</a><span class="cd">{{ $g.count }}</span></p>
+          <p class="sgx-tl"><span class="tp" aria-hidden="true">{{ cond $last "└── " "├── " }}</span><a class="cb td" href="{{ $fh }}"{{ if eq $cf "categories" }} translate="no"{{ end }}>{{ cond (eq $cf "categories") $g.slug $g.name }}/</a><span class="cd">{{ $g.count }}</span></p>
           {{- range $j, $p := $shown }}
           <p class="sgx-tl"><span class="tp" aria-hidden="true">{{ $p0 }}{{ cond (and (eq (add $j 1) (len $shown)) (eq $more 0)) "└── " "├── " }}</span><a class="tf" href="{{ $p.RelPermalink }}">{{ $p.Title }}</a></p>
           {{- end }}

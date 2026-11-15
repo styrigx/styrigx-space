@@ -4,10 +4,13 @@ nav: Navigation
 tabs: Blog sections
 toc: Contents
 tocTitle: Table of contents
-progress: Reading progress
 latest: Latest
 series: Series
 categories: Categories
+catTech: Tech
+catMuse: Muse
+catDevices: Devices
+catLife: Life
 tags: Tags
 clear: Clear
 seriesPart: 'Part {{ .Current }} of {{ .Total }}'

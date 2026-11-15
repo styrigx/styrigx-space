@@ -52,6 +52,14 @@ cascade:
   - type: blog
     target:
       kind: term
+  # 分类（2026-11-15 R-08，tech / muse / devices / life）不出词条页：博客按分类筛选走首页 ?cat=（chips、行内 #分类、目录页），
+  # 不要 /categories/<slug>/ 这种根上的页面
+  - build:
+      render: never
+      list: never
+    target:
+      kind: term
+      path: '{/categories/**}'
 
 build:
   writeStats: true

@@ -3,6 +3,7 @@ title: "Proxy Subscriptions: Two Keys, One On-Device Decrypt, and One Link per S
 description: "Handing my proxy subscriptions and hand-written nodes to my own Worker: the download path is age-encrypted and the Worker only holds the public key; links and nodes in the database are sealed with a second key. P0 benchmarks ruled out typage in favor of a minimal age implementation, CMFA decrypted it on a real phone, and the design moved from one merged file to one link per source."
 date: 2026-11-10
 tags: ["Cloudflare", "Mihomo", "age", "Workers"]
+categories: ["tech"]
 ---
 
 CMFA (Clash Meta for Android) on my phone has always held my proxy subscription URLs directly. A subscription URL is a key: whoever has it can spend my traffic, and it ends up scattered across config files, backups and screenshots. The goal this time was simple: only my own Worker keeps the subscription URLs, and the phone pulls a node file that **only it can open**.

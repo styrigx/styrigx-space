@@ -3,6 +3,7 @@ title: "Redesign: Turning the Whole Site into a Terminal"
 description: "This round of redesign brings all four sites into one terminal style: the top bar, prompts, a floating AI window, a Mobile | Auto | DeX layout switch and a typed homepage tagline. Built Samsung- and DeX-first. Notes on the main trade-offs."
 date: 2026-11-09
 tags: ["Styrigx UI", "Design", "Samsung DeX"]
+categories: ["tech"]
 ---
 
 In early November I redesigned the whole site. The previous version was a card layout modelled on One UI, like a phone. This one is a terminal: the lock screen, the top-bar menus, the homepage, sub-page headers and the AI window all follow the same "prompt + command + output" pattern.

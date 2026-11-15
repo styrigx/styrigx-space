@@ -6,6 +6,7 @@ date: 2026-11-08
 series: ["styrigx 鉴权体系规范的变迁"]
 seriesOrder: 7
 tags: ["Styrigx UI", "鉴权", "安全", "Passkey"]
+categories: ["tech"]
 ---
 
 > 本文是「styrigx 鉴权体系规范的变迁」系列的一篇，接在《两套票》之后。依据是当天定下的账号命名 v2 方案。

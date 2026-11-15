@@ -3,6 +3,7 @@
  *
  * 主页 [03] 日刻（layouts/index.html #w-daymark，设计稿 .qt 强调线引言，整块点进日刻）用：
  * - paintDaymark()：画进模板里的 data-dm 槽位（text / trans / by / day / body / empty）
+ * - mountDaymarkCounts()：小字第二行的「 · 拾录 N · 百味 N」（data-dm="counts"，默认隐藏；两个接口都拿到才显示，R-05）
  * - mountDaymarkToday()：先画本地缓存（同一天才用），再静默拉新；拉失败且没缓存 → 保持隐藏
  * （旧的大引号卡片结构 daymarkCardHtml / .dm-w-* 随对齐 PR-B 删除）
  *
@@ -12,6 +13,7 @@
  */
 import { getJSON, setJSON } from '../../prefs/storage.js';
 import { i18nTable, pageLang } from '../../i18n/i18n.js';
+import { daymarkCounts } from './daymark-counts.js';
 /** 界面文案：页面字符串表 #sgx-i18n-space（语言包化 2026-11-07；当前语言已叠在英文上） */
 const tx = i18nTable('space');
 
@@ -66,7 +68,8 @@ export function paintDaymark(root, d, en) {
   if (!root || !d || !d.ok) return false;
   const q = function (k) { return /** @type {HTMLElement|null} */ (root.querySelector('[data-dm="' + k + '"]')); };
   const setT = function (k, v) { const el = q(k); if (el) el.textContent = v || ''; };
-  setT('day', fmtDaymarkDay(d.day, en));
+  /* 日期按设计稿 tb4.html 主页 [03] 写 YYYY-MM-DD（2026-11-15 R-05，原「11月15日」；fmtDaymarkDay 保留给别处） */
+  setT('day', /^\d{4}-\d{2}-\d{2}$/.test(d.day || '') ? d.day : '');
   const quote = d.quote;
   const body = q('body'), empty = q('empty'), trans = q('trans');
   if (quote && quote.text) {
@@ -152,4 +155,35 @@ export function mountDaymarkToday(root, o) {
     cancelled = true;
     try { if (ctl) ctl.abort(); } catch (e) {}
   };
+}
+
+/**
+ * 主页日刻小字的计数（2026-11-15 R-05）：GET /daymark/api/quotes + /daymark/api/collections（公开只读，带同源 cookie：
+ * 登录了数到的和日刻页同一个人看到的一样），算法 = daymark-counts.js（与日刻页同一套）。
+ * 槽位 [data-dm="counts"] 默认 hidden；两个都成功才填「 · 拾录 N · 百味 N」并显示，任何一个失败 / 超时都保持隐藏（只留「余响 · 日期」）。
+ * 测试构建（<html data-sgx-test-no-api>）不问，除非 window.__sgxDaymarkApi = true（同 daymark.js）。
+ * @param {HTMLElement} root @param {{timeoutMs?: number}} [o]
+ * @returns {Promise<boolean>} 是否显示了
+ */
+export function mountDaymarkCounts(root, o) {
+  const slot = root ? /** @type {HTMLElement|null} */ (root.querySelector('[data-dm="counts"]')) : null;
+  if (!slot || typeof fetch !== 'function') return Promise.resolve(false);
+  const de = document.documentElement;
+  if (de && de.hasAttribute('data-sgx-test-no-api') && !(/** @type {any} */ (globalThis).__sgxDaymarkApi)) return Promise.resolve(false);
+  const ms = (o && o.timeoutMs) || 8000;
+  const get = function (/** @type {string} */ url) {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctl ? setTimeout(function () { ctl.abort(); }, ms) : 0;
+    return fetch(url, { credentials: 'same-origin', signal: ctl ? ctl.signal : undefined })
+      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
+      .then(function (j) { clearTimeout(timer); if (!j || j.ok === false) throw new Error('bad'); return j; },
+        function (e) { clearTimeout(timer); throw e; });
+  };
+  return Promise.all([get('/daymark/api/quotes'), get('/daymark/api/collections')]).then(function (res) {
+    if (!Array.isArray(res[0].quotes) || !Array.isArray(res[1].collections)) return false;
+    const c = daymarkCounts(res[0].quotes, res[1].collections);
+    slot.textContent = tx('dmCounts', { q: c.trove, f: c.flavors }) || (' · ' + c.trove + ' · ' + c.flavors);
+    slot.hidden = false;
+    return true;
+  }).catch(function () { slot.hidden = true; return false; });
 }

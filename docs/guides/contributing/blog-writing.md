@@ -29,7 +29,7 @@ title: "标题"
 description: "一两句摘要，用于列表、RSS、分享卡片"
 date: 2026-11-09
 tags: ["Cloudflare", "安全"]
-categories: ["工程"]            # 可选；任何一篇写了 categories，分类视图就按 categories，否则退回 tags
+categories: ["tech"]            # MUST，四选一：tech / muse / devices / life，中英版本写同一个 slug（显示名走 i18n：技术 / Muse / 设备 / 生活）
 series: ["系列名"]               # 可选；数组，取第一个
 seriesOrder: 2                   # 可选；系列内篇序，从 1 开始
 draft: false
@@ -41,11 +41,13 @@ private: false                   # 可选；true 时不进站点地图
 
 3.2 `title`、`description`、`date` MUST 填写。
 
-3.3 系列：同一系列先按 `seriesOrder` 升序，没写的排在后面，再按日期、文件名。系列的「第 n / N 篇」只在同一语言里计算；文章页标题下显示系列名 · 第 n / N 篇 · 上一篇 / 下一篇，系列名链接到树形目录页 `/blog/tree/#series-<slug>`。中英版本各写各语言的系列名。
+3.3 分类（2026-11-15 偏离收尾 P3 / R-08）：`categories` 只写一个 slug，四选一 `tech`（技术）、`muse`（Muse）、`devices`（设备）、`life`（生活），中英版本同一个；博客首页 chips 固定「全部 / 技术 / Muse / 设备 / 生活」，按分类筛选走首页 `?cat=<slug>`，不出 `/categories/<slug>/` 词条页（`hugo.yaml` cascade）。
 
-3.4 新标签：第一次用到的标签 MUST 在 `space/web/content/tags/<标签>/_index.zh.md` 建中文标签页，写 `url: /blog/zh/tags/<slug>/` 与 `title`；中文标签名再加 `slug: <英文 slug>`（地址里不出现中文，与英文版同一个 slug）。缺这个文件构建失败。英文标签页不需要文件。中文页上的纯英文标签名要在 `tests/space/ui/build/lang-pack.test.mjs` 的 `ZH_ALLOW` 放行。
+3.4 系列：同一系列先按 `seriesOrder` 升序，没写的排在后面，再按日期、文件名。系列的「第 n / N 篇」只在同一语言里计算；文章页标题下显示系列名 · 第 n / N 篇 · 上一篇 / 下一篇，系列名链接到树形目录页 `/blog/tree/#series-<slug>`。中英版本各写各语言的系列名。
 
-3.5 新增文章后同步 `tests/blog/url-map.json`（页面、站点地图、RSS 顺序）和读取文章篇数的测试（`tests/blog/urls-regression.test.mjs`、`tests/blog/e2e/app-topbar.spec.js`）。
+3.5 新标签：第一次用到的标签 MUST 在 `space/web/content/tags/<标签>/_index.zh.md` 建中文标签页，写 `url: /blog/zh/tags/<slug>/` 与 `title`；中文标签名再加 `slug: <英文 slug>`（地址里不出现中文，与英文版同一个 slug）。缺这个文件构建失败。英文标签页不需要文件。中文页上的纯英文标签名要在 `tests/space/ui/build/lang-pack.test.mjs` 的 `ZH_ALLOW` 放行。
+
+3.6 新增文章后同步 `tests/blog/url-map.json`（页面、站点地图、RSS 顺序）和读取文章篇数的测试（`tests/blog/urls-regression.test.mjs`、`tests/blog/e2e/app-topbar.spec.js`）。
 
 ## 4. 内容规则
 

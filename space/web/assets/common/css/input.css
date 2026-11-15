@@ -5892,6 +5892,8 @@ html.mu-view-only :is(#mp-prev, #mp-next, #mp-speed, #mp-seek, #mp-shuffle) { op
 .home-qt-trans { display: block; margin-top: 6px; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; line-height: 1.7; color: var(--sgx-text-secondary); }
 .home-qt-meta { display: block; margin-top: 10px; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.6; color: var(--sgx-text-tertiary); }
 .home-qt-meta span:empty, .home-qt-meta span:empty + .home-qt-sep, .home-qt-sep:has(+ span:empty) { display: none; }
+.home-qt-meta:empty { display: none; }
+.home-qt-meta + .home-qt-stats { margin-top: 2px; }
 @media (hover: hover) and (pointer: fine) { .home-qt:hover .home-qt-text { color: var(--sgx-primary); } }
 
 /* 状态页（/status/，2026-11-12 从旷野 /wild/ 搬出单独成页；只在主站）：页头（partials/common/frame/page-head.html）+ 一个全宽终端窗（.sgx-term--static）。

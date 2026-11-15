@@ -3,6 +3,7 @@ title: "Gemini Free Tier Pitfalls: Quotas, Thinking, Search and Fallbacks"
 description: "The traps I hit wiring the site's AI to Gemini's free tier: 2.5 Flash gone for new users, 3.x thinking eating the whole output budget, a 20-requests-a-day quota, and no search grounding. Where it ended up: Gemma 4 by default, Flash-Lite as the main Gemini model, automatic fallback on 429."
 date: 2026-11-09
 tags: ["Gemini", "Workers AI", "Cloudflare"]
+categories: ["tech"]
 ---
 
 Gray AI, the assistant in the bottom-right corner of the site, first retrieves relevant passages from the site's own content, then hands them to a model that streams the answer. There are two kinds of models: self-hosted ones on Cloudflare Workers AI, and Google's Gemini API. For Gemini I only have a free-tier key. On November 9 it walked me through just about every trap it has.

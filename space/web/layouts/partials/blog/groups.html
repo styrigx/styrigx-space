@@ -1,7 +1,8 @@
 {{- /* 系列 / 分类 / 标签分组（原 utils/content-groups.ts）。输入：.posts（已发布、本语言）.field（series|categories|tags）。
 输出：[{name slug count posts}]：
 - series：组内按 seriesOrder 升序、再按日期升序、再按 id；组之间按最新一篇的日期降序、再按名字。
-- 其他：按篇数降序、再按名字。 */ -}}
+- 其他：按篇数降序、再按名字。
+分类（categories）的 name 是显示名（partials/blog/cat-name.html，front matter 写的是 slug，R-08）。 */ -}}
 {{- $field := .field -}}
 {{- $m := dict -}}
 {{- $order := slice -}}
@@ -17,7 +18,7 @@
         {{- with index $m $slug -}}
           {{- $m = merge $m (dict $slug (merge . (dict "posts" (.posts | append $p)))) -}}
         {{- else -}}
-          {{- $m = merge $m (dict $slug (dict "name" $name "slug" $slug "posts" (slice $p))) -}}
+          {{- $m = merge $m (dict $slug (dict "name" (cond (eq $field "categories") (partial "blog/cat-name.html" $slug) $name) "slug" $slug "posts" (slice $p))) -}}
           {{- $order = $order | append $slug -}}
         {{- end -}}
       {{- end -}}

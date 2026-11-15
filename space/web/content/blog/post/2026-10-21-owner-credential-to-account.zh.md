@@ -6,6 +6,7 @@ date: 2026-10-21
 series: ["styrigx 鉴权体系规范的变迁"]
 seriesOrder: 4
 tags: ["Styrigx UI", "鉴权", "安全", "Passkey"]
+categories: ["tech"]
 ---
 
 > 本文是「styrigx 鉴权体系规范的变迁」系列的一篇，接在《鉴权独立成网关》之后。这一版没有成文的定稿，按当时的补丁说明和 PR 记录整理。

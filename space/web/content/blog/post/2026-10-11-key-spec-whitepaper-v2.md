@@ -5,6 +5,7 @@ date: 2026-10-11
 series: ["Styrigx Auth Spec: How It Evolved"]
 seriesOrder: 2
 tags: ["Styrigx UI", "auth", "security", "Passkey", "Cloudflare"]
+categories: ["tech"]
 ---
 
 > This is the second edition of the "Styrigx Auth Spec: How It Evolved" series. The previous edition is [Styrigx Key Specification Whitepaper v1.0](/blog/zh/post/2026-10-11-key-spec-whitepaper/) (Chinese only).

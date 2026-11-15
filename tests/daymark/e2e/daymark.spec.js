@@ -464,7 +464,7 @@ test('主题跟主站 sgx-ui cookie：pal 换预设（深浅跟着调色板）�
   expect(await ind()).not.toBe(base);
 });
 
-test('余响 · 日期条 / 前后日（/api/days）：记下的日子能点，看那天的句子（地址 #d/<日期>、命令行换日期）；cat today / 点今天格回来；那天没记下的灰掉；余响窗列最近几天', async ({ page }) => {
+test('余响 · 日期条 / 前后日（/api/days）：记下的日子能点，看那天的句子（地址 #d/<日期>、命令行换日期）；cat today / 点今天格回来；那天没记下的灰掉；余响窗列往前记下的几天（不重复今天，R-15）', async ({ page }) => {
   await mock(page, false);
   const asked = [];
   await page.route('**/api/days**', (r) => {
@@ -475,8 +475,9 @@ test('余响 · 日期条 / 前后日（/api/days）：记下的日子能点，�
     ] } });
   });
   await page.goto('/daymark/zh/');
-  await expect(page.locator('#dm-w-echo .dm-li')).toHaveText(['10-20世上本没有路，走的人多了，也便成了路。', '10-19人生如逆旅，我亦是行人。', '10-17回首向来萧瑟处，也无风雨也无晴。']);
-  await expect(page.locator('#dm-n-echo')).toHaveText('3');
+  /* R-15（主号 22:14）：今天那句只在大字里，余响窗只列往前记下的几天，计数 = 那几天 */
+  await expect(page.locator('#dm-w-echo .dm-li')).toHaveText(['10-19人生如逆旅，我亦是行人。', '10-17回首向来萧瑟处，也无风雨也无晴。']);
+  await expect(page.locator('#dm-n-echo')).toHaveText('2');
   expect(asked[0]).toBe('?from=2026-10-14&to=2026-10-19');
   /* 10-18 没记下：灰掉 */
   await expect(page.locator('#dm-dcal [data-day="2026-10-18"]')).toBeDisabled();

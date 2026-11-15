@@ -5,6 +5,7 @@ title: AI 代理协作开发规范白皮书 v1.0：凭证、分支保护与合�
 description: "让 AI 代理能推代码、开 PR、合并，但永远碰不到 main：推送凭证与 API 凭证分离、分支保护规则、标准开发流程、轮换与事故响应。"
 date: 2026-10-11
 tags: ["规范", "GitHub", "AI 代理", "安全"]
+categories: ["muse"]
 superseded: true
 ---
 

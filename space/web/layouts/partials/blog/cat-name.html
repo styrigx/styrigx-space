@@ -1,0 +1,5 @@
+{{- /* 分类 slug → 显示名（R-08）：四个分类走 i18n（catTech / catMuse / catDevices / catLife），不认识的原样返回。 */ -}}
+{{- $k := index (dict "tech" "catTech" "muse" "catMuse" "devices" "catDevices" "life" "catLife") (. | strings.TrimSpace | lower) -}}
+{{- $n := . -}}
+{{- with $k }}{{ with i18n . }}{{ $n = . }}{{ end }}{{ end -}}
+{{- return $n -}}

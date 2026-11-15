@@ -5,6 +5,7 @@ date: 2026-10-21
 series: ["Styrigx Auth Spec: How It Evolved"]
 seriesOrder: 4
 tags: ["Styrigx UI", "auth", "Security", "Passkey"]
+categories: ["tech"]
 ---
 
 > Part of the "Styrigx Auth Spec: How It Evolved" series, following Auth Becomes a Gateway. There is no written final design for this version; it is pieced together from patch notes and PRs of the time.

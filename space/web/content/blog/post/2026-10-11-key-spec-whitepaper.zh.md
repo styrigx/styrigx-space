@@ -7,6 +7,7 @@ date: 2026-10-11
 series: ["styrigx 鉴权体系规范的变迁"]
 seriesOrder: 1
 tags: ["规范", "安全", "Cloudflare", "Ed25519"]
+categories: ["tech"]
 superseded: true
 ---
 

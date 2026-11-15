@@ -485,13 +485,12 @@ function renderNx(){
 }
 function li(href, k, text, attrs){ return '<a class="dm-li" href="' + href + '"' + (attrs || '') + '><i>' + esc(k) + '</i><span>' + esc(text) + '</span></a>'; }
 function renderWindows(){
-  /* 余响：今天 + 往前记下的（新→旧）前三条 */
-  var days = Object.keys(picks).filter(function(d){ return picks[d]; }).sort().reverse();
-  var rows = [];
-  if (today.quote) rows.push(li('#', today.day.slice(5), today.quote.text));
-  days.forEach(function(d){ if (rows.length < 3) rows.push(li('#d/' + d, d.slice(5), picks[d].text)); });
-  $('#dm-w-echo').innerHTML = rows.join('') || '<p class="dm-li-none">' + esc(loaded ? T.noToday : '…') + '</p>';
-  $('#dm-n-echo').textContent = String(days.length + (today.quote ? 1 : 0));
+  /* 余响：往前记下的（新→旧）前三条。今天那句已经是上面的大字，这里不再重复（2026-11-15 偏离收尾 P3 / R-15，主号 22:14 口径：
+     一天一句不变、不动 D1 和写入接口，只改显示）；计数 = 记下的往前几天（days.length） */
+  var days = Object.keys(picks).filter(function(d){ return d !== today.day && picks[d]; }).sort().reverse();
+  var rows = days.slice(0, 3).map(function(d){ return li('#d/' + d, d.slice(5), picks[d].text); });
+  $('#dm-w-echo').innerHTML = rows.join('') || '<p class="dm-li-none">' + esc(loaded ? T.emptyVisitor : '…') + '</p>';
+  $('#dm-n-echo').textContent = String(days.length);
   /* 拾录：最新三句（出处类型当左边小字） */
   $('#dm-w-trove').innerHTML = quotes.slice(0, 3).map(function(q){ return li('#trove', ST_LABEL[q.source_type] || '·', q.text); }).join('') || '<p class="dm-li-none">' + esc(loaded ? T.emptyVisitor : '…') + '</p>';
   $('#dm-n-trove').textContent = loaded ? String(quotes.length) : '';

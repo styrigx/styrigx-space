@@ -1199,6 +1199,8 @@ export function mountPrefetch(d) {
 
 /**
  * 滑页进度条（顶栏 v3 prog-v1）：已滚比例 → .sgx-tb-prog 的 --sgx-prog（0–100%）；页面不够长 / 在顶上 = data-empty（不显示）。
+ * 文章页（有 #article-start，2026-11-15 偏离收尾 P3 / R-10，设计稿 p.8「阅读进度跟顶栏进度条同步」）：按正文区间算——
+ * 正文顶到顶栏下沿 = 0，正文底离开视口底 = 100%（原博客 topnav.ts 里那根看不见的文章进度条的算法，那根已删）；其他页照旧按整页。
  * 滚动 / 尺寸变化时按帧合并写一次；不支持的环境什么也不做。
  * @param {Document} [d]
  * @returns {(() => void) | null} 立刻重算一次（测试 / 内容变长后用）
@@ -1211,9 +1213,20 @@ export function mountProgress(d) {
   const calc = function () {
     queued = false;
     const se = doc.scrollingElement || doc.documentElement;
-    const max = Math.max(0, se.scrollHeight - window.innerHeight);
     const y = window.scrollY || se.scrollTop || 0;
-    const p = max > 0 ? Math.min(100, Math.max(0, (y / max) * 100)) : 0;
+    const body = doc.getElementById('article-start');
+    let p = 0;
+    if (body) {
+      const r = body.getBoundingClientRect();
+      /* 顶栏下沿 = 进度条自己的下沿（它贴在固定顶栏 .sgx-topbar 底边；#site-nav 外层不固定，不能用它） */
+      const off = Math.max(0, bar.getBoundingClientRect().bottom) || 80;
+      const start = y + r.top - off;
+      const end = y + r.bottom - window.innerHeight;
+      p = Math.min(100, Math.max(0, ((y - start) / Math.max(1, end - start)) * 100));
+    } else {
+      const max = Math.max(0, se.scrollHeight - window.innerHeight);
+      p = max > 0 ? Math.min(100, Math.max(0, (y / max) * 100)) : 0;
+    }
     bar.style.setProperty('--sgx-prog', p.toFixed(2) + '%');
     if (p > 0) bar.removeAttribute('data-empty');
     else bar.setAttribute('data-empty', '');
