@@ -76,7 +76,10 @@ test('wrangler：status 绑两个 HourlyJob 入口（atlas、ai），旧 JOB_DAY
   }
   const dep = R('.github/workflows/deploy.yml');
   const job = dep.slice(dep.indexOf('  deploy-proxy-rules-worker:'));
-  assert.match(job, /needs: \[quality, passkey-e2e, deploy-ai-worker, deploy-atlas-core\]/);
+  assert.match(job, /needs: \[quality, passkey-e2e, deploy-ai-worker\]/);
+  // account 的服务绑定 PROXY 指向 styrigx-proxy：account 排在本 Worker 之后
+  const acc = dep.slice(dep.indexOf('  deploy-account-worker:'));
+  assert.match(acc, /needs: \[[^\]]*deploy-proxy-rules-worker\]/);
 });
 
 test('两个 HourlyJob.run（atlas、ai）：调各自的任务，出错回 { ok:false } 不抛', async () => {

@@ -1,6 +1,6 @@
 /**
  * @fileoverview 首帧语言跳转（语言清理 2026-11-07：「跟随系统」四站一致）。主站、/blog/、/curio/、/daymark/ 内联同一份：
- * 主站 baseof.html、子站各自 <head> 用 js.Build（iife）把本文件打包后原样内联（共享外壳 gen-common 生成 lang-boot.js，sync-shell 同步）。
+ * 主站 baseof.html、子站各自 <head> 用 js.Build（iife）把本文件打包后原样内联（2026-11 合站后四站同一个 Hugo 站，直接引用 assets/common/js/i18n/lang-boot.js，没有副本）。
  *
  * 规则（每一页都一样，不只首页）：
  * 1. 偏好 = localStorage sgx-lang：配置里的语言（en / zh …）= 明确选择；'system' = 跟随系统；旧版存的空 / 没有 = 跟随系统（兼容）。

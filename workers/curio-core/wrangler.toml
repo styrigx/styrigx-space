@@ -1,7 +1,7 @@
 # styrigx-curio-core：奇趣的核心 Worker（收藏的存、读、导入导出、图标缓存）（CI 部署：styrigx-space deploy.yml 的 deploy-curio-core；承接 styrigx.com/curio/api/*）
 #
 # 全部后端代码都在本目录：src/（入口、路由表、接口）+ migrations/（D1）。
-# 页面是主站 Pages styrigx-space 单树里的 /curio/（atlas/web/curio/）静态文件；页面的会话检查在主站鉴权网关。
+# 页面是主站 Pages styrigx-space 单树里的 /curio/（源在 space/web/ 的 content/curio/、layouts/curio/、assets/curio/）静态文件；页面的会话检查在主站鉴权网关。
 #
 # 安全：
 # - 本 Worker 不持任何钥匙。会话交给鉴权网关验（服务绑定 SPACE → SpaceVerifier）。

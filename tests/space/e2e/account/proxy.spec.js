@@ -35,7 +35,7 @@ test('sub：公钥头尾、令牌、每个来源一行', async ({ page }) => {
 });
 
 const TK = 'T'.repeat(43);
-const BASE = 'https://proxy-rules.styrigx.com/s/';
+const BASE = 'https://proxy.styrigx.com/s/';
 
 test('sub show：v6 root 直接印令牌和全部地址；sub show <名称> 只印那一个；可以反复印', async ({ page }) => {
   const calls = await mockAccount(page, {

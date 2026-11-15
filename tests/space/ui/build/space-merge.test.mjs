@@ -82,10 +82,12 @@ test('space-cats.yaml ↔ content url 一致；没有 settings 一层（数字�
   /* _redirects：/owner/ 和旧安全页指向盾牌的层（进站 v3 L1）；没有任何一条跳到旧设置层 */
   const red = rd('space/web/static/_redirects');
   assert.match(red, /^\/owner\/\s+\/#sec=keys\s+301$/m);
-  for (const [old, layer] of [['security/', 'sec'], ['security/lock/', 'sec=keys'], ['security/tempkeys/', 'sec=tempkeys']]) {
+  for (const [old, layer] of [['security/', 'sec'], ['security/lock/', 'sec=keys']]) {
     assert.match(red, new RegExp(`^/${old}\\s+/#${layer}\\s+301$`, 'm'), '/' + old);
     assert.match(red, new RegExp(`^/zh/${old}\\s+/zh/#${layer}\\s+301$`, 'm'), '/zh/' + old);
   }
+  /* #300–#400 偏离收尾定稿 v3.2 R-29：临时钥匙已删，/security/tempkeys/ 的 301 一并删掉（访问回 404） */
+  assert.doesNotMatch(red, /tempkeys/);
   assert.ok(!urls.some((u) => /\/security\//.test(u)), 'content 里没有 /security/ 页面');
   /* P4-3 PR-4c：/en/… 旧地址删除不 301，_redirects 里没有 /en/ 开头的规则 */
   assert.doesNotMatch(red, /^\/en\//m);

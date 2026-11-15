@@ -236,3 +236,101 @@ test('播放器给小遥控层的状态：有一首 = on，歌名 + 本专辑歌
   assert.deepEqual(MP.remoteState({ album: 0, list: [], i: -1 }, true, albums),
     { type: 'player-state', on: false, playing: false, title: '', artist: '' });
 });
+
+/* ---------- 单曲列表（音乐 v1.13 ②，Gray 2026-11-14 17:33：单曲区当播放列表，按当前模式走、到尾停，切歌按需签） ---------- */
+
+test('单曲列表 playQueue：每首按需签自己那条记录；放完接下一首、到尾停；state.album = 正在放的单曲记录', async () => {
+  const { p, audio, signs, log } = make({ n: 1 });
+  await p.playQueue([11, 12, 13], 0);
+  assert.deepEqual(signs, [11], '只签第一首');
+  assert.equal(p.state.album, 11);
+  assert.match(audio.src, /a11s1/);
+  audio.emit('ended'); await tick(); await tick();
+  assert.deepEqual(signs, [11, 12], '切到第二首才签它');
+  assert.equal(p.state.album, 12);
+  assert.equal(p.state.i, 1);
+  audio.emit('ended'); await tick(); await tick();
+  assert.equal(p.state.album, 13);
+  audio.emit('ended'); await tick();
+  assert.equal(p.state.i, -1, '到尾停');
+  assert.equal(log.at(-1), 'stop');
+  /* 回到第一首：令牌还有效，不重签 */
+  await p.playQueue([11, 12, 13], 0);
+  assert.deepEqual(signs, [11, 12, 13]);
+  await p.prev();
+  assert.equal(p.state.i, 0, '第一首再往前不动');
+});
+
+test('单曲列表：上一首 / 下一首按列表；快过期的那首先续签；放到一半出错续签这一首接着放', async () => {
+  const { p, audio, signs, setClock } = make({ n: 1 });
+  await p.playQueue([5, 6], 1);
+  assert.deepEqual(signs, [6]);
+  await p.prev();
+  assert.equal(p.state.album, 5);
+  assert.deepEqual(signs, [6, 5]);
+  setClock(1000 + 600000 - 10000);
+  await p.next();
+  assert.deepEqual(signs, [6, 5, 6], '第二首快过期了，先续签');
+  audio.currentTime = 42;
+  audio.emit('error'); await tick(); await tick();
+  assert.deepEqual(signs, [6, 5, 6, 6]);
+  assert.equal(audio.currentTime, 42);
+  assert.equal(p.state.album, 6);
+});
+
+test('单曲列表 ↔ 专辑：换了列表丢掉旧令牌；从单曲回到专辑重新按专辑签；随机模式在单曲列表里同样打乱', async () => {
+  const seq = [0.1, 0.9, 0.5, 0.3, 0.7];
+  let k = 0;
+  const { p, signs } = make({ n: 1, random: () => seq[k++ % seq.length] });
+  await p.playQueue([1, 2, 3], 0);
+  await p.playFrom(9, 0);
+  assert.equal(p.state.queue, null);
+  assert.equal(p.state.album, 9);
+  await p.playQueue([1, 2], 0);
+  assert.deepEqual(signs, [1, 9, 1], '列表变了重签');
+  p.setShuffle(true);
+  assert.equal(p.state.order.length, 2);
+  assert.equal(p.state.order[0], 0, '随机：正在放的排第一');
+  await p.next();
+  assert.equal(p.state.album, 2);
+});
+
+test('单曲 / 专辑分类的纯函数：nowSub（单曲只显示歌手）、splitKinds / pickSection（哪边为空显示另一边）、播放器 groupsOf（末尾单曲组）', () => {
+  const PL = require('../../space/web/assets/common/js/music/music-player.js');
+  const alb = { id: 1, kind: 'album', title: 'Blue', artist: 'Joni Mitchell', tracks: [{ id: 10, title: 'All I Want', duration: 214 }] };
+  const s1 = { id: 2, kind: 'single', title: 'River', artist: 'Joni Mitchell', tracks: [{ id: 20, title: 'River', duration: 240 }] };
+  const s2 = { id: 3, kind: 'single', title: '空的', artist: '', tracks: [] };
+  assert.equal(CORE.nowSub(alb), 'Blue · Joni Mitchell');
+  assert.equal(CORE.nowSub(s1), 'Joni Mitchell');
+  assert.equal(CORE.nowSub({ ...alb, kind: undefined }), 'Blue · Joni Mitchell', '旧数据没 kind 当专辑');
+  assert.equal(CORE.nowSub(null), '');
+  const k = MU.splitKinds([s1, alb, s2]);
+  assert.deepEqual(k.albums.map((a) => a.id), [1]);
+  assert.deepEqual(k.singles.map((a) => a.id), [2, 3]);
+  assert.equal(MU.pickSection('album', 1, 2), 'album');
+  assert.equal(MU.pickSection('single', 1, 2), 'single');
+  assert.equal(MU.pickSection('album', 0, 2), 'single', '没专辑只显示单曲');
+  assert.equal(MU.pickSection('single', 3, 0), 'album', '没单曲只显示专辑');
+  assert.equal(MU.pickSection('single', 0, 0), 'album');
+  const g = PL.groupsOf([s1, alb, s2], '单曲');
+  assert.deepEqual(g.map((x) => x.id), [1, -1]);
+  assert.equal(g[1].singles, true);
+  assert.equal(g[1].title, '单曲');
+  assert.deepEqual(g[1].items.map((x) => x.id), [2], '没有音频的单曲不进列表');
+  assert.deepEqual(g[1].tracks, [{ id: 20, no: 0, title: 'River', duration: 240 }]);
+  assert.deepEqual(PL.groupsOf([alb], 'x').map((x) => x.id), [1], '没单曲不加组');
+  /* 遥控层：单曲在播时只给歌手 */
+  const r = PL.remoteState({ album: 2, list: [{ title: 'River' }], i: 0 }, true, [alb, s1]);
+  assert.deepEqual(r, { type: 'player-state', on: true, playing: true, title: 'River', artist: 'Joni Mitchell' });
+});
+
+test('durText：元数据到了用真实 duration；没到 / NaN / Infinity / 0 用曲目已知时长；都没有 --:--', () => {
+  assert.equal(CORE.durText(1.2, 240), '0:01');
+  assert.equal(CORE.durText(NaN, 240), '4:00');
+  assert.equal(CORE.durText(Infinity, 269), '4:29');
+  assert.equal(CORE.durText(0, 271), '4:31');
+  assert.equal(CORE.durText(undefined, 3725), '1:02:05');
+  assert.equal(CORE.durText(NaN, 0), '--:--');
+  assert.equal(CORE.durText(NaN, undefined), '--:--');
+  assert.equal(CORE.durText(245.6, 0), '4:05');
+});

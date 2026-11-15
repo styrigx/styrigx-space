@@ -30,7 +30,7 @@ const V3 = JSON.parse(readFileSync(path.join(REPO, 'tests/fixtures/palette-v0.3.
 const hueDist = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
 const hue = (h) => hexToOklch(h).h;
 
-test('22 套七色调色板、每套一个模式：108 个角色 + 31 个色调 token（bg-1..7、fg-1..6 及 -tint / -ink / -on）；schema styrigx-palette/3，没有 custom', () => {
+test('22 套七色调色板、每套一个模式：106 个角色 + 31 个色调 token（bg-1..7、fg-1..6 及 -tint / -ink / -on）；schema styrigx-palette/3，没有 custom', () => {
   const ids = Object.keys(DATA.presets);
   assert.equal(DATA.schema, 'styrigx-palette/3');
   assert.equal(DATA.custom, undefined);
@@ -41,7 +41,7 @@ test('22 套七色调色板、每套一个模式：108 个角色 + 31 个色调 
   for (const id of ids) {
     const p = DATA.presets[id];
     assert.deepEqual(Object.keys(p).filter((k) => /light|dark/i.test(k)), [], id + ' 没有亮 / 暗两套');
-    assert.equal(Object.keys(p.roles).length, 108, id);
+    assert.equal(Object.keys(p.roles).length, 106, id);
     assert.equal(Object.keys(p.tones).length, 31, id + ' tones');
     for (let i = 1; i <= 7; i++) assert.match(p.tones['bg-' + i], /^#[0-9a-f]{6}$/);
     for (let i = 1; i <= 6; i++) for (const k of ['', '-tint', '-ink', '-on']) assert.match(p.tones['fg-' + i + k], /^#[0-9a-f]{6}$/);
@@ -203,17 +203,6 @@ test('前景接进语义角色：primary ← 前景 1（浅套按对比度压深
     if (m === 'light') assert.ok(hueDist(hue(r['primary-container']), hexToOklch(x.fg[0]).h) <= 8, x.id + ' 选中底 = 前景 1 浅底');
   }
 });
-test('首页夜间时钟卡 night-card（特殊功能卡，克制的局部撞色）：第三色浅底、低彩度，不是饱和深色块；字 on-night-card ≥ 7:1，和卡片材质拉得开', () => {
-  for (const [id, p] of Object.entries(DATA.presets)) for (const m of MODES(id)) {
-    const r = p[m], o = hexToOklch(r['night-card']);
-    assert.ok(contrast(r['on-night-card'], r['night-card']) >= 7, `${id} ${m} on-night-card ${contrast(r['on-night-card'], r['night-card']).toFixed(2)}`);
-    assert.ok(o.c <= 0.052, `${id} ${m} night-card 彩度 ${o.c.toFixed(3)}`);
-    if (m === 'light') assert.ok(o.l >= 0.88, `${id} light night-card 不是深色块（L ${o.l.toFixed(3)}）`);
-    else assert.ok(contrast(r['night-card'], r.surface) >= 1.25, `${id} dark night-card / surface`);
-    const t = hexToOklch(r.tertiary);
-    if (t.c >= 0.03 && o.c >= 0.01) assert.ok(hueDist(o.h, t.h) <= 10, `${id} ${m} night-card 色相 = 第三色`);
-  }
-});
 
 test('填充 vs ink 分工：primary-fill = 前景 1 本色（--sgx-fg-1，不压深），on-primary-fill ≥ 4.5:1（22 套 × 亮暗）；primary（ink）在表面上仍 ≥ 4.5:1', () => {
   const SURF = ['background', 'surface', 'surface-container-lowest', 'surface-container-low', 'surface-container', 'surface-container-high'];
@@ -239,7 +228,6 @@ test('22 套全部由公式生成：规格里没有逐套手调的深色值（p.
     assert.equal(sp.p.hd, undefined, x.id + ' p.hd');
     assert.equal(sp.pc && sp.pc.hd, undefined, x.id + ' pc.hd');
     assert.equal(sp.p.cd, Math.min(hexToOklch(x.fg[0]).c, 0.13), x.id + ' p.cd = 公式');
-    assert.equal(sp.night, 't', x.id + ' night');
     assert.equal(sp.accent, 'primary', x.id + ' accent');
   }
 });
@@ -265,13 +253,12 @@ test('按钮 / 开关 / 进度在 CSS 里读填充档：--sgx-btn-primary-* = pr
   assert.doesNotMatch(CSS.slice(CSS.indexOf('/* @gen-palettes:end */')), /background(?:-color)?: var\(--(?:sgx|m)-primary\); color: var\(--(?:sgx|m)-on-primary\)/);
 });
 
-test('大面积块中性化：首页名片 = 中性玻璃卡（不是 primary-container）；夜间时钟不是渐变深色块；状态（旷野 #status）的「正常」读 success 不读 tertiary', () => {
+test('大面积块中性化：首页名片 = 中性玻璃卡（不是 primary-container）；状态（旷野 #status）的「正常」读 success 不读 tertiary', () => {
   const home = readFileSync(path.join(REPO, 'space/web/layouts/index.html'), 'utf8');
   /* 2026-11 PR-2：名片并进首屏 hero（不再是卡片，直接铺在页面底上），仍不用任何 *-container 大色块 */
   const prof = home.match(/<div id="w-profile" class="([^"]+)"/)[1];
   assert.equal(prof, 'home-id');
   assert.doesNotMatch(home.slice(home.indexOf('id="home-hero"'), home.indexOf('id="home-term"')), /primary-container|secondary-container|tertiary-container/);
-  assert.doesNotMatch(CSS, /\.clock-night \{[^}]*linear-gradient/);
   /* 对齐 PR-B：服务状态改成 systemctl 文字风——横幅不再铺色块，「正常」的圆点（● 字符）和 Active 字读 success */
   assert.match(CSS, /\.st-banner\[data-state="up"\] \.st-dot, \.st-unit\[data-state="up"\] \.st-dot, \.st-chip\[data-state="up"\] \.st-dot \{ color: var\(--sgx-success\); \}/);
   assert.match(CSS, /\.st-banner\[data-state="up"\] \.st-banner-active \{ color: var\(--sgx-success\); \}/);
@@ -336,8 +323,6 @@ test('合成底审计：正文 / 次要文字 / primary ink / 链接在玻璃卡
     for (const g of glassOver(r, t)) {
       const tile = m === 'light' ? mixHex(r['surface-container-lowest'], 0.62, g) : mixHex(r['surface-container-high'], 0.7, g);
       for (const k of ['text-primary', 'text-secondary', 'primary']) assert.ok(contrast(r[k], tile) >= 4.5, `${id} ${m} ${k} / qp tile`);
-      const night = mixHex(r['night-card'], 0.88, g);
-      assert.ok(contrast(r['on-night-card'], night) >= 7, `${id} ${m} on-night-card / 合成夜间卡`);
     }
   }
 });
