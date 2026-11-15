@@ -547,6 +547,7 @@ identity:
   permission: "{c}: Permission denied"
   trySudo: "sudoers can run it with {x}"
   rootCreds: "sudo can’t change root’s password or passkeys · su root first"
+  sudoGranted: "verified · back to the page (one use, within 60 s)"
   layerTimeout: "{r} timed out · you are now {u} · not run · {x} and try again"
   layerGone: "{r} session ended · you are now {u} · not run · {x} and try again"
   temporary: "a user with an expiry can’t join {g}"

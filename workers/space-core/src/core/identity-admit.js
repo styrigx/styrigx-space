@@ -153,6 +153,33 @@ export async function newSessionSignedIn(env, request) {
   return normalizeAdmit(r).allowed;
 }
 
+/* ---------------- D-3 a′：一次性 sudo 票核销（atlas-core → SpaceVerifier.sudoAdmit → 这里 → 账号 Worker） ---------------- */
+
+/** 票的写法（同账号 Worker core/sudo-ticket.js SUDO_TICKET_RE） */
+const SUDO_TICKET_RE = /^[A-Za-z0-9_-]{43}$/;
+
+/**
+ * 把票交给账号 Worker 核销（AccountVerifier.sudoAdmit）。原样回账号 Worker 的结论；没绑定 / 票或参数不合法 / 出错 → null。
+ * 票只透传，不进日志（出错也只记错误名）。
+ * @param {Record<string, any>} env @param {string} cookieHeader @param {string} ticket @param {string} method @param {string} pathname @param {string} [action]
+ */
+export async function askSudoAdmit(env, cookieHeader, ticket, method, pathname, action) {
+  const v = env && env.ACCOUNT_VERIFIER;
+  if (!v || typeof v.sudoAdmit !== 'function') return null;
+  if (typeof ticket !== 'string' || !SUDO_TICKET_RE.test(ticket)) return null;
+  if (action !== undefined && action !== '' && (typeof action !== 'string' || !ACTION_RE.test(action))) return null;
+  const cookie = typeof cookieHeader === 'string' ? cookieHeader.slice(0, MAX_COOKIE_HEADER) : '';
+  if (!/(?:^|;\s*)sgx-session=[^;]+/.test(cookie)) return null;
+  try {
+    const m = typeof method === 'string' ? method.toUpperCase().slice(0, 10) : '';
+    const p = typeof pathname === 'string' ? pathname.slice(0, 2048) : '';
+    return await v.sudoAdmit(cookie, ticket, m, p, action ? { action } : {});
+  } catch (e) {
+    console.error('[sgx-auth] account sudoAdmit rpc failed: ' + (e && /** @type {any} */ (e).name ? /** @type {any} */ (e).name : 'error'));
+    return null;
+  }
+}
+
 /** 别的 Worker 能记的 root 特权操作命令字（同账号 Worker REMOTE_AUDIT_COMMANDS） */
 const AUDIT_RE = /^(?:rm-bulk|import|export)(?:\s[\x20-\x7e]{0,190})?$/;
 

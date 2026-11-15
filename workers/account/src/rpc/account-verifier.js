@@ -10,7 +10,11 @@
  *   在账号侧身份审计（account_user_audit）留一行。会话由这里重新判定（只认真 root 层，救援不算），调用方给的身份一概不认。
  * - auditList(cookieHeader, opts)：状态页审计卡（GET /api/space-audit，网关）读 v6 的 su / sudo 审计（定稿 v5.5 §四「恢复写入」、§十 审计条）。
  *   会话由这里重新判定（GET /api/space-audit 的路由档 root，救援不在白名单）；不够 → { ok:false }。
- * 不签发任何东西。
+ * - sudoAdmit(cookieHeader, ticket, method, pathname, opts?)：D-3 a′ 一次性 sudo 票的核销（core/sudo-ticket.js）。atlas-core 收到带
+ *   X-Sgx-Sudo 头的请求，经 space-core SpaceVerifier.sudoAdmit 转来；会话由这里重新判定（栈顶身份、sudoers 档、非救援），
+ *   票对得上（同 uid、同会话、同方法、同路径、同 action、没过期）就作废并回 root 结论 { allowed, root:true, sudo:true, sudoBy }。
+ *   凭据从不经这里（发票时已在 POST /api/identity sudo-grant 验过）。
+ * 除 sudoAdmit 核销票外，不签发、不写任何东西（auditRoot 写审计）。
  * cloudflare:workers 只在 Workers 里有：node 单测用 tests/workers/account/_cf-workers.mjs 的替身。
  */
 import { WorkerEntrypoint } from 'cloudflare:workers';
@@ -20,7 +24,8 @@ import { resolveSecrets } from '../secrets.js';
 import { admitRoute } from '../core/admit.js';
 import { admitRequest } from '../core/identity-session.js';
 import { ruleOf } from '../core/route-access.js';
-import { ROOT_UID } from '../core/groups.js';
+import { ROOT_UID, permits } from '../core/groups.js';
+import { ticketTarget, consumeSudoTicket } from '../core/sudo-ticket.js';
 import { writeUserAudit, listSuAudit } from '../core/user-audit.js';
 
 const MAX_UA = 512;
@@ -113,6 +118,30 @@ export async function checkAuditList(env, cookieHeader, opts) {
   }
 }
 
+/**
+ * AccountVerifier.sudoAdmit 的实现（D-3 a′）：会话栈顶的人仍是 sudoers（非救援）、票对得上 → 作废票、回 root 结论；否则拒。
+ * 永不抛错；票本身不进日志。回 { allowed, reason, uid, root, rescue, sudo, sudoBy, action }（allowed 时 uid = 0、root = true）。
+ * @param {Record<string, any>} env @param {string} cookieHeader @param {string} ticket @param {string} method @param {string} pathname
+ * @param {{action?: string}} [opts] @param {number} [now]
+ */
+export async function checkSudoAdmit(env, cookieHeader, ticket, method, pathname, opts, now) {
+  const action = opts && typeof opts === 'object' && typeof opts.action === 'string' ? opts.action : '';
+  const deny = (/** @type {string} */ reason, /** @type {number|null} */ uid) => ({ allowed: false, reason, uid, root: false, rescue: false, sudo: false, sudoBy: null, action });
+  try {
+    const tg = ticketTarget({ method: typeof method === 'string' ? method.slice(0, 10) : '', path: typeof pathname === 'string' ? pathname.slice(0, 2048) : '', action });
+    if (!tg.ok) return deny('not-listed', null);
+    const adm = await admitRequest(env || {}, verifierRequest(cookieHeader), now);
+    if (!adm || !adm.ok) return deny(adm && adm.reason === 'error' ? 'error' : 'session', null);
+    const id = adm.identity;
+    if (id.rescue === true || id.uid === ROOT_UID || !permits(id, 'sudoers')) return deny('need-sudoers', id.uid);
+    const ok = await consumeSudoTicket(env, ticket, { uid: id.uid, sessionId: adm.sessionId, method: tg.method, path: tg.path, action: tg.action }, now);
+    if (!ok) return deny('ticket', id.uid);
+    return { allowed: true, reason: 'ok', uid: ROOT_UID, root: true, rescue: false, sudo: true, sudoBy: id.uid, action };
+  } catch (e) {
+    return deny('error', null);
+  }
+}
+
 /** 放行结论与 root 留痕（服务绑定 ACCOUNT_VERIFIER：只有网关） */
 export class AccountVerifier extends WorkerEntrypoint {
   /**
@@ -129,6 +158,14 @@ export class AccountVerifier extends WorkerEntrypoint {
    */
   async auditRoot(cookieHeader, command, address) {
     return checkAuditRoot(this.env, cookieHeader, command, address);
+  }
+
+  /**
+   * D-3 a′ 一次性 sudo 票核销（atlas-core → space-core → 这里）。
+   * @param {string} cookieHeader @param {string} ticket @param {string} method @param {string} pathname @param {{action?: string}} [opts]
+   */
+  async sudoAdmit(cookieHeader, ticket, method, pathname, opts) {
+    return checkSudoAdmit(this.env, cookieHeader, ticket, method, pathname, opts);
   }
 
   /**

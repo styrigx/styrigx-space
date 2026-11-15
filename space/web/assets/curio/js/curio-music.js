@@ -156,10 +156,12 @@ var canWrite = false;
 /** 请人进站：顶栏终端预填 su （curio.js SgxCurioUI.sudo → sgx:sudo，topbar/panel.js 接） */
 function askSudo(){ if (UI && UI.sudo) UI.sudo(); }
 /** 本页接口：401 = 没进站（切到只看模式 + 请人进站，抛 sgxLocked，调用方不再报错）；其它错误带 code 抛出 */
-function req(method, url, body, type){
+function req(method, url, body, type, ticket){
+  var h = body === undefined ? {} : { 'Content-Type': type || 'application/json' };
+  if (ticket) h['X-Sgx-Sudo'] = ticket; /* D-3 a′：album.del 的一次性票（curio.js SgxCurioUI.sudoTicket） */
   return fetch(url, {
     method: method, credentials: 'same-origin', cache: 'no-store',
-    headers: body === undefined ? {} : { 'Content-Type': type || 'application/json' },
+    headers: h,
     body: body === undefined ? undefined : type ? body : JSON.stringify(body),
   }).then(function(r){
     return r.json().catch(function(){ return {}; }).then(function(j){
@@ -172,6 +174,11 @@ function req(method, url, body, type){
 /** 失败提示：403 forbidden（2b：v6 身份不在 listen / curio-write，或 album.del 不是 root）说没权限，其余「出了点问题」 */
 function failMsg(e){ return e && e.code === 'forbidden' && T.noPermission ? T.noPermission : T.failed; }
 function album(){ return albums[cur] || null; }
+/** 删专辑 / 单曲（album.del = root 档，D-3 a′）：先拿票再发；sudo 行带专辑 id */
+function delAlbum(id){
+  var get = UI && UI.sudoTicket ? UI.sudoTicket('sudo curio music rm ' + id, { method: 'POST', path: '/curio/api/music', action: 'album.del' }) : Promise.resolve('');
+  return get.then(function(t){ return req('POST', '/curio/api/music', { op: 'album.del', id: id }, undefined, t); });
+}
 function coverUrl(a){ return '/curio/api/music-cover?album=' + a.id + (coverVer ? '&v=' + coverVer : ''); }
 
 /* ---------- 画 ---------- */
@@ -376,7 +383,7 @@ $('#mu-album-del').addEventListener('click', function(){
   var a = album();
   if (!a || !UI) return;
   UI.ask(T.delAlbum, T.del, function(){
-    req('POST', '/curio/api/music', { op: 'album.del', id: a.id }).then(function(j){
+    delAlbum(a.id).then(function(j){
       if (P.state.album === a.id) { P.reset(); lyr = { lines: [], line: -2 }; $('#mu-player').classList.add('hidden'); doc.documentElement.classList.remove('mu-playing'); }
       setData(j.albums); renderCovers(); renderAlbum(); toast(T.deleted);
     }).catch(function(e){ if (!e.sgxLocked) toast(failMsg(e)); });
@@ -405,7 +412,7 @@ $('#mu-del-ok').addEventListener('click', function(){
   var id = delId, ok = this;
   if (!id) return delSheet.close();
   ok.disabled = true;
-  req('POST', '/curio/api/music', { op: 'album.del', id: id }).then(function(j){
+  delAlbum(id).then(function(j){
     if (P.state.album === id) {  /* 正在放这首：停下、收起播放条（同删专辑） */
       P.reset(); lyr = { lines: [], line: -2 }; $('#mu-player').classList.add('hidden'); doc.documentElement.classList.remove('mu-playing'); }
     delSheet.close();
