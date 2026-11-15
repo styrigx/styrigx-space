@@ -199,6 +199,8 @@ js:
     site_space: "Space"
     site_proxy-rules: "Proxy rules"
     site_ai: "AI"
+    site_atlas: "Atlas"
+    site_account: "Account"
     nameSep: ", "
 filesIndex:
   app:

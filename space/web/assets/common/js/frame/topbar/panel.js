@@ -1280,12 +1280,12 @@ export function mountClock(d) {
 }
 
 /**
- * 服务状态（2026-11 UI 重设计对齐 PR-A，设计稿 nav-v2 STATUS + foot-v1「● 6/6」）：NAVIGATE 的 STATUS 六格 [data-nav-status] 和 tmux 页脚 [data-sgx-status-count]。
+ * 服务状态（2026-11 UI 重设计对齐 PR-A，设计稿 nav-v2 STATUS + foot-v1「● 6/6」）：NAVIGATE 的 STATUS 五格（P4 R-07 前为六格） [data-nav-status] 和 tmux 页脚 [data-sgx-status-count]。
  * 数据 = GET /api/status（同源网关 → styrigx-status 的 /summary，要进门会话；监测项见 workers/status/src/targets.js）：
- *   space / blog / curio / daymark = 主站那一项（四站同一个 Pages、同一条网关链路，子站不单独测）；gray-ai = ai 那一项；
+ *   P4 R-07 起五格：space（Pages + 网关）、atlas（atlas-core）、account、proxy（规则集）、gray-ai，口径同 frame/status/view.js UNITS；
  *   auth = 网关本身（这一问能回 200 就是在线，延迟 = 这一问的往返）。延迟取各项最近一次检查的 last.ms。
  * 页面加载后空闲时取一次；结果在 sessionStorage 存 2 分钟（翻页不重复问）；打开 NAVIGATE 时过期了再取。
- * 取不到（锁着 401 / 出错 / 离线）：点保持灰色、延迟空着，头部维持「待接入」字样，页脚 –/6。
+ * 取不到（锁着 401 / 出错 / 离线）：点保持灰色、延迟空着，头部维持「待接入」字样，页脚 –/5。
  * @param {Document} [d]
  * @returns {(() => void) | null} 刷新（缓存没过期就不发请求）
  */
@@ -1331,7 +1331,7 @@ export function mountStatus(d) {
     /** @param {any} x */
     const one = function (x) { return x ? { up: !!x.up, ms: x.last && typeof x.last.ms === 'number' ? x.last.ms : null } : { up: false, ms: null }; };
     const sp = one(by.space);
-    return { space: sp, blog: sp, curio: sp, daymark: sp, 'gray-ai': one(by.ai), auth: { up: true, ms: rtt } };
+    return { space: sp, atlas: one(by.atlas), account: one(by.account), proxy: one(by['proxy-rules']), 'gray-ai': one(by.ai) };
   };
   let busy = false;
   /* 服务状态页（/status/，#st-root）自己每 60 秒取 /api/status：外壳不再另问一遍，接它取到的结果（sgx:status 事件）来画、写缓存 */

@@ -195,6 +195,8 @@ js:
     site_space: "主站"
     site_proxy-rules: "规则集"
     site_ai: "AI 助手"
+    site_atlas: "奇趣 · 日刻接口"
+    site_account: "账号"
     nameSep: "、"
 filesIndex:
   app:

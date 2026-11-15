@@ -312,20 +312,19 @@ export function renderSite(s, ctx) {
 }
 
 /* ===== unit 行（2026-11 对齐 PR-B，设计稿 tb4.html pg=wild 的 systemctl status space.target）=====
- * 六个 unit，口径同外壳 NAVIGATE STATUS 六格（topbar/panel.js mountStatus cellsOf）：
- *   space / blog / curio / daymark = 主站那一项（四站同一个 Pages、同一条网关链路，子站不单独测）；gray-ai = ai 那一项；
- *   auth = 网关本身（/api/status 这一问能回来就是在线，延迟 = 这一问的往返）。规则集（proxy-rules）不在六个 unit 里，在下面的可用率行。 */
+ * P4 R-07（Gray 2026-11-14 22:40、2026-11-15 23:30）：只测一个 Pages 加几个 Worker，五个 unit，口径同外壳 NAVIGATE STATUS（topbar/panel.js mountStatus cellsOf）：
+ *   space = Pages + 网关 space-core（GET styrigx.com/）；atlas = atlas-core（奇趣、日刻接口）；account = 账号 Worker；proxy = 规则集；gray-ai = AI。
+ *   博客 / 奇趣 / 日刻和主站同一个 Pages，不再单列；原 auth 行（网关往返）由 space 覆盖，改为 account。 */
 export const UNITS = [
   { id: 'space', src: 'space', host: 'styrigx.com' },
-  { id: 'blog', src: 'space', host: 'styrigx.com/blog' },
-  { id: 'curio', src: 'space', host: 'styrigx.com/curio' },
-  { id: 'daymark', src: 'space', host: 'styrigx.com/daymark' },
+  { id: 'atlas', src: 'atlas', host: 'atlas-core' },
+  { id: 'account', src: 'account', host: 'account' },
+  { id: 'proxy', src: 'proxy-rules', host: 'proxy.styrigx.com' },
   { id: 'gray-ai', src: 'ai', host: 'Gray AI' },
-  { id: 'auth', src: '', host: 'passkey · lockkey' },
 ];
 
 /**
- * 六个 unit 的状态（纯数据）：state 同 siteState（auth 拿到数据就是 up），ms = 最近一次检查的延迟（auth = 往返）。
+ * 五个 unit 的状态（纯数据）：state 同 siteState，ms = 最近一次检查的延迟（rtt 参数留作兼容，现无 src 为空的 unit）。
  * @param {any} data /api/status
  * @param {number|null} rtt 这一问的往返毫秒（拿不到 null）
  * @returns {Array<{id:string, host:string, state:'pending'|'up'|'flaky'|'down', ms:number|null}>}

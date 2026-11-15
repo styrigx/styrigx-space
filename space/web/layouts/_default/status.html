@@ -24,7 +24,7 @@
 
         <div id="st-banner" class="st-banner" data-state="loading" role="status" aria-live="polite">
           <p class="st-banner-l1"><span class="st-dot" aria-hidden="true">●</span> <span translate="no">space.target</span> — <span translate="no">Styrigx Personal Digital Space</span></p>
-          <p class="st-banner-l2"><span class="trm-dim" translate="no">Active:</span> <b class="st-banner-active" data-st="active">{{ $tr.status.loading }}</b> <span class="st-banner-title" data-st="title"></span><span class="st-banner-sub" data-st="sub"></span></p>
+          <p class="st-banner-l2"><span class="trm-dim" translate="no">Active:</span> <b class="st-banner-active" data-st="active">{{ $tr.status.loading }}</b>{{/* R-06（P4）：since 行，起点同首页 neofetch Uptime（2026-10-07，Gray 2026-11-09）；构建时写一份，apps/space-status.js 按今天重算 */}}{{ $since := "2026-10-07" }}{{ $up := int (math.Floor (div (sub now.Unix ((time.AsTime (printf "%sT00:00:00+08:00" $since)).Unix)) 86400.0)) }} <span class="trm-dim st-banner-since" data-st="since" data-since="{{ $since }}" translate="no">since {{ $since }} · {{ $up }} {{ cond (eq $up 1) "day" "days" }}</span> <span class="st-banner-title" data-st="title"></span><span class="st-banner-sub" data-st="sub"></span></p>
         </div>
 
         {{/* 没进站（/api/status 回 401）：锁标 + Permission denied + 一行说明 + su 按钮（v6 割接；点了终端预填 su ）。
@@ -51,7 +51,7 @@
           <p class="st-msg-sub trm-dim">{{ $tr.status.resultsShowUpAfter }}</p>
         </div>
 
-        {{/* 六个 unit（space / blog / curio / daymark / gray-ai / auth；frame/status/view.js renderUnits，口径同 NAVIGATE STATUS） */}}
+        {{/* 五个 unit（space / atlas / account / proxy / gray-ai，P4 R-07；frame/status/view.js renderUnits，口径同 NAVIGATE STATUS） */}}
         <ul id="st-units" class="st-units" role="list"></ul>
 
         {{/* 每个监测项一行 + 近 90 天可用率条（frame/status/view.js renderSite）：加载中先放 3 行骨架（= 监测目标数），拿到数据后整块替换 */}}
