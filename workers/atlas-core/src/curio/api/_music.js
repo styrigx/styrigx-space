@@ -81,6 +81,11 @@ const ALBUM_FIELDS = {
   artist: (v) => line(v, L.short),
   year,
 };
+/** 记录类型（迁移 0005 music_albums.kind）：album 专辑 / single 单曲（只含 1 首）；音乐 v1.13 ② 单曲 / 专辑分类 */
+export const KINDS = Object.freeze(['album', 'single']);
+function kindOf(v) { return KINDS.includes(v) ? v : null; }
+/** 某种记录的上限：专辑 100、单曲 500 @param {string} kind */
+export function kindLimit(kind) { return kind === 'single' ? L.singles : L.albums; }
 const TRACK_FIELDS = {
   title: (v) => line(v, L.short) || null,
   no: (v) => { const n = Number(v); return Number.isInteger(n) && n >= 0 && n <= 999 ? n : null; },
@@ -100,7 +105,8 @@ function take(fields, b, all, required) {
 }
 
 /**
- * 校验写操作：album.add {title, artist?, year?} / album.edit {id, …} / album.del {id} / track.edit {id, title?, no?, lrc?} / track.del {id}
+ * 校验写操作：album.add {title, artist?, year?, kind?} / album.edit {id, title?, artist?, year?, kind?} / album.del {id} / track.edit {id, title?, no?, lrc?} / track.del {id}
+ * kind：album（缺省）/ single；别的值 bad-kind。
  * @param {any} b
  */
 export function parseMusicOp(b) {
@@ -109,7 +115,10 @@ export function parseMusicOp(b) {
     case 'album.add': {
       if (b.title === undefined) return { error: 'bad-title' };
       const r = take(ALBUM_FIELDS, b, true, 'title');
-      return 'error' in r ? r : { op: b.op, fields: r.fields };
+      if ('error' in r) return r;
+      const kind = b.kind === undefined ? 'album' : kindOf(b.kind);
+      if (!kind) return { error: 'bad-kind' };
+      return { op: b.op, fields: { ...r.fields, kind } };
     }
     case 'album.edit':
     case 'track.edit': {
@@ -117,6 +126,11 @@ export function parseMusicOp(b) {
       if (!id) return { error: 'bad-id' };
       const r = take(b.op === 'album.edit' ? ALBUM_FIELDS : TRACK_FIELDS, b, false, 'title');
       if ('error' in r) return r;
+      if (b.op === 'album.edit' && b.kind !== undefined) {
+        const kind = kindOf(b.kind);
+        if (!kind) return { error: 'bad-kind' };
+        r.fields.kind = kind;
+      }
       if (!Object.keys(r.fields).length) return { error: 'nothing' };
       return { op: b.op, id, fields: r.fields };
     }
@@ -131,13 +145,13 @@ export function parseMusicOp(b) {
 }
 
 /**
- * 全部专辑（按添加顺序，新的在后；封面横滑从第一张开始）和各自的曲目（按曲序）。只有元数据，从不带音频地址 / R2 key。
+ * 全部记录（专辑和单曲，各带 kind；按添加顺序，新的在后；封面横滑从第一张开始）和各自的曲目（按曲序）。只有元数据，从不带音频地址 / R2 key。
  * full（管理的人：账号 + curio.write）多给 size / type / 有没有歌词；歌词正文在签播放令牌时给。
  * @param {any} db @param {boolean} [full]
  */
 export async function listAlbums(db, full = false) {
   const [as, ts] = await db.batch([
-    db.prepare('SELECT id, title, artist, year, cover FROM music_albums ORDER BY pos, id'),
+    db.prepare('SELECT id, title, artist, year, cover, kind FROM music_albums ORDER BY pos, id'),
     db.prepare('SELECT id, album_id, no, title, duration, size, type, length(lrc) AS lrc_len FROM music_tracks ORDER BY album_id, no, id'),
   ]);
   /** @type {Map<number, any[]>} */
@@ -147,28 +161,45 @@ export async function listAlbums(db, full = false) {
     const row = { id: t.id, no: t.no, title: t.title, duration: t.duration };
     by.get(t.album_id).push(full ? { ...row, size: t.size, type: t.type, lrc: (t.lrc_len || 0) > 0 } : row);
   }
-  return (as.results || []).map((a) => ({ id: a.id, title: a.title, artist: a.artist, year: a.year, cover: !!a.cover, tracks: by.get(a.id) || [] }));
+  return (as.results || []).map((a) => ({ id: a.id, kind: a.kind === 'single' ? 'single' : 'album', title: a.title, artist: a.artist, year: a.year, cover: !!a.cover, tracks: by.get(a.id) || [] }));
 }
 
 /**
- * 执行已校验的写操作。返回 {error}（not-found / limit）或 {removed:[R2_MUSIC key…], id?}（删的音频 / 封面，交给调用方从 R2 删）。
+ * 执行已校验的写操作。返回 {error}（not-found / limit / single-tracks）或 {removed:[R2_MUSIC key…], id?}（删的音频 / 封面，交给调用方从 R2 删）。
  * @param {any} db @param {any} o @param {number} [now]
  */
 export async function applyMusicOp(db, o, now = Date.now()) {
   switch (o.op) {
     case 'album.add': {
-      const n = await db.prepare("SELECT SUM(kind = 'album') AS n, COALESCE(MAX(pos), -1) AS p FROM music_albums").first();
-      if (n && n.n >= L.albums) return { error: 'limit' };
       const f = o.fields;
-      const r = await db.prepare('INSERT INTO music_albums (title, artist, year, pos, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)')
-        .bind(f.title, f.artist || '', f.year || 0, (n ? n.p : -1) + 1, now).run();
+      const kind = f.kind === 'single' ? 'single' : 'album';
+      /* 上限按 kind 分开算：专辑 100、单曲 500 */
+      const n = await db.prepare('SELECT SUM(kind = ?1) AS n, COALESCE(MAX(pos), -1) AS p FROM music_albums').bind(kind).first();
+      if (n && n.n >= kindLimit(kind)) return { error: 'limit' };
+      const r = await db.prepare('INSERT INTO music_albums (title, artist, year, pos, created_at, updated_at, kind) VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6)')
+        .bind(f.title, f.artist || '', f.year || 0, (n ? n.p : -1) + 1, now, kind).run();
       return { removed: [], id: r.meta && r.meta.last_row_id };
     }
     case 'album.edit':
     case 'track.edit': {
       const T = o.op === 'album.edit' ? 'music_albums' : 'music_tracks';
-      const cur = await db.prepare(`SELECT id FROM ${T} WHERE id = ?1`).bind(o.id).first();
+      const cur = await db.prepare(`SELECT ${T === 'music_albums' ? 'id, kind' : 'id'} FROM ${T} WHERE id = ?1`).bind(o.id).first();
       if (!cur) return { error: 'not-found' };
+      /* 改 kind（Gray 2026-11-14 17:33）：专辑 → 单曲只在 ≤1 首时可以（否则 409 single-tracks）；单曲 → 专辑直接转；
+         两个方向都按目标那边的上限算（专辑 100、单曲 500），超限 409 limit。和原来一样就当没改 */
+      if (T === 'music_albums' && o.fields.kind !== undefined) {
+        const to = o.fields.kind;
+        if (to === (cur.kind === 'single' ? 'single' : 'album')) delete o.fields.kind;
+        else {
+          if (to === 'single') {
+            const t = await db.prepare('SELECT COUNT(*) AS n FROM music_tracks WHERE album_id = ?1').bind(o.id).first();
+            if (t && t.n > 1) return { error: 'single-tracks' };
+          }
+          const n = await db.prepare('SELECT SUM(kind = ?1) AS n FROM music_albums').bind(to).first();
+          if (n && n.n >= kindLimit(to)) return { error: 'limit' };
+        }
+        if (!Object.keys(o.fields).length) return { removed: [] };
+      }
       const cols = Object.keys(o.fields);
       const args = cols.map((c) => o.fields[c]);
       let set = cols.map((c, i) => c + ' = ?' + (i + 1)).join(', ');

@@ -66,9 +66,9 @@ test('wrangler.toml：styrigx-account、不开公开地址、没有路由、唯�
   assert.match(prod, /^SGX_ENV = "production"$/m);
   assert.doesNotMatch(code, /\[\[routes\]\]|^pattern = /m, '账号 Worker 一条路由都没有（方案第 4 节）');
   assert.doesNotMatch(code, /styrigx-space-core|SpaceVerifier|\[\[env\.preview\.services\]\]/, '不绑网关、不回调网关；预览不绑服务');
-  /* 唯一的服务绑定：PROXY → styrigx-proxy-rules 的 ProxyAdmin（代理订阅管理，设计稿 v1.7 §7） */
+  /* 唯一的服务绑定：PROXY → styrigx-proxy 的 ProxyAdmin（代理订阅管理，设计稿 v1.7 §7） */
   assert.equal([...code.matchAll(/^\[\[services\]\]$/gm)].length, 1);
-  assert.match(prod, /\[\[services\]\]\s*binding = "PROXY"\s*service = "styrigx-proxy-rules"\s*entrypoint = "ProxyAdmin"/);
+  assert.match(prod, /\[\[services\]\]\s*binding = "PROXY"\s*service = "styrigx-proxy"\s*entrypoint = "ProxyAdmin"/);
   /* 一个库一个绑定（命名 v2）：D1_ACCOUNT；旧的三个名字都没了 */
   assert.deepEqual([...code.matchAll(/^binding = "(D1_[A-Z0-9_]+)"/gm)].map((m) => m[1]), ['D1_ACCOUNT', 'D1_ACCOUNT']);
   assert.doesNotMatch(code, /D1_WELLBEING|D1_SETTINGS_SYNC|D1_ACCOUNT_AUTH/);

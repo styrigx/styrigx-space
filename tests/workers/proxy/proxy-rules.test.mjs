@@ -1,17 +1,17 @@
 /**
- * 规则集反代 styrigx-proxy-rules（workers/proxy-rules）：MetaCubeX 来源的白名单、上游、缓存、响应头。
+ * 规则集反代 styrigx-proxy（workers/proxy）：MetaCubeX 来源的白名单、上游、缓存、响应头。
  * 这些用例在单文件版就有，搬进文件夹后只改了 import，断言一字不改——现有客户端配置靠这些行为。
  * 自有仓 styrigx/mihomo-rules 的用例在 own-repo.test.mjs，目录结构在 layout.test.mjs。
- * 运行：node --test tests/workers/proxy-rules/*.test.mjs
+ * 运行：node --test tests/workers/proxy/*.test.mjs
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import worker from '../../../workers/proxy-rules/src/app.js';
-import { ALLOW, upstreamUrls } from '../../../workers/proxy-rules/src/core/sources/metacubex.js';
-import { contentType } from '../../../workers/proxy-rules/src/lib/content-type.js';
-import { UPSTREAM_TIMEOUT_MS } from '../../../workers/proxy-rules/src/lib/upstream.js';
+import worker from '../../../workers/proxy/src/app.js';
+import { ALLOW, upstreamUrls } from '../../../workers/proxy/src/core/sources/metacubex.js';
+import { contentType } from '../../../workers/proxy/src/lib/content-type.js';
+import { UPSTREAM_TIMEOUT_MS } from '../../../workers/proxy/src/lib/upstream.js';
 
-const BASE = 'https://proxy-rules.styrigx.com';
+const BASE = 'https://proxy.styrigx.com';
 const P = '/MetaCubeX/meta-rules-dat/meta/geo/';
 
 let store, calls, upstream, waits;
@@ -58,7 +58,7 @@ test('健康检查 / 和 /healthz', async () => {
   for (const p of ['/', '/healthz']) {
     const r = await get(p);
     assert.equal(r.status, 200);
-    assert.equal(await r.text(), 'styrigx-proxy-rules ok\n');
+    assert.equal(await r.text(), 'styrigx-proxy ok\n');
     assert.equal(r.headers.get('cache-control'), 'no-store');
   }
   assert.equal(calls.length, 0);

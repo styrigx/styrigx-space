@@ -12,7 +12,7 @@
  *   - 设备（devices）：title = 名字；subtitle =「设备 · 类型 · 系统」；text = 系统、参数、配件、体验；url = 设备子页 devices/
  *   - 游戏（games）：title = 名字；subtitle =「游戏 · 平台 · 状态」；text = 版本、评价；url = 游戏子页 games/
  *   - 电影（movies）：title = 片名；subtitle =「电影 · 年份 · 导演」；text = 原名、导演、年份、评分、观看日期、短评；url = 电影子页 movies/
- *   - 音乐（music_albums + music_tracks，元数据）：一张专辑一条，title = 专辑名；subtitle =「音乐 · 歌手 · 年份」；text = 歌手 + 曲目表（曲序. 曲名）；
+ *   - 音乐（music_albums + music_tracks，元数据）：一张专辑 / 一首单曲一条，title = 专辑名 / 歌名；subtitle =「音乐 · 歌手 · 年份」（单曲「音乐 · 单曲 · 歌手 · 年份」）；text = 歌手 + 曲目表（曲序. 曲名）；
  *     url = 音乐子页 music/。音频 / 封面 / 歌词不进。2026-11 AI 语义召回起电影、音乐都进（Gray 2026-11-07：除账号数据外全部放开，
  *     站有门锁、音乐已付费，不按版权敏感处理）；两者都没有私密列，不标 private（进门即可问）
  *   - text 最多 2000 字，只参与匹配，搜索 Worker 不回给前端
@@ -43,14 +43,14 @@ const VALUE_MAX = 24 * 1024 * 1024;
 /* 页签名、设备类型、游戏状态：和页面上一样（字符串表 atlas/web/curio/data/i18n/<语言>.yaml 的 entries / js.curioItems）。
    语言包化第二部分（2026-11-07）：英文是底（EN），其他语言是覆盖层（LAYERS），缺的键回退英文；加语言 = LAYERS 加一份 */
 const EN = {
-  finds: 'Finds', devices: 'Devices', games: 'Games', movies: 'Movies', music: 'Music', rating: 'Rating', watched: 'Watched', artist: 'Artist', director: 'Director', original: 'Original title',
+  finds: 'Finds', devices: 'Devices', games: 'Games', movies: 'Movies', music: 'Music', single: 'Single', rating: 'Rating', watched: 'Watched', artist: 'Artist', director: 'Director', original: 'Original title',
   kinds: { phone: 'Phone', tablet: 'Tablet', laptop: 'Laptop', desktop: 'Desktop', watch: 'Watch', audio: 'Audio', console: 'Console', camera: 'Camera', other: 'Other' },
   status: { want: 'Want to play', playing: 'Playing', done: 'Finished', shelved: 'On hold' },
 };
 /** @type {Record<string, any>} */
 const LAYERS = {
   zh: {
-    finds: '发现', devices: '设备', games: '游戏', movies: '电影', music: '音乐', rating: '评分', watched: '观看日期', artist: '歌手', director: '导演', original: '原名',
+    finds: '发现', devices: '设备', games: '游戏', movies: '电影', music: '音乐', single: '单曲', rating: '评分', watched: '观看日期', artist: '歌手', director: '导演', original: '原名',
     kinds: { phone: '手机', tablet: '平板', laptop: '笔记本', desktop: '台式机', watch: '手表', audio: '耳机音箱', console: '游戏机', camera: '相机', other: '其他' },
     status: { want: '想玩', playing: '在玩', done: '通关', shelved: '搁置' },
   },
@@ -63,7 +63,7 @@ export function labels(lang) {
   const o = LAYERS[lang] || {};
   return {
     finds: o.finds || EN.finds, devices: o.devices || EN.devices, games: o.games || EN.games,
-    movies: o.movies || EN.movies, music: o.music || EN.music, rating: o.rating || EN.rating, watched: o.watched || EN.watched,
+    movies: o.movies || EN.movies, music: o.music || EN.music, single: o.single || EN.single, rating: o.rating || EN.rating, watched: o.watched || EN.watched,
     artist: o.artist || EN.artist, director: o.director || EN.director, original: o.original || EN.original,
     kinds: Object.assign({}, EN.kinds, o.kinds), status: Object.assign({}, EN.status, o.status),
   };
@@ -180,7 +180,8 @@ export function albumItems(a, tracks) {
     if (!title) continue;
     const T = labels(lang);
     const it = { id: 'album:' + a.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: pageUrl(lang, 'music') };
-    const sub = [T.music, a.artist, a.year ? String(a.year) : ''].filter(Boolean).join(' · ');
+    /* 单曲（kind=single，v1.13 ②）：副标题标「单曲」——「音乐 · 单曲 · 歌手 · 年份」；专辑照旧「音乐 · 歌手 · 年份」 */
+    const sub = [T.music, a.kind === 'single' ? T.single : '', a.artist, a.year ? String(a.year) : ''].filter(Boolean).join(' · ');
     out.push(finish(it, sub, [a.artist ? T.artist + ': ' + a.artist : '', list], false));
   }
   return out;
@@ -203,7 +204,7 @@ export async function buildIndex(db, now = Date.now()) {
     db.prepare('SELECT id, name, kind, os, specs, accessories, notes, private FROM devices ORDER BY pos, id'),
     db.prepare('SELECT id, title, platform, edition, status, review, private FROM games ORDER BY pos, id'),
     db.prepare('SELECT id, title, original_title, year, director, rating, review, watched_at FROM movies ORDER BY pos, id'),
-    db.prepare('SELECT id, title, artist, year FROM music_albums ORDER BY pos, id'),
+    db.prepare('SELECT id, title, artist, year, kind FROM music_albums ORDER BY pos, id'),
     db.prepare('SELECT album_id, no, title FROM music_tracks ORDER BY album_id, no, id'),
   ]);
   const byId = new Map((cats.results || []).map((c) => [c.id, c]));

@@ -1,5 +1,5 @@
 /**
- * @fileoverview styrigx-proxy-rules 的 HTTP 小工具（和业务无关）。各 Worker 各自一份 lib/http.js。
+ * @fileoverview styrigx-proxy 的 HTTP 小工具（和业务无关）。各 Worker 各自一份 lib/http.js。
  */
 
 /**

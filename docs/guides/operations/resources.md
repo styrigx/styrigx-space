@@ -33,7 +33,7 @@
 | `styrigx-status` | 无路由 | `* * * * *`（监测）、`41 * * * *`（用量） |
 | `styrigx-curio-core` | 路由 `styrigx.com/curio/api/*`；命名入口 `CurioReader` | `23 * * * *` |
 | `styrigx-daymark-core` | 路由 `styrigx.com/daymark/api/*` | `17 * * * *` |
-| `styrigx-proxy-rules` | 自定义域名 `proxy-rules.styrigx.com` | D1 `styrigx-proxy`、Secrets Store `SGX_PROXY_DB_KEY`、Rate Limiting `RL_SUB`、自绑 `SELF`；cron 每 6 小时 |
+| `styrigx-proxy` | 自定义域名 `proxy.styrigx.com` | D1 `styrigx-proxy`、Secrets Store `SGX_PROXY_DB_KEY`、Rate Limiting `RL_SUB`、自绑 `SELF`；cron 每 6 小时 |
 
 全部 Worker：`workers_dev = false`、`preview_urls = false`，开启 observability。
 
