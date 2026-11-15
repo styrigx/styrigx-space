@@ -100,16 +100,16 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(root).toHaveAttribute('aria-busy', 'false');
       await expect(page.locator('#st-banner')).toHaveAttribute('data-state', 'up');
       await expect(page.locator('#st-banner .st-banner-title')).toHaveText('全部正常');
-      await expect(page.locator('#st-banner .st-banner-sub')).toHaveText('3 个服务运行正常');
+      await expect(page.locator('#st-banner .st-banner-sub')).toHaveText('5 个服务运行正常');
       const cards = page.locator('#st-sites .st-card');
-      await expect(cards).toHaveCount(3);
+      await expect(cards).toHaveCount(5);
       await expect(page.locator('.st-skel')).toHaveCount(0);
-      await expect(cards.locator('.st-name')).toHaveText(['主站', '规则集', 'AI 助手']);
-      await expect(cards.locator('.st-host')).toHaveText(['styrigx.com', 'proxy.styrigx.com', 'styrigx-ai']);
-      await expect(cards.locator('.st-chip')).toHaveText(['● 正常', '● 正常', '● 正常']);
+      await expect(cards.locator('.st-name')).toHaveText(['主站', '规则集', 'AI 助手', '奇趣 · 日刻接口', '账号']);
+      await expect(cards.locator('.st-host')).toHaveText(['styrigx.com', 'proxy.styrigx.com', 'styrigx-ai', 'styrigx-atlas-core', 'styrigx-account']);
+      await expect(cards.locator('.st-chip')).toHaveText(['● 正常', '● 正常', '● 正常', '● 正常', '● 正常']);
       await expect(cards.first().locator('.st-meta')).toContainText('延迟 123 ms');
       await expect(cards.first().locator('.st-meta')).toContainText('刚刚检查');
-      for (let i = 0; i < 3; i++) await expect(cards.nth(i).locator('.st-cell')).toHaveCount(90);
+      for (let i = 0; i < 5; i++) await expect(cards.nth(i).locator('.st-cell')).toHaveCount(90);
       await expect(cards.nth(1).locator('.st-pct')).toHaveText('可用率 99.96%');
       await expect(cards.nth(1).locator('.st-cell[data-level="minor"]')).toHaveCount(1);
       await expect(cards.nth(2).locator('.st-cell[data-level="down"]')).toHaveCount(1);
@@ -149,7 +149,7 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(ai.locator('.st-meta-last')).toHaveText('超时');
       await expect(ai.locator('.st-meta-last')).toHaveAttribute('data-ok', '0');
       await expect(ai.locator('.st-pct')).toHaveText('可用率 99.78%');
-      await expect(page.locator('.st-card[data-state="up"]')).toHaveCount(2);
+      await expect(page.locator('.st-card[data-state="up"]')).toHaveCount(4);
       const first = page.locator('#st-inc .st-inc').first();
       await expect(first).toHaveAttribute('data-open', '1');
       await expect(first.locator('.st-inc-site')).toHaveText('AI 助手');
@@ -171,7 +171,7 @@ for (const [label, viewport] of VIEWPORTS) {
     test('英文页：横幅 / 卡片 / 故障都是英文', async ({ page }) => {
       await go(page, '/status/', { api: fx.oneDown() });
       await expect(page.locator('#st-banner .st-banner-title')).toHaveText('1 service down');
-      await expect(page.locator('.st-card .st-name')).toHaveText(['Space', 'Proxy rules', 'AI']);
+      await expect(page.locator('.st-card .st-name')).toHaveText(['Space', 'Proxy rules', 'AI', 'Atlas', 'Account']);
       await expect(page.locator('.st-card[data-site="ai"] .st-chip')).toHaveText('● Down');
       await expect(page.locator('.st-card[data-site="space"] .st-pct')).toHaveText('100% uptime');
       await expect(page.locator('#st-inc .st-inc').first().locator('.st-chip')).toHaveText(/Ongoing$/);
@@ -200,7 +200,7 @@ for (const [label, viewport] of VIEWPORTS) {
       await page.locator('#st-error .st-btn').click();
       await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'ready');
       await expect(page.locator('#st-error')).toBeHidden();
-      await expect(page.locator('.st-card')).toHaveCount(3);
+      await expect(page.locator('.st-card')).toHaveCount(5);
     });
 
     test('没进站（401，v5 S3 三处上锁之一）：锁卡 Permission denied + 一行说明 + su；不显示横幅 / 卡片 / 凭证记录；点按钮打开终端预填 su ', async ({ page }) => {
@@ -307,7 +307,7 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(page.locator('#st-usage .st-usage-none')).toHaveAttribute('data-reason', 'not-configured');
       await expect(page.locator('#st-usage .st-usage-none-title')).toHaveText('用量未配置');
       await expect(page.locator('#st-usage .st-u-track')).toHaveCount(0);
-      await expect(page.locator('.st-card')).toHaveCount(3);
+      await expect(page.locator('.st-card')).toHaveCount(5);
       await go(page, '/zh/status/', { api: fx.normal() });
       await expect(page.locator('#st-usage .st-usage-none-title')).toHaveText('用量未配置');
       await go(page, '/status/', { api: fx.withUsage(fx.normal(), null, 'not-configured') });
@@ -375,7 +375,7 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(page.locator('#st-quota-wrap')).toBeVisible();
       await expect(page.locator('#st-quota .st-usage-none-title')).toHaveText('额度暂时拿不到');
       await expect(page.locator('#st-quota .st-u-track')).toHaveCount(0);
-      await expect(page.locator('.st-card')).toHaveCount(3);
+      await expect(page.locator('.st-card')).toHaveCount(5);
       /* 额度拿不到时用量卡保留 Workers 行 */
       await expect(page.locator('#st-usage .st-u')).toHaveCount(7);
       await go(page, '/zh/status/', { api: fx.withQuota(fx.normal(), null, 'not-configured') });
@@ -412,7 +412,7 @@ test.describe('自动刷新', () => {
     await expect(page.locator('#st-foot')).toHaveText(/^刷新失败，显示的是 12:01 的数据$/);
     expect(calls.length).toBe(3);
     await expect(page.locator('#st-banner')).toHaveAttribute('data-state', 'down');
-    await expect(page.locator('.st-card')).toHaveCount(3);
+    await expect(page.locator('.st-card')).toHaveCount(5);
   });
 });
 
@@ -434,7 +434,7 @@ test.describe('首帧缓存', () => {
     await expect(root).toHaveAttribute('data-state', 'ready');
     await expect(page.locator('.st-skel')).toHaveCount(0);
     await expect(page.locator('#st-banner')).toHaveAttribute('data-state', 'up');
-    await expect(page.locator('#st-sites .st-card')).toHaveCount(3);
+    await expect(page.locator('#st-sites .st-card')).toHaveCount(5);
     await expect(page.locator('#st-foot')).toHaveText('更新于 11:50（北京时间），每分钟自动刷新');
     /* 请求照常发出去了，只是还没回来 */
     await expect.poll(() => calls.length).toBe(1);
@@ -499,8 +499,8 @@ test.describe('NAVIGATE STATUS → 状态页 /status/（入口）', () => {
     await page.waitForURL(/\/zh\/status\/$/);
     await expect(page.locator('.sgx-tb-title')).toHaveText('状态');
     await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'ready');
-    await expect(page.locator('#st-sites .st-card')).toHaveCount(3);
-    await expect(page.locator('#st-units .st-unit')).toHaveCount(6);
+    await expect(page.locator('#st-sites .st-card')).toHaveCount(5);
+    await expect(page.locator('#st-units .st-unit')).toHaveCount(5);
     await expect(page.locator('#st-usage-wrap')).toBeVisible();
     /* 外框是状态页的 #status 一节（终端窗），不横向溢出 */
     expect(await page.locator('#st-root').evaluate((el) => el.parentElement.id === 'status' && el.parentElement.classList.contains('status-sec'))).toBe(true);

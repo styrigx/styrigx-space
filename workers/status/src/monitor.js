@@ -21,6 +21,7 @@ export function dayOf(ms) {
  */
 export async function checkOne(t, doFetch = fetch, now = () => Date.now()) {
   if (doFetch === null) return { site: t.site, ok: false, code: 0, ms: 0, err: 'binding' };
+  if (t.rpc) return pingOne(t, /** @type {any} */ (doFetch), now);
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   const t0 = now();
@@ -44,24 +45,44 @@ export async function checkOne(t, doFetch = fetch, now = () => Date.now()) {
 }
 
 /**
+ * rpc 目标（P4 R-07）：服务绑定命名入口的 ping()。回 {ok:true} 记 200；回别的记 code 0 / err 'status'；10 秒超时。
+ * @param {{site:string}} t @param {{ping:()=>Promise<any>}} svc @param {() => number} now
+ */
+export async function pingOne(t, svc, now = () => Date.now()) {
+  const t0 = now();
+  /** @type {any} */
+  let timer;
+  const timeout = new Promise((res) => { timer = setTimeout(() => res('timeout'), TIMEOUT_MS); });
+  try {
+    const r = await Promise.race([svc.ping(), timeout]);
+    if (r === 'timeout') return { site: t.site, ok: false, code: 0, ms: TIMEOUT_MS, err: 'timeout' };
+    const ms = Math.max(0, now() - t0);
+    const ok = !!(r && r.ok);
+    return { site: t.site, ok, code: ok ? 200 : 0, ms, err: ok ? null : 'status' };
+  } catch (e) {
+    return { site: t.site, ok: false, code: 0, ms: Math.max(0, now() - t0), err: 'network' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * 根据上一轮状态和这一轮结果算出要写的东西。
+ * D-2 方案 C（2026-11-15）：一轮全部结果写 status_minute 一行；status_state 只在连续失败数或首次失败时间变了才写；
+ * status_hourly / status_daily 不再每分钟写，改由整点汇总（aggregate）从 status_minute 算。
  * @param {Map<string, {fails:number, open:{id:number}|null, firstFailAt:number}>} prev  每站：连续失败次数、开着的故障、这一串失败的第一次时间
  * @param {Array<{site:string, ok:boolean, code:number, ms:number, err:string|null}>} results
  * @param {number} at
  */
 export function plan(prev, results, at) {
-  const day = dayOf(at);
-  const hour = Math.floor(at / HOUR_MS) * HOUR_MS;
-  const out = { checks: [], daily: [], hourly: [], state: [], open: [], close: [] };
+  const out = { minute: { at, data: [] }, state: [], open: [], close: [] };
   for (const r of results) {
     const p = prev.get(r.site) || { fails: 0, open: null, firstFailAt: 0 };
     const fails = r.ok ? 0 : p.fails + 1;
     /* 这一串失败的第一次：成功清零；第一次失败记这一轮；之后沿用 */
     const firstFail = r.ok ? 0 : (fails > 1 && p.firstFailAt ? p.firstFailAt : at);
-    out.checks.push({ site: r.site, at, ok: r.ok ? 1 : 0, code: r.code, ms: r.ms, err: r.err });
-    out.daily.push({ site: r.site, day, ok: r.ok ? 1 : 0, ms: r.ok ? r.ms : 0 });
-    out.hourly.push({ site: r.site, hour, ok: r.ok ? 1 : 0, ms: r.ok ? r.ms : 0 });
-    out.state.push({ site: r.site, fails, first_fail_at: firstFail, at, ok: r.ok ? 1 : 0, code: r.code, ms: r.ms, err: r.err });
+    out.minute.data.push({ s: r.site, ok: r.ok ? 1 : 0, code: r.code, ms: r.ms, err: r.err });
+    if (fails !== p.fails || firstFail !== (p.firstFailAt || 0)) out.state.push({ site: r.site, fails, first_fail_at: firstFail });
     if (!r.ok && fails >= FAIL_THRESHOLD && !p.open) {
       /* 故障从这一串的第一次失败算起 */
       const started = firstFail;
@@ -100,30 +121,13 @@ export async function loadPrev(db) {
  * @param {ReturnType<typeof plan>} p
  * @param {{prune?: number}} [opt] prune：删掉早于这个时间的原始记录
  */
-export async function persist(db, p, opt = {}) {
-  const st = [];
-  for (const c of p.checks) {
-    st.push(db.prepare('INSERT INTO status_checks (site, at, ok, code, ms, err) VALUES (?, ?, ?, ?, ?, ?)')
-      .bind(c.site, c.at, c.ok, c.code, c.ms, c.err));
-  }
-  for (const d of p.daily) {
+export async function persist(db, p) {
+  const st = [db.prepare('INSERT OR REPLACE INTO status_minute (at, data) VALUES (?, ?)').bind(p.minute.at, JSON.stringify(p.minute.data))];
+  for (const x of p.state) {
     st.push(db.prepare(
-      'INSERT INTO status_daily (site, day, total, ok_count, ms_sum) VALUES (?, ?, 1, ?, ?) ' +
-      'ON CONFLICT (site, day) DO UPDATE SET total = total + 1, ok_count = ok_count + excluded.ok_count, ms_sum = ms_sum + excluded.ms_sum',
-    ).bind(d.site, d.day, d.ok, d.ms));
-  }
-  for (const h of p.hourly || []) {
-    st.push(db.prepare(
-      'INSERT INTO status_hourly (site, hour, total, ok_count, ms_sum) VALUES (?, ?, 1, ?, ?) ' +
-      'ON CONFLICT (site, hour) DO UPDATE SET total = total + 1, ok_count = ok_count + excluded.ok_count, ms_sum = ms_sum + excluded.ms_sum',
-    ).bind(h.site, h.hour, h.ok, h.ms));
-  }
-  for (const s of p.state) {
-    st.push(db.prepare(
-      'INSERT INTO status_state (site, fails, first_fail_at, last_at, last_ok, last_code, last_ms, last_err) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ' +
-      'ON CONFLICT (site) DO UPDATE SET fails = excluded.fails, first_fail_at = excluded.first_fail_at, last_at = excluded.last_at, ' +
-      'last_ok = excluded.last_ok, last_code = excluded.last_code, last_ms = excluded.last_ms, last_err = excluded.last_err',
-    ).bind(s.site, s.fails, s.first_fail_at, s.at, s.ok, s.code, s.ms, s.err));
+      'INSERT INTO status_state (site, fails, first_fail_at) VALUES (?, ?, ?) ' +
+      'ON CONFLICT (site) DO UPDATE SET fails = excluded.fails, first_fail_at = excluded.first_fail_at',
+    ).bind(x.site, x.fails, x.first_fail_at));
   }
   for (const o of p.open) {
     st.push(db.prepare('INSERT INTO status_incidents (site, started_at, cause) VALUES (?, ?, ?)').bind(o.site, o.started_at, o.cause));
@@ -131,9 +135,69 @@ export async function persist(db, p, opt = {}) {
   for (const c of p.close) {
     st.push(db.prepare('UPDATE status_incidents SET ended_at = ? WHERE id = ? AND ended_at IS NULL').bind(c.ended_at, c.id));
   }
-  if (opt.prune) st.push(db.prepare('DELETE FROM status_checks WHERE at < ?').bind(opt.prune));
-  if (opt.pruneHourly) st.push(db.prepare('DELETE FROM status_hourly WHERE hour < ?').bind(opt.pruneHourly));
-  if (st.length) await db.batch(st);
+  await db.batch(st);
+}
+
+/** status_minute 一行的 data → [{site, ok, code, ms, err}]（坏行回空） @param {string} data */
+export function parseMinute(data) {
+  try {
+    const a = JSON.parse(data);
+    return Array.isArray(a) ? a.filter((x) => x && x.s).map((x) => ({ site: String(x.s), ok: Number(x.ok) ? 1 : 0, code: Number(x.code) || 0, ms: Number(x.ms) || 0, err: x.err || null })) : [];
+  } catch { return []; }
+}
+
+/**
+ * 把一批 status_minute 行按 (站, 整点) 汇总。 @param {Array<{at:number, data:string}>} rows
+ * @returns {Map<string, {site:string, hour:number, total:number, ok_count:number, ms_sum:number}>}
+ */
+export function rollup(rows) {
+  const m = new Map();
+  for (const r of rows) {
+    const hour = Math.floor(Number(r.at) / HOUR_MS) * HOUR_MS;
+    for (const c of parseMinute(r.data)) {
+      const k = c.site + '|' + hour;
+      const v = m.get(k) || { site: c.site, hour, total: 0, ok_count: 0, ms_sum: 0 };
+      v.total += 1; v.ok_count += c.ok; v.ms_sum += c.ok ? c.ms : 0;
+      m.set(k, v);
+    }
+  }
+  return m;
+}
+
+/**
+ * 整点汇总（D-2 C，随 "41 * * * *" 那轮跑）：最近 3 个**已结束**的整点小时，从 status_minute 汇总进 status_hourly（已有就跳过，
+ * 漏跑一两轮能补上），新写进去的小时再累加进 status_daily（北京日）。顺带清理：status_minute / status_checks 7 天前、status_hourly 2 天前。
+ * status_checks 已停写，按原节奏逐日删空（不一次清，免得单日删除冲 D1 写额度），之后另出迁移 DROP。
+ * @param {D1Database} db @param {number} at
+ */
+export async function aggregate(db, at) {
+  const cur = Math.floor(at / HOUR_MS) * HOUR_MS;
+  const from = cur - 3 * HOUR_MS;
+  const res = await db.prepare('SELECT at, data FROM status_minute WHERE at >= ? AND at < ? ORDER BY at').bind(from, cur).all();
+  const groups = [...rollup(res.results || []).values()];
+  const st = [];
+  for (const g of groups) {
+    st.push(db.prepare('INSERT INTO status_hourly (site, hour, total, ok_count, ms_sum) VALUES (?, ?, ?, ?, ?) ON CONFLICT (site, hour) DO NOTHING RETURNING site, hour')
+      .bind(g.site, g.hour, g.total, g.ok_count, g.ms_sum));
+  }
+  const fresh = new Set();
+  if (st.length) {
+    const out = await db.batch(st);
+    for (const r of out) for (const x of (r && r.results) || []) fresh.add(x.site + '|' + Number(x.hour));
+  }
+  const st2 = [];
+  for (const g of groups) {
+    if (!fresh.has(g.site + '|' + g.hour)) continue;
+    st2.push(db.prepare(
+      'INSERT INTO status_daily (site, day, total, ok_count, ms_sum) VALUES (?, ?, ?, ?, ?) ' +
+      'ON CONFLICT (site, day) DO UPDATE SET total = total + excluded.total, ok_count = ok_count + excluded.ok_count, ms_sum = ms_sum + excluded.ms_sum',
+    ).bind(g.site, dayOf(g.hour), g.total, g.ok_count, g.ms_sum));
+  }
+  st2.push(db.prepare('DELETE FROM status_minute WHERE at < ?').bind(at - KEEP_MS));
+  st2.push(db.prepare('DELETE FROM status_checks WHERE at < ?').bind(at - KEEP_MS));
+  st2.push(db.prepare('DELETE FROM status_hourly WHERE hour < ?').bind(at - 2 * DAY_MS));
+  await db.batch(st2);
+  return { hours: fresh.size };
 }
 
 /**
@@ -142,6 +206,10 @@ export async function persist(db, p, opt = {}) {
  * @returns {typeof fetch|null}
  */
 export function fetcherFor(t, env, doFetch) {
+  if (t.rpc) {
+    const svc = env && env[t.rpc];
+    return svc && typeof svc.ping === 'function' ? /** @type {any} */ (svc) : null;
+  }
   if (!t.binding) return doFetch;
   const svc = env && env[t.binding];
   if (!svc || typeof svc.fetch !== 'function') return null;
@@ -149,7 +217,7 @@ export function fetcherFor(t, env, doFetch) {
 }
 
 /**
- * 跑一轮：检查全部地址 → 写库。整点顺带清掉 7 天前的原始记录。
+ * 跑一轮：检查全部地址 → 写库（一行 status_minute；清理在整点汇总里做）。
  * @param {any} env
  * @param {number} at  这一轮的时间（Cron 的 scheduledTime）
  * @param {typeof fetch} [doFetch]
@@ -158,8 +226,7 @@ export async function runOnce(env, at, doFetch = fetch) {
   const db = env.D1_UPTIME_MONITOR;
   const [prev, results] = await Promise.all([loadPrev(db), Promise.all(TARGETS.map((t) => checkOne(t, fetcherFor(t, env, doFetch))))]);
   const p = plan(prev, results, at);
-  const minute = Math.floor(at / 60000) % 60;
-  await persist(db, p, minute === 0 ? { prune: at - KEEP_MS, pruneHourly: at - 2 * DAY_MS } : {});
+  await persist(db, p);
   return p;
 }
 
@@ -177,12 +244,22 @@ export async function runOnce(env, at, doFetch = fetch) {
 export async function summary(db, now, env) {
   const since24 = Math.floor((now - DAY_MS) / HOUR_MS) * HOUR_MS;
   const from90 = dayOf(now - 89 * DAY_MS);
-  const [st, days, recent, inc] = await db.batch([
-    db.prepare('SELECT site, fails, last_at, last_ok, last_code, last_ms, last_err FROM status_state'),
+  const [st, days, recent, inc, mins] = await db.batch([
+    db.prepare('SELECT site, fails FROM status_state'),
     db.prepare('SELECT site, day, total, ok_count, ms_sum FROM status_daily WHERE day >= ? ORDER BY day').bind(from90),
     db.prepare('SELECT site, hour, total, ok_count, ms_sum FROM status_hourly WHERE hour >= ? ORDER BY hour').bind(since24),
     db.prepare('SELECT id, site, started_at, ended_at, cause FROM status_incidents ORDER BY started_at DESC LIMIT 20'),
+    /* 还没汇总进 status_hourly 的分钟（最多约 2 小时 41 分）：补进 recent / 24h，最新一行给 last */
+    db.prepare('SELECT at, data FROM status_minute WHERE at >= ? ORDER BY at').bind(Math.floor(now / HOUR_MS) * HOUR_MS - 3 * HOUR_MS),
   ]);
+  const minRows = mins.results || [];
+  const lastRow = minRows.length ? minRows[minRows.length - 1] : null;
+  /** @type {Map<string, any>} */
+  const lastBy = new Map();
+  if (lastRow) for (const c of parseMinute(lastRow.data)) lastBy.set(c.site, { at: Number(lastRow.at), ok: !!c.ok, code: c.code, ms: c.ms, err: c.err });
+  const haveHour = new Set((recent.results || []).map((x) => x.site + '|' + Number(x.hour)));
+  const pending = [...rollup(minRows).values()].filter((g) => g.hour >= since24 && !haveHour.has(g.site + '|' + g.hour));
+  recent.results = [...(recent.results || []), ...pending].sort((a, b) => Number(a.hour) - Number(b.hour));
   const by = (rows, site) => (rows.results || []).filter((r) => r.site === site);
   const pct = (ok, total) => (total ? Math.round((ok / total) * 10000) / 100 : null);
   const today = dayOf(now);
@@ -198,10 +275,10 @@ export async function summary(db, now, env) {
     const [ok90, tot90] = sum(d, from90);
     return {
       site: t.site, name: t.name, url: t.url,
-      checked: !!s,
-      up: s ? Number(s.fails) < FAIL_THRESHOLD : null,
+      checked: lastBy.has(t.site) || !!s,
+      up: lastBy.has(t.site) || s ? Number(s ? s.fails : 0) < FAIL_THRESHOLD : null,
       fails: s ? Number(s.fails) : 0,
-      last: s ? { at: Number(s.last_at), ok: !!s.last_ok, code: Number(s.last_code), ms: Number(s.last_ms), err: s.last_err || null } : null,
+      last: lastBy.get(t.site) || null,
       uptime: { h24: pct(ok24, tot24), d30: pct(ok30, tot30), d90: pct(ok90, tot90) },
       days: d.map((x) => ({ day: x.day, total: x.total, ok: x.ok_count, avg_ms: x.ok_count ? Math.round(x.ms_sum / x.ok_count) : null })),
       recent: r.map((x) => [Number(x.hour), Number(x.ok_count) === Number(x.total) ? 1 : 0,

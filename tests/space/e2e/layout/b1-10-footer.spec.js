@@ -40,7 +40,7 @@ for (const vp of VIEWPORTS) {
       }
       await expect(page.locator('.sgx-foot-win a:not([aria-current="page"])').first()).toBeHidden();
       await expect(page.locator('.sgx-foot-lang')).toBeHidden();
-      await expect(page.locator('.sgx-foot-st')).toContainText('–/6');
+      await expect(page.locator('.sgx-foot-st')).toContainText('–/5');
 
       await page.evaluate(() => window.scrollTo(0, document.scrollingElement.scrollHeight));
       await scrolledTo(page);

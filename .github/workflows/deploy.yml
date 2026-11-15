@@ -31,7 +31,7 @@ env:
 # 回滚下限：space/scripts/deploy/deploy-rollback-floor.json。线上版本低于下限（网关 / 账号 Worker 是 #226 之前的 KV 版本）就不记、不自动回滚，
 # 免得退回读旧 KV 的代码；以后存储改成旧代码读不懂的格式时在那里加一行。
 # 健康闸门第二阶段（2026-10-28，space/scripts/check/health-gate.mjs）：ai 没有公开地址（P4-2 起取代 search / chat），第一阶段只能核对版本换上了。
-# status 部署并核对后，等 styrigx-status 在部署之后跑的巡检（D1 styrigx-status 的 status_checks 表，经服务绑定测 ai 的 /healthz），
+# status 部署并核对后，等 styrigx-status 在部署之后跑的巡检（D1 styrigx-status 的 status_minute 表（D-2 C），经服务绑定测 ai 的 /healthz），
 # 连续 2 次失败（部署前就在失败的不算）→ status job 红：status 自己按原样回滚，rollback-ai-worker
 # 用 ai 环境原有的 token 把 ai 退回部署前版本；网关 / Pages / 账号 / 分享都等 status，不会部署。
 # 读 D1 用 status 部署本来就有的 token（D1 编辑），不经网关、不开免会话口子、不加 Worker / 子域名 / secret。
@@ -1216,7 +1216,7 @@ jobs:
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
       - name: Post-deploy health gate (status checks of ai after this deploy)
-        # 健康闸门第二阶段（space/scripts/check/health-gate.mjs）：等新部署的 status 每分钟巡检（经服务绑定测 ai 的 /healthz）写进 D1 status_checks，
+        # 健康闸门第二阶段（space/scripts/check/health-gate.mjs）：等新部署的 status 每分钟巡检（经服务绑定测 ai 的 /healthz）写进 D1 status_minute，
         # 只认部署之后的；连续 2 次失败 → 红。最多等 5 分钟（巡检不跑 = status 自己有问题，同样红）。
         # 红了：下面一步把 status 退回部署前版本；verdict = fail 时 rollback-ai-worker 退回 ai；
         # 网关 / Pages / 账号 / 分享都等这个 job，不会部署。部署前就在失败的站只打 warning。

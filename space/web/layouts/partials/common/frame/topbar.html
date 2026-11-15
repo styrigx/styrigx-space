@@ -81,13 +81,13 @@
       </div>
     </div>
     {{- /* STATUS（2026-11 PR-A 接真数据，设计稿 nav-v2「● 全部在线」+ 各服务延迟）：topbar/panel.js mountStatus 取 GET /api/status（主站监测，进门会话）——
-       space / blog / curio / daymark 同一个 Pages、同一条网关链路 = 主站那一项；gray-ai = AI 那一项；auth = 网关自己（这一问的往返时间）。
-       拿不到（没进门 / 出错）：点是灰的、延迟空着，头部写 statusPending。数据也写进 tmux 页脚的 ● n/6。
+       P4 R-07：space = Pages + 网关；atlas = atlas-core；account = 账号 Worker；proxy = 规则集；gray-ai = AI（口径同 frame/status/view.js UNITS）。
+       拿不到（没进门 / 出错）：点是灰的、延迟空着，头部写 statusPending。数据也写进 tmux 页脚的 ● n/5。
        头部右边一个跳转按钮（2026-11-12）：去状态页（.status 参数，同页脚 systemctl status ›；英文 /status/、中文 /zh/status/）。 */}}
     <div class="sgx-nav-st" data-nav-status>
       <div class="sgx-nav-st-h"><span>{{ $t.nav.status }}</span><b data-st-sum data-up-text="● {{ $t.nav.allUp }}" data-off-text="{{ $t.nav.statusOff }}">{{ $t.nav.statusPending }}</b><a href="{{ .status }}" class="sgx-nav-st-go" data-nav-st-go aria-label="{{ $t.nav.statusGoLabel }}">{{ $t.nav.statusGo }} ›</a></div>
       <ul class="sgx-nav-st-gd">
-        {{- range slice "space" "blog" "curio" "daymark" "gray-ai" "auth" }}<li data-st="{{ . }}"><i aria-hidden="true"></i><span translate="no">{{ . }}</span><em data-st-ms></em></li>{{ end }}
+        {{- range slice "space" "atlas" "account" "proxy" "gray-ai" }}<li data-st="{{ . }}"><i aria-hidden="true"></i><span translate="no">{{ . }}</span><em data-st-ms></em></li>{{ end }}
       </ul>
     </div>
     {{- /* 页脚（设计稿 nav-v2：systemctl status › · esc 关闭）。终端（2026-11 PR-2 起的功能，PR-A 照稿去掉第三颗按钮）挪成这里的一行文字链：关面板后开全站终端抽屉（主页上聚焦首屏那一个），同 Ctrl / ⌘ K；手机没有键盘也靠它 */}}

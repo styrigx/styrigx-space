@@ -399,8 +399,8 @@ test.describe('390×844 行为', () => {
     await expect(nav.locator('.sgx-nav-act, [data-qp="share"]')).toHaveCount(0);
     await expect(nav.locator('.sgx-nav-f [data-qp="term"]')).toHaveText('Ctrl K 终端 ›');
     await expect(nav.locator('.sgx-nav-f [data-qp="term"]')).toHaveAccessibleName('终端');
-    await expect(nav.locator('[data-st]')).toHaveCount(6);
-    await expect(nav.locator('[data-st] span')).toHaveText(['space', 'blog', 'curio', 'daymark', 'gray-ai', 'auth']);
+    await expect(nav.locator('[data-st]')).toHaveCount(5);
+    await expect(nav.locator('[data-st] span')).toHaveText(['space', 'atlas', 'account', 'proxy', 'gray-ai']); /* P4 R-07 */
     /* 没有 /api/status 数据（测试静态站没有接口）：延迟空着、点是灰的（2026-11 PR-A 接真数据，见 nav-status.spec） */
     await expect(nav.locator('[data-st-ms]').first()).toHaveText('');
     await expect(nav.locator('[data-st="space"]')).not.toHaveAttribute('data-up', /./);
@@ -427,36 +427,37 @@ test.describe('390×844 行为', () => {
     await expect(nav).toHaveAttribute('data-state', 'closed');
   });
 
-  test('NAVIGATE STATUS + 页脚 ● n/6（2026-11 PR-A 接 /api/status）：主站一项 → space / blog / curio / daymark，ai → gray-ai，auth = 网关这一问；拿不到时灰点 –/6', async ({ page }) => {
+  test('NAVIGATE STATUS + 页脚 ● n/5（P4 R-07）：space / atlas / account / proxy（proxy-rules）/ gray-ai（ai）各取自己那项；拿不到时灰点 –/5', async ({ page }) => {
     let calls = 0;
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await goStatus(page, '/zh/', (r) => { calls++; return r.fulfill({ json: { ok: true, all_up: true, sites: [
-      { site: 'space', up: true, last: { ok: true, ms: 38 } }, { site: 'proxy-rules', up: true, last: { ok: true, ms: 50 } }, { site: 'ai', up: false, last: { ok: false, ms: 900 } }] } }); });
-    await expect(page.locator('.sgx-foot-st')).toContainText('5/6');
+      { site: 'space', up: true, last: { ok: true, ms: 38 } }, { site: 'proxy-rules', up: true, last: { ok: true, ms: 50 } }, { site: 'ai', up: false, last: { ok: false, ms: 900 } },
+      { site: 'atlas', up: true, last: { ok: true, ms: 41 } }, { site: 'account', up: true, last: { ok: true, ms: 33 } }] } }); });
+    await expect(page.locator('.sgx-foot-st')).toContainText('4/5');
     await expect(page.locator('.sgx-foot-st')).toHaveAttribute('data-up', '0');
     await page.locator('.sgx-tb-grid').click();
     const nav = page.locator('#sgx-nav');
     await expect(nav.locator('[data-st="space"] [data-st-ms]')).toHaveText('38ms');
-    await expect(nav.locator('[data-st="blog"] [data-st-ms]')).toHaveText('38ms');
-    await expect(nav.locator('[data-st="daymark"]')).toHaveAttribute('data-up', '1');
+    await expect(nav.locator('[data-st="atlas"] [data-st-ms]')).toHaveText('41ms');
+    await expect(nav.locator('[data-st="proxy"] [data-st-ms]')).toHaveText('50ms');
     await expect(nav.locator('[data-st="gray-ai"]')).toHaveAttribute('data-up', '0');
-    await expect(nav.locator('[data-st="auth"]')).toHaveAttribute('data-up', '1');
-    await expect(nav.locator('[data-st-sum]')).toHaveText('5/6');
+    await expect(nav.locator('[data-st="account"]')).toHaveAttribute('data-up', '1');
+    await expect(nav.locator('[data-st-sum]')).toHaveText('4/5');
     /* 2 分钟内打开 NAVIGATE 不重复问（sessionStorage 缓存） */
     expect(calls).toBe(1);
   });
 
-  test('NAVIGATE STATUS：全部在线 =「● 全部在线」绿；接口 401（锁着）= 灰点、页脚 –/6', async ({ page }) => {
+  test('NAVIGATE STATUS：全部在线 =「● 全部在线」绿；接口 401（锁着）= 灰点、页脚 –/5', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await goStatus(page, '/zh/', (r) => r.fulfill({ json: { ok: true, sites: [{ site: 'space', up: true, last: { ms: 40 } }, { site: 'ai', up: true, last: { ms: 120 } }] } }));
-    await expect(page.locator('.sgx-foot-st')).toContainText('● 6/6');
+    await goStatus(page, '/zh/', (r) => r.fulfill({ json: { ok: true, sites: ['space', 'atlas', 'account', 'proxy-rules', 'ai'].map((site) => ({ site, up: true, last: { ms: 40 } })) } }));
+    await expect(page.locator('.sgx-foot-st')).toContainText('● 5/5');
     await page.locator('.sgx-tb-grid').click();
     await expect(page.locator('#sgx-nav [data-st-sum]')).toHaveText('● 全部在线');
     await expect(page.locator('#sgx-nav [data-nav-status]')).toHaveAttribute('data-state', 'up');
     const p2 = await page.context().newPage();
     await goStatus(p2, '/zh/', (r) => r.fulfill({ status: 401, json: { ok: false } }));
     await p2.waitForTimeout(1500);
-    await expect(p2.locator('.sgx-foot-st')).toContainText('–/6');
+    await expect(p2.locator('.sgx-foot-st')).toContainText('–/5');
     await expect(p2.locator('#sgx-nav [data-st="space"]')).not.toHaveAttribute('data-up', /./);
   });
 

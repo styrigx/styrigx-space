@@ -8,6 +8,11 @@ import { WorkerEntrypoint } from 'cloudflare:workers';
 import { purgeExpiredUsers } from '../core/user-expiry.js';
 
 export class AccountJanitor extends WorkerEntrypoint {
+  /** 状态页连通性（P4 R-07）：Worker 活着、账号库能读。只读一句 SELECT 1，不写库、不打日志。 */
+  async ping() {
+    try { await this.env.D1_ACCOUNT.prepare('SELECT 1').first(); return { ok: true }; } catch (e) { return { ok: false }; }
+  }
+
   /** @param {number} [_at] status 那轮 Cron 的 scheduledTime（本任务按当前时间算） */
   async purgeExpiredUsers(_at) {
     try {
