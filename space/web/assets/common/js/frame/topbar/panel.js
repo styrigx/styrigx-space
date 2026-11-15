@@ -889,11 +889,22 @@ export function mountTopbar(o) {
     termPrefill = function (/** @type {string} */ c) { showTerm(function () { if (view) view.prefill(c); }); };
     /* 首帧有 v6 登录标记（sgx-id）才问 whoami；没有 = 访客，等 su / 盾牌 / 401 时再问 */
     if (who && who.v6Hinted()) who.refresh();
+    /* R-28：AI 窗口锁 → su 的那一趟；没登录就关了终端（close 事件）算放弃 */
+    let backToAi = false;
+    if (termDlg) termDlg.addEventListener('close', function () { backToAi = false; });
+    window.addEventListener(SESSION_EVENT, function (/** @type {any} */ e) {
+      const d = e && e.detail;
+      if (!backToAi || !d || !d.live || !d.ok) return;
+      backToAi = false;
+      closeAll(function () { if (ai && !ai.ms.isOpen()) ai.ms.open(); });
+    });
     /* 上锁的地方要进站（SUDO_EVENT，发事件的都是服务端说了没进站：页面标记 locked 或接口 401）：打开终端、预填 su （不替人回车） */
     doc.addEventListener(SUDO_EVENT, function (/** @type {any} */ ev) {
       /* detail.line（auth/sudo.js askSudo 第二个参数，如 /status/ 403 的 su root，#404 未决项第 5 项）：已登录、只是权限不够——只预填这一行，不动页面标记和身份 */
       const want = ev && ev.detail && typeof ev.detail.line === 'string' ? ev.detail.line : '';
       if (want) { showTerm(function () { if (view) view.prefill(want); }); return; }
+      /* R-28（term-design-v5 第 14 行「解锁后回 AI」）：从 AI 窗口锁来的记一笔，su 成功后收终端、回 AI 窗口 */
+      backToAi = !!(ev && ev.detail && ev.detail.from === 'ai');
       /* 页面标记跟着改成 locked（AI 窗口锁、听歌等按它画访客态） */
       doc.documentElement.setAttribute('data-sgx-lock-session', 'locked');
       if (who) who.drop();

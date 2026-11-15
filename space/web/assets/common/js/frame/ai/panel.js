@@ -48,9 +48,9 @@ export const PROFILE_KEY = 'sgx-profile';
 /** 邮箱格式（与主站 prefs/profile.js EMAIL_RE 同一条） */
 const EMAIL_RE = /^[^\s@<>()",;:\\]+@[^\s@<>()",;:\\]+\.[^\s@<>()",;:\\.]{2,}$/;
 
-/** 请人进站（= auth/sudo.js SUDO_EVENT；本文件只许 import term/**，抄一份）：顶栏终端预填 su （v6 割接；topbar/panel.js 接） @param {Document} doc */
+/** 请人进站（= auth/sudo.js SUDO_EVENT；本文件只许 import term/**，抄一份）：顶栏终端预填 su （v6 割接；topbar/panel.js 接）；detail.from = 'ai'：su 成功后回 AI 窗口（R-28） @param {Document} doc */
 function askSudo(doc) {
-  try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {}
+  try { doc.dispatchEvent(new CustomEvent('sgx:sudo', { detail: { from: 'ai' } })); } catch (e) {}
 }
 /** 英文底（源文本，没有页面字符串表时用）；页面上以 #sgx-i18n-frame 的 ai 节为准——已是「英文 ← 页面语言」的合并，缺键回退英文（语言包化 2026-11-07） */
 const STR_EN = {
@@ -197,16 +197,19 @@ export function clearModel(store) {
 export function isBadModel(status, j) {
   return status === 400 && !!j && j.error === 'bad_model';
 }
-/** 网关 / 服务端错误 → 文案键 @param {number} status @param {any} j */
+/** 网关 / 服务端错误 → 文案键 @param {number} status @param {any} j
+ *  流里的 event: error 只带 code（workers/ai ask.js：daily_limit / rate_limited / model_unavailable / upstream），
+ *  不带 error；两个字段都认（#347 偏离 R-20：daily_limit 以前落到通用失败文案）。 */
 export function errKey(status, j) {
-  const e = j && typeof j.error === 'string' ? j.error : '';
+  const e = j && typeof j.error === 'string' ? j.error : j && typeof j.code === 'string' ? j.code : '';
   if (status === 401) return 'unauthorized';
   /* 2b：有 v6 身份但不在 ai 组（网关 403 forbidden）：不是「没登录」，不上锁、不预填 su */
   if (status === 403 && e === 'forbidden') return 'forbidden';
   if (status === 429) return e === 'busy' ? 'busy' : 'cooldown';
   if (status === 400 && e === 'too-long') return 'tooLong';
   if (status === 413) return 'tooLong';
-  if (e === 'quota') return 'quota';
+  if (e === 'quota' || e === 'daily_limit') return 'quota';
+  if (e === 'rate_limited') return 'busy';
   return 'fail';
 }
 
