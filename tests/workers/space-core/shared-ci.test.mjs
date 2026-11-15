@@ -1,5 +1,5 @@
 /**
- * 共享 CI（.github/actions/*）：Hugo 版本与 extended 只在 setup-hugo 定义一处；主站工作流用本地 action；
+ * 共享 CI（.github/actions/*）：Hugo 版本只在 setup-hugo 定义一处；主站工作流用本地 action；
  * 必需检查的 job 名不变。
  */
 import { test } from 'node:test';
@@ -17,13 +17,14 @@ const WORKFLOWS = readdirSync(path.join(REPO, '.github/workflows')).filter((f) =
 const ACTIONS = readdirSync(path.join(REPO, '.github/actions'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => '.github/actions/' + d.name + '/action.yml');
 const HUGO_ACTION = '.github/actions/setup-hugo/action.yml';
 
-test('Hugo 版本只在 setup-hugo 定义一次，且是 extended', () => {
+test('Hugo 版本只在 setup-hugo 定义一次，不再区分 extended', () => {
   const all = [...WORKFLOWS, ...ACTIONS];
   const defs = all.flatMap((f) => [...read(f).matchAll(/HUGO_VERSION:\s*'(\d+\.\d+\.\d+)'/g)].map((m) => [f, m[1]]));
   assert.equal(defs.length, 1, JSON.stringify(defs));
   assert.equal(defs[0][0], HUGO_ACTION);
   const pick = yaml.load(read(HUGO_ACTION)).runs.steps.find((s) => s.id === 'pick');
-  assert.equal(pick.env.HUGO_EXTENDED, 'true');
+  assert.equal(pick.env.HUGO_EXTENDED, undefined);
+  assert.doesNotMatch(read(HUGO_ACTION), /extended/i);
   /* 没有别处直接装 Hugo，也没有字面 hugo-version */
   for (const f of all) {
     if (f === HUGO_ACTION) continue;
@@ -35,7 +36,7 @@ test('setup-hugo 把版本写进 $GITHUB_ENV（子站过渡期的 env.HUGO_VERSI
   const steps = yaml.load(read(HUGO_ACTION)).runs.steps;
   assert.match(steps[0].run, /HUGO_VERSION=\$HUGO_VERSION" >> "\$GITHUB_ENV"/);
   assert.match(steps.at(-1).run, /hugo version/);
-  assert.match(steps.at(-1).run, /\+extended/);
+  assert.match(steps.at(-1).run, /v\$WANT_VERSION/);
 });
 
 test('composite action：外部 action 一律锁完整 SHA，run 步骤都写了 shell', () => {

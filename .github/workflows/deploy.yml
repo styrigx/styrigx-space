@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 env:
-  # Hugo 版本与 extended 只在 .github/actions/setup-hugo/action.yml 定义（子站按固定 tag 引用同一个 action）
+  # Hugo 版本只在 .github/actions/setup-hugo/action.yml 定义
   NODE_VERSION: '22'
   # 所有 wrangler（npx 和 wrangler-action）用同一个固定版本；升级时只改这里
   WRANGLER_VERSION: '4.152.0'
@@ -88,7 +88,7 @@ jobs:
           fi
           echo "OK: no legacy names."
 
-      - name: Setup Hugo (shared action; version + extended defined only in .github/actions/setup-hugo)
+      - name: Setup Hugo (shared action; version defined only in .github/actions/setup-hugo)
         uses: ./.github/actions/setup-hugo
 
       - name: Setup Node + install dependencies (lockfile)
@@ -315,7 +315,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Setup Hugo (shared action; version + extended defined only in .github/actions/setup-hugo)
+      - name: Setup Hugo (shared action; version defined only in .github/actions/setup-hugo)
         uses: ./.github/actions/setup-hugo
 
       - name: Setup Node + install dependencies (lockfile)
@@ -452,7 +452,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Setup Hugo (shared action; version + extended defined only in .github/actions/setup-hugo)
+      - name: Setup Hugo (shared action; version defined only in .github/actions/setup-hugo)
         uses: ./.github/actions/setup-hugo
 
       - name: Setup Node + install dependencies (lockfile)
@@ -507,7 +507,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - name: Setup Hugo (shared action; version + extended defined only in .github/actions/setup-hugo)
+      - name: Setup Hugo (shared action; version defined only in .github/actions/setup-hugo)
         uses: ./.github/actions/setup-hugo
 
       - name: Setup Node + install dependencies (lockfile)
@@ -738,7 +738,7 @@ jobs:
           CF_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
         run: node space/scripts/check/kv-budget.mjs reset-preview
 
-      - name: Setup Hugo (shared action; version + extended defined only in .github/actions/setup-hugo)
+      - name: Setup Hugo (shared action; version defined only in .github/actions/setup-hugo)
         if: steps.gate.outputs.run == 'true'
         uses: ./.github/actions/setup-hugo
 
