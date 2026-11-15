@@ -1,6 +1,6 @@
 /**
  * 代理订阅测试用件：
- * - makeProxyD1()：D1 styrigx-proxy 的 node:sqlite 替身（跑 workers/proxy-rules/migrations/*.sql；接口同 Cloudflare D1）
+ * - makeProxyD1()：D1 styrigx-proxy 的 node:sqlite 替身（跑 workers/proxy/migrations/*.sql；接口同 Cloudflare D1）
  * - ageIdentity() / ageDecrypt(armor, identity)：测试里自己解 age armor（X25519），核对 Worker 加密的成品手机能解
  * - DB_KEY：测试用 base64 32 字节钥匙
  */
@@ -8,7 +8,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import nodeCrypto from 'node:crypto';
 
-const MIG = new URL('../../../workers/proxy-rules/migrations/', import.meta.url).pathname;
+const MIG = new URL('../../../workers/proxy/migrations/', import.meta.url).pathname;
 const norm = (p) => p.map((x) => (x === undefined ? null : typeof x === 'boolean' ? (x ? 1 : 0) : x));
 
 export const DB_KEY = Buffer.alloc(32, 7).toString('base64');

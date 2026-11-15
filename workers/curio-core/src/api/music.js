@@ -1,6 +1,6 @@
 // workers/curio-core/src/api/music.js
 // 私人音乐的歌单（三层权限见 _music.js；档在 routes.js ROUTE_ACCESS）。
-// GET  /api/music   public：→ {ok, canWrite, albums:[{id, title, artist, year, cover, tracks:[{id, no, title, duration}]}]}——只有元数据，没有音频地址；
+// GET  /api/music   public：→ {ok, canWrite, albums:[{id, kind:'album'|'single', title, artist, year, cover, tracks:[{id, no, title, duration}]}]}——只有元数据，没有音频地址；
 //                   canWrite（账号 + curio.write）时曲目另带 size / type / lrc（有没有歌词），前端据此显示上传 / 删除。
 // POST /api/music   music 档 + 同源：body {op:'album.add'|'album.edit'|'album.del'|'track.edit'|'track.del', ...}（校验见 _music.js parseMusicOp）
 //                   成功 → {ok:true, canWrite:true, id?, albums}；删专辑 / 曲目连 R2_MUSIC 里的音频、封面一起删（删失败只记日志）。
@@ -10,7 +10,7 @@ import { readBody } from './_write.js';
 import { readAccess, viaV6, v6Of, auditRootOp } from './_auth.js';
 import { musicOrigin, ensureMusicSchema, listAlbums, parseMusicOp, applyMusicOp } from './_music.js';
 
-const STATUS = { 'not-found': 404, limit: 409 };
+const STATUS = { 'not-found': 404, limit: 409, 'single-tracks': 409 };
 
 export async function onRequestGet(context) {
   const { env } = context;

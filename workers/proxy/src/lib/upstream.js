@@ -5,7 +5,7 @@
 
 /** 单个上游等响应头的上限（毫秒）：主上游挂住时换备用，而不是整个请求一直等 */
 export const UPSTREAM_TIMEOUT_MS = 8000;
-export const USER_AGENT = 'styrigx-proxy-rules/1.0';
+export const USER_AGENT = 'styrigx-proxy/1.0';
 
 /**
  * @param {string[]} urls

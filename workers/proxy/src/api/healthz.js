@@ -4,5 +4,5 @@
 import { text } from '../lib/http.js';
 
 export function healthz() {
-  return text('styrigx-proxy-rules ok\n');
+  return text('styrigx-proxy ok\n');
 }
