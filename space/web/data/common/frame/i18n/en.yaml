@@ -235,9 +235,13 @@ manBody:
     desc:
       - "Back one layer (root → styrigx → visitor; a rescue session goes straight to visitor). Not signed in: close the terminal."
   passwd:
+    desc:
+      - "passwd: change your own password. root and styrigx first verify with the current password or a passkey; other users type the current password."
+      - "passwd <name> (root, or sudo passwd <name>): one-time password for an ordinary user. styrigx’s credentials can’t be reset this way."
+      - "In a rescue session: passwd resets root’s password; passwd styrigx gives the webmaster a one-time password."
     auth: "signed in; asks your current password first"
   passkey:
-    auth: "signed in"
+    auth: "signed in; add and rm first ask for your password or a passkey"
   device:
     opt:
       - "sign out every other device."
@@ -307,6 +311,7 @@ manBody:
   rescue:
     desc:
       - "Only: passwd, passkey, whoami, groups, exit, lock"
+      - "passwd styrigx: one-time password for the webmaster (no other name)"
       - "A used key can’t be used again; after a rescue, set a new value in Cloudflare"
     notes:
       - "Changing the key isn’t done in the terminal; Gray changes it in the Cloudflare dashboard"
@@ -331,6 +336,7 @@ account:
       none: "no account passkeys yet"
       deleted: "deleted · remove it from Samsung Pass by hand too"
       registered: "registered"
+      lastGone: "that was the last passkey · sign in with the password from now on"
       already: "already registered on this device"
       failed: "registration failed"
       created: "created {d}"
@@ -550,6 +556,7 @@ identity:
   exists: "that user already exists"
   notFound: "no such user"
   protected: "root and styrigx can’t be deleted"
+  protectedPasswd: "the webmaster’s credentials can only be changed by the webmaster or through rescue"
   unknown: "failed ({c})"
   network: "network error · try again"
   signedIn: "✓ signed in as {u}"
@@ -565,6 +572,8 @@ identity:
   reset: "✓ password reset"
   otp: "one-time password: {p}"
   otpNote: "shown only once · valid 24 h · must be changed at first sign-in"
+  otpUntil: "expires: {d}"
+  rescueReset: "change the password at first sign-in; remove lost passkeys with passkey rm after signing in; remember to set a new rescue key in Cloudflare"
   deleted: "✓ user deleted"
   changed: "✓ groups updated · that user signs in again"
   noChange: "nothing changed"
@@ -577,5 +586,5 @@ identity:
   usageSudo: "usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who"
   usageSu: "usage: su <user> | su root"
   rescueKey: "Recovery key:"
-  rescueLimit: "only resets root’s credentials · 15 min"
+  rescueLimit: "only resets root’s credentials and styrigx’s password · 15 min"
   rescueRotate: "A used key can’t be used again · after a rescue, set a new value in Cloudflare"

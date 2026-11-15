@@ -103,7 +103,7 @@ test('第 4 项：man lock / passwd / sub 的 AUTH 行按 v6 改写（pages.js /
     assert.equal(EN.manBody[c].auth, en, 'en.' + c);
     assert.equal(ZH.manBody[c].auth, zh, 'zh.' + c);
   }
-  assert.equal(PAGES.passkey.auth, 'signed in');
+  assert.equal(PAGES.passkey.auth, 'signed in; add and rm first ask for your password or a passkey', 'R-34：add、rm 先验证');
   assert.equal(PAGES.share, undefined);
   assert.equal(PAGES.app, undefined);
   assert.equal(EN.manBody.app, undefined);

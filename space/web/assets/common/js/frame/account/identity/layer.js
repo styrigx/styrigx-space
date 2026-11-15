@@ -74,7 +74,9 @@ export function mountIdentityLayer(o) {
     const map = {
       auth: t('authFail'), cooldown: t('cooldown'), 'exit-first': t('exitFirst', { u: (me() || {}).name || '' }), 'already-root': t('alreadyRoot'),
       'root-creds': t('rootCreds'), temporary: t('temporary', { g: j.group || '' }), group: t('group', { g: j.group || '' }), expiry: t('expiry'),
-      name: t('name'), exists: t('exists'), 'not-found': t('notFound'), protected: t('protected'), weak: t('weak'), unauthorized: t('notSignedIn'),
+      name: t('name'), exists: t('exists'), 'not-found': t('notFound'), weak: t('weak'), unauthorized: t('notSignedIn'),
+      /* 同一个 403 protected，按命令分开说（R-34，Gray 02:36）：passwd styrigx →「站长凭据只能本人修改或走救援」；userdel 照旧 */
+      protected: /^(?:sudo\s+)?passwd\b/.test(String(cmd || '')) ? t('protectedPasswd') : t('protected'),
       permission: j.need === 'wheel' ? t('notWheel') : t('permission', { c: cmd || '' }),
       /* 未知命令（服务端 action）= 终端现成的「找不到命令」（term.notFound；普通用户进 wheel / sudoers / 写组同样报它，Gray 11-11 22:36） */
       action: String(frameSection(doc, 'term').notFound || 'command not found: {x} · try man'),
@@ -86,7 +88,7 @@ export function mountIdentityLayer(o) {
 
   /**
    * 选验证方式（密码 / 通行密钥）→ 拿到证明 → next(proof)。prompt = 密码提示符。
-   * @param {string} prompt @param {'su-challenge'|'sudo-challenge'} ch @param {(proof: any) => void} next
+   * @param {string} prompt @param {'su-challenge'|'sudo-challenge'|'self-challenge'} ch @param {(proof: any) => void} next
    */
   function proofOf(prompt, ch, next) {
     const viaPw = function () {
@@ -224,7 +226,15 @@ export function mountIdentityLayer(o) {
   /** 命令的结果 → 输出 @param {string} action @param {any} j */
   function adminOk(action, j) {
     if (action === 'useradd') { C.ok(t('created', { u: j.user.name })); C.out(esc(t('otp', { p: j.password }))); C.note(t('otpNote')); return; }
-    if (action === 'passwd-user') { C.ok(t('reset')); C.out(esc(t('otp', { p: j.password }))); C.note(t('otpNote')); return; }
+    if (action === 'passwd-user') {
+      C.ok(t('reset')); C.out(esc(t('otp', { p: j.password }))); C.note(t('otpNote'));
+      /* 救援 passwd styrigx（R-34 细则 7）：到期时间 + 首登改密、丢失的钥匙登录后 passkey rm、去 Cloudflare 换救援钥匙；救援会话不自动退出 */
+      if ((me() || {}).rescue) {
+        C.note(t('otpUntil', { d: stamp(j.passwordExpiresAt) }));
+        C.note(t('rescueReset'));
+      }
+      return;
+    }
     if (action === 'userdel') { C.ok(t('deleted')); return; }
     if (action === 'usermod') { C.ok(j.changed ? t('changed') : t('noChange')); if (j.warning) C.warn(t('lastWarn')); return; }
     if (action === 'groups') { C.out(esc((j.name || '') + ' : ' + (j.groups || []).join(' '))); return; }
@@ -293,23 +303,45 @@ export function mountIdentityLayer(o) {
     });
   };
 
+  /** 时间戳 → 本机时间 YYYY-MM-DD HH:MM @param {number} ts */
+  function stamp(ts) {
+    const d = new Date(Number(ts) || 0);
+    const p = function (/** @type {number} */ n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  /**
+   * 自己改凭据前先验证（R-34，稿 v3.11 第 8 节）：root 与站长 passwd、passkey add、passkey rm 都先问「1 密码 / 2 通行密钥」
+   * （复用 su 的 proofOf，提示用现成的「当前密码：」，通行密钥 challenge 用途 self）→ next(proof)；救援会话免验证 → next(null)。
+   * @param {(proof: any) => void} next
+   */
+  C.selfProof = function (next) {
+    const u = me();
+    if (!u) { C.err(t('notSignedIn')); return; }
+    if (u.rescue) { next(null); return; }
+    proofOf(t('currentPw'), 'self-challenge', next);
+  };
+  /** 验证没过的回显（同 su：认证失败 / 尝试太多次） @param {{s:number, j:any}} r @param {string} cmd */
+  C.selfFail = function (r, cmd) { fail(r, cmd); };
+
   /* ---------- passwd ---------- */
   /** passwd（自己）/ passwd <名>（root） @param {string} [name] */
   C.cmdPasswd = function (name) {
     const u = me();
     if (!u) { C.err(t('notSignedIn')); return; }
     if (name && name !== (u.root ? 'root' : u.name)) { C.cmdAdmin({ action: 'passwd-user', name: name }, 'passwd ' + name); return; }
-    const send = function (/** @type {string} */ cur) {
+    const send = function (/** @type {any} */ proof) {
       newPassword(function (np) {
         C.setMode('busy');
-        api.post('passwd', u.rescue ? { password: np, as: u.uid } : { current: cur, password: np, as: u.uid }).then(function (r) {
+        api.post('passwd', Object.assign({ password: np, as: u.uid }, proof ? { proof: proof } : {})).then(function (r) {
           if (r.j && r.j.ok) { C.ok(t('passwdDone')); C.toCmd(); return; }
           fail(r, 'passwd'); C.toCmd();
         }, net);
       });
     };
-    if (u.rescue) { send(''); return; }
-    C.ask('pw', send, { ps: t('currentPw'), hint: t('hidden') });
+    /* root 与站长：密码或通行密钥（R-34）；普通用户不变，只验当前密码（没有通行密钥）；救援免 */
+    if (u.root || u.webmaster) { C.selfProof(send); return; }
+    C.ask('pw', function (/** @type {string} */ cur) { send({ password: cur }); }, { ps: t('currentPw'), hint: t('hidden') });
   };
 
   /* ---------- 前台空闲（root 层） ---------- */

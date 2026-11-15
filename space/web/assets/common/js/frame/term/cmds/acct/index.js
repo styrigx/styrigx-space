@@ -4,7 +4,8 @@ import { v6Root } from '../../core/who.js';
 /**
  * 账号命令（v6；P4-3 按定稿 v5.5 §四 / §五 / §七 / §八收紧）：
  * - passwd：改自己的密码（先输当前密码）/ passwd <名>：root 发一次性密码（身份层 identity/layer.js）；普通用户层
- * - passkey [ls | add | rm <n>]：站长与 root 自己的通行密钥（POST /api/identity passkey-*，webmaster 档；普通用户不能管通行密钥，§八）
+ * - passkey [ls | add | rm <n>]：站长与 root 自己的通行密钥（POST /api/identity passkey-*，webmaster 档；普通用户不能管通行密钥，§八）；
+ *   add、rm 先验证（R-34：身份层 selfProof 问密码或通行密钥，救援免）
  * - device：设备列表（POST /api/account/devices list，webmaster 档，全站视图）；device rm <n> | rm --all：踢出（root 档）——
  *   root 直接做；别的身份提示先 su root（同 sub）；sudoers 可 sudo device rm …（keys/sudo.js 借 root 跑）
  * - profile [set name | nick | sign | email <值> | avatar]：个人资料（PUT /api/profile 站长 + root；头像一份，归站长）；普通用户只能看
@@ -46,8 +47,11 @@ const passkey = {
     if (!A) return notHere(x, 'passkey');
     if (typeof A.sudo === 'function') A.sudo(null);
     if (!a.length || (a[0] === 'ls' && a.length === 1)) { A.passkeyList(); return FLOW; }
-    if (a[0] === 'add' && a.length === 1) { A.cmdPasskeyAdd(true); return FLOW; }
-    if (a[0] === 'rm' && a.length === 2 && nth(a[1])) { A.passkeyRm(nth(a[1])); return FLOW; }
+    /* 先验证再改（R-34）：证明由身份层问（同 su 的「1 密码 / 2 通行密钥」） */
+    const I = layer(x, /** @type {any} */ ('ident'));
+    const self = I && typeof I.selfProof === 'function' ? { prove: I.selfProof, fail: I.selfFail } : undefined;
+    if (a[0] === 'add' && a.length === 1) { A.cmdPasskeyAdd(true, self); return FLOW; }
+    if (a[0] === 'rm' && a.length === 2 && nth(a[1])) { A.passkeyRm(nth(a[1]), self); return FLOW; }
     return { out: [x.k.plain(x.S.usagePasskey6)] };
   },
 };

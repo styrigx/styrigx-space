@@ -198,14 +198,14 @@ test('白名单只在 precedence() 一处：救援会话 whoami / groups / passk
   assert.equal(AD.admitDecision(rid, 'root', { rescue: false }), false);
   assert.deepEqual([...G.RESCUE_COMMANDS], ['passwd', 'passkey', 'whoami', 'groups', 'exit', 'lock']);
   const listed = RA.ruleOf('POST', '/api/identity').rescueActions;
-  assert.deepEqual([...listed].sort(), ['exit', 'groups', 'lock', 'passkey-add', 'passkey-add-challenge', 'passkey-delete', 'passkey-list', 'passwd', 'whoami']);
-  for (const a of listed) assert.ok(G.RESCUE_COMMANDS.includes(a.startsWith('passkey') ? 'passkey' : a), a);
+  assert.deepEqual([...listed].sort(), ['exit', 'groups', 'lock', 'passkey-add', 'passkey-add-challenge', 'passkey-delete', 'passkey-list', 'passwd', 'passwd-user', 'whoami']);
+  for (const a of listed) assert.ok(G.RESCUE_COMMANDS.includes(a.split('-')[0]), a); /* passkey-* → passkey；passwd-user（R-34 passwd styrigx）→ passwd */
 
   const env = await setup();
   const { tok } = await rescueOk(env);
   for (const action of ['whoami', 'groups', 'passkey-list']) assert.equal((await call(env, { action, as: 0 }, tok)).status, 200, action);
   for (const body of [{ action: 'useradd', name: 'x1' }, { action: 'userdel', name: 'styrigx' }, { action: 'usermod', op: '-aG', groups: ['ai'], name: 'styrigx' },
-    { action: 'passwd-user', name: 'styrigx' }, { action: 'who' }, { action: 'su', user: 'styrigx', password: PW.styrigx }, { action: 'idle' },
+    { action: 'passwd-user', name: 'root' }, { action: 'passwd-user', name: 'alice' }, { action: 'who' }, { action: 'su', user: 'styrigx', password: PW.styrigx }, { action: 'idle' },
     { action: 'sudo', password: PW.root, command: { action: 'who' } }, { action: 'sudo', password: PW.root, command: { method: 'POST', path: '/api/account/proxy', body: { action: 'status' } } }]) {
     const r = await call(env, body, tok);
     assert.equal(r.status, 403, JSON.stringify(body));
@@ -294,5 +294,26 @@ test('代码纪律（定稿 §九）：账号 Worker 源码不出现 Secrets Sto
     assert.doesNotMatch(s, /secrets_store\/stores|\/secrets_store\b[^_]|api\.cloudflare\.com/i, f + '：不调 Secrets Store / Cloudflare REST');
     assert.doesNotMatch(s, /SGX_ACCOUNT_RESCUE_KEY\s*\]?\s*\.\s*(put|set|delete|create|update)\s*\(/, f);
     assert.doesNotMatch(s, /RESCUE_KEY_SECRET\s*\]\s*\.\s*(put|set|delete|create|update)\s*\(/, f);
+  }
+});
+
+test('R-34 救援 passwd styrigx：发 24 小时一次性密码、首登强制改、作废站长全部会话、审计 passwd styrigx rescue；别的目标一律拒；救援会话不退出', async () => {
+  const env = await setup();
+  const st = tokenOf(await call(env, { action: 'su', user: 'styrigx', password: PW.styrigx }));
+  const { tok } = await rescueOk(env);
+  const r = await call(env, { action: 'passwd-user', name: 'styrigx' }, tok);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.ok(r.json.password.length >= 16);
+  assert.equal(r.json.mustChange, true);
+  assert.ok(r.json.passwordExpiresAt - Date.now() > 23 * 3600 * 1000);
+  assert.equal((await call(env, { action: 'whoami' }, st)).json.user, null, '站长原会话作废');
+  assert.equal((await call(env, { action: 'whoami' }, tok)).json.user.rescue, true, '救援会话不自动退出');
+  assert.ok(rows(env, 'SELECT command FROM account_user_audit').some((a) => a.command === 'passwd styrigx rescue'));
+  const first = await call(env, { action: 'su', user: 'styrigx', password: r.json.password });
+  assert.equal(first.json.error, 'must-change', '首登强制改');
+  for (const name of ['root', 'nobody', 'alice']) {
+    const no = await call(env, { action: 'passwd-user', name }, tok);
+    assert.equal(no.status, 403, name);
+    assert.equal(no.json.error, 'permission', name);
   }
 });
