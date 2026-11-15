@@ -1,4 +1,4 @@
-/* Tailwind 4（CSS-first 配置，取代原 atlas/web/curio/tailwind.config.js + atlas/web/curio/postcss.config.js；构建：npm run build:css = @tailwindcss/cli）
+/* Tailwind 4（CSS-first 配置，取代合站前子站自己的 tailwind.config.js + postcss.config.js；构建：npm run build:css = @tailwindcss/cli）
    - source(none) + @source：只扫本站的 layouts / content / assets/js 和用到的共享外壳源文件，不自动扫整个仓库
    - 工具类在 Tailwind 4 里进原生 @layer utilities；本文件其余规则不分层，同属性冲突时总是赢过工具类 */
 @import "tailwindcss" source(none);

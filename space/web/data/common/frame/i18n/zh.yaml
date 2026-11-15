@@ -418,7 +418,7 @@ account:
     minAgo: "{n} 分钟前活动"
     hourAgo: "{n} 小时前活动"
     dayAgo: "{n} 天前活动"
-    currentHint: "不能在这里退出此设备，请用「退出账号」"
+    currentHint: "不能在这里退出此设备，请用 {x}"
   # 代理订阅（P2，设计稿 v1.10 §8）：sub-* 命令在账号终端（tty5）里做完；站内终端 / 盾牌 / AI 里的 sub-* 转到这里。命令、域名、来源名不翻译
   proxy:
     key: "公钥"

@@ -57,7 +57,7 @@ test.describe('设备（v6 会话）', () => {
 
     await mode(page, 'cmd');
     await typeLine(page, 'device rm 1');
-    await expect(log(page)).toContainText('不能在这里退出此设备');
+    await expect(log(page)).toContainText('不能在这里退出此设备，请用 lock');
     await typeLine(page, 'device rm 9');
     await expect(log(page)).toContainText('没有这台设备');
 

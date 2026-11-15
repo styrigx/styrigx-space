@@ -1,5 +1,5 @@
 # 共享外壳字符串表（语言包化 2026-11-07）：英文是源文本。四站顶栏 / 导航面板 / 快捷面板 / AI 窗口 / 分享本页共用。
-# 主站是唯一来源；gen-common 复制成 space/web/shared/shell/i18n-<语言>.yaml，三站 sync-shell 同步到 data/common/frame/i18n/<语言>.yaml。
+# 唯一来源就是本目录 space/web/data/common/frame/i18n/<语言>.yaml；2026-11 合站后四站同一个 Hugo 站，直接读这里，没有副本。
 # 加一种语言：放一份 <语言>.yaml（缺的键自动用英文），各站 hugo.yaml languages 加一项。
 # 不放进来的：品牌名（Gray AI、Styrigx）、个人信息类（名字、邮箱、账号名……原样渲染，见 partials/common/tr-personal.html）、语言自己的名字（用 hugo.yaml languageName / label）。
 topbar:
@@ -422,7 +422,7 @@ account:
     minAgo: "active {n} min ago"
     hourAgo: "active {n} h ago"
     dayAgo: "active {n} d ago"
-    currentHint: "can’t sign out this device here, use Sign out"
+    currentHint: "can’t sign out this device here, use {x}"
   # Proxy subscription (P2, design v1.10 §8): sub-* commands run in the account terminal (tty5); sub-* typed in the site terminal / shield / AI is handed over here. Commands, hosts and source names are not translated
   proxy:
     key: "public key"

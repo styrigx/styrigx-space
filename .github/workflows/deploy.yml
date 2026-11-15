@@ -67,7 +67,7 @@ jobs:
 
   build:
     # 生产构建只做一次（2026-11 合站：主站和三个子站同一个 Hugo 站，一次构建）：打包 dry-run、生成物同步、分层 / 前端守卫、CSP、产物检查、搜索索引、子站单测、站点树检查、路由检查、stylelint。
-    # 同一份 space/web/public 上传两次：site-atlas-production（给 e2e-lock）、site-production（给 e2e-sites 与 build-and-deploy），main 另传两份搜索索引。
+    # 同一份 space/web/public 上传两次：site-production-lock（给 e2e-lock）、site-production（给 e2e-sites 与 build-and-deploy），main 另传两份搜索索引。
     # 固定 ubuntu-24.04：ubuntu-latest 换大版本时字体渲染会变，视觉基线跟着漂
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -204,7 +204,7 @@ jobs:
         # 锁屏 / 边缘 / 基线截图测的就是这一份生产构建（e2e-lock 下载到原路径，不重建）
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: site-atlas-production
+          name: site-production-lock
           path: space/web/public/
           if-no-files-found: error
           retention-days: 1
@@ -335,11 +335,11 @@ jobs:
       - name: Build CSS
         run: node space/scripts/build/build-css.cjs --minify
 
-      - name: Download site-atlas-production
+      - name: Download site-production-lock
         id: prod
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
-          name: site-atlas-production
+          name: site-production-lock
           path: space/web/public/
 
       - name: Lock screen tests (生产构建，锁屏启用；含 lock-flags 的 lock-gate 开)

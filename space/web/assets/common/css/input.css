@@ -172,7 +172,7 @@
        边线：outline（≥3:1，输入框、关着的开关、未选 chip）、outline-variant（装饰性卡片边，= 现在的 --m-outline）、divider
        交互：focus-ring、link、link-visited、switch-track-on/-thumb-on/-track-off/-thumb-off、slider-active/-inactive/-thumb、
          chip-selected / on-chip-selected、nav-selected / on-nav-selected、fab / on-fab、badge / on-badge、badge-info / on-badge-info
-       功能：lock-clock、lock-meta、lock-quote、lock-quote-bg、lock-unlock / on-lock-unlock、night-card / on-night-card（首页夜间时钟卡：第三色浅底 + 深墨 / 浅色字）、
+       功能：lock-clock、lock-meta、lock-quote、lock-quote-bg、lock-unlock / on-lock-unlock、
          daymark-card、daymark-mark、daymark-label、daymark-text、daymark-trans
        状态层：--sgx-state-color（叠加色）+ --sgx-state-hover / -focus / -pressed / -selected / -dragged（不透明度）
      - 另有色调 token（不算在 94 个角色里）：--sgx-bg-1..7（背景色 7 档，1 = 页面底）、--sgx-fg-1..6（前景本色）+ -tint（浅底）/ -ink（文字档）。
@@ -180,7 +180,7 @@
        --m-container-* = surface-container-*；--m-outline = outline-variant；--m-wallpaper = background-css；--glass-tint = glass-tint。
        --m-accent / --m-warm / --m-rose（图标色）不在色板里，保持不变。
      场景 → 角色：抽屉当前项 / 快捷面板开着的磁贴 = 主色族选中底（前景 1 tint + ink）；开关 / 进度 / 按钮 = 填充档 primary-fill；
-       首页名片 / 快捷面板磁贴与行 = 中性玻璃（2026-10-23 PR-G 修订）；最近搜索 chip = 辅色容器（前景 2）；夜间时钟 = night-card（前景 3 浅底）；
+       首页名片 / 快捷面板磁贴与行 = 中性玻璃（2026-10-23 PR-G 修订）；最近搜索 chip = 辅色容器（前景 2）；
        状态正常 = success（固定绿）；
        屏幕时间卡、日刻点缀、信息徽标 = 第三色族（前景 3）；页面底 = 背景第 1 档 + 44px 网格（2026-11 PR-A 去光晕）。 */
   /* ===== 调色板三层（2026-10-23 PR-G；完整说明 docs/architecture/palette.md）=====
@@ -275,8 +275,6 @@
     --sgx-bg-gradient-3: #151010;
     --sgx-link: #b1d27e;
     --sgx-link-visited: #e4b566;
-    --sgx-night-card: #3b2b0d;
-    --sgx-on-night-card: #ffe4b8;
     --sgx-focus-ring: #a8cd6d;
     --sgx-switch-track-on: #a2c667;
     --sgx-switch-thumb-on: #1a2309;
@@ -426,8 +424,6 @@
     --sgx-bg-gradient-3: #15100f;
     --sgx-link: #85d3dd;
     --sgx-link-visited: #70d2c3;
-    --sgx-night-card: #063630;
-    --sgx-on-night-card: #bcf6eb;
     --sgx-focus-ring: #68d0dd;
     --sgx-switch-track-on: #61c9d7;
     --sgx-switch-thumb-on: #072427;
@@ -554,7 +550,6 @@
     --sgx-disabled-container: rgba(236,230,220,0.12);
     --sgx-outline: #8c8781;
     --sgx-outline-variant: #2c2825;
-    --sgx-night-card: #472932;
     --sgx-divider: rgba(236,230,220,0.12);
     --sgx-card: #1d1b19;
     --sgx-card-nested: #23201e;
@@ -579,7 +574,6 @@
     --sgx-bg-gradient-3: #131110;
     --sgx-link: #ffad91;
     --sgx-link-visited: #fc9cbe;
-    --sgx-on-night-card: #ffdee8;
     --sgx-focus-ring: #de7a58;
     --sgx-switch-track-on: #de7a58;
     --sgx-switch-thumb-on: #32170e;
@@ -729,8 +723,6 @@
     --sgx-bg-gradient-3: #13110f;
     --sgx-link: #ffa2d3;
     --sgx-link-visited: #70d2c3;
-    --sgx-night-card: #063630;
-    --sgx-on-night-card: #bcf6eb;
     --sgx-focus-ring: #fb9acd;
     --sgx-switch-track-on: #f494c7;
     --sgx-switch-thumb-on: #2f1623;
@@ -880,8 +872,6 @@
     --sgx-bg-gradient-3: #111210;
     --sgx-link: #fcaf8f;
     --sgx-link-visited: #a5bbff;
-    --sgx-night-card: #262f4a;
-    --sgx-on-night-card: #dfe7ff;
     --sgx-focus-ring: #ffa37d;
     --sgx-switch-track-on: #fb9c74;
     --sgx-switch-thumb-on: #30180d;
@@ -1031,8 +1021,6 @@
     --sgx-bg-gradient-3: #101211;
     --sgx-link: #ffaf79;
     --sgx-link-visited: #ceabf7;
-    --sgx-night-card: #362a45;
-    --sgx-on-night-card: #eee1ff;
     --sgx-focus-ring: #fea669;
     --sgx-switch-track-on: #f79f62;
     --sgx-switch-thumb-on: #301908;
@@ -1182,8 +1170,6 @@
     --sgx-bg-gradient-3: #101212;
     --sgx-link: #ffa9ab;
     --sgx-link-visited: #ceabf7;
-    --sgx-night-card: #362a45;
-    --sgx-on-night-card: #eee1ff;
     --sgx-focus-ring: #ff9fa1;
     --sgx-switch-track-on: #ff9497;
     --sgx-switch-thumb-on: #321617;
@@ -1333,8 +1319,6 @@
     --sgx-bg-gradient-3: #101213;
     --sgx-link: #ffaba0;
     --sgx-link-visited: #70d2c3;
-    --sgx-night-card: #063630;
-    --sgx-on-night-card: #bcf6eb;
     --sgx-focus-ring: #ffa194;
     --sgx-switch-track-on: #ff9689;
     --sgx-switch-thumb-on: #321613;
@@ -1484,8 +1468,6 @@
     --sgx-bg-gradient-3: #101115;
     --sgx-link: #ffa5c6;
     --sgx-link-visited: #ffa195;
-    --sgx-night-card: #452521;
-    --sgx-on-night-card: #ffe0db;
     --sgx-focus-ring: #ff9ac0;
     --sgx-switch-track-on: #f993b9;
     --sgx-switch-thumb-on: #301520;
@@ -1635,8 +1617,6 @@
     --sgx-bg-gradient-3: #121114;
     --sgx-link: #ffa5c5;
     --sgx-link-visited: #70d2c3;
-    --sgx-night-card: #063630;
-    --sgx-on-night-card: #bcf6eb;
     --sgx-focus-ring: #ff9abe;
     --sgx-switch-track-on: #f993b8;
     --sgx-switch-thumb-on: #30151f;
@@ -1786,8 +1766,6 @@
     --sgx-bg-gradient-3: #141013;
     --sgx-link: #b1c7da;
     --sgx-link-visited: #70d2c3;
-    --sgx-night-card: #063630;
-    --sgx-on-night-card: #bcf6eb;
     --sgx-focus-ring: #a6c2d9;
     --sgx-switch-track-on: #9fbbd2;
     --sgx-switch-thumb-on: #192026;
@@ -1937,8 +1915,6 @@
     --sgx-bg-gradient-3: #141012;
     --sgx-link: #eabc6d;
     --sgx-link-visited: #87c9e3;
-    --sgx-night-card: #13323e;
-    --sgx-on-night-card: #c9efff;
     --sgx-focus-ring: #eab352;
     --sgx-switch-track-on: #e3ad4b;
     --sgx-switch-thumb-on: #2b1c03;
@@ -2088,8 +2064,6 @@
     --sgx-bg-gradient-3: #141111;
     --sgx-link: #f2b686;
     --sgx-link-visited: #87c9e3;
-    --sgx-night-card: #13323e;
-    --sgx-on-night-card: #c9efff;
     --sgx-focus-ring: #f5ab6e;
     --sgx-switch-track-on: #f2a86b;
     --sgx-switch-thumb-on: #2d1a0a;
@@ -2239,8 +2213,6 @@
     --sgx-bg-gradient-3: #121112;
     --sgx-link: #9dcaf2;
     --sgx-link-visited: #e4b566;
-    --sgx-night-card: #3b2b0d;
-    --sgx-on-night-card: #ffe4b8;
     --sgx-focus-ring: #8bc4f6;
     --sgx-switch-track-on: #85bef0;
     --sgx-switch-thumb-on: #12212e;
@@ -2392,8 +2364,6 @@
     --sgx-bg-gradient-3: #f4f2f2;
     --sgx-link: #4b5e3a;
     --sgx-link-visited: #006359;
-    --sgx-night-card: #c2e9e2;
-    --sgx-on-night-card: #002e28;
     --sgx-focus-ring: #536741;
     --sgx-switch-track-on: #94a982;
     --sgx-switch-thumb-on: #1c2117;
@@ -2543,8 +2513,6 @@
     --sgx-bg-gradient-3: #f7f1f0;
     --sgx-link: #00636c;
     --sgx-link-visited: #704e00;
-    --sgx-night-card: #f0ddbf;
-    --sgx-on-night-card: #352300;
     --sgx-focus-ring: #006c77;
     --sgx-switch-track-on: #168f9c;
     --sgx-switch-thumb-on: #000406;
@@ -2694,8 +2662,6 @@
     --sgx-bg-gradient-3: #f3f2f1;
     --sgx-link: #00636c;
     --sgx-link-visited: #3547b2;
-    --sgx-night-card: #d4dfff;
-    --sgx-on-night-card: #1a2348;
     --sgx-focus-ring: #006c77;
     --sgx-switch-track-on: #168f9c;
     --sgx-switch-thumb-on: #000406;
@@ -2845,8 +2811,6 @@
     --sgx-bg-gradient-3: #f4f2f0;
     --sgx-link: #313ec9;
     --sgx-link-visited: #00616b;
-    --sgx-night-card: #c6e7eb;
-    --sgx-on-night-card: #002d32;
     --sgx-focus-ring: #4459bf;
     --sgx-switch-track-on: #536dfa;
     --sgx-switch-thumb-on: #020309;
@@ -2996,8 +2960,6 @@
     --sgx-bg-gradient-3: #f4f2ee;
     --sgx-link: #415a6e;
     --sgx-link-visited: #8e2465;
-    --sgx-night-card: #f7d4e5;
-    --sgx-on-night-card: #3e162d;
     --sgx-focus-ring: #49647a;
     --sgx-switch-track-on: #7a95ab;
     --sgx-switch-thumb-on: #192026;
@@ -3147,8 +3109,6 @@
     --sgx-bg-gradient-3: #f2f3ee;
     --sgx-link: #313ec9;
     --sgx-link-visited: #00616b;
-    --sgx-night-card: #c6e7eb;
-    --sgx-on-night-card: #002d32;
     --sgx-focus-ring: #455bc0;
     --sgx-switch-track-on: #536dfa;
     --sgx-switch-thumb-on: #020309;
@@ -3298,8 +3258,6 @@
     --sgx-bg-gradient-3: #f2f3f1;
     --sgx-link: #7a4647;
     --sgx-link-visited: #006359;
-    --sgx-night-card: #c2e9e2;
-    --sgx-on-night-card: #002e28;
     --sgx-focus-ring: #8a5253;
     --sgx-switch-track-on: #cf9494;
     --sgx-switch-thumb-on: #2a1a1b;
@@ -3449,8 +3407,6 @@
     --sgx-bg-gradient-3: #f0f3f3;
     --sgx-link: #962c25;
     --sgx-link-visited: #8e2465;
-    --sgx-night-card: #f7d4e5;
-    --sgx-on-night-card: #3e162d;
     --sgx-focus-ring: #ad3c34;
     --sgx-switch-track-on: #f17f72;
     --sgx-switch-thumb-on: #331512;
@@ -3600,8 +3556,6 @@
     --sgx-bg-gradient-3: #f0f3f4;
     --sgx-link: #962c25;
     --sgx-link-visited: #8e2465;
-    --sgx-night-card: #f7d4e5;
-    --sgx-on-night-card: #3e162d;
     --sgx-focus-ring: #ad3c34;
     --sgx-switch-track-on: #f17f72;
     --sgx-switch-thumb-on: #331512;
@@ -3751,8 +3705,6 @@
     --sgx-bg-gradient-3: #f1f3f3;
     --sgx-link: #6d5200;
     --sgx-link-visited: #4a5c39;
-    --sgx-night-card: #dbe3d4;
-    --sgx-on-night-card: #212a1a;
     --sgx-focus-ring: #7c5e00;
     --sgx-switch-track-on: #d4a72c;
     --sgx-switch-thumb-on: #291d00;
@@ -3902,8 +3854,6 @@
     --sgx-bg-gradient-3: #f4f1f4;
     --sgx-link: #00636c;
     --sgx-link-visited: #456000;
-    --sgx-night-card: #d8e6c6;
-    --sgx-on-night-card: #1e2c00;
     --sgx-focus-ring: #006c77;
     --sgx-switch-track-on: #168f9c;
     --sgx-switch-thumb-on: #000406;
