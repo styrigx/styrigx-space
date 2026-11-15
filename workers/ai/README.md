@@ -2,7 +2,7 @@
 
 ## 职责
 
-站内对话助手的后端（P4-1，方案 5.2；P4-2 并入原 styrigx-chat 的外部模型）：先在全站索引里召回（`core/recall.js`，内部函数），再把前几条作为上下文交给模型，流式回答。模型两类：自营（Workers AI，不走网关）和外部（Gemini API，钥匙 `SGX_CHAT_API_KEY`）；可选模型和默认模型从 KV 读（`core/models.js`），换模型改 KV 值即可。两档召回：没有账号会话只召回公开条目；网关写了账号结论头 `X-Styrigx-Account-Session: 1` 才加上私密条目。过滤在召回阶段做，私密条目进不了来源列表，也进不了给模型的上下文（方案 5.4、风险 R-8）。
+站内对话助手的后端（P4-1，方案 5.2；P4-2 并入原 styrigx-chat 的外部模型）：先在全站索引里召回（`core/recall.js`，内部函数），再把前几条作为上下文交给模型，流式回答。模型两类：自营（Workers AI，不走网关）和外部（Gemini API，钥匙 `SGX_CHAT_API_KEY`）；可选模型和默认模型从 KV 读（`core/models.js`），加减模型、换默认改 KV 值即可；Gemini 退役 id 的映射在代码（`core/gemini.js` 的 `RETIRED_GEMINI`，ADR-0004 §2.6），新退役要改代码部署。两档召回：没有账号会话只召回公开条目；网关写了账号结论头 `X-Styrigx-Account-Session: 1` 才加上私密条目。过滤在召回阶段做，私密条目进不了来源列表，也进不了给模型的上下文（方案 5.4、风险 R-8）。
 
 **语义召回（2026-11）**：每小时一次（2026-11-10 起本 Worker 不自带 Cron：styrigx-status 的 `41 * * * *` 在 atlas（奇趣 + 日刻）重建完索引后经服务绑定 `JOB_AI` 调命名入口 `HourlyJob.run()`，`rpc/hourly-job.js` → `core/vector-sync.js`）把各站 KV 索引（`site:space/blog/curio/daymark`）切段（`core/chunk.js`）、用 `@cf/baai/bge-m3`（1024 维，`core/embed.js`）嵌入、upsert 进 Vectorize `styrigx-ai-recall`，删掉多余段，状态记在 KV `ai:recall:<站名>`（内容指纹没变就整站跳过、不写 KV）。`/ask` 三路召回并行：奇趣只读固定查询（`core/fixed.js` → 服务绑定 `CURIO` = atlas-core 的 RPC 入口 `CurioReader`，「最近 N 部电影」「专辑曲目」，模型不写 SQL）放最前；语义召回（`core/semantic.js`，topK 20、相似度门槛 `AI_RECALL_MIN_SCORE`、同页去重）在前、关键词召回补后，合计最多 `AI_CONTEXT_HITS` 条。语义出错退回关键词。两档过滤同样适用于语义召回（查询 filter `private:false` + 结果再过滤）。Cron 只读 KV、不绑任何 D1：各库仍只由各自的 core 读写，账号库从不进索引。
 
