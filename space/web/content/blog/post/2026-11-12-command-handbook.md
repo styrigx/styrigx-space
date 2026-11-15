@@ -5,6 +5,7 @@ date: 2026-11-12
 series: ["Styrigx Auth Spec: How It Evolved"]
 seriesOrder: 11
 tags: ["Styrigx UI", "auth"]
+categories: ["tech"]
 ---
 
 > Part of the "Styrigx Auth Spec: How It Evolved" series and the companion handbook to [Identity v6](/blog/post/2026-11-12-identity-v6/). It is a living document: when a command changes, this page changes with it. It describes v6 P4 today; device marks and the rest of 2g get added once they ship.

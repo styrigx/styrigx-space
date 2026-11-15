@@ -1,0 +1,8 @@
+{{- /* 博客的四个分类（2026-11-15 偏离收尾 P3 / R-08，设计稿 2026-11-08 styrigx-redesign.pdf p.8、tb4.html pg=blog / pg=tree）：
+front matter 写 slug（categories: ["tech"]，中英文版同一个），显示名走 i18n（catTech … ）；顺序固定 = 稿的「全部 / 技术 / Muse / 设备 / 生活」，
+没有文章的分类也列出（篇数 0）。返回 [{slug name}]。博客首页 chips 用它；分组名（groups.html）、行内 #分类 用 cat-name.html。 */ -}}
+{{- $out := slice -}}
+{{- range slice "tech" "muse" "devices" "life" -}}
+{{- $out = $out | append (dict "slug" . "name" (partial "blog/cat-name.html" .)) -}}
+{{- end -}}
+{{- return $out -}}

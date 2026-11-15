@@ -3,6 +3,7 @@ title: "Account & Site Entry V3: The Site Owns the Door, the Account Owns Permis
 description: "This site is locked by default. V3 splits \"can you come in\" and \"can you write\" into two separate tickets: one lock for all four sites, reauth only with long-term credentials, share links that need only a session, and a lock button that locks this device only. Here is why."
 date: 2026-11-09
 tags: ["Styrigx UI", "auth", "Security", "Passkey"]
+categories: ["tech"]
 series: ["Styrigx Auth Spec: How It Evolved"]
 seriesOrder: 8
 ---

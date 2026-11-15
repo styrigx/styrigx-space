@@ -4,6 +4,7 @@ title: "代理订阅：两把钥匙、一次真机解密，和每源一条链接
 description: "把几个机场订阅和手写节点交给自己的 Worker 托管：下载链路用 age 加密，Worker 只有公钥；库里的链接和节点另用一把钥匙加密。P0 实测弃用 typage、改写最小 age 实现，CMFA 真机解密通过；最后从「合成一份」改成「每源一条链接」。"
 date: 2026-11-10
 tags: ["Cloudflare", "Mihomo", "age", "Workers"]
+categories: ["tech"]
 ---
 
 手机上的 CMFA（Clash Meta for Android）一直直接填机场订阅链接。链接就是钥匙：谁拿到谁就能用我的流量，而且它散落在配置文件、备份和截图里。这次的目标很简单：订阅链接只交给自己的 Worker 保管，手机只拉一份**它自己才能解开**的节点文件。

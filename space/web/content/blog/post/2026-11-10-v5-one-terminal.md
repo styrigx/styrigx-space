@@ -5,6 +5,7 @@ date: 2026-11-10
 series: ["Styrigx Auth Spec: How It Evolved"]
 seriesOrder: 9
 tags: ["Styrigx UI", "auth", "Security"]
+categories: ["tech"]
 ---
 
 > Part of the "Styrigx Auth Spec: How It Evolved" series, following Account & Site Entry V3. Based on the v5 terminal design and its rollout plan.

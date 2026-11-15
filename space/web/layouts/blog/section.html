@@ -1,7 +1,8 @@
 {{- /* 博客首页（2026-11 对齐 PR-C，设计稿 tb4.html pg=blog / m=1）：一页就是全部文章——
    页头「ls -lt blog/ · 博客_ · 写下来的东西。共 N 篇 · 最近更新」→ 一行分类 chips（全部 N / 各分类 n，选中主题色描边）+ 右侧虚线 chip「tree blog/ →」（目录页）
    → 按年分组的文章行（日期 │ 标题 │ #分类 │ n min，下一行两行摘要，虚线分隔）→ less 风格分页条（-- less (1/N) --  空格 下一页 │ 1 · 2 · 3 … N →）。
-   分类 = front matter categories；全站还没有任何文章写 categories 时退回标签（data-cat-field 记着用的是哪个）。
+   分类 = front matter categories（2026-11-15 R-08 起全部文章都写了：tech / muse / devices / life，chips 固定这四个、显示名走 i18n）；
+   没有任何文章写 categories 时退回标签（data-cat-field 记着用的是哪个）。
    筛选（chips、目录页 / 文章页的 #标签链接 → ?tag= / ?cat=）和分页（?page=）在页面里做（assets/blog/js/blog/blog-list.js）；不跑脚本时整份列表照常显示。
    旧地址 #posts、#topics[/tag|category|series/<slug>]（专题面板时代）由脚本转到对应的筛选 / 目录页。 */ -}}
 {{ define "head" }}
@@ -24,8 +25,16 @@
   {{ partial "common/frame/page-head.html" (dict "cmd" "ls -lt blog/" "title" (i18n "blogTitle") "desc" $desc "path" "blog/_index") }}
   <nav class="sgx-chips blog-chips" aria-label="{{ i18n "categories" }}">
     <a class="sgx-chip" href="{{ .RelPermalink }}" data-chip="" aria-current="true">{{ i18n "chipAll" }} <i>{{ len $posts }}</i></a>
+    {{- if eq $cf "categories" }}
+    {{- /* 分类 chips（R-08）：固定四个、按稿的顺序（技术 / Muse / 设备 / 生活），没有文章的也列出（0） */}}
+    {{- $cn := dict }}{{ range $cats }}{{ $cn = merge $cn (dict .slug .count) }}{{ end }}
+    {{- range partial "blog/cats.html" . }}
+    <a class="sgx-chip" href="{{ $.RelPermalink }}?cat={{ .slug | urlquery }}" data-chip="{{ .slug }}">{{ .name }} <i>{{ index $cn .slug | default 0 }}</i></a>
+    {{- end }}
+    {{- else }}
     {{- range first 6 $cats }}
     <a class="sgx-chip" href="{{ $.RelPermalink }}?{{ cond (eq $cf "tags") "tag" "cat" }}={{ .slug | urlquery }}" data-chip="{{ .slug }}">{{ .name }} <i>{{ .count }}</i></a>
+    {{- end }}
     {{- end }}
     <a class="sgx-chip sgx-chip--more" href="{{ $tree }}" translate="no">tree blog/ →</a>
   </nav>

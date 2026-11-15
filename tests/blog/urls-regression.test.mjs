@@ -237,13 +237,13 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(zh, /<a class="sgx-tb-av" href="https:\/\/styrigx\.com\/zh\/account\/"/);
   });
 
-  it('文章页：长条只有页名（文章标题）+ 阅读进度（顶栏 v3 起不显示，读屏照读），没有页签；v6 P4 起 NAVIGATE 没有分享本页；正文里没有内联目录；顶栏不放目录（窄屏目录入口暂不放，宽屏目录卡照旧）', async () => {
+  it('文章页：长条只有页名（文章标题）（阅读进度 R-10 起画在顶栏底边，按正文算），没有页签；v6 P4 起 NAVIGATE 没有分享本页；正文里没有内联目录；顶栏不放目录（窄屏目录入口暂不放，宽屏目录卡照旧）', async () => {
     const html = await (await fetch(base + '/blog/zh/post/2026-10-11-agent-collaboration-whitepaper-v2/')).text();
     const pill = html.match(/<div class="sgx-tb-pill[\s\S]*?<\/div>/)[0];
     assert.doesNotMatch(pill, /sgx-seg/);
     const title = html.match(/<h1[^>]*>([^<]+)<\/h1>/)[1].trim();
     assert.match(pill, new RegExp('<span class="sgx-tb-title">' + title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '</span>'));
-    assert.match(pill, /data-sgx-progress/);
+    assert.doesNotMatch(pill, /data-sgx-progress|sgx-tb-progress/, 'R-10：文章进度画在顶栏底边的滑页进度条上，页名里不再放第二根');
     const set = html.match(/<dialog id="sgx-nav"[\s\S]*?<\/dialog>/)[0];
     assert.doesNotMatch(set, /data-sgx-share|data-qp="share"/, 'v6 P4：NAVIGATE 的分享本页磁贴拿掉（Gray 11-11 17:47）');
     assert.doesNotMatch(html, /sgx-tb-end|sgx-tb-share|sgx-tb-gbtn/, '没有右圆 / 右胶囊了');

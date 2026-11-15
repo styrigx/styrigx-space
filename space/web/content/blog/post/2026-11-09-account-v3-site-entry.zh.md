@@ -4,6 +4,7 @@ title: "账号与进站 V3：门归网站，账号管授权"
 description: "这个站默认上锁。V3 把「能不能进来」和「能不能写」拆成两套票：一把锁管四个站，reauth 只认长期凭证，分享链接只要会话，立即锁屏只锁本机。记一下每个选择的理由。"
 date: 2026-11-09
 tags: ["Styrigx UI", "鉴权", "安全", "Passkey"]
+categories: ["tech"]
 series: ["styrigx 鉴权体系规范的变迁"]
 seriesOrder: 8
 ---

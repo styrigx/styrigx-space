@@ -4,10 +4,13 @@ nav: 导航
 tabs: 博客分区
 toc: 目录
 tocTitle: 目录
-progress: 阅读进度
 latest: 最新
 series: 系列
 categories: 分类
+catTech: 技术
+catMuse: Muse
+catDevices: 设备
+catLife: 生活
 tags: 标签
 clear: 清除
 seriesPart: '第 {{ .Current }} / {{ .Total }} 篇'

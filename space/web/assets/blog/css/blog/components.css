@@ -8,10 +8,6 @@
   view-transition-name: sgx-topbar;
 }
 
-/* ===== 文章页阅读进度（.sgx-tb-progress，在页名那格里）：顶栏 v3 起全站顶栏底边有滑页进度条（共享外壳 .sgx-tb-prog），这条细线不再显示；
-   标记和 aria-valuenow 照旧（article.js 写），读屏仍能读到阅读进度 ===== */
-.sgx-tb-progress { display: none; }
-
 /* ===== 列表页（index.html：页签面板、系列卡、专题筛选） ===== */
 .page-home main {
   width: min(100%, var(--layout-frame-width));

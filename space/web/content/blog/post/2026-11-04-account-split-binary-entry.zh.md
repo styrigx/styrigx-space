@@ -6,6 +6,7 @@ date: 2026-11-04
 series: ["styrigx 鉴权体系规范的变迁"]
 seriesOrder: 6
 tags: ["Styrigx UI", "鉴权", "安全", "Cloudflare"]
+categories: ["tech"]
 ---
 
 > 本文是「styrigx 鉴权体系规范的变迁」系列的一篇，接在《网站不再公开》之后。依据是 11 月 3 日的目标方案和对应的 PR 任务表。

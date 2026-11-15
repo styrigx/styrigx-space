@@ -5,6 +5,7 @@ date: 2026-11-04
 series: ["Styrigx Auth Spec: How It Evolved"]
 seriesOrder: 6
 tags: ["Styrigx UI", "auth", "Security", "Cloudflare"]
+categories: ["tech"]
 ---
 
 > Part of the "Styrigx Auth Spec: How It Evolved" series, following The Site Goes Private. Based on the target plan of November 3 and its PR task list.

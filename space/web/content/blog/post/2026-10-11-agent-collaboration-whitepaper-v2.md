@@ -3,6 +3,7 @@ title: "AI Agent Collaboration Whitepaper v2.0: Credential Separation, Branch Pr
 description: "v2.0 revision: per-repository vs. shared push credentials, workflow-editing rules, self-service permission errors, an expanded prohibition list, and the real-device acceptance loop. Supersedes v1.0, which is retained as a historical version."
 date: 2026-10-11
 tags: ["Specification", "GitHub", "AI Agents", "Security"]
+categories: ["muse"]
 ---
 
 ## 0. Abstract

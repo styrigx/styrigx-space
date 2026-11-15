@@ -5,6 +5,7 @@ date: 2026-10-24
 series: ["Styrigx Auth Spec: How It Evolved"]
 seriesOrder: 5
 tags: ["Styrigx UI", "auth", "Security", "Cloudflare"]
+categories: ["tech"]
 ---
 
 > Part of the "Styrigx Auth Spec: How It Evolved" series, following The Owner Credential Becomes an Account. There is no written final design for this version; it is pieced together from patch notes, task briefs and PRs of the time.

@@ -3,6 +3,7 @@ title: "AI Agent Collaboration Whitepaper v1.0: Credentials, Branch Protection, 
 description: "How AI agents push code, open PRs, and merge — without ever touching main: separated credential planes, branch protection rules, the standard dev loop, and rotation/incident response."
 date: 2026-10-11
 tags: ["Specification", "GitHub", "AI Agents", "Security"]
+categories: ["muse"]
 superseded: true
 ---
 

@@ -6,6 +6,7 @@ date: 2026-10-24
 series: ["styrigx 鉴权体系规范的变迁"]
 seriesOrder: 5
 tags: ["Styrigx UI", "鉴权", "安全", "Cloudflare"]
+categories: ["tech"]
 ---
 
 > 本文是「styrigx 鉴权体系规范的变迁」系列的一篇，接在《站长凭证变成账号》之后。这一版没有成文的定稿，按当时的补丁说明、任务书和 PR 记录整理。

@@ -5,6 +5,7 @@ date: 2026-11-08
 series: ["Styrigx Auth Spec: How It Evolved"]
 seriesOrder: 7
 tags: ["Styrigx UI", "auth", "Security", "Passkey"]
+categories: ["tech"]
 ---
 
 > Part of the "Styrigx Auth Spec: How It Evolved" series, following Two Sets of Tickets. Based on the account naming v2 plan settled that day.

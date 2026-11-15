@@ -4,6 +4,7 @@ title: "Gemini 免费档踩坑记：额度、思考、搜索和回退"
 description: "站内 AI 接 Gemini 免费档时踩到的几个坑：2.5 Flash 对新用户下线、3.x 的思考吃光输出额度、每天 20 次的额度、免费档没有搜索 grounding。最后的方案：默认 Gemma 4，Gemini 主力 Flash-Lite，429 自动回退。"
 date: 2026-11-09
 tags: ["Gemini", "Workers AI", "Cloudflare"]
+categories: ["tech"]
 ---
 
 站里右下角的 Gray AI 会先在站内内容里召回相关段落，再交给模型流式回答。模型分两类：Cloudflare Workers AI 上的自营模型，和 Google 的 Gemini API。Gemini 我只有免费档的 key。11 月 9 日这一天，它几乎把能踩的坑都让我踩了一遍。

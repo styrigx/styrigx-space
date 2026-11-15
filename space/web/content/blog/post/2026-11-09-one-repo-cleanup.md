@@ -3,6 +3,7 @@ title: "Behind the Scenes: One Repo, One Site, Then a Big Cleanup"
 description: "The invisible half of the redesign: four sites merged into one repo and one build; the entry backend renamed, moved and pruned in steps L0–L3; and a sweep through Cloudflare, GitHub and the docs."
 date: 2026-11-09
 tags: ["Cloudflare", "GitHub", "Hugo"]
+categories: ["tech"]
 ---
 
 The previous post was about the redesign you can see. This one is about the half you can't: the repo, deployment and data. No screenshots here, but this part decides how much effort every future change will cost.

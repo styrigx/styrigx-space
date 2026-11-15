@@ -147,21 +147,23 @@ test.describe('博客首页（对齐 PR-C，设计稿 pg=blog）：一页文章�
     await expect(page.locator('[data-pg-less]')).toHaveText('-- less (2/3) --');
   });
 
-  test('chips 就地筛选：点分类 → 只剩该分类的文章、chip 主题色当前项、地址 ?tag=；点「全部」回来；行里的 #分类 同样筛选', async ({ page }) => {
+  test('chips 就地筛选（R-08：分类 = tech / muse / devices / life，chips 固定「全部 / 技术 / Muse / 设备 / 生活」）：点分类 → 只剩该分类的文章、chip 主题色当前项、地址 ?cat=；点「全部」回来；行里的 #分类 同样筛选', async ({ page }) => {
     await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
     await listReady(page);
+    await expect(page.locator('.blog-chips [data-chip]')).toHaveText([/^全部 \d+$/, /^技术 \d+$/, /^Muse \d+$/, /^设备 \d+$/, /^生活 \d+$/]);
+    expect(await page.locator('.blog-chips [data-chip]:not([data-chip=""])').evaluateAll((els) => els.map((e) => e.getAttribute('data-chip')))).toEqual(['tech', 'muse', 'devices', 'life']);
     const chip = page.locator('.blog-chips [data-chip]:not([data-chip=""])').first();
     const n = Number(((await chip.locator('i').textContent()) || '0').trim());
     const slug = await chip.getAttribute('data-chip');
     await chip.click();
-    await expect(page).toHaveURL(new RegExp('\\?tag=' + encodeURIComponent(slug || '') + '$'));
+    await expect(page).toHaveURL(new RegExp('\\?cat=' + encodeURIComponent(slug || '') + '$'));
     await expect(chip).toHaveAttribute('aria-current', 'true');
     await expect(rows(page)).toHaveCount(Math.min(n, 6));
     await page.locator('.blog-chips [data-chip=""]').first().click();
     await expect(page).toHaveURL(/\/blog\/zh\/$/);
     await expect(rows(page)).toHaveCount(6);
-    await page.locator('[data-post] .sgx-pl-tg[href*="?tag="]').first().click();
-    await expect(page).toHaveURL(/\/blog\/zh\/\?tag=/);
+    await page.locator('[data-post] .sgx-pl-tg[href*="?cat="]').first().click();
+    await expect(page).toHaveURL(/\/blog\/zh\/\?cat=/);
     await expect(page.locator('[data-post]:visible')).not.toHaveCount(0);
   });
 
@@ -353,10 +355,10 @@ test.describe('文章页：页名 + 进度细线 + 抽屉目录', () => {
     expect(t.one).toBe(true);
   });
 
-  test('阅读进度：顶栏 v3 底边滑页进度条（整个视口宽、3px）随滚动变长，到底整宽；页名里的进度标记照样记数', async ({ page }) => {
+  test('阅读进度：顶栏 v3 底边滑页进度条（整个视口宽、3px）在文章页按正文区间算（R-10）：正文顶 = 空，正文中部约一半，到底整宽；页名里不再有第二根进度条', async ({ page }) => {
     await page.goto(ARTICLE, { waitUntil: 'domcontentloaded' });
-    const bar = page.locator('[data-sgx-progress]');
-    await expect(bar).toHaveAttribute('aria-valuenow', '0');
+    await expect(page.locator('[data-sgx-progress], .sgx-tb-progress')).toHaveCount(0);
+    await page.waitForLoadState('load'); /* 图片 / 字体到齐后正文高度不再变，进度才和下面的期望值对得上 */
     const prog = page.locator('#site-nav .sgx-tb-prog');
     const box = await prog.boundingBox();
     const top = await page.locator('.sgx-topbar').boundingBox();
@@ -364,19 +366,30 @@ test.describe('文章页：页名 + 进度细线 + 抽屉目录', () => {
     expect(Math.abs(top.y + top.height - (box.y + box.height))).toBeLessThanOrEqual(1.5);
     expect(Math.abs(box.x) + Math.abs(box.width - 412)).toBeLessThanOrEqual(1);
     const fillW = () => page.evaluate(() => document.querySelector('#site-nav .sgx-tb-prog > i').getBoundingClientRect().width);
+    /* 正文的期望进度（同 panel.js mountProgress：正文顶到顶栏下沿 = 0，正文底离开视口底 = 100%） */
+    const expected = () => page.evaluate(() => {
+      const r = document.querySelector('#article-start').getBoundingClientRect();
+      const off = document.querySelector('#site-nav .sgx-tb-prog').getBoundingClientRect().bottom;
+      const start = scrollY + r.top - off, end = scrollY + r.bottom - innerHeight;
+      return Math.min(1, Math.max(0, (scrollY - start) / Math.max(1, end - start))) * innerWidth;
+    });
     await page.evaluate(() => {
       const el = document.querySelector('#article-start');
       const top = window.scrollY + el.getBoundingClientRect().top;
       window.scrollTo(0, top + el.offsetHeight / 2 - innerHeight / 2);
     });
-    await expect
-      .poll(async () => Number(await bar.getAttribute('aria-valuenow')))
-      .toBeGreaterThan(20);
-    expect(Number(await bar.getAttribute('aria-valuenow'))).toBeLessThan(80);
-    await expect.poll(fillW).toBeGreaterThan(20);
-    expect(await fillW()).toBeLessThan(412);
+    await expect.poll(fillW).toBeGreaterThan(412 * 0.2);
+    expect(await fillW()).toBeLessThan(412 * 0.8);
+    await expect.poll(async () => Math.abs((await fillW()) - (await expected()))).toBeLessThanOrEqual(3);
+    /* 正文底刚离开视口底：正文读完 = 整宽，而页面还没到底（下面还有前后篇卡、页脚）——按整页算这时不会满 */
+    const left = await page.evaluate(() => {
+      const r = document.querySelector('#article-start').getBoundingClientRect();
+      window.scrollTo(0, window.scrollY + r.bottom - innerHeight + 2);
+      return document.scrollingElement.scrollHeight - innerHeight - window.scrollY;
+    });
+    expect(left, '正文后面还有内容').toBeGreaterThan(50);
+    await expect.poll(fillW).toBeGreaterThan(408);
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await expect.poll(async () => Number(await bar.getAttribute('aria-valuenow'))).toBe(100);
     await expect.poll(fillW).toBeGreaterThan(408);
     /* 段是主题色 */
     const primary = await roleColor(page, '--sgx-primary');
