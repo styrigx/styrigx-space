@@ -186,7 +186,8 @@ export function hostOf(url) {
   try {
     return new URL(url).host;
   } catch (e) {
-    return '';
+    /* P4 R-07：rpc 目标（atlas / account）的 url 就是 Worker 名，不是网址，原样显示 */
+    return /^[a-z0-9-]+$/i.test(String(url || '')) ? String(url) : '';
   }
 }
 
