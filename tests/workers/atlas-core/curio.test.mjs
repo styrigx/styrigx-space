@@ -1,14 +1,12 @@
-// styrigx-curio-core（workers/core）：
+// 奇趣接口（workers/atlas-core/src/curio）（2026-11-14 合并进 styrigx-atlas-core；本文件由 tests/workers/curio-core/ 迁来，旧迁移 / 种子 / wrangler.toml 的用例随旧目录删除，配置与迁移结构见 core.test.mjs）：
 // - 路由表与 src/api 接口文件一一对应；访问表 ROUTE_ACCESS（v5 S3）：读公开，写 / 导出 / 预览按 v6 路由档，每个请求最多问网关一次；网关出错当没有 v6
 // - 鉴权（v6，定稿 v5.3 §十二）：没有身份 401 unauthorized、档不够 403 forbidden；导入 / 导出 = root
 // - 收藏：没有写组只看公开（私密分类 / 私密收藏 / 空分类都不给），有写组看全部；写：非同源 403、校验、增改删排序
 // - 导入：先备份原文到 R2（R2 不可用就不导入）、文件夹 → 分类、按网址去重、默认私密、超上限一条不写、记录 imports
 // - 导出：Netscape HTML，要账号会话 + 同源
 // - 图标：R2 缓存命中直接回；没缓存现抓并存；抓不到存「没有」标记；没登录账号拿不到私密收藏的图标；内网地址不抓
-// - 迁移 0001 + 0002 在 SQLite 上跑两次不报错，种子和 data/seed.json 一致；SCHEMA 与迁移一致
-// - wrangler.toml：不开 workers.dev，只挂 styrigx.com/curio/api/*（旧图志域名的过渡期路由 P4-3 PR-1 删除），D1 + R2 + 网关服务绑定，不持钥匙
 // SQL 用 node:sqlite 真跑（CI 用 Node 22）。
-// 运行：node --test tests/workers/core.test.mjs
+// 运行：node --test tests/workers/atlas-core/curio.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -18,16 +16,15 @@ import { DatabaseSync } from 'node:sqlite';
 import { whoAuth } from '../_v6who.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const W = REPO + '/workers/curio-core';
-const worker = (await import(W + '/src/app.js')).default;
-const { API_ROUTES, ROUTE_ACCESS, accessOf } = await import(W + '/src/routes.js');
-const { GUARDS } = await import(W + '/src/api/_auth.js');
-const S = await import(W + '/src/api/_store.js');
-const N = await import(W + '/src/api/_netscape.js');
-const P = await import(W + '/src/api/_preview.js');
-const I = await import(W + '/src/api/icon.js');
-const IMP = await import(W + '/src/api/import.js');
-const SEED = await import(REPO + '/space/scripts/curio/gen-seed-sql.mjs');
+const W = REPO + '/workers/atlas-core/src/curio';
+const worker = (await import(W + '/app.js')).default;
+const { API_ROUTES, ROUTE_ACCESS, accessOf } = await import(W + '/routes.js');
+const { GUARDS } = await import(W + '/api/_auth.js');
+const S = await import(W + '/api/_store.js');
+const N = await import(W + '/api/_netscape.js');
+const P = await import(W + '/api/_preview.js');
+const I = await import(W + '/api/icon.js');
+const IMP = await import(W + '/api/import.js');
 
 /** node:sqlite 包成 D1 的样子（batch 是一个事务；SELECT 回 results） */
 function makeD1(db = new DatabaseSync(':memory:')) {
@@ -90,7 +87,7 @@ const op = async (db, body, who = 'owner') => call('/curio/api/links', { who, db
 const list = async (db, who) => (await call('/curio/api/links', { who, db })).json();
 
 test('路由表与 src/api 接口文件一一对应', () => {
-  const files = readdirSync(W + '/src/api').filter((n) => n.endsWith('.js') && !n.startsWith('_')).map((n) => '/api/' + n.slice(0, -3)).sort();
+  const files = readdirSync(W + '/api').filter((n) => n.endsWith('.js') && !n.startsWith('_')).map((n) => '/api/' + n.slice(0, -3)).sort();
   assert.deepEqual([...API_ROUTES.keys()].sort(), files);
 });
 
@@ -197,7 +194,7 @@ test('每个接口请求最多问网关一次（守卫问到的 v6 结论经 con
   assert.equal((await worker.fetch(req('/curio/api/links', 'POST', { op: 'cat.add', name: '三' }), env('lock'), CTX)).status, 403);
   assert.equal((await worker.fetch(req('/curio/api/links', 'POST', { op: 'cat.add', name: '三' }), env('owner'), CTX)).status, 200);
   /* 同一个 context 同一个 action 只问一次 */
-  const A = await import(W + '/src/api/_auth.js');
+  const A = await import(W + '/api/_auth.js');
   calls.length = 0;
   const ctx = { request: req('/curio/api/links'), env: env('owner'), data: {} };
   await A.v6Of(ctx);
@@ -686,41 +683,3 @@ test('预览接口：没有身份 401、没写组 403 forbidden、非同源 403�
 });
 
 /* ================= 迁移 / 配置 ================= */
-
-test('迁移：0001–0004 在空库上连跑两次不报错（0005 有 ALTER，只跑一次，D1 迁移记录保证），得到种子的分类和收藏，全部公开', async () => {
-  const raw = new DatabaseSync(':memory:');
-  const dir = W + '/migrations';
-  const files = readdirSync(dir).filter((n) => n.endsWith('.sql')).sort();
-  assert.deepEqual(files, ['0001_init.sql', '0002_seed.sql', '0003_devices_games.sql', '0004_movies_music.sql', '0005_music_kind_artists.sql']);
-  const once = new Set(['0005_music_kind_artists.sql']);
-  for (let k = 0; k < 2; k++) for (const f of files) if (k === 0 || !once.has(f)) raw.exec(readFileSync(dir + '/' + f, 'utf8'));
-  const seed = SEED.loadSeed();
-  const v = await list(makeD1(raw), 'lock');
-  assert.deepEqual(v.cats.map((c) => c.name), seed.map((c) => c.name));
-  assert.deepEqual(v.cats.map((c) => c.links.length), seed.map((c) => c.links.length));
-  assert.ok(v.cats.flatMap((c) => c.links).some((l) => l.url === 'https://blog.styrigx.com/'));
-});
-
-test('种子迁移与 data/seed.json 一致；SCHEMA 建出来的表和迁移的一样', () => {
-  assert.equal(readFileSync(W + '/migrations/0002_seed.sql', 'utf8'), SEED.render(SEED.loadSeed()));
-  const a = new DatabaseSync(':memory:');
-  a.exec(readFileSync(W + '/migrations/0001_init.sql', 'utf8'));
-  const b = new DatabaseSync(':memory:');
-  for (const s of S.SCHEMA) b.exec(s);
-  const cols = (db, t) => db.prepare(`PRAGMA table_info(${t})`).all().map((c) => [c.name, c.type, c.notnull, c.dflt_value]);
-  for (const t of ['cats', 'links', 'imports']) assert.deepEqual(cols(b, t), cols(a, t), t);
-});
-
-test('wrangler.toml：不开 workers.dev，只挂 curio 的 /api/*，D1 + R2 + 网关服务绑定，没有钥匙', () => {
-  const t = readFileSync(W + '/wrangler.toml', 'utf8');
-  assert.match(t, /^name = "styrigx-curio-core"$/m);
-  assert.match(t, /^workers_dev = false$/m);
-  assert.match(t, /^preview_urls = false$/m);
-  /* 合并 PR3：主域名路由 + 过渡期的旧图志路由，只有这两条 */
-  assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/curio/api/*']);
-  assert.match(t, /^database_id = "[0-9a-f-]{36}"$/m);
-  assert.match(t, /^bucket_name = "styrigx-curio-core"$/m);
-  assert.match(t, /^service = "styrigx-space-core"$/m);
-  assert.match(t, /^entrypoint = "SpaceVerifier"$/m);
-  assert.doesNotMatch(t, /SGX_|\[vars\]/);
-});

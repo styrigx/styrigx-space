@@ -40,8 +40,8 @@ styrigx-space-core（路由 styrigx.com/*）
        ├─ /api/ai → 服务绑定 AI_SERVICE → styrigx-ai（SSE 原样流回）
        └─ /api/status → 服务绑定 STATUS → styrigx-status
 
-styrigx.com/curio/api/*   → styrigx-curio-core   ─┐ 服务绑定 SPACE（SpaceVerifier）
-styrigx.com/daymark/api/* → styrigx-daymark-core ─┘ 回问站点核心：进站会话 + 账号结论
+styrigx.com/curio/api/*   ─┐→ styrigx-atlas-core  服务绑定 SPACE（SpaceVerifier）
+styrigx.com/daymark/api/* ─┘   回问站点核心：v6 会话的档
 proxy.styrigx.com   → styrigx-proxy（自定义域名，不经站点核心）
 ```
 
@@ -59,8 +59,7 @@ proxy.styrigx.com   → styrigx-proxy（自定义域名，不经站点核心）
 | `styrigx-account` | 账号密码 / 通行密钥、账号 session / reauth / reset、已登录设备、应用授权、头像与个人资料、设置云同步（数字健康 v6 P4 删除） | 服务绑定 `ACCOUNT`（AccountService）、`ACCOUNT_VERIFIER`（AccountVerifier.authorize）、`JOB_ACCOUNT`（AccountJanitor，status 每日一轮） |
 | `styrigx-ai` | 站内对话：召回（关键词 + Vectorize 语义 + 奇趣只读查询）+ 模型流式回答 | 服务绑定 `AI_SERVICE` |
 | `styrigx-status` | 站点监测（每分钟）、Cloudflare 用量（每小时）、每日任务（经服务绑定 `JOB_SPACE` 清理过期 / 作废的分享链接；`JOB_ACCOUNT` 删到期满 30 天的用户，v6 P2c） | 服务绑定 `STATUS` |
-| `styrigx-curio-core` | 奇趣数据接口 | 路由 `styrigx.com/curio/api/*` |
-| `styrigx-daymark-core` | 日刻数据接口 | 路由 `styrigx.com/daymark/api/*` |
+| `styrigx-atlas-core` | 奇趣、日刻数据接口（2026-11-14 由 curio-core、daymark-core 合并而来） | 路由 `styrigx.com/curio/api/*`、`styrigx.com/daymark/api/*`；服务绑定 `CURIO` / `DAYMARK`（ai）、`JOB_ATLAS`（status） |
 | `styrigx-proxy` | 规则集加速反代（来源：MetaCubeX/meta-rules-dat、自有仓 styrigx/mihomo-rules release）+ 代理订阅（`/s/<令牌>/<来源名>`，age 加密；管理经 account `/api/account/proxy` → 服务绑定 ProxyAdmin） | 自定义域名 `proxy.styrigx.com` |
 
 绑定、数据库与 Secret 名见 SGX-OPS-002；每个 Worker 的细节见 `workers/<名字>/README.md`。

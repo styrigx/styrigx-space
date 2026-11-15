@@ -1,4 +1,4 @@
-// workers/curio-core/src/api/music.js
+// workers/atlas-core/src/curio/api/music.js
 // 私人音乐的歌单（三层权限见 _music.js；档在 routes.js ROUTE_ACCESS）。
 // GET  /api/music   public：→ {ok, canWrite, albums:[{id, kind:'album'|'single', title, artist, year, cover, tracks:[{id, no, title, duration}]}]}——只有元数据，没有音频地址；
 //                   canWrite（账号 + curio.write）时曲目另带 size / type / lrc（有没有歌词），前端据此显示上传 / 删除。

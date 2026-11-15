@@ -29,7 +29,7 @@
 
 2.5 **退役 id 映射**：`gemini-2.5-flash` 等退役 id 在解析时展开为当前两条（Flash Lite 主力 + 3.8 Flash），KV 里的旧登记、浏览器里存的旧选择照常可用。
 
-2.6 **模型登记在 KV**（`KV_SEARCH_INDEX` 的 `ai:models`，60 秒缓存），换模型改 KV 值即可；KV 缺失或无效时退回 `wrangler.toml` 的 `AI_MODELS`，再退回代码内置 `FALLBACK`。线上 KV 的实际值不在代码里，以后台为准。
+2.6 **模型登记在 KV**（`KV_SEARCH_INDEX` 的 `ai:models`，60 秒缓存；`workers/ai/src/core/models.js` `loadModels`）：KV 缺失或无效时退回 `wrangler.toml` 的 `AI_MODELS`，再退回代码内置 `FALLBACK`。KV 里是手写的值、优先于 `wrangler.toml`，线上的实际值不在代码里（以后台为准），可能还留着已退役的 Gemini id。这不靠手改 KV 兜底：代码在解析登记时自动替换——`core/gemini.js` 的 `RETIRED_GEMINI`（`gemini-2.5-flash`、`gemini-2.5-pro`、`gemini-2.0-flash`、`gemini-2.0-flash-lite`、`gemini-1.5-flash`、`gemini-1.5-pro`）里的 id，在 `models.js` `parseModels` 的模型列表里（`provider` 为 `gemini` 的条目）展开成当前两条（主力 `gemini-3.5-flash-lite` 在前，`gemini-3.8-flash` 其次），作 `default` 时经 `currentGeminiId` 换成主力 `GEMINI_CURRENT`（= `gemini-3.5-flash-lite`）；请求里的旧选择在 `pickModel` 同样按主力认（见 2.5）。新退役一个 id 时改的是代码里的 `RETIRED_GEMINI`，不是 KV。
 
 2.7 **谁能选模型**：只有带账号结论头 `X-Styrigx-Account-Session: 1` 的请求，`body.model` 才生效；只进站、未登录账号的请求一律用默认模型。
 

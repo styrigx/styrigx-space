@@ -7,7 +7,8 @@
  *   KV 里别的键（头像二进制、元数据）一概不读不回。没改过的字段是 null，前端回退构建期默认值（space/web/data/common/profile.yaml）。
  *   KV 没绑 / 读不到 / 坏 JSON → 全是 null（照样 200），页面显示默认值。
  * - 网关访问表（workers/space-core/src/gate.js ROUTE_ACCESS）与本 Worker 的 PUBLIC_API 都把 GET /api/profile 列为 public。
- *   前端（lib/profile.js）仍只在已进站的页面请求（锁屏头像替代文字用构建期默认值 + 本机缓存），接口本身不再挡。
+ *   前端（space/web/assets/common/js/prefs/profile.js）在有 v6 会话的页面（<html data-sgx-lock-session="valid">）加载时就问；
+ *   访客不在加载时问，打开登录小展示卡时才问（R-33）。接口本身不挡。
  *
  * PUT（JSON，任意几个字段：{ name?, nickname?, motto?, email? }）
  * - v6 会话、路由档 webmaster（src/gate.js scopeDenial → core/route-access.js）；必须同源。没有 → 401 session。

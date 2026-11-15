@@ -521,7 +521,7 @@ test('规则 19–21 只管带 wrangler.toml 的目录：没有 wrangler.toml �
 
 test('本仓库：workers/ 下每个子目录都有 wrangler.toml（规则 19–21 不会因为漏了 toml 而漏查）', () => {
   const dirs = readdirSync(join(REPO, 'workers'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
-  assert.ok(dirs.length >= 7, dirs.join(','));
+  assert.ok(dirs.length >= 6, dirs.join(',')); /* 2026-11-14 curio-core、daymark-core 合并进 atlas-core 后是 6 个 */
   for (const d of dirs) assert.ok(existsSync(join(REPO, 'workers', d, 'wrangler.toml')), `workers/${d} 缺 wrangler.toml`);
 });
 

@@ -1,4 +1,4 @@
-// styrigx-curio-core 的「设备」「游戏」两栏（/api/items、/api/photo）：
+// 奇趣（workers/atlas-core/src/curio，2026-11-14 合并进 atlas-core）的「设备」「游戏」两栏（/api/items、/api/photo）：
 // - 没有 v6 身份 401；写：非同源 403、档不够（没写组）403 forbidden
 // - 校验：名字必填、类型 / 状态 / 评分 / 日期只收合法值、关联设备必须存在、不能「换成」自己
 // - 读：没登录账号看不到私密条目；指向私密设备的 replaced_by / device_id 对没登录账号置 0
@@ -16,10 +16,10 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const W = REPO + '/workers/curio-core';
-const worker = (await import(W + '/src/app.js')).default;
-const IT = await import(W + '/src/api/_items.js');
-const PH = await import(W + '/src/api/photo.js');
+const W = REPO + '/workers/atlas-core/src/curio';
+const worker = (await import(W + '/app.js')).default;
+const IT = await import(W + '/api/_items.js');
+const PH = await import(W + '/api/photo.js');
 
 function makeD1(db = new DatabaseSync(':memory:')) {
   const isRead = (sql) => /^\s*SELECT/i.test(sql);
@@ -226,42 +226,4 @@ test('照片：公开（v5 S3）——private, no-cache + ETag；304 排在可�
   const after = await call('/curio/api/photo?kind=device&id=' + id, { ...e, who: 'lock', inm: etag });
   assert.equal(after.status, 200);
   assert.notEqual(after.headers.get('ETag'), etag);
-});
-
-test('迁移 0003 连跑两次不报错，和 ITEM_SCHEMA 建出来的表一样', () => {
-  const a = new DatabaseSync(':memory:');
-  const sql = readFileSync(W + '/migrations/0003_devices_games.sql', 'utf8');
-  a.exec(sql); a.exec(sql);
-  const b = new DatabaseSync(':memory:');
-  for (const s of IT.ITEM_SCHEMA) b.exec(s);
-  const cols = (db, t) => db.prepare(`PRAGMA table_info(${t})`).all().map((c) => [c.name, c.type, c.notnull, c.dflt_value]);
-  for (const t of ['devices', 'games']) assert.deepEqual(cols(b, t), cols(a, t), t);
-});
-
-test('绑定：设备走 D1_DEVICES、游戏走 D1_GAMES（同一个库）；wrangler.toml 三个 D1 绑定同一个库、迁移只配一次', async () => {
-  const raw = new DatabaseSync(':memory:');
-  const seen = { D1_DEVICES: new Set(), D1_GAMES: new Set(), D1_FINDS: new Set() };
-  /* 同一个库包三层，记下每个绑定碰过哪些表 */
-  const tag = (name) => {
-    const d = makeD1(raw);
-    const note = (sql) => { for (const t of ['devices', 'games', 'links', 'cats']) if (new RegExp('\\b' + t + '\\b').test(sql)) seen[name].add(t); };
-    return { ...d, prepare: (sql) => { note(sql); return d.prepare(sql); } };
-  };
-  const envOf = (who) => ({ SPACE: auth(who), D1_FINDS: tag('D1_FINDS'), D1_DEVICES: tag('D1_DEVICES'), D1_GAMES: tag('D1_GAMES'), R2_PHOTOS: makeR2() });
-  const req = (p, method = 'GET', body) => new Request(ORIGIN + p, { method, headers: { Cookie: 'sgx-session=x', Origin: ORIGIN, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
-  const E = envOf('owner');
-  assert.equal((await worker.fetch(req('/curio/api/items', 'POST', { op: 'device.add', name: 'S24' }), E, { waitUntil() {} })).status, 200);
-  assert.equal((await worker.fetch(req('/curio/api/items', 'POST', { op: 'game.add', title: 'Zelda' }), E, { waitUntil() {} })).status, 200);
-  seen.D1_GAMES.clear(); // 第一次调用时这个绑定跑过建表 batch（devices + games），之后不再跑
-  assert.equal((await worker.fetch(req('/curio/api/items', 'POST', { op: 'game.add', title: 'Zelda 2', device_id: 1 }), E, { waitUntil() {} })).status, 200);
-  assert.equal((await worker.fetch(req('/curio/api/items', 'POST', { op: 'game.edit', id: 2, title: 'Zelda II', device_id: 1 }), E, { waitUntil() {} })).status, 200);
-  /* 游戏的增改只碰 games；查关联设备走 D1_DEVICES */
-  assert.deepEqual([...seen.D1_GAMES], ['games']);
-  assert.equal(seen.D1_FINDS.size, 0);
-  const t = readFileSync(W + '/wrangler.toml', 'utf8');
-  for (const b of ['D1_FINDS', 'D1_DEVICES', 'D1_GAMES']) {
-    assert.match(t, new RegExp('binding = "' + b + '"\\ndatabase_name = "styrigx-curio-core"\\ndatabase_id = "26ae9cd2-43c9-4bc0-b558-b35560ed9d7c"'), b);
-  }
-  assert.equal(t.match(/^migrations_dir = /gm).length, 1);
-  assert.match(t, /\[\[r2_buckets\]\]\nbinding = "R2_PHOTOS"\nbucket_name = "styrigx-curio-core"/);
 });

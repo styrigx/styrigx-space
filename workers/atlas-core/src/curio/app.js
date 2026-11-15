@@ -1,5 +1,5 @@
 /**
- * @fileoverview styrigx-curio-core：奇趣接口 Worker（路由 styrigx.com/curio/api/*，见 wrangler.toml）。
+ * @fileoverview 奇趣接口（styrigx-atlas-core 的 /curio/api/*，由 src/app.js 分流进来；2026-11-14 前是独立的 styrigx-curio-core）。
  *
  * 数据接口都在这里，D1（D1_FINDS / D1_DEVICES / D1_GAMES / D1_MOVIES / D1_MUSIC，同一个库）和 R2（R2_PHOTOS：图标缓存、导入原文备份、设备照片、电影海报；
  * R2_MUSIC：私人音乐的音频和封面，同一个桶的 music/ 前缀）只绑在本 Worker 上；Pages 只放静态文件。
@@ -130,7 +130,7 @@ export default {
     try {
       return tag(await handle(request, env, ctx));
     } catch (e) {
-      console.error('[curio-core] unhandled: ' + (e && e.name ? e.name : 'error'));
+      console.error('[curio] unhandled: ' + (e && e.name ? e.name : 'error'));
       return tag(json(500, { ok: false, error: 'internal' }));
     }
   },

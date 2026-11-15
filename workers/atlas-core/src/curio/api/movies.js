@@ -1,4 +1,4 @@
-// workers/curio-core/src/api/movies.js
+// workers/atlas-core/src/curio/api/movies.js
 // GET  /api/movies   公开（v5 S3）：{ok, canWrite, showPrivate, movies:[...]}（canWrite = curio.write；showPrivate = 有账号会话，只用来选页底那句话）（海报只给有没有，图走 /api/photo?kind=movie&id=）
 // POST /api/movies   账号会话 + 作用域 curio.write + 同源：body {op:'movie.add'|'movie.edit'|'movie.del', ...}（校验见 _movies.js parseMovieOp）
 //                    成功 → {ok:true, canWrite:true, id?, movies}（带回全部，前端整页重画；add 带新 id，好接着传海报）；删电影连 R2 海报一起删。

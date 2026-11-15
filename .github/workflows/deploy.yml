@@ -131,17 +131,8 @@ jobs:
         working-directory: workers/proxy
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-proxy-dist
 
-      - name: Curio core Worker bundle check (styrigx-curio-core, dry-run)
-        # 子站接口 Worker（2026-11-02 从 styrigx-atlas 搬来；2026-11-14 起不再部署，由 atlas-core 接替；下线前保留打包检查）
-        working-directory: workers/curio-core
-        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-curio-core-dist
-
-      - name: Daymark core Worker bundle check (styrigx-daymark-core, dry-run)
-        working-directory: workers/daymark-core
-        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-daymark-core-dist
-
       - name: Atlas core Worker bundle check (styrigx-atlas-core, dry-run)
-        # Atlas 后端合并 PR1（2026-11-14）：奇趣 + 日刻合成一个 Worker；还不部署、不挂路由，只打包核对（dry-run 不连 Cloudflare）
+        # Atlas 后端合并（2026-11-14）：奇趣 + 日刻合成一个 Worker；这里只打包核对（dry-run 不连 Cloudflare），部署见 deploy-atlas-core
         working-directory: workers/atlas-core
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-atlas-core-dist
 
@@ -216,7 +207,7 @@ jobs:
           node space/scripts/build/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-space.json"
           test -s "$RUNNER_TEMP/search-index/search-space.json"
 
-      - name: Subsite unit tests (blog / curio / daymark pages + curio-core / daymark-core / atlas-core)
+      - name: Subsite unit tests (blog / curio / daymark pages + atlas-core)
         # 页面（网址、模板、锁屏同步、外观继承、共享外壳副本）+ 接口 Worker（node:sqlite 真跑 D1 的 SQL）+ 博客搜索索引
         run: npm run test:sites
 
@@ -294,12 +285,10 @@ jobs:
       - name: Check worker routes (每个页面都过网关；账号 Worker 没有路由，账号路径在网关转发表里)
         run: node space/scripts/check/check-worker-routes.mjs
 
-      - name: Subsite generated files in sync (curio seed SQL, blog code tokens)
-        # curio：workers/curio-core/migrations/0002_seed.sql ← space/scripts/curio/data/seed.json；blog：code-tokens.css ← 色彩角色。
+      - name: Subsite generated files in sync (blog code tokens)
+        # blog：code-tokens.css ← 色彩角色。奇趣 / 日刻的种子 SQL 随 curio-core / daymark-core 删除（2026-11-14 合并进 atlas-core，数据在 D1，atlas-core 迁移只有结构）。
         # 2026-11 合站：子站直接用主站的外壳源文件，没有副本和 sgx-shell.lock.json，不再核对 sync-shell
-        run: |
-          node space/scripts/curio/gen-seed-sql.mjs --check
-          node space/scripts/blog/gen-code-tokens.mjs --check
+        run: node space/scripts/blog/gen-code-tokens.mjs --check
 
       - name: stylelint（禁止硬编码颜色）
         run: npx stylelint --config tests/config/stylelintrc.json "space/web/assets/common/css/input.css"

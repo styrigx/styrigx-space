@@ -12,8 +12,8 @@ export default {
   async scheduled(controller, env, ctx) {
     if (!dbReady(env)) return;
     ctx.waitUntil(runRefresh(env).then((r) => {
-      if (!r.ok) console.log('[proxy-rules] refresh: ' + r.error);
-      else console.log('[proxy-rules] refresh: ' + r.sources.map((s) => s.name + '=' + (s.ok ? s.nodes : s.error)).join(' '));
+      if (!r.ok) console.log('[proxy] refresh: ' + r.error);
+      else console.log('[proxy] refresh: ' + r.sources.map((s) => s.name + '=' + (s.ok ? s.nodes : s.error)).join(' '));
     }));
   },
 };

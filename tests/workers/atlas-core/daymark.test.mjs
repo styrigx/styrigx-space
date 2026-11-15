@@ -1,4 +1,4 @@
-// styrigx-daymark-core（workers/core）：
+// 日刻接口（workers/atlas-core/src/daymark）（2026-11-14 合并进 styrigx-atlas-core；本文件由 tests/workers/daymark-core/ 迁来，旧迁移 / 种子 / wrangler.toml 的用例随旧目录删除，配置与迁移结构见 core.test.mjs）：
 // - 路由表与 src/api 接口文件一一对应
 // - /api/today 公开（CORS 只给 styrigx.com），其余按 v6 路由档问网关（SPACE.admit，每个请求每个 action 最多一次）；网关出错当没有 v6
 // - 鉴权（v6，定稿 v5.3 §十二）：没有身份 401 unauthorized、档不够 403 forbidden（写 = daymark-write，删整个专题 = root）
@@ -7,10 +7,8 @@
 //   GET 只给今天（?d= 别的日期 / 格式不对 400）；缓存不跨过北京时间零点；边缘缓存键只认当天，写操作后清掉；
 //   记下的那句被删 / 改私密就重挑；PUT /api/today 设为今日要 v6 写组 + 同源（没有身份 401、档不够 403 forbidden、私密 409）
 // - 三页签：出处类型、随手一笔（没有写组和 /api/today 永不返回）、百味专题的增删改、归属与排序、没有写组只见公开
-// - 迁移 0001 + 0002 依次跑在 SQLite 上，接口照常工作
-// - wrangler.toml：不开 workers.dev，只挂 styrigx.com/daymark/api/*（旧图志域名的过渡期路由 P4-3 PR-1 删除），服务绑定网关，不持钥匙
 // SQL 用 node:sqlite 真跑（CI 用 Node 22）。
-// 运行：node --test tests/workers/core.test.mjs
+// 运行：node --test tests/workers/atlas-core/daymark.test.mjs
 import '../account/_cf-workers.mjs'; /* cloudflare:workers 替身：index.js 再导出 HourlyJob（WorkerEntrypoint） */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,13 +19,13 @@ import { DatabaseSync } from 'node:sqlite';
 import { whoAuth } from '../_v6who.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const W = REPO + '/workers/daymark-core';
-const worker = (await import(W + '/src/index.js')).default;
-const { API_ROUTES } = await import(W + '/src/routes.js');
-const Q = await import(W + '/src/api/_quotes.js');
-const TD = await import(W + '/src/api/_today.js');
-const { ROUTE_ACCESS, accessOf } = await import(W + '/src/routes.js');
-const { GUARDS } = await import(W + '/src/api/_auth.js');
+const W = REPO + '/workers/atlas-core/src/daymark';
+const worker = (await import(W + '/index.js')).default;
+const { API_ROUTES } = await import(W + '/routes.js');
+const Q = await import(W + '/api/_quotes.js');
+const TD = await import(W + '/api/_today.js');
+const { ROUTE_ACCESS, accessOf } = await import(W + '/routes.js');
+const { GUARDS } = await import(W + '/api/_auth.js');
 
 /** node:sqlite 包成 D1 的样子（batch 和 D1 一样是一个事务，每条回 { meta: { changes } }） */
 function makeD1(db = new DatabaseSync(':memory:')) {
@@ -69,7 +67,7 @@ function call(p, { who = null, db = makeD1(), method = 'GET', body, origin = ORI
 const add = async (db, q) => (await (await call('/daymark/api/quotes', { who: 'owner', db, method: 'POST', body: q })).json()).quote;
 
 test('路由表与 src/api 接口文件一一对应', () => {
-  const files = readdirSync(W + '/src/api').filter((n) => n.endsWith('.js') && !n.startsWith('_')).map((n) => '/api/' + n.slice(0, -3)).sort();
+  const files = readdirSync(W + '/api').filter((n) => n.endsWith('.js') && !n.startsWith('_')).map((n) => '/api/' + n.slice(0, -3)).sort();
   assert.deepEqual([...API_ROUTES.keys()].sort(), files);
 });
 
@@ -197,7 +195,7 @@ test('每个接口请求最多问网关一次（守卫问到的 v6 结论经 con
   assert.equal(r.res.status, 200);
   assert.equal(r.n, 0);
   /* 同一个 context 同一个 action 只问一次；旧结论的接口随应用授权删除（定稿 v5.3 §十二） */
-  const A = await import(W + '/src/api/_auth.js');
+  const A = await import(W + '/api/_auth.js');
   calls.length = 0;
   const ctx = { request: req('/daymark/api/quotes'), env: env('owner'), data: {} };
   assert.deepEqual(await A.readAccess(ctx), { canWrite: true, showPrivate: true });
@@ -366,18 +364,6 @@ test('北京时间换天：UTC 15:59 还是当天，16:00 是第二天', () => {
   assert.equal(Q.dayInShanghai(Date.parse('2026-10-20T16:00:00Z')), '2026-10-21');
 });
 
-test('wrangler.toml：不开 workers.dev，只挂 daymark 的 /api/*，D1 + 网关服务绑定，没有钥匙', () => {
-  const t = readFileSync(W + '/wrangler.toml', 'utf8');
-  assert.match(t, /^name = "styrigx-daymark-core"$/m);
-  assert.match(t, /^workers_dev = false$/m);
-  /* 合并 PR3：主域名路由 + 过渡期的旧图志路由，只有这两条 */
-  assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/daymark/api/*']);
-  assert.match(t, /^database_id = "[0-9a-f-]{36}"$/m);
-  assert.match(t, /^service = "styrigx-space-core"$/m);
-  assert.match(t, /^entrypoint = "SpaceVerifier"$/m);
-  assert.doesNotMatch(t, /SGX_|r2_buckets/);
-});
-
 /* ================= 三页签：出处类型、随手一笔、百味专题 ================= */
 const addC = async (db, c) => (await (await call('/daymark/api/collections', { who: 'owner', db, method: 'POST', body: c })).json()).collection;
 const listC = async (db, who) => (await (await call('/daymark/api/collections', { who, db })).json());
@@ -505,152 +491,7 @@ test('百味专题 · 账号未登录：只含公开句子，空专题不返回'
   assert.deepEqual(o.collections[0].quote_ids, [pri.id, pub.id]);
 });
 
-test('迁移：0001 + 0002 + 0004 + 0005 + 0006 依次跑完（0004、0005、0006 重复跑不报错），老数据保留、新字段有默认值、接口可用', async () => {
-  const raw = new DatabaseSync(':memory:');
-  raw.exec(readFileSync(W + '/migrations/0001_init.sql', 'utf8'));
-  raw.prepare("INSERT INTO quotes (id, text, created_at) VALUES ('aaaaaaaaaaaa', '老句子', 1)").run();
-  raw.exec(readFileSync(W + '/migrations/0002_three_tabs.sql', 'utf8'));
-  raw.exec(readFileSync(W + '/migrations/0004_daily_pick.sql', 'utf8'));
-  raw.exec(readFileSync(W + '/migrations/0004_daily_pick.sql', 'utf8'));
-  raw.exec(readFileSync(W + '/migrations/0005_daily_pick_set_by_admin.sql', 'utf8'));
-  raw.exec(readFileSync(W + '/migrations/0006_daily_pick_set_by_grant.sql', 'utf8'));
-  raw.exec(readFileSync(W + '/migrations/0006_daily_pick_set_by_grant.sql', 'utf8'));
-  const db = makeD1(raw);
-  const o = await (await call('/daymark/api/quotes', { who: 'owner', db })).json();
-  assert.equal(o.quotes[0].text, '老句子');
-  assert.equal(o.quotes[0].source_type, '');
-  assert.equal(o.quotes[0].note, '');
-  const c = await addC(db, { name: '旧句' });
-  assert.equal((await call('/daymark/api/collections?id=' + c.id, { who: 'owner', db, method: 'PUT', body: { quote_ids: ['aaaaaaaaaaaa'] } })).status, 200);
-  /* 迁移里的列与兜底建表一致 */
-  const cols = (t, d) => d.prepare('PRAGMA table_info(' + t + ')').all().map((r) => r.name).sort();
-  const fresh = makeD1();
-  await call('/daymark/api/quotes', { who: 'owner', db: fresh });
-  for (const t of ['quotes', 'collections', 'collection_quotes', 'daily_pick']) assert.deepEqual(cols(t, raw), cols(t, fresh.raw), t);
-});
-
-test('迁移 0005：daily_pick.set_by 旧值 owner → admin，auto 不动，其余列原样；重复跑结果不变；没有 owner 相关的约束 / 默认值', async () => {
-  const raw = new DatabaseSync(':memory:');
-  raw.exec(readFileSync(W + '/migrations/0001_init.sql', 'utf8'));
-  raw.exec(readFileSync(W + '/migrations/0002_three_tabs.sql', 'utf8'));
-  raw.exec(readFileSync(W + '/migrations/0004_daily_pick.sql', 'utf8'));
-  const ins = raw.prepare('INSERT INTO daily_pick (day, quote_id, set_by, set_at) VALUES (?, ?, ?, ?)');
-  ins.run('2026-01-01', 'aaaaaaaaaaaa', 'owner', 11);
-  ins.run('2026-01-02', 'bbbbbbbbbbbb', 'auto', 22);
-  ins.run('2026-01-03', 'cccccccccccc', 'owner', 33);
-  raw.prepare('INSERT INTO daily_pick (day, quote_id) VALUES (?, ?)').run('2026-01-04', 'dddddddddddd');
-  const all = () => raw.prepare('SELECT day, quote_id, set_by, set_at FROM daily_pick ORDER BY day').all().map((r) => ({ ...r }));
-  const sql = readFileSync(W + '/migrations/0005_daily_pick_set_by_admin.sql', 'utf8');
-  const want = [
-    { day: '2026-01-01', quote_id: 'aaaaaaaaaaaa', set_by: 'admin', set_at: 11 },
-    { day: '2026-01-02', quote_id: 'bbbbbbbbbbbb', set_by: 'auto', set_at: 22 },
-    { day: '2026-01-03', quote_id: 'cccccccccccc', set_by: 'admin', set_at: 33 },
-    { day: '2026-01-04', quote_id: 'dddddddddddd', set_by: 'auto', set_at: 0 },
-  ];
-  raw.exec(sql);
-  assert.deepEqual(all(), want);
-  raw.exec(sql);
-  assert.deepEqual(all(), want, '重复跑结果不变');
-  const ddl = raw.prepare("SELECT sql FROM sqlite_master WHERE name = 'daily_pick'").get().sql;
-  assert.doesNotMatch(ddl, /owner|CHECK/i, '表定义里没有 owner 默认值或 CHECK，只改数据不用重建表');
-  /* 代码里已经没有写 'owner' 的地方 */
-  assert.doesNotMatch(readFileSync(W + '/src/api/_today.js', 'utf8').replace(/^\/\/.*$/gm, ''), /'owner'/);
-});
-
-test('迁移 0006：daily_pick.set_by 旧值 admin → grant，auto 不动，其余列原样；重复跑结果不变；0005 → 0006 连跑把 owner 也落到 grant；没有 admin 相关的约束 / 默认值', async () => {
-  const raw = new DatabaseSync(':memory:');
-  raw.exec(readFileSync(W + '/migrations/0001_init.sql', 'utf8'));
-  raw.exec(readFileSync(W + '/migrations/0002_three_tabs.sql', 'utf8'));
-  raw.exec(readFileSync(W + '/migrations/0004_daily_pick.sql', 'utf8'));
-  const ins = raw.prepare('INSERT INTO daily_pick (day, quote_id, set_by, set_at) VALUES (?, ?, ?, ?)');
-  ins.run('2026-01-01', 'aaaaaaaaaaaa', 'admin', 11);
-  ins.run('2026-01-02', 'bbbbbbbbbbbb', 'auto', 22);
-  ins.run('2026-01-03', 'cccccccccccc', 'admin', 33);
-  raw.prepare('INSERT INTO daily_pick (day, quote_id) VALUES (?, ?)').run('2026-01-04', 'dddddddddddd');
-  ins.run('2026-01-05', 'eeeeeeeeeeee', 'owner', 55);
-  const all = () => raw.prepare('SELECT day, quote_id, set_by, set_at FROM daily_pick ORDER BY day').all().map((r) => ({ ...r }));
-  const sql = readFileSync(W + '/migrations/0006_daily_pick_set_by_grant.sql', 'utf8');
-  const want = [
-    { day: '2026-01-01', quote_id: 'aaaaaaaaaaaa', set_by: 'grant', set_at: 11 },
-    { day: '2026-01-02', quote_id: 'bbbbbbbbbbbb', set_by: 'auto', set_at: 22 },
-    { day: '2026-01-03', quote_id: 'cccccccccccc', set_by: 'grant', set_at: 33 },
-    { day: '2026-01-04', quote_id: 'dddddddddddd', set_by: 'auto', set_at: 0 },
-    { day: '2026-01-05', quote_id: 'eeeeeeeeeeee', set_by: 'grant', set_at: 55 },
-  ];
-  raw.exec(readFileSync(W + '/migrations/0005_daily_pick_set_by_admin.sql', 'utf8'));
-  raw.exec(sql);
-  assert.deepEqual(all(), want);
-  raw.exec(sql);
-  assert.deepEqual(all(), want, '重复跑结果不变');
-  const ddl = raw.prepare("SELECT sql FROM sqlite_master WHERE name = 'daily_pick'").get().sql;
-  assert.doesNotMatch(ddl, /admin|CHECK/i, '表定义里没有 admin 默认值或 CHECK，只改数据不用重建表');
-  /* 代码里已经没有写 'admin' 的地方（兜底建表也一样） */
-  for (const f of ['/src/api/_today.js', '/src/api/_quotes.js']) assert.doesNotMatch(readFileSync(W + f, 'utf8').replace(/^\s*\/\/.*$/gm, ''), /'admin'/, f);
-});
-
 /* ================= 种子迁移 0003_seed_quotes ================= */
-test('种子迁移：全新库上连跑两次都不报错，得到 63 句 + 2 个专题，归属按 JSON 顺序', async () => {
-  const raw = new DatabaseSync(':memory:');
-  const seed = readFileSync(W + '/migrations/0003_seed_quotes.sql', 'utf8');
-  raw.exec(readFileSync(W + '/migrations/0001_init.sql', 'utf8'));
-  raw.exec(readFileSync(W + '/migrations/0002_three_tabs.sql', 'utf8'));
-  raw.exec(seed);
-  raw.exec(seed);
-  const n = (sql) => Number(raw.prepare(sql).get().n);
-  assert.equal(n('SELECT COUNT(*) AS n FROM quotes'), 63);
-  assert.equal(n('SELECT COUNT(*) AS n FROM collections'), 2);
-  assert.equal(n('SELECT COUNT(*) AS n FROM collection_quotes'), 63);
-  const cols = raw.prepare('SELECT name, intro, sort FROM collections ORDER BY sort').all().map((r) => ({ ...r }));
-  assert.deepEqual(cols, [
-    { name: '尼采', intro: '尼采原著摘句，英文为公版译本', sort: 0 },
-    { name: '了不起的盖茨比', intro: '菲茨杰拉德原文摘句', sort: 1 },
-  ]);
-  /* 通过接口读：账号已登录看到两专题；账号未登录看到的都是公开句子；note 为空、类型是 book */
-  const db = makeD1(raw);
-  const o = await (await call('/daymark/api/collections', { who: 'owner', db })).json();
-  assert.equal(o.collections[0].quote_ids.length + o.collections[1].quote_ids.length, 63);
-  const qs = (await (await call('/daymark/api/quotes', { who: 'lock', db })).json()).quotes;
-  assert.equal(qs.length, 63);
-  assert.ok(qs.every((q) => q.source_type === 'book' && !('note' in q)));
-  /* 拾录新的在前 = JSON 顺序；专题里也是 JSON 顺序 */
-  const byId = Object.fromEntries(qs.map((q) => [q.id, q]));
-  const first = byId[o.collections[0].quote_ids[0]];
-  assert.equal(first.text, qs[0].text);
-  assert.equal(first.author, '尼采');
-  const gatsby = o.collections[1].quote_ids.map((id) => byId[id].text);
-  assert.match(gatsby[gatsby.length - 1], /逆流而上/);
-});
-
-test('种子迁移：只增不删，已有的同正文句子不重复、专题已存在就并进去', () => {
-  const raw = new DatabaseSync(':memory:');
-  const seed = readFileSync(W + '/migrations/0003_seed_quotes.sql', 'utf8');
-  for (const line of seed.split('\n').filter((l) => l && !l.startsWith('--'))) {
-    assert.match(line, /^INSERT /);
-    assert.doesNotMatch(line, /\b(DELETE|UPDATE|DROP|REPLACE INTO)\b/);
-  }
-  raw.exec(readFileSync(W + '/migrations/0001_init.sql', 'utf8'));
-  raw.exec(readFileSync(W + '/migrations/0002_three_tabs.sql', 'utf8'));
-  const sample = seed.match(/SELECT '[0-9a-f]{12}', '((?:[^']|'')*)'/)[1].replace(/''/g, "'");
-  raw.prepare("INSERT INTO quotes (id, text, note, created_at) VALUES ('ffffffffffff', ?, '我的笔记', 1)").run(sample);
-  raw.prepare("INSERT INTO quotes (id, text, created_at) VALUES ('eeeeeeeeeeee', '用户自己的句子', 2)").run();
-  raw.prepare("INSERT INTO collections (id, name, intro, created_at, sort) VALUES ('dddddddddddd', '尼采', '我自己的简介', 1, 0)").run();
-  raw.exec(seed);
-  const n = (sql) => Number(raw.prepare(sql).get().n);
-  assert.equal(n('SELECT COUNT(*) AS n FROM quotes'), 64);
-  assert.equal(n('SELECT COUNT(*) AS n FROM quotes WHERE text = ' + "'" + sample.replace(/'/g, "''") + "'"), 1);
-  assert.equal(raw.prepare("SELECT note FROM quotes WHERE id = 'ffffffffffff'").get().note, '我的笔记');
-  assert.equal(n("SELECT COUNT(*) AS n FROM collections WHERE name = '尼采'"), 1);
-  assert.equal(raw.prepare("SELECT intro FROM collections WHERE name = '尼采'").get().intro, '我自己的简介');
-  assert.equal(n("SELECT COUNT(*) AS n FROM collection_quotes WHERE quote_id = 'ffffffffffff' AND collection_id = 'dddddddddddd'"), 1);
-  assert.equal(n("SELECT COUNT(*) AS n FROM quotes WHERE id = 'eeeeeeeeeeee'"), 1);
-});
-
-test('种子迁移与生成脚本一致（设了 DAYMARK_SEED_JSON=<quotes.json> 时检查；种子原文不进仓库）', async (t) => {
-  const SEED = process.env.DAYMARK_SEED_JSON;
-  if (!SEED) return t.skip('没设 DAYMARK_SEED_JSON');
-  const { seedSql } = await import(REPO + '/space/scripts/daymark/gen-seed-sql.mjs');
-  assert.equal(seedSql(JSON.parse(readFileSync(SEED, 'utf8'))), readFileSync(W + '/migrations/0003_seed_quotes.sql', 'utf8'));
-});
 
 /* ================= 锁定今日一句 + 设为今日（daily_pick，迁移 0004） ================= */
 const TODAY = () => Q.dayInShanghai();
@@ -774,7 +615,7 @@ test('设为今日：账号已登录（可写）时改写当天这一句；所�
 });
 
 /* ================= /api/today 缓存：不跨过换天；边缘缓存（caches.default） ================= */
-const TODAY_JS = await import(W + '/src/api/today.js');
+const TODAY_JS = await import(W + '/api/today.js');
 
 test('缓存秒数：最多 60 秒，离北京时间零点不足 60 秒时只缓存到零点，零点前最后一秒不缓存', () => {
   const at = (s) => Date.parse(s);
@@ -788,7 +629,7 @@ test('缓存秒数：最多 60 秒，离北京时间零点不足 60 秒时只缓
 });
 
 test('_lib.js 的 json() / err() 自己就带 nosniff（不只靠 index.js 的 tag()）', async () => {
-  const L = await import(W + '/src/api/_lib.js');
+  const L = await import(W + '/api/_lib.js');
   assert.equal(L.json({ ok: true }).headers.get('X-Content-Type-Options'), 'nosniff');
   assert.equal(L.err('x').headers.get('X-Content-Type-Options'), 'nosniff');
   assert.equal(L.json({ ok: true }, 200, { 'Cache-Control': 'public, max-age=1' }).headers.get('X-Content-Type-Options'), 'nosniff');
@@ -912,7 +753,7 @@ test('边缘缓存：设为今日、改句子（改私密 / 删）之后清掉�
 });
 
 /* ---------- /api/days（2026-11 对齐 PR-C2：日刻日期条 / 前后日卡 / 余响窗） ---------- */
-const DY = await import(W + '/src/api/days.js');
+const DY = await import(W + '/api/days.js');
 
 test('/api/days：公开（v5 S3）；只读已记下的日子、只出公开句子、新→旧；不写库', async () => {
   const db = makeD1();

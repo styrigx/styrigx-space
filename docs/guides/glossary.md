@@ -21,7 +21,7 @@
 | 状态页 | status，`/status/` | 主站的服务状态页（2026-11-12 起；原旷野 `/wild/#status`，旷野删除后 `/wild/` 301 到这里） |
 | 外壳 | shell | 四站共用的顶栏、导航面板、快捷面板、终端、AI 窗、盾牌与账号窗口；源码在 `space/web/assets/common/js/`（topbar/、term/、ai/、account/ 等组）与 `layouts/partials/shell-*` |
 | 站点核心 | `styrigx-space-core`（`workers/space-core/`） | 挂在 `styrigx.com/*` 的 Worker：进站会话的唯一签发与校验方、页面关口、分享链接、接口路由与转发。旧称「网关」「鉴权网关」（`styrigx-auth-gateway`） |
-| 接口 Worker | `styrigx-curio-core`、`styrigx-daymark-core` | 子站数据接口，挂 `styrigx.com/<站>/api/*` |
+| 接口 Worker | `styrigx-atlas-core`（`workers/atlas-core/`） | 奇趣、日刻的数据接口，挂 `styrigx.com/curio/api/*`、`styrigx.com/daymark/api/*`；2026-11-14 前是 `styrigx-curio-core`、`styrigx-daymark-core` 两个 |
 | 账号 Worker | `styrigx-account` | 账号系统；没有公开路由，只经站点核心的服务绑定进入 |
 | 合站 | — | 2026-11 起主站和三个子站合成一个仓库、一个 Hugo 站（见 ADR-0001） |
 

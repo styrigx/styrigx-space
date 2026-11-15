@@ -41,7 +41,7 @@ export const API_ROUTES = new Map([
  * - entry：按账号 Worker 路由表的档问 v6（requireEntry：没有身份 401 unauthorized，档不够 403 forbidden）；写接口在 handler 里另要同源
  * - music：同 entry（requireMusic：音乐的上传 / 管理，档同其他写接口）
  * 精确匹配「方法 + 路由表路径」（结尾一个 / 当同一条）；表里没有的方法 / 路径一律 entry（fail closed）。
- * 改这张表 = 改谁能调接口：tests/workers/curio-core/core.test.mjs 对整张表做快照。
+ * 改这张表 = 改谁能调接口：tests/workers/atlas-core/curio.test.mjs 对整张表做快照。
  * @type {ReadonlyArray<Readonly<{method: string, path: string, access: 'public'|'entry'|'music'}>>}
  */
 export const ROUTE_ACCESS = Object.freeze([

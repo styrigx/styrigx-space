@@ -155,7 +155,7 @@ test('路由表：action private 挂在奇趣 / 日刻公开 GET 上（档 = 本
       continue;
     }
     assert.equal(r.level, 'public', r.path);
-    assert.equal(r.actions.private, r.worker === 'curio-core' ? 'curio-write' : 'daymark-write', r.path);
+    assert.equal(r.actions.private, r.path.startsWith('/curio/') ? 'curio-write' : 'daymark-write', r.path);
   }
 });
 

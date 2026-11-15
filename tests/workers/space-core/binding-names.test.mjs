@@ -161,8 +161,8 @@ test('进站 v3 L2b：站点核心 D1 / KV = styrigx-space-core（网关 + 分�
   }
   /* 旧库 id 不再出现在任何绑定里 */
   for (const p of want.map((w) => w[0])) assert.doesNotMatch(code(read(p)), /6931d1da-3502-480d-b0bd-de1bc4829d1d|59bddcea-17cb-466a-90c9-16606d5b4b7e|31970da7-4b8f-4180-ad93-c170649188dc/, p);
-  /* 搜索索引 KV：读的 ai 和写的 curio-core / daymark-core 一起换到 styrigx-space-core（只换一边会读写两个命名空间） */
-  for (const p of ['workers/ai/wrangler.toml', 'workers/curio-core/wrangler.toml', 'workers/daymark-core/wrangler.toml']) {
+  /* 搜索索引 KV：读的 ai 和写的 atlas-core（奇趣 / 日刻）都在 styrigx-space-core（只换一边会读写两个命名空间） */
+  for (const p of ['workers/ai/wrangler.toml', 'workers/atlas-core/wrangler.toml']) {
     assert.equal(bindings(code(read(p))).KV_SEARCH_INDEX, CORE_KV, p);
     assert.doesNotMatch(code(read(p)), /bd1babcc3fe74d58994e254c74d34ced|608cf3e27184481cbca2922950506d87/, p);
   }

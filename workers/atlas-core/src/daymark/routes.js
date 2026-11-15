@@ -22,7 +22,7 @@ export const API_ROUTES = new Map([
  * - public：谁都能调（publicRead：不拒绝、不问网关；要私密行 / canWrite 的 handler 自己 readAccess）
  * - entry：按账号 Worker 路由表的档问 v6（requireEntry：没有身份 401 unauthorized，档不够 403 forbidden）；写在 handler 里另要同源
  * 精确匹配「方法 + 路由表路径」（结尾一个 / 当同一条）；表里没有的方法 / 路径一律 entry（fail closed）。
- * 改这张表 = 改谁能调接口：tests/workers/daymark-core/core.test.mjs 对整张表做快照。
+ * 改这张表 = 改谁能调接口：tests/workers/atlas-core/daymark.test.mjs 对整张表做快照。
  * @type {ReadonlyArray<Readonly<{method: string, path: string, access: 'public'|'entry'}>>}
  */
 export const ROUTE_ACCESS = Object.freeze([

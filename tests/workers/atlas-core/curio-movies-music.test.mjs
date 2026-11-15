@@ -1,4 +1,4 @@
-// styrigx-curio-core 奇趣拆页（P4-3）新增的两个子页接口：
+// 奇趣（workers/atlas-core/src/curio，2026-11-14 合并进 atlas-core）拆页（P4-3）新增的两个子页接口：
 // - 电影 /api/movies：公开读（v5 S3；canWrite 按 v6 写组）；写要同源 + v6 写组（401 unauthorized / 403 forbidden / 403 origin）；
 //   增改删、校验（片名必填、评分 0–5、年份、观看日期）、排序（最近看的在前）；海报走 /api/photo?kind=movie（3 MB、看字节），删电影连海报删；照片清扫认 movies.poster
 // - 私人音乐三层（v5 S3）：歌单 / 封面公开（只有元数据，没有任何音频地址）；听（签令牌、取音频）要 v6 listen 组；
@@ -6,8 +6,7 @@
 //   上传（音频类型白名单、要 Content-Length、单文件 95 MB 上限、封面看字节）；播放短链（随机令牌存 D1、10 分钟过期、篡改 / 过期 / 别的专辑的曲目 403、
 //   Range 206 / 416、整文件 200）；删专辑连 R2 一起删
 // - 索引排除：搜索索引（= AI 召回读的 KV site:curio）不含电影 / 音乐；写电影 / 音乐不触发重建；站点地图模板不列 music / movies
-// - 迁移 0004 和 MOVIE_SCHEMA / MUSIC_SCHEMA 建出来的表一致；wrangler.toml 有 D1_MOVIES / D1_MUSIC / R2_MUSIC 绑定，没有 secret
-// SQL 用 node:sqlite 真跑。运行：node --test tests/workers/curio-core/movies-music.test.mjs
+// SQL 用 node:sqlite 真跑。运行：node --test tests/workers/atlas-core/curio-movies-music.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -17,12 +16,12 @@ import { DatabaseSync } from 'node:sqlite';
 import { whoAuth } from '../_v6who.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const W = REPO + '/workers/curio-core';
-const worker = (await import(W + '/src/app.js')).default;
-const MV = await import(W + '/src/api/_movies.js');
-const MU = await import(W + '/src/api/_music.js');
-const SI = await import(W + '/src/search-index.js');
-const SW = await import(W + '/src/photo-sweep.js');
+const W = REPO + '/workers/atlas-core/src/curio';
+const worker = (await import(W + '/app.js')).default;
+const MV = await import(W + '/api/_movies.js');
+const MU = await import(W + '/api/_music.js');
+const SI = await import(W + '/search-index.js');
+const SW = await import(W + '/photo-sweep.js');
 
 function makeD1(db = new DatabaseSync(':memory:')) {
   const isRead = (sql) => /^\s*SELECT/i.test(sql);
@@ -386,7 +385,7 @@ test('索引：电影、音乐元数据进 site:curio（不标 private，进门�
   assert.ok(ix.items.filter((it) => /^(movie|album):/.test(it.id)).every((it) => it.private === undefined), '没有私密列，不标 private');
   const all = JSON.stringify(ix);
   assert.doesNotMatch(all, /lyricszz|r2_key|music\/\d|\.mp3/, '歌词 / 音频 key 不进');
-  /* 站点地图：/curio/sitemap.xml 只列首页两种语言（合站后本站首页是分区页：模板里只有 (site.GetPage "/curio").AllTranslations）；子页一律 noindex */
+  /* 站点地图：/curio/sitemap.xml 只列首页两种语言（合站后本站首页是分区页：模板里只有 (site.GetPage "/curio").AllTranslations）；子页不单列（收录：公开子页（含电影页）不带 noindex，只有 404 带，见 tests/curio/layout.test.mjs） */
   const sm = readFileSync(REPO + '/space/web/layouts/curio/section.curiositemap.xml', 'utf8');
   assert.match(sm, /\(site\.GetPage "\/curio"\)\.AllTranslations/);
   assert.doesNotMatch(sm, /music|movies|RegularPages|\.Pages/);
@@ -395,7 +394,7 @@ test('索引：电影、音乐元数据进 site:curio（不标 private，进门�
 /* ================= 只读固定查询（CurioReader，给 styrigx-ai） ================= */
 
 test('reader：recentMovies 按观看日期倒序（没填日期的在后）、n 夹在 1–20；music 认问句里的专辑名 / 歌手名、回曲目表；不认的查询名 unknown；只读', async () => {
-  const RD = await import(W + '/src/reader.js');
+  const RD = await import(W + '/reader.js');
   const e = makeEnv();
   for (const [title, watched_at] of [['A', '2026-01-01'], ['B', ''], ['C', '2026-03-01'], ['D', '2026-02-01']]) {
     await call(e, '/curio/api/movies', { who: 'owner', method: 'POST', body: { op: 'movie.add', title, watched_at } });
@@ -423,52 +422,14 @@ test('reader：recentMovies 按观看日期倒序（没填日期的在后）、n
   assert.equal((await RD.runQuery(env, 'music', { q: 'blue' })).albums.length, 1, '表还在');
   assert.deepEqual(await RD.runQuery(env, 'SELECT * FROM music_tracks', {}), { ok: false, error: 'unknown' });
   assert.deepEqual(RD.QUERIES, ['recentMovies', 'music']);
-  const src = readFileSync(W + '/src/reader.js', 'utf8');
+  const src = readFileSync(W + '/reader.js', 'utf8');
   assert.doesNotMatch(src, /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE)\b/, '只读');
   for (const sel of src.match(/SELECT [^'"]+FROM \w+/g)) assert.doesNotMatch(sel, /lrc|r2_key|cover|poster|token/, sel);
-  /* 入口：index.js 再导出 default 和 CurioReader；rpc/reader.js 是 WorkerEntrypoint */
-  const idx = readFileSync(W + '/src/index.js', 'utf8');
-  assert.match(idx, /export \{ default \} from '\.\/app\.js';/);
-  assert.match(idx, /export \{ CurioReader \} from '\.\/rpc\/reader\.js';/);
-  assert.match(readFileSync(W + '/src/rpc/reader.js', 'utf8'), /class CurioReader extends WorkerEntrypoint/);
+  /* 入口：rpc/reader.js 是 WorkerEntrypoint（atlas-core 的 src/index.js 再导出 CurioReader，见 core.test.mjs） */
+  assert.match(readFileSync(W + '/rpc/reader.js', 'utf8'), /class CurioReader extends WorkerEntrypoint/);
 });
 
 /* ================= 迁移 / 配置 ================= */
-
-test('迁移 0004 + 0005 和 MOVIE_SCHEMA / MUSIC_SCHEMA 建出来的表一致；wrangler.toml 有 D1_MOVIES / D1_MUSIC / R2_MUSIC，没有 secret', () => {
-  const a = new DatabaseSync(':memory:');
-  a.exec(readFileSync(W + '/migrations/0004_movies_music.sql', 'utf8'));
-  a.exec(readFileSync(W + '/migrations/0004_movies_music.sql', 'utf8'));
-  a.exec(readFileSync(W + '/migrations/0005_music_kind_artists.sql', 'utf8'));
-  const b = new DatabaseSync(':memory:');
-  for (const s of [...MV.MOVIE_SCHEMA, ...MU.MUSIC_SCHEMA]) b.exec(s);
-  const cols = (db, t) => db.prepare(`PRAGMA table_info(${t})`).all().map((c) => [c.name, c.type, c.notnull, c.dflt_value, c.pk]);
-  for (const t of ['movies', 'music_albums', 'music_tracks', 'music_tokens', 'music_artists']) assert.deepEqual(cols(b, t), cols(a, t), t);
-  const idx = (db) => db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map((r) => r.name);
-  assert.deepEqual(idx(b), idx(a));
-  const t = readFileSync(W + '/wrangler.toml', 'utf8');
-  const d1 = [...t.matchAll(/^\[\[d1_databases\]\]\nbinding = "([A-Z0-9_]+)"\ndatabase_name = "styrigx-curio-core"/gm)].map((m) => m[1]);
-  assert.deepEqual(d1, ['D1_FINDS', 'D1_DEVICES', 'D1_GAMES', 'D1_MOVIES', 'D1_MUSIC']);
-  const r2 = [...t.matchAll(/^binding = "(R2_[A-Z]+)"\nbucket_name = "styrigx-curio-core"$/gm)].map((m) => m[1]);
-  assert.deepEqual(r2, ['R2_PHOTOS', 'R2_MUSIC']);
-  assert.equal((t.match(/^migrations_dir = /gm) || []).length, 1, 'migrations_dir 只在 D1_FINDS 上');
-  assert.doesNotMatch(t, /\[vars\]|secret|HMAC/i);
-  const src = ['_music.js', 'music-play.js', 'music-stream.js'].map((f) => readFileSync(W + '/src/api/' + f, 'utf8')).join('\n');
-  assert.match(src, /crypto\.getRandomValues/);
-  assert.doesNotMatch(src, /env\.[A-Z_]*(SECRET|KEY|HMAC)/);
-});
-
-test('迁移 0005：现有专辑默认 album；按专辑歌手文本（去首尾空白）去重建歌手并回填 artist_id，曲目跟专辑；kind 只收 album / single', () => {
-  const db = new DatabaseSync(':memory:');
-  db.exec(readFileSync(W + '/migrations/0004_movies_music.sql', 'utf8'));
-  db.exec("INSERT INTO music_albums (title, artist) VALUES ('A', '周杰伦'), ('B', ' 周杰伦 '), ('C', ''), ('D', 'Jay Chou')");
-  db.exec("INSERT INTO music_tracks (album_id, title) VALUES (1, 't1'), (2, 't2'), (3, 't3'), (4, 't4'), (99, '孤儿')");
-  db.exec(readFileSync(W + '/migrations/0005_music_kind_artists.sql', 'utf8'));
-  assert.deepEqual(db.prepare('SELECT id, name FROM music_artists ORDER BY id').all().map((r) => [r.id, r.name]), [[1, '周杰伦'], [2, 'Jay Chou']]);
-  assert.deepEqual(db.prepare('SELECT kind, artist_id FROM music_albums ORDER BY id').all().map((r) => [r.kind, r.artist_id]), [['album', 1], ['album', 1], ['album', 0], ['album', 2]]);
-  assert.deepEqual(db.prepare('SELECT artist_id FROM music_tracks ORDER BY id').all().map((r) => r.artist_id), [1, 1, 0, 2, 0]);
-  assert.throws(() => db.exec("UPDATE music_albums SET kind = 'ep'"), /CHECK/);
-});
 
 test('上限按 kind 分开算：专辑 100、单曲 500；单曲记录不占专辑名额', async () => {
   assert.equal(MU.MUSIC_LIMITS.albums, 100);
@@ -584,7 +545,7 @@ test('单曲进索引 / AI 读接口带 kind：索引副标题标「单曲」/ S
   assert.equal(ix.items.find((it) => it.id === 'album:' + sid).subtitle, '音乐 · 单曲 · Joni Mitchell · 1971');
   assert.equal(ix.items.find((it) => it.id === 'album:' + sid + ':en').subtitle, 'Music · Single · Joni Mitchell · 1971');
   assert.equal(ix.items.find((it) => it.id === 'album:' + aid).subtitle, '音乐 · Joni Mitchell · 1971', '专辑照旧');
-  const RD = await import(W + '/src/reader.js');
+  const RD = await import(W + '/reader.js');
   const r = await RD.runQuery({ D1_MUSIC: e.db }, 'music', { q: 'joni mitchell 的单曲' });
   assert.deepEqual(r.albums.map((a) => [a.title, a.kind]), [['Big Yellow Taxi', 'single'], ['Blue', 'album']]);
 });

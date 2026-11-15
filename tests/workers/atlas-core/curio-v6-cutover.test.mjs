@@ -5,7 +5,7 @@
  * - export / import / album.del = root（styrigx 也被拒，要 su root）；root 的这些操作经 auditRoot 留痕
  * - 公开读的私密行与 canWrite（action private = curio-write）
  * - 没带 sgx-session 不问 admit；网关出错 / 旧版本不认 action → 当没有 v6（fail closed）
- * 运行：node --test tests/workers/curio-core/v6-cutover.test.mjs
+ * 运行：node --test tests/workers/atlas-core/curio-v6-cutover.test.mjs
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,9 +15,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { v6Space } from '../_v6admit.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const W = REPO + '/workers/curio-core';
-const worker = (await import(W + '/src/app.js')).default;
-const A = await import(W + '/src/api/_auth.js');
+const W = REPO + '/workers/atlas-core/src/curio';
+const worker = (await import(W + '/app.js')).default;
+const A = await import(W + '/api/_auth.js');
 
 function makeD1(db = new DatabaseSync(':memory:')) {
   const isRead = (sql) => /^\s*SELECT/i.test(sql);

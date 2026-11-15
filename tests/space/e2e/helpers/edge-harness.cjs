@@ -34,8 +34,8 @@ const { makeKV, makeAuthD1 } = require('../../../workers/_harness.cjs');
 const REPO = process.env.SGX_EDGE_REPO || path.join(__dirname, '..', '..', '..', '..');
 const PROXY_PORT = Number(process.env.SGX_EDGE_PROXY_PORT || 8941);
 const HOSTS = ['styrigx.com'];
-/* 别的 Worker 的路由：日刻、奇趣的接口 Worker（workers/daymark-core、workers/curio-core 的 wrangler.toml；测试台里一律 404，只为让路由按线上取最具体的） */
-const OTHER_WORKER_TOMLS = ['workers/daymark-core/wrangler.toml', 'workers/curio-core/wrangler.toml'];
+/* 别的 Worker 的路由：奇趣、日刻的接口 Worker styrigx-atlas-core（workers/atlas-core/wrangler.toml；测试台里一律 404，只为让路由按线上取最具体的） */
+const OTHER_WORKER_TOMLS = ['workers/atlas-core/wrangler.toml'];
 
 /* ---------- 证书（模块加载时同步生成，spec 的 test.use 要用 SPKI） ---------- */
 const CERT_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sgx-edge-'));

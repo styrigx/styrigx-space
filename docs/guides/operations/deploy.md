@@ -40,12 +40,12 @@
 
 ```
 quality + passkey-e2e
-  ├─ deploy-ai-worker ─┬─ deploy-status-worker ─ deploy-account-worker ─ deploy-space-core ─┬─ deploy-curio-core   ─┐
-  │                    └─ rollback-ai-worker（后两步失败时）                                 └─ deploy-daymark-core ─┴─ build-and-deploy（Pages）
+  ├─ deploy-ai-worker ─┬─ deploy-status-worker ─ deploy-account-worker ─ deploy-space-core ─ deploy-atlas-core ─ build-and-deploy（Pages）
+  │                    └─ rollback-ai-worker（后两步失败时）
   └─ deploy-proxy-rules-worker
 ```
 
-4.1 依赖理由：站点核心的服务绑定（`ACCOUNT`、`STATUS`、`AI_SERVICE`）要求下游 Worker 先在；两个接口 Worker 绑定 `SPACE`，排在站点核心之后；Pages 最后。
+4.1 依赖理由：站点核心的服务绑定（`ACCOUNT`、`STATUS`、`AI_SERVICE`）要求下游 Worker 先在；接口 Worker `styrigx-atlas-core` 绑定 `SPACE`，排在站点核心之后；Pages 最后。
 
 4.2 每个 Worker 作业：应用 D1 迁移（如有）→ 核对迁移确已入库 → 记录线上版本 → `wrangler deploy` → 部署后核对（路由、冒烟）→ 失败则回滚到记录的版本。
 
@@ -80,8 +80,7 @@ quality + passkey-e2e
 | `deploy-account-worker` | `STYRIGX_ACCOUNT_DEPLOY` |
 | `deploy-ai-worker`、`rollback-ai-worker` | `STYRIGX_AI_DEPLOY` |
 | `deploy-status-worker` | `STYRIGX_STATUS_DEPLOY` |
-| `deploy-curio-core` | `STYRIGX_CURIO_CORE_DEPLOY` |
-| `deploy-daymark-core` | `STYRIGX_DAYMARK_CORE_DEPLOY` |
+| `deploy-atlas-core` | `STYRIGX_ATLAS_CORE_DEPLOY` |
 | `deploy-proxy-rules-worker` | `STYRIGX_PROXY_RULES_DEPLOY` |
 | `build-and-deploy`（及 passkey 预览） | `STYRIGX_SPACE_PAGES_DEPLOY` |
 | 全部 | `CLOUDFLARE_ACCOUNT_ID` |

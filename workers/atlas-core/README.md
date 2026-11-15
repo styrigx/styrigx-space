@@ -4,10 +4,8 @@ Atlas：内容层的接口 Worker。命名：带 `-core` 的是两层核心，`s
 
 ## 现在在哪一步
 
-**状态（2026-11-14）**：D1 / R2 `styrigx-atlas-core` 已建、数据已从旧两库一桶迁入并核对；本 Worker 已不挂路由部署、只读冒烟与线上逐字节一致。
-本 PR 带上切换后的样子：`wrangler.toml` 挂 `styrigx.com/curio/api/*`、`styrigx.com/daymark/api/*`；status 的 `JOB_CURIO` / `JOB_DAYMARK` 合成 `JOB_ATLAS`；ai 的 `CURIO` 改指本 Worker；CI 由 `deploy-atlas-core` 部署，`deploy-curio-core` / `deploy-daymark-core` 删除。
-切换窗口（每步先经 Gray 点头）：短暂只读 → 补拷增量 → 用路由接口把两条路由改指本 Worker → 合并本 PR → 观察 → 报清单下线旧 Worker / D1 / R2 和 `workers/curio-core`、`workers/daymark-core`。
-所有响应带 `X-Atlas-Runtime: worker`（产品头 `X-Curio-Runtime` / `X-Daymark-Runtime` 新旧 Worker 一样，靠这个分）。
+**状态**：2026-11-14 切换完成：本 Worker 挂 `styrigx.com/curio/api/*`、`styrigx.com/daymark/api/*`，由 CI 的 `deploy-atlas-core` 部署；status 经 `JOB_ATLAS` 调每小时任务，ai 的 `CURIO` 指本 Worker。旧 `styrigx-curio-core`、`styrigx-daymark-core` 及其 D1 / R2 已下线，仓库里的旧目录也已删除（2026-11-14 合并进 atlas-core）。
+所有响应带 `X-Atlas-Runtime: worker`（产品头 `X-Curio-Runtime` / `X-Daymark-Runtime` 照旧保留）。
 
 ## 入口
 
@@ -15,22 +13,22 @@ Atlas：内容层的接口 Worker。命名：带 `-core` 的是两层核心，`s
 src/index.js           部署入口：只接线（default、CurioReader、DaymarkReader、HourlyJob）
 src/app.js             按公开地址前缀分流：/curio/api/* → curio/app.js，/daymark/api/* → daymark/index.js，其他 404；runHourly 先奇趣后日刻
 src/rpc/daymark-reader.js DaymarkReader：给 styrigx-ai 的今日一句（R-35）
-src/rpc/hourly-job.js  HourlyJob：给 styrigx-status（切换后 JOB_CURIO / JOB_DAYMARK 合成一条）
-src/curio/             奇趣，workers/curio-core/src 原样平移（不含它的 index.js、rpc/hourly-job.js，由上面接手）；CurioReader 在 curio/rpc/reader.js
-src/daymark/           日刻，workers/daymark-core/src 原样平移
+src/rpc/hourly-job.js  HourlyJob：给 styrigx-status（JOB_ATLAS）
+src/curio/             奇趣：app.js、routes.js（访问表）、api/、search-index.js、photo-sweep.js、reader.js；CurioReader 在 curio/rpc/reader.js
+src/daymark/           日刻：index.js、routes.js（访问表）、api/、search-index.js、rpc/hourly-job.js
 ```
 
-旧两个 Worker 下线前，`src/curio/`、`src/daymark/` 必须和旧目录逐字一致（`tests/workers/atlas-core/core.test.mjs`）：改奇趣 / 日刻业务代码时两边一起改。访问档、守卫、路由表都在各自目录里，本 Worker 不另加。
+访问档、守卫、路由表都在 `src/curio/`、`src/daymark/` 各自目录里，本 Worker 不另加。单测：`tests/workers/atlas-core/`（`core.test.mjs` 分流 / 迁移 / 配置，`curio*.test.mjs`、`daymark*.test.mjs` 两边业务）。
 
 ## 绑定
 
-绑定名和旧两个 Worker 一字不差，业务代码不改：
+绑定名沿用旧两个 Worker 的（业务代码按这些名字取）：
 - D1 `styrigx-atlas-core`：`D1_FINDS`、`D1_DEVICES`、`D1_GAMES`、`D1_MOVIES`、`D1_MUSIC`（奇趣）、`D1_QUOTES`（日刻），同一个库。
 - R2 `styrigx-atlas-core`：`R2_PHOTOS`、`R2_MUSIC`，同一个桶；对象键和旧桶一样（icons/、imports/、photos/、music/…）。
 - 服务绑定 `SPACE` → `styrigx-space-core` 的 `SpaceVerifier`。
-- KV `KV_SEARCH_INDEX`（同旧两个 Worker；奇趣写 `site:curio`、日刻写 `site:daymark`）。
+- KV `KV_SEARCH_INDEX`（`styrigx-space-core` 那份全站搜索索引；奇趣写 `site:curio`、日刻写 `site:daymark`）。
 - 无 Cron（每小时由 status 调 HourlyJob）。
 
 ## 数据与迁移
 
-`migrations/` 重新起头：`0001_curio.sql` = 奇趣旧迁移 0001+0003+0004+0005 跑完的结构，`0002_daymark.sql` = 日刻旧迁移（不含 0003 种子句子）跑完的结构；只有结构，数据从旧库拷。之后的结构变更接着编号，已上线的文件不改名、不重新编号。旧两个目录的迁移留到旧库下线。
+`migrations/` 重新起头：`0001_curio.sql` = 奇趣旧迁移 0001+0003+0004+0005 跑完的结构，`0002_daymark.sql` = 日刻旧迁移（不含 0003 种子句子）跑完的结构；只有结构，数据 2026-11-14 从旧库拷入。之后的结构变更接着编号，已上线的文件不改名、不重新编号。旧两个目录（含种子迁移）已随旧 Worker 下线删除。

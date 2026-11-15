@@ -1,7 +1,8 @@
 {{ define "main" }}
 {{ $lang := .Lang }}{{ $tr := partialCached "common/tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
 {{/* 奇趣 › 电影（/curio/movies/，中文 /curio/zh/movies/；P4-3 奇趣拆页新增）：喜欢的电影，curio-movies.js 画。
-   只能进站看：页面和 /curio/api/movies 都在锁屏会话后面（网关 + 接口 Worker）；noindex（baseof），不进站点地图 / 全站搜索 / AI 召回。
+   收录：noindex（baseof 按 layout 只给本页和 404；清理项 10 把本页按「会话后才有内容」处理），不进站点地图。
+   注意：现行访问表里页面和 GET /curio/api/movies 都是 public（v5 S3 / Gray 2026-11-11），电影元数据也进 site:curio 搜索索引；本页是否改为公开收录待 Gray 定。
    卡片 = 海报（2:3）+ 片名 + 年份 · 导演 + 评分；点开看详情（原名、观看日期、短评）。
    能编辑（接口回 canWrite：账号会话 + curio.write，同发现 / 设备 / 游戏）：右下角「电影」新建，详情里编辑 / 删除；
    海报沿用设备照片流程（「移动和缩放」→ 长边 ≤1600、webp → /curio/api/photo?kind=movie）。无权限只读，看不到添加按钮。 */}}

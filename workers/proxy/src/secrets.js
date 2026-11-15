@@ -13,7 +13,7 @@ export async function readDbKey(env) {
       const s = await v.get();
       return typeof s === 'string' ? s : '';
     } catch (e) {
-      console.error('[proxy-rules] secret read failed: ' + DB_KEY);
+      console.error('[proxy] secret read failed: ' + DB_KEY);
       return '';
     }
   }

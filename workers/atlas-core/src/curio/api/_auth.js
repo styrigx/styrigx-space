@@ -1,4 +1,4 @@
-// workers/curio-core/src/api/_auth.js
+// workers/atlas-core/src/curio/api/_auth.js
 // 接口鉴权（v6 P4，定稿 v5.3 §十二）：本 Worker 不持任何钥匙，只认 v6 会话（sgx-session）。
 // 经网关 SpaceVerifier.admit 问账号 Worker「这个会话能不能走这条路由」（路由表 ROUTE_ACCESS + permits 只在账号 Worker），本文件只认结论：
 //   - 三档守卫（v5 S3，GUARDS；app.js 按 routes.js ROUTE_ACCESS 套用，每个请求只套一次）：

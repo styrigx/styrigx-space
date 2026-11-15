@@ -1,9 +1,8 @@
-// styrigx-curio-core 的全站搜索索引（src/search-index.js，KV styrigx-space-core 的 site:curio）：
+// 奇趣的全站搜索索引（workers/atlas-core/src/curio/search-index.js，2026-11-14 合并进 atlas-core，KV styrigx-space-core 的 site:curio）：
 // - 条目映射：收藏 / 设备 / 游戏各出 zh + en 两条；标题、副标题（页签 · 分类 / 类型 / 平台）、text、url 深链
 // - 私密：分类或收藏任一私密 → private:true；私密设备 / 游戏同样；公开的不带 private
 // - 改内容的写接口（links / items / import）成功后 ctx.waitUntil 重建并 put；读接口、失败的写、照片接口不重建
 // - Cron scheduled 重建；KV / D1 出错、绑定缺失都只打日志不抛，接口照常回答
-// - wrangler.toml：KV_SEARCH_INDEX 绑定 + 每小时 Cron
 // SQL 用 node:sqlite 真跑（CI 用 Node 22）。运行：node --test tests/workers/search-index.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,9 +13,9 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const W = REPO + '/workers/curio-core';
-const worker = (await import(W + '/src/app.js')).default;
-const SI = await import(W + '/src/search-index.js');
+const W = REPO + '/workers/atlas-core/src/curio';
+const worker = (await import(W + '/app.js')).default;
+const SI = await import(W + '/search-index.js');
 
 /** node:sqlite 包成 D1 的样子（batch 是一个事务；SELECT 回 results） */
 function makeD1(db = new DatabaseSync(':memory:')) {
@@ -263,10 +262,4 @@ test('Cron 兜底：内容和 KV 里那份一样就不写；内容变了、旧�
   await SI.rebuildSearchIndex({ D1_FINDS: db, KV_SEARCH_INDEX: kv });
   assert.equal(kv.puts, 2);
   assert.equal(kv.reads, 0);
-});
-
-test('wrangler.toml：KV_SEARCH_INDEX 绑 styrigx-space-core（进站 v3 L2b 前 styrigx-space-gateway）、不自带 Cron', () => {
-  const t = readFileSync(W + '/wrangler.toml', 'utf8');
-  assert.match(t, /\[\[kv_namespaces\]\]\nbinding = "KV_SEARCH_INDEX"\nid = "4bcdb84f205541b9b6c8d230bc2b106f"/);
-  assert.match(t, /^crons = \[\]$/m, '不自带 Cron：每小时由 status 经 JOB_CURIO 调 HourlyJob（2026-11-10）');
 });

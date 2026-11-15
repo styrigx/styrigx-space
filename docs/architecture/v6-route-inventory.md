@@ -134,7 +134,7 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | GET | `/api/prefs` | **user** |  |  | 保留 | 读设置云同步（全站一份配置，归站长 styrigx；普通用户只能看） | Gray 2026-11-11 定 user：P2 加 uid（uid 只取服务端会话） |
 | POST | `/api/prefs` | **webmaster** |  |  | 保留 | 写设置云同步（全站一份配置） | 定稿 v5.5 §五：avatar、prefs 写入 webmaster（站长 + root） |
 
-### 奇趣接口 styrigx-curio-core（styrigx.com/curio/api/*，不经网关）
+### 奇趣接口 styrigx-atlas-core（styrigx.com/curio/api/*，不经网关）
 
 | 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
@@ -159,7 +159,7 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | HEAD | `/curio/api/music-stream` | **listen** |  |  | 保留 | 同上 |  |
 | POST | `/curio/api/music-upload` | **curio-write** |  |  | 保留 | 上传音轨 / 封面 |  |
 
-### 日刻接口 styrigx-daymark-core（styrigx.com/daymark/api/*，不经网关）
+### 日刻接口 styrigx-atlas-core（styrigx.com/daymark/api/*，不经网关）
 
 | 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
@@ -199,7 +199,7 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | status | `GET /summary` | space-core GET /api/status（STATUS） | 监测数据（status 组） |
 | account | `AccountService.fetch` | space-core FORWARDING（ACCOUNT） | 上表 /api/account*、/api/avatar*、/api/profile、/api/prefs、/api/identity、/avatar/* |
 | account | `AccountVerifier.admit / auditRoot` | space-core（ACCOUNT_VERIFIER） | v6 会话判定（只读）/ root 特权操作留痕（v6 P4 起 authorize 删除） |
-| space-core | `SpaceVerifier.admit / auditRoot` | curio-core、daymark-core（SPACE） | admit / auditRoot 原样转给账号 Worker（v6 P4 起 session、ShareJanitor、conclusion 删除） |
+| space-core | `SpaceVerifier.admit / auditRoot` | atlas-core（SPACE） | admit / auditRoot 原样转给账号 Worker（v6 P4 起 session、ShareJanitor、conclusion 删除） |
 | account | `AccountJanitor.purgeExpiredUsers` | styrigx-status 每日一轮（JOB_ACCOUNT） | 到期满 30 天的用户自动删除（v6 P2c，定稿 v5 §八） |
-| proxy-rules | `ProxyAdmin.*` | account POST /api/account/proxy（PROXY） | 代理订阅管理（root 档在调用方） |
-| curio-core / daymark-core / ai | `HourlyJob.run` | styrigx-status 每小时一轮 | 搜索索引 / 照片清理等定时任务 |
+| proxy | `ProxyAdmin.*` | account POST /api/account/proxy（PROXY） | 代理订阅管理（root 档在调用方） |
+| atlas-core / ai | `HourlyJob.run` | styrigx-status 每小时一轮 | 搜索索引 / 照片清理等定时任务 |

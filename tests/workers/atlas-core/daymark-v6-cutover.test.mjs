@@ -4,7 +4,7 @@
  * - DELETE /daymark/api/collections = root（结构删除）：styrigx 403，root 200 并经 auditRoot 留痕 rm-bulk
  * - 公开读的私密句子与 canWrite：action private（= daymark-write）
  * 替身 ../_v6admit.mjs 用真的 ROUTE_ACCESS + permits。
- * 运行：node --test tests/workers/daymark-core/v6-cutover.test.mjs
+ * 运行：node --test tests/workers/atlas-core/daymark-v6-cutover.test.mjs
  */
 import '../account/_cf-workers.mjs';
 import { test } from 'node:test';
@@ -15,7 +15,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { v6Space } from '../_v6admit.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const worker = (await import(REPO + '/workers/daymark-core/src/index.js')).default;
+const worker = (await import(REPO + '/workers/atlas-core/src/daymark/index.js')).default;
 
 function makeD1(db = new DatabaseSync(':memory:')) {
   const stmt = (sql, args = []) => ({

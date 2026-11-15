@@ -144,7 +144,7 @@ export function parseItemOp(kind, b) {
 }
 
 /**
- * 这一种条目（device / game）的表所在的 D1 绑定（D1_DEVICES / D1_GAMES，同一个库 styrigx-curio-core）；没绑返回 null
+ * 这一种条目（device / game）的表所在的 D1 绑定（D1_DEVICES / D1_GAMES，同一个库 styrigx-atlas-core）；没绑返回 null
  * @param {Record<string, any>|undefined} env @param {string} kind
  */
 export function itemDb(env, kind) {

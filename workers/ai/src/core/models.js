@@ -1,5 +1,6 @@
 /**
- * @fileoverview 模型登记（P4-2）：可用模型列表 + 默认模型，从 KV 读，换模型改 KV 值即可，不用补丁部署。
+ * @fileoverview 模型登记（P4-2）：可用模型列表 + 默认模型，从 KV 读；加减模型、换默认改 KV 值即可。
+ * Gemini 退役 id 的映射在代码里（core/gemini.js RETIRED_GEMINI，ADR-0004 §2.6）：新退役一个 id 要改代码部署，不靠改 KV。
  *
  * KV：KV_SEARCH_INDEX（和索引同一个命名空间，本 Worker 只读）键 MODELS_KEY = 'ai:models'，值 JSON：
  *   { "default": "<id>", "models": [{ "id", "label", "provider": "workers-ai" | "gemini" }] }

@@ -1,9 +1,9 @@
 /**
- * @fileoverview 只读固定查询（2026-11 AI 语义召回）：问句里认出意图 → 调奇趣的服务绑定 CURIO（curio-core 的 CurioReader.query）→ 结果当一条上下文。
+ * @fileoverview 只读固定查询（2026-11 AI 语义召回）：问句里认出意图 → 调奇趣的服务绑定 CURIO（atlas-core 的 CurioReader.query）→ 结果当一条上下文。
  *
- * 模型不写 SQL、也不挑查询：这里用规则认意图，参数只有数字 n 和问句原文 q（curio-core 那边参数化 bind，见 workers/curio-core/src/reader.js）。
+ * 模型不写 SQL、也不挑查询：这里用规则认意图，参数只有数字 n 和问句原文 q（atlas-core 那边参数化 bind，见 workers/atlas-core/src/curio/reader.js）。
  *   recentMovies { n }：问句提到电影 + 最近 / 新 / recent…；n 从问句里取（阿拉伯数字或一到二十的中文数字），默认 5，最多 20。
- *   music { q }：问句提到专辑 / 曲目 / 歌 / 歌手 / album / track / song / artist…；curio-core 找专辑名或歌手名是问句子串的专辑，回曲目表。
+ *   music { q }：问句提到专辑 / 曲目 / 歌 / 歌手 / album / track / song / artist…；atlas-core 找专辑名或歌手名是问句子串的专辑，回曲目表。
  *   daymarkToday {}：问句同时提到「今天 / 今日 / today」和「日刻 / daymark」（或直接说「今日一句」）→ 日刻的服务绑定 DAYMARK（atlas-core 的 DaymarkReader.today），
  *     回北京时间今天的那一句（只出公开句子，同 GET /daymark/api/today）。R-35（2026-11-15）：site:daymark 索引没有日期绑定，问「日刻今天那句是什么」召回不到。
  * 没绑 CURIO / DAYMARK / 调用超时（FIXED_TIMEOUT_MS）/ 出错 → 这一条不要（只打日志），不影响回答。
@@ -55,7 +55,7 @@ export function detectIntents(q) {
   return out;
 }
 
-/** 奇趣子页地址：英文（默认语言）无前缀，其他语言 /<语言>/（同 curio-core search-index.js pageUrl） @param {string} lang @param {string} section */
+/** 奇趣子页地址：英文（默认语言）无前缀，其他语言 /<语言>/（同 workers/atlas-core/src/curio/search-index.js pageUrl） @param {string} lang @param {string} section */
 function pageUrl(lang, section) {
   return CURIO_URL + (lang && lang !== 'en' ? '/' + lang + '/' : '/') + section + '/';
 }
@@ -67,7 +67,7 @@ function dur(s) {
   return Math.floor(n / 60) + ':' + String(Math.floor(n % 60)).padStart(2, '0');
 }
 
-/* 上下文标签：英文是底（EN），其他语言是覆盖层（LAYERS），缺的键回退英文（同 curio-core search-index.js 的语言包写法） */
+/* 上下文标签：英文是底（EN），其他语言是覆盖层（LAYERS），缺的键回退英文（同 workers/atlas-core/src/curio/search-index.js 的语言包写法） */
 const EN = {
   today: "Daymark · today's quote", todayWhere: 'Daymark', todayDay: 'Date (Beijing time): ', todayTrans: 'Translation: ', todayBy: 'By: ',
   movies: 'Recently watched movies', moviesWhere: 'Curio › Movies', music: 'Albums and tracks', musicWhere: 'Curio › Music', single: 'single',

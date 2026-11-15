@@ -1,16 +1,16 @@
-// workers/curio-core/src/api/_music.js
+// workers/atlas-core/src/curio/api/_music.js
 // 奇趣「音乐」私人子页（/curio/music/）的数据层：表结构、权限、校验、读写、播放令牌、Range。下划线开头：不是接口。
 //
 // 三层（v5 S3；档在 routes.js ROUTE_ACCESS，守卫在 _auth.js，app.js 套用）：
 //   歌单 / 封面 public（GET /api/music 只回元数据：专辑名、艺术家、年份、有没有封面、曲目号 / 名 / 时长；没有任何音频地址、R2 key、令牌）；
 //   听 entry（进站即可，含分享链接进来的 by=link：POST /api/music-play 签令牌、GET /api/music-stream 取音频）；
 //   上传 / 管理 music（进站 + 账号会话 + curio.write，与其他写接口同一套作用域）。写另要同源（403 origin）。
-// 表（D1 styrigx-curio-core，绑定 D1_MUSIC；迁移 migrations/0004_movies_music.sql + 0005_music_kind_artists.sql，MUSIC_SCHEMA 只兜底全新的库，两边一致，测试核对）：
+// 表（D1 styrigx-atlas-core，绑定 D1_MUSIC；迁移 migrations/0001_curio.sql，MUSIC_SCHEMA 只兜底全新的库，两边一致，测试核对）：
 //   music_albums  专辑：名、艺术家、年份、封面（R2_MUSIC 的 key）、排序
 //   music_tracks  曲目：专辑、曲序、名、时长（秒）、音频（R2_MUSIC 的 key、类型、字节数）、可选歌词 LRC
 //   music_tokens  播放令牌：随机 32 字节（crypto.getRandomValues，base64url），一张专辑一枚，10 分钟有效；
 //                 有效期内可以多次 Range 请求（拖进度）。不用 HMAC、不要任何 secret。签新令牌时顺手删过期的。
-// R2（绑定 R2_MUSIC，同一个桶 styrigx-curio-core）：music/<专辑 id>/<曲序>-<时间>.<扩展名>、music/<专辑 id>/cover-<时间>.<扩展名>。
+// R2（绑定 R2_MUSIC，同一个桶 styrigx-atlas-core）：music/<专辑 id>/<曲序>-<时间>.<扩展名>、music/<专辑 id>/cover-<时间>.<扩展名>。
 //   不在 photos/ 下，照片清扫（photo-sweep.js）不碰；删专辑 / 删曲目时当场删。
 // 不进全站搜索索引 / AI 召回、不进站点地图（search-index.js 不读这些表；页面 noindex）。
 import { err, isSameOrigin } from './_lib.js';

@@ -88,8 +88,8 @@ browser ──► styrigx.com/*            styrigx-space-core   space session, p
                                        ├─ service binding → styrigx-account   account and authorization (no public route)
                                        ├─ service binding → styrigx-ai        on-site AI chat
                                        └─ service binding → styrigx-status    monitoring and usage
-        ──► styrigx.com/curio/api/*   styrigx-curio-core    Curio API (D1 + R2)
-        ──► styrigx.com/daymark/api/* styrigx-daymark-core  Daymark API (D1)
+        ──► styrigx.com/curio/api/*   styrigx-atlas-core    Curio and Daymark API (one D1 + R2)
+        ──► styrigx.com/daymark/api/* styrigx-atlas-core
         ──► proxy.styrigx.com   styrigx-proxy   rule-set accelerating proxy
 ```
 

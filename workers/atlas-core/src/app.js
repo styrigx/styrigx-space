@@ -1,14 +1,13 @@
 /**
  * @fileoverview styrigx-atlas-core：内容层接口 Worker（Atlas 后端合并，2026-11-14 设计稿第一项）。
  *
- * 奇趣（src/curio/，原 workers/curio-core/src）、日刻（src/daymark/，原 workers/daymark-core/src）两份代码原样平移，
+ * 奇趣（src/curio/）、日刻（src/daymark/）两份代码 2026-11-14 从旧两个 Worker 原样平移过来（合并进 atlas-core），
  * 本文件只按公开地址前缀分流，不碰各自的访问档、守卫、路由表：
  *   /curio/api/*   → src/curio/app.js（X-Curio-Runtime）
  *   /daymark/api/* → src/daymark/index.js（X-Daymark-Runtime）
  *   其他           → 404
- * 所有响应另打 X-Atlas-Runtime: worker（切换路由后从外部确认接口走了本 Worker；产品头 X-Curio-Runtime / X-Daymark-Runtime 新旧 Worker 一样，分不出来）。
- * 公开路径不变，前端无感。两份代码在旧 Worker 下线（设计稿第 7 步）前要和旧目录逐字一致，
- * tests/workers/atlas-core/core.test.mjs 核对；改业务代码时两边一起改。
+ * 所有响应另打 X-Atlas-Runtime: worker（从外部确认接口走了本 Worker；产品头 X-Curio-Runtime / X-Daymark-Runtime 照旧）。
+ * 公开路径不变，前端无感。旧 Worker 已下线、旧目录已删，两份代码只在这里改。
  */
 import curio, { runHourly as runCurioHourly } from './curio/app.js';
 import daymark from './daymark/index.js';

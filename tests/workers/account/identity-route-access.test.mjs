@@ -19,8 +19,8 @@ const REPO = new URL('../../../', import.meta.url).pathname;
 const W = REPO + 'workers/';
 const gw = await import(W + 'space-core/src/router.js');
 const acc = await import(W + 'account/src/router.js');
-const curio = await import(W + 'curio-core/src/routes.js');
-const daymark = await import(W + 'daymark-core/src/routes.js');
+const curio = await import(W + 'atlas-core/src/curio/routes.js');
+const daymark = await import(W + 'atlas-core/src/daymark/routes.js');
 const proxy = await import(W + 'proxy/src/router.js');
 const ai = await import(W + 'ai/src/router.js');
 
@@ -36,8 +36,8 @@ function handled() {
   for (const [p, mod] of gw.API_ROUTES) add(p, mod, 'space-core/src/api' + p.slice(4) + '.js');
   for (const [p, mod] of acc.API_ROUTES) add(p, mod, 'account/src/api/' + (p.startsWith('/api/account/') ? 'account/' + p.slice(13) : p.slice(5)) + '.js');
   out.push({ host: RA.MAIN_HOST, path: '/avatar/:file', methods: ['GET'], generic: false, file: 'account/src/api/avatar-file.js' });
-  for (const [p, mod] of curio.API_ROUTES) add('/curio' + p, mod, 'curio-core/src/api' + p.slice(4) + '.js');
-  for (const [p, mod] of daymark.API_ROUTES) add('/daymark' + p, mod, 'daymark-core/src/api' + p.slice(4) + '.js');
+  for (const [p, mod] of curio.API_ROUTES) add('/curio' + p, mod, 'atlas-core/src/curio/api' + p.slice(4) + '.js');
+  for (const [p, mod] of daymark.API_ROUTES) add('/daymark' + p, mod, 'atlas-core/src/daymark/api' + p.slice(4) + '.js');
   return out;
 }
 
@@ -112,7 +112,7 @@ test('action：源码里出现的 action / op 都在表里；没写 action 用�
     assert.ok(r && r.actions, p + ' 要列 actions');
     for (const a of pick(f)) assert.ok(Object.prototype.hasOwnProperty.call(r.actions, a), p + ' 漏了 action ' + a);
   }
-  const music = readFileSync(W + 'curio-core/src/api/_music.js', 'utf8');
+  const music = readFileSync(W + 'atlas-core/src/curio/api/_music.js', 'utf8');
   for (const m of music.matchAll(/case '([a-z]+\.[a-z]+)'/g)) assert.ok(RA.levelOf('POST', '/curio/api/music', { action: m[1] }), 'music ' + m[1]);
   assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'album.del' }), 'root');
   assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'track.del' }), 'curio-write');

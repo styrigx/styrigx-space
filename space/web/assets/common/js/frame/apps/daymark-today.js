@@ -1,5 +1,5 @@
 /**
- * @fileoverview 日刻 · 今日一句（/daymark/api/today，公开只读；合并 PR3 起和主站同源，接口 Worker styrigx-daymark-core 挂在 styrigx.com/daymark/api/*）。
+ * @fileoverview 日刻 · 今日一句（/daymark/api/today，公开只读；合并 PR3 起和主站同源，接口 Worker styrigx-atlas-core 挂在 styrigx.com/daymark/api/*）。
  *
  * 主页 [03] 日刻（layouts/index.html #w-daymark，设计稿 .qt 强调线引言，整块点进日刻）用：
  * - paintDaymark()：画进模板里的 data-dm 槽位（text / trans / by / day / body / empty）
