@@ -4,9 +4,10 @@
  * 来源三层，后者盖前者：
  * 1. 构建期默认值：space/web/data/common/profile.yaml → baseof 输出的 <script id="sgx-profile-default" type="application/json">，
  *    模板也直接把默认值画进首帧（名字卡、页脚、锁屏头像替代文字等）。
- * 2. 本机缓存：localStorage sgx-profile（{v:1, p:{改过的字段}, t}），上次进门时从接口拿到的。
- *    锁屏（进门前不问接口）和子站 AI 窗口「联系我」读它。四站同源，同一份。云同步白名单不收这个键（prefs/cloud-sync.js syncKeys）。
- * 3. 运行时接口：GET /api/profile（进门即可，没账号会话也行）——只在锁屏已解锁的页面（<html data-sgx-lock-session="valid">）请求，
+ * 2. 本机缓存：localStorage sgx-profile（{v:1, p:{改过的字段}, t}），上次从接口拿到的。
+ *    子站 AI 窗口「联系我」等读它。四站同源，同一份。云同步白名单不收这个键（prefs/cloud-sync.js syncKeys）。
+ * 3. 运行时接口：GET /api/profile（公开）。已进站页面（<html data-sgx-lock-session="valid">）加载时就问；访客不在加载时问，
+ *    打开登录小展示卡时才问（R-33 Gray 2026-11-14 22:40：访客的卡要显示站长名片；按需请求，访客浏览页面不多发请求），
  *    回来的非 null 字段覆盖默认值并写回缓存。
  *
  * 页面上要跟着资料变的元素标 data-sgx-profile="<字段>"（name / nickname / motto / email），默认改文字；
@@ -162,7 +163,7 @@ export function applyProfile(p, root) {
   });
 }
 
-/** 锁屏已解锁（网关首帧注入）：只有这时才问接口 */
+/** 已进站（网关首帧注入 valid）：加载时就问接口；访客等打开账号卡时再问（frame/account/window.js） */
 function doorOpen() {
   return document.documentElement.getAttribute('data-sgx-lock-session') === 'valid';
 }
@@ -224,7 +225,7 @@ export function saveProfile(changes) {
 let inited = false;
 
 /**
- * 全站：页面上有 [data-sgx-profile] 才动——先用本机缓存画，再（已进门时）问接口。没有这类元素的页面什么都不做、不发请求。
+ * 全站：页面上有 [data-sgx-profile] 才动——先用本机缓存画，再（已进站时）问接口；访客打开账号卡时才问（R-33）。没有这类元素的页面什么都不做、不发请求。
  * apps/core.js initCore 调。
  */
 export function initProfile() {
@@ -241,12 +242,12 @@ export function initProfile() {
 }
 
 /**
- * 2c：页面标记就地切成 valid（v6 su 之后顶栏发 window 'sgx:session' { ok: true, live: true }）→ 重新问一次 /api/profile（本页之前没进门、没问过，
+ * 2c：页面标记就地切成 valid（v6 su 之后顶栏发 window 'sgx:session' { ok: true, live: true }）→ 重新问一次 /api/profile（换了身份，
  * 或问的是上一个身份的）。页面上没有 [data-sgx-profile] 不动。initProfile 里挂上。
  * @returns {Promise<any>|null}
  */
 export function refreshProfile() {
-  if (typeof document === 'undefined' || !document.querySelector('[data-sgx-profile]') || !doorOpen()) return null;
+  if (typeof document === 'undefined' || !document.querySelector('[data-sgx-profile]')) return null;
   pending = null;
   return fetchProfile();
 }

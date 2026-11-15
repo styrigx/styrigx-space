@@ -1,12 +1,14 @@
 /**
  * @fileoverview 账号卡片（头像点开，S9，Gray 2026-11-11：只展示）。
  *
- * 已登录（v6 身份，非救援；站长与 root 才打得开，普通用户头像不可点，定稿 v5.5 §七）：头像 · 姓名 · 昵称 · 已登录，下面几行——
+ * 站长与 root（v6 身份，非救援）：头像 · 姓名 · 昵称 · 已登录，下面几行——
  *   个人资料 › · 设备 › · 退出登录 lock（定稿 v5.5 §七「账号页只留个人信息卡、设备卡、一个退出按钮 lock（回访客、清整栈）……沿用现有账号页，去掉账号安全卡，
  *   原 exit 按钮改成 lock」，Gray 2026-11-11 20:10 / 20:20；行和外观同 v5 卡片；应用授权行随应用授权删除，定稿 v5.3 §十二）。
- * 没登录：头像（灰）· 未登录，一行「登录 su root」（v5 卡片，命令改 su root，Gray 11-11 17:51）。
+ * 普通用户（uid 1001 起，R-33 Gray 2026-11-14 22:40）：小展示卡——站点头像 · 自己的用户名 · 已登录，只一行「退出登录 lock」，没有编辑类内容（不显示编辑、个人资料、设备）。
+ * 没登录（访客，R-33）：点头像弹登录小展示卡——站点头像 · 站长名片（GET /api/profile 公开，访客在卡片打开时才问，回来后经 PROFILE_EVENT 重画）· 访客，一行「登录 su 」；
+ *   点了仍是收起卡片、打开终端预填命令，不做 GUI 登录页（Gray 2026-11-14 23:06）。预填同原先访客点头像的「su 」（定稿 v5.2 §七）。
  * 卡片里没有命令行：点一行（或头像 / 编辑）= 收起卡片、打开全站终端、输入行预填对应的命令（不替人回车）：
- *   个人资料 → profile · 设备 → device（站长直读，定稿 v5.5 §七）· 退出登录 → lock · 登录 → su root。
+ *   个人资料 → profile · 设备 → device（站长直读，定稿 v5.5 §七）· 退出登录 → lock · 登录 → su （R-33，不强制 root）。
  *   密码与通行密钥只走终端 passwd、passkey（定稿 v5.5 §七，不做账号安全卡）。
  * v6 P4（定稿 v5.2 §七「访客点击预填 su 」、§十三 删旧会话）起登录状态只看终端的 v6 身份（who.v6()），不再问旧的 GET /api/account、
  * 不再读写旧登录标记 cookie sgx-account-signed-in。
@@ -14,7 +16,7 @@
  * 只 import lib/、shell/（check-layers 规则 3）。文案在外壳字符串表 account.*（frame/i18n），四个站同一份。
  */
 import { esc } from '../../core/util.js';
-import { readCache, effectiveProfile, profileDefaults, PROFILE_EVENT } from '../../prefs/profile.js';
+import { readCache, effectiveProfile, profileDefaults, fetchProfile, PROFILE_EVENT } from '../../prefs/profile.js';
 import { flatStrings } from '../term/core/strings.js';
 import { layerFromPath } from './commands.js';
 
@@ -26,7 +28,7 @@ export { layerFromPath };
 
 /** 卡片的行 → 终端里预填的命令（行和外观同 v5 卡片；「登录」行 sudo root → su root，Gray 11-11 17:51，定稿 §十三 P4；
  * P4-3：账号安全行删除、退出行 exit → lock，定稿 v5.5 §七） */
-export const CARD_CMDS = Object.freeze({ profile: 'profile', devices: 'device', lock: 'lock', login: 'su root' });
+export const CARD_CMDS = Object.freeze({ profile: 'profile', devices: 'device', lock: 'lock', login: 'su ' });
 
 /**
  * 挂到 #sgx-acct 上。
@@ -49,7 +51,7 @@ export function mountAccountWindow(o) {
   const root = doc.createElement('div');
   root.className = 'sgx-at';
   sheet.appendChild(root);
-  /** '' 未知 · in · guest */
+  /** '' 未知 · in（站长 / root）· user（普通用户）· guest */
   let st = '';
 
   /** @param {string} s */
@@ -69,21 +71,36 @@ export function mountAccountWindow(o) {
       '<span class="sgx-at-k"><span class="sgx-pop-k">' + esc(r.k) + '</span></span>' +
       '<span class="sgx-pop-v">' + esc(r.v || '') + '</span>' + (r.chev ? '<span class="sgx-pop-chev" aria-hidden="true">›</span>' : '') + '</button>';
   }
-  /** 卡片头：头像 · 名字 · 状态 @param {string} run 点头像 / 编辑跑哪条 */
+  /** 卡片头：头像 · 名字 · 状态 @param {string} run 点头像 / 编辑跑哪条（'' = 只展示，不可点） */
   function head(run) {
     const p = effectiveProfile(readCache(), profileDefaults());
+    const u = me();
     const navImg = /** @type {HTMLImageElement|null} */ (doc.querySelector('#site-nav .sgx-tb-avatar'));
     const src = navImg ? navImg.src.replace(/\/avatar\/\d+\.webp/, '/avatar/192.webp') : '/avatar/192.webp';
-    const stateTxt = st === 'in' ? '<i aria-hidden="true">✓</i> ' + esc(t('common.signedIn')) : esc(t('session.guest'));
-    return '<div class="sgx-pop-me"><button type="button" class="sgx-pop-me-a" data-at-run="' + esc(run) + '"><img src="' + esc(src) + '" alt="" width="48" height="48" class="sgx-pop-avatar" data-sgx-avatar="192">' +
-      '<span class="sgx-pop-who"><b translate="no" data-sgx-personal>' + esc(p.name) + '</b><small><span translate="no" data-sgx-personal>' + esc(p.nickname) + '</span><span class="sgx-pop-state"> · ' + stateTxt + '</span></small></span></button>' +
+    const signed = st === 'in' || st === 'user';
+    const stateTxt = signed ? '<i aria-hidden="true">✓</i> ' + esc(t('common.signedIn')) : esc(t('session.guest'));
+    /* 普通用户：名字写自己的用户名（头像仍是站点头像，定稿 v5.5 §七），副行不写站长昵称 */
+    const whoHtml = st === 'user' && u
+      ? '<span class="sgx-pop-who"><b translate="no">' + esc(u.name) + '</b><small><span class="sgx-pop-state">' + stateTxt + '</span></small></span>'
+      : '<span class="sgx-pop-who"><b translate="no" data-sgx-personal>' + esc(p.name) + '</b><small><span translate="no" data-sgx-personal>' + esc(p.nickname) + '</span><span class="sgx-pop-state"> · ' + stateTxt + '</span></small></span>';
+    const img = '<img src="' + esc(src) + '" alt="" width="48" height="48" class="sgx-pop-avatar" data-sgx-avatar="192">';
+    const a = run
+      ? '<button type="button" class="sgx-pop-me-a" data-at-run="' + esc(run) + '">' + img + whoHtml + '</button>'
+      : '<div class="sgx-pop-me-a">' + img + whoHtml + '</div>';
+    return '<div class="sgx-pop-me">' + a +
       (st === 'in' ? '<button type="button" class="sgx-pop-edit" data-at-run="' + esc(run) + '">' + esc(t('common.edit')) + '</button>' : '') + '</div>';
   }
 
   function render() {
-    root.setAttribute('data-at-layer', st === 'in' ? 'home' : 'guest');
+    root.setAttribute('data-at-layer', st === 'in' ? 'home' : st === 'user' ? 'user' : 'guest');
+    if (st === 'user') {
+      root.innerHTML = head('') + '<div class="sgx-pop-list">' + row({ k: t('common.signOut'), v: CARD_CMDS.lock, run: CARD_CMDS.lock, cls: 'sgx-pop-row--acc' }) + '</div>';
+      return;
+    }
     if (st !== 'in') {
-      root.innerHTML = head(CARD_CMDS.login) + '<div class="sgx-pop-list">' + row({ k: t('session.signIn'), v: CARD_CMDS.login, run: CARD_CMDS.login, cls: 'sgx-pop-row--acc', attrs: ' translate="no"' }) + '</div>';
+      /* 访客：页面加载时不问公开名片，开卡时才问（同页只发一次；回来后 PROFILE_EVENT 重画） */
+      fetchProfile();
+      root.innerHTML = head(CARD_CMDS.login) + '<div class="sgx-pop-list">' + row({ k: t('session.signIn'), v: CARD_CMDS.login.trim(), run: CARD_CMDS.login, cls: 'sgx-pop-row--acc', attrs: ' translate="no"' }) + '</div>';
       return;
     }
     root.innerHTML = head(CARD_CMDS.profile) +
@@ -109,7 +126,7 @@ export function mountAccountWindow(o) {
   /** 打开时（topbar/panel.js 的 onOpen）：按终端的 v6 身份画（数据源从旧 GET /api/account 改接 v6，外观不变） */
   function onOpen() {
     const u = me();
-    setSt(u ? 'in' : 'guest');
+    setSt(!u ? 'guest' : u.root || u.webmaster === true ? 'in' : 'user');
     render();
   }
   return { onOpen: onOpen, onClose: function () {}, _state: function () { return { st: st }; } };

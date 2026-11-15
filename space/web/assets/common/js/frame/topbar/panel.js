@@ -14,8 +14,8 @@
  * - 外观：PALETTE 色板列表 + 恢复默认（2026-11-12 调色板 v4：MODE 三段删除，深浅只由调色板决定）。
  * - 盾牌（v5 S6；v6 P4-3 起 = 身份徽章四档，定稿 v5.5 §七）：不开窗口，打开终端按身份预填——访客 `su `（GUEST_LINE）、普通用户 `exit`、站长 `su root`、root `exit`（只预填、回车才生效）。
  *   旧地址 #sec / [data-sec-open] 同样只打开终端（访客预填）。v6 P4 起旧的「退出进站会话 [y/N]」（钥匙层 lock）随旧会话删除。
- * - 头像 = whoami（定稿 v5.5 §七）：访客点 = 打开终端预填 `su `；站长与 root 点 = 打开账号页；普通用户（uid 1001 起）的头像只作装饰、不可点；头像一份，归站长。
- *   页面没有网关标记（本地 / 测试构建）且没有 v6 身份时点了开账号卡片（只展示，点一行 = 打开终端预填命令）。
+ * - 头像 = whoami（定稿 v5.5 §七）：头像一份，归站长。R-33（Gray 2026-11-14）起谁点都弹账号小展示卡：访客 = 登录卡（登录 → 终端预填 `su `）；普通用户 = 只有 lock；站长与 root = 原账号卡。
+ *   卡片只展示，点一行 = 收起卡片、打开终端预填命令（account/window.js）。
  * - 音乐图标（音乐方案 2c）：mountMusic——没开就弹出播放器小窗（手机是新标签页）、已开就切过去、被拦直接跳到播放器页；单窗口。
  * - >_ 终端按钮（v5 S6）：开合全站终端（同 Ctrl / ⌘ K）。
  * - 终端（v5 S5 终端合一）：调用方传 terminal（term/terminal.js 整个模块）、identityTerm（v6 身份层 identity/layer.js）、accountTerm（终端里的账号层
@@ -512,8 +512,7 @@ export function mountTopbar(o) {
   let openAcct = function () {};
   /** 打开终端、输入行预填一条命令（账号卡片的行、页面入口的子页） @type {(cmd: string) => void} */
   let termPrefill = function () {};
-  /* 访客（没有 v6 身份）：判断同步看终端身份（首帧 = 网关注入的页面标记，问过服务端以回答为准）；页面没有网关标记（本地 / 测试构建）不当访客。
-     捕获阶段挂在头像自己身上：比 wire 的冒泡监听先到，拦下就到此为止 */
+  /* 访客（没有 v6 身份）：判断同步看终端身份（首帧 = 网关注入的页面标记，问过服务端以回答为准）；页面没有网关标记（本地 / 测试构建）不当访客。盾牌徽章分档用 */
   const avGuest = function () {
     if (!who) return false;
     const pg = doc.documentElement.getAttribute('data-sgx-lock-session');
@@ -537,18 +536,8 @@ export function mountTopbar(o) {
     return t === 'guest' || !who || who.get() === 'nobody' ? GUEST_LINE : '';
   };
   /* 头像 = whoami（定稿 v5.5 §七）：全站只有一份配置，头像归站长——谁登录都显示站点头像（不再按 uid 取 /avatar/u<uid>-*），root 叠一个「#」标记；
-     站长与 root 点头像打开账号页；普通用户（uid 1001 起）的头像只作装饰、不可点击；访客点头像 = 预填「su 」。 */
-  /** 普通用户（不是站长、不是 root）：头像不可点（定稿 v5.5 §七） */
-  const avDecor = function () {
-    const u = who && who.v6 ? who.v6() : null;
-    return !!(u && !u.root && u.webmaster !== true);
-  };
-  /** 头像该预填的命令：只有访客预填 su （已登录 → ''，交给账号页） */
-  const avV6Cmd = function () {
-    const u = who && who.v6 ? who.v6() : null;
-    if (!u) return avGuest() ? GUEST_LINE : '';
-    return '';
-  };
+     R-33（Gray 2026-11-14 22:40 / 23:06）起谁点头像都弹账号小展示卡（account/window.js 按身份画三种）：
+     站长与 root = 原账号卡；普通用户 = 去掉编辑类、只留 lock；访客 = 登录卡（登录按钮仍是终端预填命令）。不再直接开终端、不再有不可点的头像。 */
   const paintAvV6 = function () {
     if (!acctBtn) return;
     const u = who && who.v6 ? who.v6() : null;
@@ -573,30 +562,9 @@ export function mountTopbar(o) {
     if (u) acctBtn.setAttribute('data-sgx-v6', u.root ? 'root' : 'user');
     else acctBtn.removeAttribute('data-sgx-v6');
   };
-  const paintAv = function () {
-    if (!acctBtn) return;
-    /* 普通用户：纯装饰（同访客时代的死按钮写法 aria-disabled，外观不变） */
-    if (avDecor()) acctBtn.setAttribute('aria-disabled', 'true');
-    else acctBtn.removeAttribute('aria-disabled');
-  };
   if (acctBtn) {
-    /* 访客：点头像 = 打开终端预填 su （不开账号卡片）；已登录不拦，冒泡给账号卡片 */
-    acctBtn.addEventListener('click', function (e) {
-      /* 普通用户的头像不可点（定稿 v5.5 §七）：什么都不开，也不按链接走 */
-      if (avDecor()) { e.preventDefault(); e.stopImmediatePropagation(); return; }
-      const c = avV6Cmd();
-      if (!c) return;
-      const me2 = /** @type {MouseEvent} */ (e);
-      if (me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      termPrefill(c);
-    }, true);
-    /* 访客的中键 / 辅助键点（auxclick）不按链接走（账号卡片只给已进站的人） */
-    acctBtn.addEventListener('auxclick', function (e) { if ((avGuest() && !(who && who.v6 && who.v6())) || avDecor()) e.preventDefault(); }, true);
-    paintAv();
     paintAvV6();
-    if (who) { who.on(paintAv); who.on(paintAvV6); }
+    if (who) who.on(paintAvV6);
   }
   /* 盾牌身份徽章（定稿 v5.5 §七）：四档图形（CSS 按 data-sgx-tier 换部件与颜色，partials/common/icon.html tb-shield）。
      没有 v6 身份且页面不是网关标记的访客（本地 / 测试构建）→ 不写档，原样 */
