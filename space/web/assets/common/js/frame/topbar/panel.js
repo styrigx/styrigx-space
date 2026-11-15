@@ -895,6 +895,8 @@ export function mountTopbar(o) {
     window.addEventListener(SESSION_EVENT, function (/** @type {any} */ e) {
       const d = e && e.detail;
       if (!backToAi || !d || !d.live || !d.ok) return;
+      /* 终端已经关了（Esc / × / 点外部）= 放弃这一趟；不靠 close 事件先到（它排在任务队列里，CI 上会晚于这条 session 事件） */
+      if (!termDlg || !termDlg.open) { backToAi = false; return; }
       backToAi = false;
       closeAll(function () { if (ai && !ai.ms.isOpen()) ai.ms.open(); });
     });
