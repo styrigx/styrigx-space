@@ -149,7 +149,7 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(ai.locator('.st-meta-last')).toHaveText('超时');
       await expect(ai.locator('.st-meta-last')).toHaveAttribute('data-ok', '0');
       await expect(ai.locator('.st-pct')).toHaveText('可用率 99.78%');
-      await expect(page.locator('.st-card[data-state="up"]')).toHaveCount(2);
+      await expect(page.locator('.st-card[data-state="up"]')).toHaveCount(4);
       const first = page.locator('#st-inc .st-inc').first();
       await expect(first).toHaveAttribute('data-open', '1');
       await expect(first.locator('.st-inc-site')).toHaveText('AI 助手');

@@ -130,7 +130,7 @@ test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字�
       assert.deepEqual(sk.langs, ['en', 'system', 'zh'], at + '：lang EN / Auto / 中文（2026-11-09 Auto 在中间）');
       assert.deepEqual(sk.layout, ['phone', 'auto', 'desktop'], at + '：layout Mobile / Auto / DeX（2026-11-09 Auto 在中间）');
       assert.deepEqual(sk.acts, ['term'], at + '：terminal（v5 S6 去掉 lock；v6 P4 拿掉分享磁贴，Gray 11-11 17:47）');
-      assert.deepEqual(sk.status, ['space', 'blog', 'curio', 'daymark', 'gray-ai', 'auth'], at + '：STATUS 六个单元');
+      assert.deepEqual(sk.status, ['space', 'atlas', 'account', 'proxy', 'gray-ai'], at + '：STATUS 五个单元（P4 状态页五格）');
       assert.deepEqual(sk.modes, [], at + '：没有 MODE（调色板 v4：每套一个模式，2026-11-12）');
       assert.equal(sk.swatches, 25, at + '：25 套色板');
       assert.deepEqual(sk.win, ['home', 'blog', 'curio', 'daymark'], at + '：页脚窗口');
