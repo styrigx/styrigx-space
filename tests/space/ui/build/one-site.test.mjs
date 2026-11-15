@@ -178,7 +178,17 @@ test('子站目录不带 Pages 配置和根文件，也没有 Pages Functions', 
       assert.equal(existsSync(path.join(REPO, 'space/web/static', site, f)), false, `space/web/static/${site}/${f}`);
     }
   }
-  assert.equal(read('space/web/static/robots.txt'), 'User-agent: *\nDisallow: /\n');
+  /* R-23（Gray 2026-11-14 22:40 CST 定公开页允许收录）：放开整站、只挡接口，列出四份站点地图；不公开的页靠模板 noindex（不能 Disallow，否则爬虫看不到 noindex） */
+  const robots = read('space/web/static/robots.txt');
+  assert.match(robots, /^User-agent: \*\nAllow: \/\n/);
+  assert.doesNotMatch(robots, /^Disallow: \/$/m, '不再整站 Disallow');
+  for (const p of ['/api/', '/curio/api/', '/daymark/api/']) assert.match(robots, new RegExp('^Disallow: ' + p.replace(/\//g, '\\/') + '$', 'm'), p);
+  for (const sm of ['/sitemap.xml', '/blog/sitemap-index.xml', '/curio/sitemap.xml', '/daymark/sitemap.xml']) {
+    assert.match(robots, new RegExp('^Sitemap: https://styrigx\\.com' + sm.replace(/\./g, '\\.') + '$', 'm'), sm);
+  }
+  /* Hugo 内置 robots 模板会盖掉 static 那份（#310 起线上只有「User-agent: *」），必须关着 */
+  assert.match(read('space/web/hugo.yaml'), /^enableRobotsTXT: false$/m);
+  assert.equal(existsSync(path.join(REPO, 'space/web/layouts/robots.txt')), false);
 });
 
 test('奇趣、日刻的源文件（content / layouts / assets / static / data 下的 <站>/）里没有图片文件（图片只能走接口 Worker 的 /<站>/api/*，先验会话）', () => {

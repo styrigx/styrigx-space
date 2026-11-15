@@ -63,7 +63,8 @@ cascade:
 
 build:
   writeStats: true
-enableRobotsTXT: true
+# robots.txt 用 static/robots.txt 原样（R-23，2026-11-15）。原来是 true：Hugo 内置模板只出「User-agent: *」并盖掉 static 那份（#310 合站起线上一直是这行）。
+enableRobotsTXT: false
 enableEmoji: true
 
 # P4-3 PR-4c：站点地图只要根上一份 /sitemap.xml（公开页清单，中英两版地址都在里面）。
