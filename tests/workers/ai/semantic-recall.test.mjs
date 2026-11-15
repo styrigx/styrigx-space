@@ -328,6 +328,15 @@ test('fixed：调 CURIO.query（只传查询名 + 参数，不传 SQL）；结�
   assert.ok(Date.now() - t0 < F.FIXED_TIMEOUT_MS + 400);
 });
 
+test('fixed：单曲（kind=single，音乐 v1.13 ②）标「单曲」/ single，专辑不标；「单曲」也认作音乐意图', () => {
+  assert.deepEqual(F.detectIntents('有哪些单曲').map((x) => x.name), ['music']);
+  const r = { ok: true, albums: [{ title: 'River', kind: 'single', artist: 'Joni Mitchell', year: 1971, tracks: [{ no: 1, title: 'River', duration: 240 }] }, { title: 'Blue', kind: 'album', artist: 'Joni Mitchell', year: 1971, tracks: [] }] };
+  const zh = F.toHit('music', r, 'zh').text;
+  assert.match(zh, /^River — Joni Mitchell \(1971\) \[单曲\]\n/);
+  assert.match(zh, /\n\nBlue — Joni Mitchell \(1971\)$/);
+  assert.match(F.toHit('music', r, 'en').text, /^River — Joni Mitchell \(1971\) \[single\]/);
+});
+
 test('/ask：固定查询结果排在上下文最前', async () => {
   const env = await seeded();
   const ai = chatAI(env);
