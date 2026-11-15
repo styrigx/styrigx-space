@@ -6,7 +6,8 @@
  *    模板也直接把默认值画进首帧（名字卡、页脚、锁屏头像替代文字等）。
  * 2. 本机缓存：localStorage sgx-profile（{v:1, p:{改过的字段}, t}），上次从接口拿到的。
  *    子站 AI 窗口「联系我」等读它。四站同源，同一份。云同步白名单不收这个键（prefs/cloud-sync.js syncKeys）。
- * 3. 运行时接口：GET /api/profile（公开，访客也问；R-33 Gray 2026-11-14 22:40：访客点头像弹的登录卡要显示站长名片，原「只在已进站页面请求」去掉），
+ * 3. 运行时接口：GET /api/profile（公开）。已进站页面（<html data-sgx-lock-session="valid">）加载时就问；访客不在加载时问，
+ *    打开登录小展示卡时才问（R-33 Gray 2026-11-14 22:40：访客的卡要显示站长名片；按需请求，访客浏览页面不多发请求），
  *    回来的非 null 字段覆盖默认值并写回缓存。
  *
  * 页面上要跟着资料变的元素标 data-sgx-profile="<字段>"（name / nickname / motto / email），默认改文字；
@@ -162,6 +163,11 @@ export function applyProfile(p, root) {
   });
 }
 
+/** 已进站（网关首帧注入 valid）：加载时就问接口；访客等打开账号卡时再问（frame/account/window.js） */
+function doorOpen() {
+  return document.documentElement.getAttribute('data-sgx-lock-session') === 'valid';
+}
+
 /** @param {Profile} p */
 function announce(p) {
   try {
@@ -219,7 +225,7 @@ export function saveProfile(changes) {
 let inited = false;
 
 /**
- * 全站：页面上有 [data-sgx-profile] 才动——先用本机缓存画，再问接口（访客也问，R-33）。没有这类元素的页面什么都不做、不发请求。
+ * 全站：页面上有 [data-sgx-profile] 才动——先用本机缓存画，再（已进站时）问接口；访客打开账号卡时才问（R-33）。没有这类元素的页面什么都不做、不发请求。
  * apps/core.js initCore 调。
  */
 export function initProfile() {
@@ -232,7 +238,7 @@ export function initProfile() {
   });
   const cached = readCache();
   if (Object.keys(cached).length) applyProfile(effectiveProfile(cached));
-  fetchProfile();
+  if (doorOpen()) fetchProfile();
 }
 
 /**

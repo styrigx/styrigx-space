@@ -5,10 +5,10 @@
  *   个人资料 › · 设备 › · 退出登录 lock（定稿 v5.5 §七「账号页只留个人信息卡、设备卡、一个退出按钮 lock（回访客、清整栈）……沿用现有账号页，去掉账号安全卡，
  *   原 exit 按钮改成 lock」，Gray 2026-11-11 20:10 / 20:20；行和外观同 v5 卡片；应用授权行随应用授权删除，定稿 v5.3 §十二）。
  * 普通用户（uid 1001 起，R-33 Gray 2026-11-14 22:40）：小展示卡——站点头像 · 自己的用户名 · 已登录，只一行「退出登录 lock」，没有编辑类内容（不显示编辑、个人资料、设备）。
- * 没登录（访客，R-33）：点头像弹登录小展示卡——站点头像 · 站长名片（GET /api/profile 公开，prefs/profile.js 访客也问）· 访客，一行「登录 su 」；
+ * 没登录（访客，R-33）：点头像弹登录小展示卡——站点头像 · 站长名片（GET /api/profile 公开，访客在卡片打开时才问，回来后经 PROFILE_EVENT 重画）· 访客，一行「登录 su 」；
  *   点了仍是收起卡片、打开终端预填命令，不做 GUI 登录页（Gray 2026-11-14 23:06）。预填同原先访客点头像的「su 」（定稿 v5.2 §七）。
  * 卡片里没有命令行：点一行（或头像 / 编辑）= 收起卡片、打开全站终端、输入行预填对应的命令（不替人回车）：
- *   个人资料 → profile · 设备 → device（站长直读，定稿 v5.5 §七）· 退出登录 → lock · 登录 → su root。
+ *   个人资料 → profile · 设备 → device（站长直读，定稿 v5.5 §七）· 退出登录 → lock · 登录 → su （R-33，不强制 root）。
  *   密码与通行密钥只走终端 passwd、passkey（定稿 v5.5 §七，不做账号安全卡）。
  * v6 P4（定稿 v5.2 §七「访客点击预填 su 」、§十三 删旧会话）起登录状态只看终端的 v6 身份（who.v6()），不再问旧的 GET /api/account、
  * 不再读写旧登录标记 cookie sgx-account-signed-in。
@@ -16,7 +16,7 @@
  * 只 import lib/、shell/（check-layers 规则 3）。文案在外壳字符串表 account.*（frame/i18n），四个站同一份。
  */
 import { esc } from '../../core/util.js';
-import { readCache, effectiveProfile, profileDefaults, PROFILE_EVENT } from '../../prefs/profile.js';
+import { readCache, effectiveProfile, profileDefaults, fetchProfile, PROFILE_EVENT } from '../../prefs/profile.js';
 import { flatStrings } from '../term/core/strings.js';
 import { layerFromPath } from './commands.js';
 
@@ -98,6 +98,8 @@ export function mountAccountWindow(o) {
       return;
     }
     if (st !== 'in') {
+      /* 访客：页面加载时不问公开名片，开卡时才问（同页只发一次；回来后 PROFILE_EVENT 重画） */
+      fetchProfile();
       root.innerHTML = head(CARD_CMDS.login) + '<div class="sgx-pop-list">' + row({ k: t('session.signIn'), v: CARD_CMDS.login.trim(), run: CARD_CMDS.login, cls: 'sgx-pop-row--acc', attrs: ' translate="no"' }) + '</div>';
       return;
     }

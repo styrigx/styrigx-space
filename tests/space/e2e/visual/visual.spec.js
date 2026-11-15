@@ -230,7 +230,7 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
               await expect(d.locator('[data-at-v="grants"]')).toHaveCount(0);
               /* P4-3（定稿 v5.5 §七）：账号安全行删了 */
               await expect(d.locator('[data-at-run]')).toHaveCount(5);
-            } else await expect(d.locator('.sgx-pop-list [data-at-run]')).toHaveAttribute('data-at-run', 'su root');
+            } else await expect(d.locator('.sgx-pop-list [data-at-run]')).toHaveAttribute('data-at-run', 'su ');
           } else {
             sheet = '#sgx-term';
             const t = pg.locator('#sgx-term');

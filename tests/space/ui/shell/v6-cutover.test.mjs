@@ -34,6 +34,8 @@ test('头像 = whoami（R-33 起）：谁点都开账号小展示卡，头像不
   assert.doesNotMatch(js, /acctBtn\.addEventListener\('click'/, '头像点击只走 wire 开账号卡');
   const win = rd('space/web/assets/common/js/frame/account/window.js');
   assert.match(win, /setSt\(!u \? 'guest' : u\.root \|\| u\.webmaster === true \? 'in' : 'user'\);/);
+  /* 访客名片按需：页面加载不问 /api/profile，开登录卡时才问（lighthouse 首页不多一条请求） */
+  assert.match(win, /if \(st !== 'in'\) \{\s*\/\*[^*]*\*\/\s*fetchProfile\(\);/);
   /* 盾牌：按徽章档预填，输入行有字不覆盖 */
   assert.match(js, /const c = shieldCmd\(tierOf\(\)\);\s*if \(c && !view\.input\.value\) view\.prefill\(c\);/);
 });
