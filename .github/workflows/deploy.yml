@@ -1396,7 +1396,7 @@ jobs:
   deploy-proxy-rules-worker:
     # 规则集反代 + 代理订阅 styrigx-proxy（workers/proxy）：独立部署，不等也不挡网关和 Pages。
     # 公开地址只有自定义域名 proxy.styrigx.com（wrangler.toml 的 routes，custom_domain）。
-    # token：Cloudflare 上 styrigx-proxy-deploy = GitHub 环境 STYRIGX_PROXY_RULES_DEPLOY 里的同名密钥，
+    # token：Cloudflare 上 styrigx-proxy-deploy = GitHub 环境 STYRIGX_PROXY_DEPLOY 里的同名密钥，
     # 权限 Workers Scripts 编辑 + D1 编辑（styrigx-proxy 迁移）+ Secrets Store 编辑（SGX_PROXY_DB_KEY 绑定）+ styrigx.com 的 Workers Routes 编辑；环境只允许 main。
     # 步骤：D1 迁移（migrations/；已迁过的跳过，失败要让 job 红）→ 记录线上版本 → 部署 → 冒烟 → 失败回滚（只回代码，不回迁移）。
     # account 的 /api/account/proxy 经服务绑定 PROXY 调本 Worker 的 ProxyAdmin；两边各自部署，本 Worker 没部署完的那一两分钟 account 回 503 upstream。
@@ -1408,7 +1408,7 @@ jobs:
     needs: [quality, passkey-e2e, deploy-ai-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: STYRIGX_PROXY_RULES_DEPLOY
+    environment: STYRIGX_PROXY_DEPLOY
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -1421,7 +1421,7 @@ jobs:
       - name: Apply D1 migrations (proxy-rules → styrigx-proxy)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
-          apiToken: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
+          apiToken: ${{ secrets.STYRIGX_PROXY_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/proxy
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
@@ -1434,14 +1434,14 @@ jobs:
         continue-on-error: true
         working-directory: workers/proxy
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_PROXY_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy proxy rules Worker (styrigx-proxy)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
-          apiToken: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
+          apiToken: ${{ secrets.STYRIGX_PROXY_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/proxy
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
@@ -1484,7 +1484,7 @@ jobs:
         if: failure() && steps.live.outputs.version != ''
         working-directory: workers/proxy
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_PROXY_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
