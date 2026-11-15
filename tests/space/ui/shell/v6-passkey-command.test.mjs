@@ -40,7 +40,7 @@ test('passkey：v6 普通用户 / root / 救援都直接管自己的；passkey �
   for (const w of ['u:styrigx', 'u:smoke2', 'u:root']) {
     const L = layers();
     for (const l of ['passkey', 'passkey ls', 'passkey add', 'passkey rm 2']) assert.equal(sh(w).exec(l, L.v).flow, true, w + ' ' + l);
-    assert.deepEqual(L.calls, [['passkeyList'], ['passkeyList'], ['cmdPasskeyAdd', true], ['passkeyRm', 2]], w);
+    assert.deepEqual(L.calls, [['passkeyList'], ['passkeyList'], ['cmdPasskeyAdd', true, undefined], ['passkeyRm', 2, undefined]], w); /* 第 3 参 = 身份层验证（R-34；这里没挂身份层） */
   }
 });
 
@@ -73,15 +73,15 @@ test('sudo passkey（v6）交给身份层，身份层先回 rootCreds（定稿 �
   }
 });
 
-test('man：passkey 给 v6 普通用户与 root6 都列；AUTH 行 = 已上线 groups 的同类写法「已登录」（中英）', async () => {
+test('man：passkey 给 v6 普通用户与 root6 都列；AUTH 行 = 已上线 groups 的同类写法「已登录」开头，R-34 起加「add、rm 先验证」（中英）', async () => {
   const names = async (w) => (await sh(w).exec('man')).out.slice(1).map((o) => o.seg[0][1]);
   for (const w of ['u:styrigx', 'u:root']) assert.ok((await names(w)).includes('passkey'), w);
   const zh = yaml.load(rd('space/web/data/common/frame/i18n/zh.yaml'));
   const en = yaml.load(rd('space/web/data/common/frame/i18n/en.yaml'));
-  assert.equal(zh.manBody.passkey.auth, zh.manBody.groups.auth.split('；')[0]);
-  assert.equal(en.manBody.passkey.auth, en.manBody.groups.auth.split(';')[0]);
+  assert.equal(zh.manBody.passkey.auth, zh.manBody.groups.auth.split('；')[0] + '；add 和 rm 先验证密码或通行密钥');
+  assert.equal(en.manBody.passkey.auth, en.manBody.groups.auth.split(';')[0] + '; add and rm first ask for your password or a passkey');
   const pg = rd('space/web/assets/common/js/frame/term/man/pages.js');
-  assert.match(pg, /passkey: \{ d: '[^']+', syn: \['passkey \[add \| rm <n>\]'\], auth: 'signed in', see: \['passwd', 'device'\] \}/, 'SYNOPSIS 合并一行（man 手册规范 v1）');
+  assert.match(pg, /passkey: \{ d: '[^']+', syn: \['passkey \[add \| rm <n>\]'\], auth: 'signed in; add and rm first ask for your password or a passkey', see: \['passwd', 'device'\] \}/, 'SYNOPSIS 合并一行（man 手册规范 v1）');
 });
 
 /* ---------- 账号层（./cmd/keys.js） ---------- */
@@ -141,8 +141,37 @@ test('账号层 passkey rm：y 之后按服务端编号删（passkey-delete { n 
   await settle();
   a.pickY();
   await settle();
-  assert.deepEqual(a.sent, [['v6.passkeyList', 1000], ['v6.passkeyDelete', 2, 1000]]);
+  assert.deepEqual(a.sent, [['v6.passkeyList', 1000], ['v6.passkeyDelete', 2, 1000, null]], '没给验证 → 不带证明（服务端会拒，R-34）');
   assert.ok(a.log.some((l) => l[0] === 'out' && l[1].includes('keys.passkey.deleted')));
+});
+
+test('R-34 账号层 passkey rm：y 之后先验证（self.prove）再删，证明随 passkey-delete 发；删最后一把提示一句；验证没过 → 身份层「认证失败」', async () => {
+  const ONE = { s: 200, j: { ok: true, keys: [KEYS.j.keys[0]] } };
+  const a = fakeCtx((name) => (name === 'passkeyList' ? ONE : { s: 200, j: { ok: true } }));
+  mountAuthErr(a.C, null);
+  mountKeys(a.C);
+  const asked = [];
+  const self = { prove: (next) => { asked.push('prove'); next({ password: 'pw' }); }, fail: (r, c) => asked.push(['fail', r.s, c]) };
+  a.C.passkeyRm(1, self);
+  await settle();
+  assert.deepEqual(asked, [], '[y/N] 之前不问');
+  a.pickY();
+  await settle();
+  assert.deepEqual(asked, ['prove']);
+  assert.deepEqual(a.sent, [['v6.passkeyList', 1000], ['v6.passkeyDelete', 1, 1000, { password: 'pw' }]]);
+  assert.ok(a.log.some((l) => l[0] === 'note' && l[1] === 'keys.passkey.lastGone'), '删最后一把提示');
+
+  const b = fakeCtx((name) => (name === 'passkeyList' ? KEYS : { s: 401, j: { ok: false, error: 'auth' } }));
+  mountAuthErr(b.C, null);
+  mountKeys(b.C);
+  const got = [];
+  b.C.passkeyRm(2, { prove: (next) => next({ password: 'bad' }), fail: (r, c) => got.push([r.s, r.j.error, c]) });
+  await settle();
+  b.pickY();
+  await settle();
+  assert.deepEqual(got, [[401, 'auth', 'passkey']]);
+  assert.ok(!b.log.some((l) => l[0] === 'authErr'), '不当成「没登录」');
+  assert.ok(!b.log.some((l) => l[0] === 'note' && l[1] === 'keys.passkey.lastGone'));
 });
 
 test('账号层 passkey：服务端 401 → 「没有登录 · 先 su <用户>」并让身份重问；不走旧 authErr', async () => {

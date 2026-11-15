@@ -53,15 +53,18 @@ export const ROUTE_ACCESS = Object.freeze([
   /* v6 P4（定稿 v5.2 §十三）：进站接口（lock-* / space-auth）与分享短链（/s/:code、/api/share）删除 */
 
   /* ---------- 账号 styrigx-account（网关 FORWARDING 转来；workers/account/src/router.js API_ROUTES） ---------- */
-  R({ method: 'POST', path: '/api/identity', level: 'public', worker: 'account', why: 'v6 身份命令（P2）：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>；P3 救援入口 rescue；每个 action 一档',
+  R({ method: 'POST', path: '/api/identity', level: 'public', worker: 'account', why: 'v6 身份命令（P2）：whoami / su / sudo / exit / lock / passwd / passkey（R-34 起先验证，self-challenge） / groups / who / useradd / userdel / usermod / passwd <名>；P3 救援入口 rescue；每个 action 一档',
     actions: {
       whoami: 'public', 'su-challenge': 'public', su: 'public', exit: 'public', idle: 'public', lock: 'public', rescue: 'public',
       /* 定稿 v5.5 §五：通行密钥增删与列表 webmaster（站长 + root）；普通用户只能 passwd 改自己的密码（§八） */
+      /* R-34（稿 v3.11 第 8 节）：自己改凭据（passwd、passkey add、passkey rm）先验证，通行密钥那条用 self-challenge（用途 v6-self，与 su / sudo 分开） */
+      'self-challenge': 'user',
       passwd: 'user', 'passkey-list': 'webmaster', 'passkey-add-challenge': 'webmaster', 'passkey-add': 'webmaster', 'passkey-delete': 'webmaster', groups: 'user', who: 'user',
       'sudo-challenge': 'sudoers', sudo: 'sudoers',
       useradd: 'root', userdel: 'root', usermod: 'root', 'passwd-user': 'root',
     },
-    rescue: true, rescueActions: ['whoami', 'exit', 'lock', 'passwd', 'passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete', 'groups'] }),
+    /* R-34：救援白名单加 passwd-user（passwd styrigx），服务端只收站长 styrigx（core/user-admin.js passwdReset rescue，按 uid 判） */
+    rescue: true, rescueActions: ['whoami', 'exit', 'lock', 'passwd', 'passwd-user', 'passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete', 'groups'] }),
   /* v6 P4：旧账号会话（GET /api/account、/session、/reauth、/reset、/keys）删除 */
   R({ method: 'POST', path: '/api/account/devices', level: 'webmaster', worker: 'account', why: '设备会话（全站视图：列出全站会话，2g 按 sgx-device 合并同一台设备）',
     actions: { list: 'webmaster', revoke: 'root', 'revoke-all': 'root' },

@@ -12,15 +12,17 @@
  * | exit                     | public  | 弹一层：root → 普通用户 → 访客；救援直接回访客 |
  * | idle                     | public  | 前台空闲 15 分钟（前端 Page Visibility 计时）：只弹 root 层，普通用户层不动 |
  * | lock                     | public  | 清空整个栈并删服务端会话行 |
- * | passwd                   | user    | 改自己的密码：先输当前密码（救援会话免）；自己改 → 当前会话续命、其他会话作废 |
- * | passkey-*                | user    | 自己的通行密钥 ls / add / rm（改了 → epoch +1，当前会话续命） |
+ * | self-challenge           | user    | 自己改凭据前用通行密钥验证的 challenge（用途 v6-self，与 su / sudo 分开；R-34） |
+ * | passwd                   | user    | 改自己的密码：先验证（proof：当前密码或任一把自己的通行密钥；救援会话免）；自己改 → 当前会话续命、其他会话作废 |
+ * | passkey-*                | user    | 自己的通行密钥 ls / add / rm（改了 → epoch +1，当前会话续命）；add、rm 先验证（同 passwd，R-34） |
  * | groups                   | user    | 自己的组；root 可 groups <名> |
  * | who                      | user    | 会话与身份路径（root via styrigx）；普通用户只看自己，root 看全部 |
  * | sudo-challenge / sudo    | sudoers | 每次输自己的凭据，借 root 执行一条（useradd / userdel / usermod / passwd <名> / groups <名> / who）；不发票据、不压栈；
  * |                          |         | 不能动 root 的凭据（passwd / passkey 一律拒） |
  * | （sudo，P2c）            | sudoers | command = { method, path, body? }：借 root 执行账号 Worker 里任何一条接口（api/sudo-route.js）；
  * |                          |         | 同样每次验自己的凭据、不发票据、不压栈；root 的凭据接口（/api/account/keys、reset）与身份接口本身拒绝 |
- * | useradd / userdel / usermod / passwd-user | root | 用户管理（core/user-admin.js） |
+ * | useradd / userdel / usermod / passwd-user | root | 用户管理（core/user-admin.js）；passwd-user 对站长 styrigx 拒（protected），
+ * |                          |         | 救援会话只能 passwd styrigx（R-34，稿 v3.11 第 8 节） |
  * | rescue（P3）             | public  | 救援入口（定稿 v5.2 §九，core/rescue.js）：访客输恢复钥匙 → 15 分钟一次性 root 会话（rescue 标志、不续期）；
  * |                          |         | 已登录 → exit-first；救援会话里再调 → permits 第 1 步拒（rescue 不在白名单） |
  *
@@ -117,6 +119,25 @@ async function verifyCreds(env, ip, body, who, purpose) {
 }
 
 /**
+ * 自己改凭据的证明（R-34）：body.proof = { password } 或 { cid, credential }。passwd 旧写法 body.current（只有当前密码）照收，
+ * 普通用户不变（定稿：普通用户 passwd 验旧密码）。passkey-add 的 body 本身带注册用的 cid / credential，所以证明一律放 proof 里。
+ * @param {any} body @returns {{password?:string, cid?:any, credential?:any}}
+ */
+function proofIn(body) {
+  const p = body && body.proof && typeof body.proof === 'object' && !Array.isArray(body.proof) ? body.proof : null;
+  if (p) return p.credential ? { cid: p.cid, credential: p.credential } : { password: typeof p.password === 'string' ? p.password : '' };
+  return { password: body && typeof body.current === 'string' ? body.current : '' };
+}
+
+/**
+ * 验栈顶这个人自己的凭据（密码或任一把自己的通行密钥，challenge 用途 v6-self）；失败计入该账号退避桶（同 su），调用方写 login-fail。
+ * @param {any} env @param {string} ip @param {any} proof @param {{uid:number}} identity
+ */
+function verifySelf(env, ip, proof, identity) {
+  return verifyCreds(env, ip, proof, { uid: identity.uid }, V6_PURPOSE.self);
+}
+
+/**
  * 用户管理命令（root 直接执行，或 sudo 借 root 执行）。回 { res, audit }。
  * @param {any} env @param {string} action @param {any} q @param {{identity:any, sessionId:string, sudo:boolean}} ctx
  */
@@ -141,8 +162,9 @@ async function runAdmin(env, action, q, ctx) {
     return { res: ok(Object.assign({ changed: r.changed }, r.warning ? { warning: r.warning } : {})), audit, ok: true };
   }
   if (action === 'passwd-user') {
-    const r = await passwdReset(env, q.name, now);
-    const audit = 'passwd ' + arg(q.name);
+    const rescue = !ctx.sudo && ctx.identity && ctx.identity.rescue === true;
+    const r = await passwdReset(env, q.name, now, { rescue });
+    const audit = 'passwd ' + arg(q.name) + (rescue ? ' rescue' : '');
     if (!r.ok) return { res: adminError(r), audit, ok: false };
     return { res: ok({ uid: r.uid, password: r.password, passwordExpiresAt: r.passwordExpiresAt, mustChange: true }), audit, ok: true };
   }
@@ -173,6 +195,7 @@ function adminError(r) {
     case 'protected-webmaster': return apiError(403, 'protected', { target: 'webmaster' });
     case 'last-member': return apiError(409, 'last-member', extra);
     case 'root-creds': return apiError(403, 'root-creds');
+    case 'rescue-target': return apiError(403, 'permission', { need: 'rescue' });
     default: return apiError(503, 'server');
   }
 }
@@ -232,11 +255,12 @@ async function dispatch(c) {
     }
 
     case 'su-challenge':
-    case 'sudo-challenge': {
+    case 'sudo-challenge':
+    case 'self-challenge': {
       const rp = rpConfig(env);
       if (!rp) return rpConfigMissing();
       try {
-        return ok(await v6AssertionChallenge(env, rp, action === 'su-challenge' ? V6_PURPOSE.su : V6_PURPOSE.sudo));
+        return ok(await v6AssertionChallenge(env, rp, action === 'su-challenge' ? V6_PURPOSE.su : action === 'sudo-challenge' ? V6_PURPOSE.sudo : V6_PURPOSE.self));
       } catch (e) { return apiError(500, 'server'); }
     }
 
@@ -334,11 +358,12 @@ async function dispatch(c) {
 
     case 'passwd': {
       if (typeof body.user === 'string' && body.user && body.user !== identity.name) return apiError(400, 'target');
+      const pf = proofIn(body);
       if (!identity.rescue) {
-        const v = await verifyUserPassword(env, { ip, uid: identity.uid, password: body.current });
+        const v = await verifySelf(env, ip, pf, identity);
         if (!v.ok) { await audit('login-fail passwd', false); return credError(v.error); }
       }
-      if (!passwordAcceptable(body.password, identity.name) || body.password === body.current) return apiError(400, 'weak');
+      if (!passwordAcceptable(body.password, identity.name) || (typeof pf.password === 'string' && body.password === pf.password)) return apiError(400, 'weak');
       await savePasswordFor(env, identity.uid, body.password, { mustChange: false });
       await credentialsChanged(env, identity.uid, { sessionId: adm.sessionId });
       await audit(identity.rescue ? 'passwd rescue' : 'passwd', true);
@@ -357,6 +382,10 @@ async function dispatch(c) {
     case 'passkey-add': {
       const rp = rpConfig(env);
       if (!rp) return rpConfigMissing();
+      if (!identity.rescue) {
+        const v = await verifySelf(env, ip, proofIn(body), identity);
+        if (!v.ok) { await audit('login-fail passkey add', false); return credError(v.error); }
+      }
       const r = await v6AddPasskey(env, rp, { uid: identity.uid }, body);
       if (!r.ok) { await audit('passkey add', false); return r.error === 'challenge' ? apiError(403, 'challenge') : apiError(403, 'verify'); }
       await credentialsChanged(env, identity.uid, { sessionId: adm.sessionId });
@@ -366,6 +395,11 @@ async function dispatch(c) {
 
     case 'passkey-delete': {
       const n = Number(body.n);
+      /* 允许删最后一把、允许用待删的那把验证（先验后删；密码始终在，锁不死自己，R-34 细则 6） */
+      if (!identity.rescue) {
+        const v = await verifySelf(env, ip, proofIn(body), identity);
+        if (!v.ok) { await audit('login-fail passkey rm', false); return credError(v.error); }
+      }
       const done = await v6DeletePasskey(env, identity.uid, n);
       if (!done) return apiError(404, 'not-found');
       await credentialsChanged(env, identity.uid, { sessionId: adm.sessionId });

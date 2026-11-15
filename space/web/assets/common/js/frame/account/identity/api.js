@@ -29,9 +29,9 @@ export function hasMarker(d) {
 }
 
 /**
- * 通行密钥断言（su / sudo 用）：challengeAction = su-challenge | sudo-challenge；回 { cid, credential } 交给下一步。
+ * 通行密钥断言（su / sudo / 自己改凭据用）：challengeAction = su-challenge | sudo-challenge | self-challenge（R-34）；回 { cid, credential } 交给下一步。
  * 取消 → reject { cancelled: true }；别的失败 → reject { message }。
- * @param {'su-challenge'|'sudo-challenge'} challengeAction
+ * @param {'su-challenge'|'sudo-challenge'|'self-challenge'} challengeAction
  */
 export function passkeyProof(challengeAction) {
   return post(challengeAction).then(function (r) {

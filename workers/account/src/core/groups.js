@@ -111,7 +111,8 @@ export function permits(identity, level, opts) {
 }
 
 /**
- * 救援会话的命令白名单（定稿 v4 §九）：只放重置 root 凭据和看自己 / 离开。救援不建用户、不改组、不换钥匙
+ * 救援会话的命令白名单（定稿 v4 §九）：只放重置 root 凭据和看自己 / 离开；R-34（稿 v3.11 第 8 节，Gray 2026-11-15 02:07）起
+ * passwd 另含 passwd styrigx（路由表 passwd-user，服务端只收站长）。救援不建用户、不改组、不换钥匙
  * （换钥匙由 Gray 在 Cloudflare dashboard 改，不走终端）。路由表 /api/identity 的 rescueActions 与它一致（单测核对）。
  */
 export const RESCUE_COMMANDS = Object.freeze(['passwd', 'passkey', 'whoami', 'groups', 'exit', 'lock']);

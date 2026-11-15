@@ -231,9 +231,13 @@ manBody:
     desc:
       - "退回上一层（root → styrigx → 访客；救援直接回访客）。没有登录时：关掉终端。"
   passwd:
+    desc:
+      - "passwd：改自己的密码。root 和 styrigx 先用当前密码或通行密钥验证；其他用户输当前密码。"
+      - "passwd <名字>（root，或 sudo passwd <名字>）：给普通用户发一次性密码。styrigx 的凭据不能这样重置。"
+      - "救援会话里：passwd 重设 root 的密码；passwd styrigx 给站长发一次性密码。"
     auth: "已登录；先输当前密码"
   passkey:
-    auth: "已登录"
+    auth: "已登录；add 和 rm 先验证密码或通行密钥"
   device:
     opt:
       - "退出其他所有设备。"
@@ -303,6 +307,7 @@ manBody:
   rescue:
     desc:
       - "只能用：passwd、passkey、whoami、groups、exit、lock"
+      - "passwd styrigx：给站长发一次性密码（只能是这个名字）"
       - "用过的钥匙不能再用，救援后去 Cloudflare 换新值"
     notes:
       - "换钥匙不走终端，由 Gray 在 Cloudflare dashboard 改"
@@ -327,6 +332,7 @@ account:
       none: "还没有账号通行密钥"
       deleted: "已删除 · 请到 Samsung Pass 里手动删掉这把通行密钥"
       registered: "已注册"
+      lastGone: "这是最后一把通行密钥 · 之后只能用密码登录"
       already: "此设备已注册过"
       failed: "注册失败"
       created: "创建 {d}"
@@ -546,6 +552,7 @@ identity:
   exists: "这个用户已经有了"
   notFound: "没有这个用户"
   protected: "root 和 styrigx 不能删"
+  protectedPasswd: "站长凭据只能本人修改或走救援"
   unknown: "失败（{c}）"
   network: "网络出错 · 再试一次"
   signedIn: "✓ 已以 {u} 登录"
@@ -561,6 +568,8 @@ identity:
   reset: "✓ 密码已重置"
   otp: "一次性密码：{p}"
   otpNote: "只显示这一次 · 24 小时内有效 · 首次登录必须改掉"
+  otpUntil: "到期：{d}"
+  rescueReset: "首次登录须改密码；丢失的通行密钥登录后用 passkey rm 删除；记得去 Cloudflare 换救援钥匙"
   deleted: "✓ 用户已删除"
   changed: "✓ 组已更新 · 该用户要重新登录"
   noChange: "没有变化"
@@ -573,5 +582,5 @@ identity:
   usageSudo: "用法：sudo useradd | userdel | usermod | passwd <名字> | groups [名字] | who"
   usageSu: "用法：su <用户> | su root"
   rescueKey: "恢复钥匙："
-  rescueLimit: "只能重设 root 凭据，15 分钟"
+  rescueLimit: "只能重设 root 凭据和 styrigx 的密码，15 分钟"
   rescueRotate: "用过的钥匙不能再用，救援后去 Cloudflare 换新值"

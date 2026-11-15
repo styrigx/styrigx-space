@@ -65,10 +65,13 @@ export const v6keys = Object.freeze({
   },
   /** @param {number} as */
   passkeyAddChallenge: function (as) { return postJSON(IDENTITY_API, { action: 'passkey-add-challenge', as: as }); },
-  /** @param {any} body registerPasskey 给的注册结果 @param {string} handle challenge 里的 user.id（服务端用它对上这次 challenge） @param {number} as */
-  passkeyAdd: function (body, handle, as) { return postJSON(IDENTITY_API, Object.assign({ action: 'passkey-add' }, body, { handle: handle, as: as })); },
-  /** @param {number} n 服务端列表里的编号 @param {number} as */
-  passkeyDelete: function (n, as) { return postJSON(IDENTITY_API, { action: 'passkey-delete', n: n, as: as }); },
+  /**
+   * @param {any} body registerPasskey 给的注册结果 @param {string} handle challenge 里的 user.id（服务端用它对上这次 challenge） @param {number} as
+   * @param {any} [proof] 自己的凭据证明（R-34：{ password } 或 { cid, credential }；救援会话不带）
+   */
+  passkeyAdd: function (body, handle, as, proof) { return postJSON(IDENTITY_API, Object.assign({ action: 'passkey-add' }, body, { handle: handle, as: as }, proof ? { proof: proof } : {})); },
+  /** @param {number} n 服务端列表里的编号 @param {number} as @param {any} [proof] 同上 */
+  passkeyDelete: function (n, as, proof) { return postJSON(IDENTITY_API, Object.assign({ action: 'passkey-delete', n: n, as: as }, proof ? { proof: proof } : {})); },
 });
 
 /** 设备会话（定稿 v5.5 §五：list webmaster 档、全站视图；revoke / revoke-all root 档，站长经 sudo） */
