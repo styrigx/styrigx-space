@@ -13,9 +13,10 @@ import worker from '../../../workers/status/src/index.js';
 
 let sqlite = null;
 try { sqlite = await import('node:sqlite'); } catch {}
-/* 表结构 = migrations/0001_baseline.sql + 0002_status_minute.sql（D-2 C；库 styrigx-status，表名带 status_） */
+/* 表结构 = migrations/0001_baseline.sql + 0002_status_minute.sql + 0003_drop_status_checks.sql（D-2 C；库 styrigx-status，表名带 status_） */
 const BASELINE = readFileSync(new URL('../../../workers/status/migrations/0001_baseline.sql', import.meta.url), 'utf8');
-const SCHEMA = BASELINE + '\n' + readFileSync(new URL('../../../workers/status/migrations/0002_status_minute.sql', import.meta.url), 'utf8');
+const DROP_CHECKS = readFileSync(new URL('../../../workers/status/migrations/0003_drop_status_checks.sql', import.meta.url), 'utf8');
+const SCHEMA = BASELINE + '\n' + readFileSync(new URL('../../../workers/status/migrations/0002_status_minute.sql', import.meta.url), 'utf8') + '\n' + DROP_CHECKS;
 
 /** 用 node:sqlite 模拟 D1（prepare / bind / batch / first / all / run） */
 function d1() {
@@ -124,8 +125,7 @@ test('真 SQL：连续 3 分钟 502 开故障，第 4 分钟恢复关上；每�
   const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db, ...SVC };
   const M = 60000;
   const t0 = Date.UTC(2026, 9, 22, 4, 1); // 北京 12:01
-  /* 先塞 8 天前的旧记录（停写的 status_checks 和 status_minute 各一条） */
-  db.raw.prepare('INSERT INTO status_checks (site, at, ok, code, ms) VALUES (?, ?, 1, 200, 10)').run('space', t0 - 8 * 24 * 60 * M);
+  /* 先塞一条 8 天前的旧记录（status_checks 已由 0003 删表） */
   db.raw.prepare('INSERT INTO status_minute (at, data) VALUES (?, ?)').run(t0 - 8 * 24 * 60 * M, '[]');
   await runOnce(env, t0, fakeFetch({}));
   for (let i = 1; i <= 3; i++) await runOnce(env, t0 + i * M, fakeFetch({ 'https://proxy.styrigx.com/healthz': 502 }));
@@ -140,14 +140,12 @@ test('真 SQL：连续 3 分钟 502 开故障，第 4 分钟恢复关上；每�
   assert.equal(inc[0].ended_at, t0 + 4 * M);
   /* 每分钟只写 status_minute 一行，不写 checks / hourly / daily */
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_minute WHERE at >= ?').get(t0).n, 5);
-  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_checks WHERE at >= ?').get(t0).n, 0);
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_daily').get().n, 0);
   /* 整点汇总（41 分那轮）：上一个已结束小时进 hourly、daily；旧记录清掉；再跑一次不重复累加 */
   await aggregate(db, Date.UTC(2026, 9, 22, 5, 41));
   await aggregate(db, Date.UTC(2026, 9, 22, 5, 41));
   const day = db.raw.prepare("SELECT * FROM status_daily WHERE site = 'proxy-rules'").all();
   assert.deepEqual([day[0].day, day[0].total, day[0].ok_count], ['2026-10-22', 5, 2]);
-  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_checks WHERE at < ?').get(t0).n, 0);
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_minute WHERE at < ?').get(t0).n, 0);
 });
 
@@ -287,7 +285,7 @@ test('wrangler.toml：status 绑了 AI_SERVICE → styrigx-ai，没有 SEARCH / 
 
 test('migrations/0001_baseline：只建表建索引（status_ 前缀），没有种子 / 删表 / 删数据；旧迁移只在 migrations-archive/ 留史', () => {
   const dir = new URL('../../../workers/status/', import.meta.url);
-  assert.deepEqual(readdirSync(new URL('migrations/', dir)).sort(), ['0001_baseline.sql', '0002_status_minute.sql']);
+  assert.deepEqual(readdirSync(new URL('migrations/', dir)).sort(), ['0001_baseline.sql', '0002_status_minute.sql', '0003_drop_status_checks.sql']);
   assert.deepEqual(readdirSync(new URL('migrations-archive/', dir)).sort(),
     ['0001_init.sql', '0002_usage.sql', '0003_cut_reads.sql', '0004_quota.sql', '0005_retire_sites.sql']);
   const sql = BASELINE.replace(/--[^\n]*/g, '');
@@ -314,5 +312,19 @@ test('不靠代码兜底建表：src/ 里没有 CREATE / DROP；SQL 里用到的
   for (const t of used) {
     assert.ok(t.startsWith('status_'), t + ' 没带 status_ 前缀');
     assert.ok(have.has(t), t + ' 不在 migrations/0001_baseline.sql 里');
+  }
+});
+
+test('migrations/0003：只删 status_checks 及其索引；套完后库里没有 status_checks，src/ 也不再提它', { skip: !sqlite }, () => {
+  const stmts = DROP_CHECKS.replace(/--[^\n]*/g, '').split(';').map((x) => x.trim()).filter(Boolean);
+  assert.deepEqual(stmts, ['DROP INDEX IF EXISTS status_checks_at', 'DROP TABLE IF EXISTS status_checks']);
+  const db = new sqlite.DatabaseSync(':memory:');
+  db.exec(SCHEMA);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name LIKE 'status_checks%'").get().n, 0);
+  const dir = new URL('../../../workers/status/src/', import.meta.url);
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith('.js')) continue;
+    const code = readFileSync(new URL(f, dir), 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
+    assert.doesNotMatch(code, /status_checks/, f);
   }
 });

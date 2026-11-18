@@ -166,8 +166,7 @@ export function rollup(rows) {
 
 /**
  * 整点汇总（D-2 C，随 "41 * * * *" 那轮跑）：最近 3 个**已结束**的整点小时，从 status_minute 汇总进 status_hourly（已有就跳过，
- * 漏跑一两轮能补上），新写进去的小时再累加进 status_daily（北京日）。顺带清理：status_minute / status_checks 7 天前、status_hourly 2 天前。
- * status_checks 已停写，按原节奏逐日删空（不一次清，免得单日删除冲 D1 写额度），之后另出迁移 DROP。
+ * 漏跑一两轮能补上），新写进去的小时再累加进 status_daily（北京日）。顺带清理：status_minute 7 天前、status_hourly 2 天前（旧表 status_checks 已由迁移 0003 删除）。
  * @param {D1Database} db @param {number} at
  */
 export async function aggregate(db, at) {
@@ -194,7 +193,6 @@ export async function aggregate(db, at) {
     ).bind(g.site, dayOf(g.hour), g.total, g.ok_count, g.ms_sum));
   }
   st2.push(db.prepare('DELETE FROM status_minute WHERE at < ?').bind(at - KEEP_MS));
-  st2.push(db.prepare('DELETE FROM status_checks WHERE at < ?').bind(at - KEEP_MS));
   st2.push(db.prepare('DELETE FROM status_hourly WHERE hour < ?').bind(at - 2 * DAY_MS));
   await db.batch(st2);
   return { hours: fresh.size };
