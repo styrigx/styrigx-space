@@ -22,7 +22,7 @@
 
 | 绑定 | 类型 | 资源 |
 |---|---|---|
-| `D1_UPTIME_MONITOR` | D1 | `styrigx-space-gateway` 的 `status_checks` / `status_state` / `status_hourly` / `status_daily` / `status_incidents`（检查记录、故障、状态） |
+| `D1_UPTIME_MONITOR` | D1 | `styrigx-space-gateway` 的 `status_minute` / `status_state` / `status_hourly` / `status_daily` / `status_incidents`（检查记录、故障、状态；旧 `status_checks` 已由 0003 删除） |
 | `D1_CLOUDFLARE_USAGE` | D1 | 同一个库的 `status_usage` / `status_quota`（用量快照、额度缓存） |
 | `AI_SERVICE` | 服务绑定 | `styrigx-ai`，测它的 `/healthz`（P4-2 起取代 `SEARCH` / `CHAT`） |
 | `JOB_ATLAS` / `JOB_AI` | 服务绑定（入口 `HourlyJob`） | `styrigx-atlas-core`（奇趣 + 日刻）/ `styrigx-ai` 的每小时任务（`hourly.js`） |
@@ -45,6 +45,7 @@ D1 迁移（`--remote`，已迁过的跳过），再部署。
 | 迁移 | 内容 |
 |---|---|
 | `migrations/0001_baseline.sql` | 基线：`status_checks`（每次检查一行，留 7 天）、`status_daily`、`status_hourly`、`status_state`、`status_incidents`、`status_usage`（一行）、`status_quota`（一行）及索引 `status_checks_at`、`status_incidents_site` |
+| `migrations/0003_drop_status_checks.sql` | D-2 C 收尾：删停写的 `status_checks` 及索引 `status_checks_at`（先部署去掉清理语句的版本再执行） |
 
 旧库 `styrigx-status` 的迁移历史（0001_init … 0005_retire_sites）移到 `migrations-archive/`，只留史、不再跑；存量数据 2026-11 合库时
 搬进新表（表名加 `status_`），L2b 再原样搬进 `styrigx-status`；两个旧库都已删除。
