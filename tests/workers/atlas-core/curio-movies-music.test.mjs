@@ -27,6 +27,7 @@ function makeD1(db = new DatabaseSync(':memory:')) {
   const isRead = (sql) => /^\s*SELECT/i.test(sql);
   const runIt = (sql, args) => { const r = db.prepare(sql).run(...args); return { meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } }; };
   const stmt = (sql, args = []) => ({
+    sql,
     bind: (...a) => stmt(sql, a),
     run: async () => runIt(sql, args),
     all: async () => ({ results: db.prepare(sql).all(...args) }),
@@ -185,12 +186,12 @@ test('音乐三层（v5 S3）：歌单 / 封面公开且不带音频地址；听
     const r = await call(e, '/curio/api/music', { who });
     assert.equal(r.status, 200, String(who));
     const text = await r.clone().text();
-    assert.deepEqual(await r.json(), { ok: true, canWrite: false, albums: [{ id, kind: 'album', title: 'Absolution', artist: 'Muse', year: 2003, cover: true, tracks: [{ id: tid, no: 1, title: 'Intro', duration: 22 }] }] }, String(who));
+    assert.deepEqual(await r.json(), { ok: true, canWrite: false, albums: [{ id, kind: 'album', title: 'Absolution', artist: 'Muse', year: 2003, cover: true, tracks: [{ id: tid, no: 1, title: 'Intro', duration: 22, artist: '' }] }] }, String(who));
     assert.doesNotMatch(text, /music-stream|music\/|"src"|"key"|r2_key|token|"url"/, '歌单里没有音频地址 / R2 key / 令牌');
   }
   const own = await (await call(e, '/curio/api/music', { who: 'owner' })).json();
   assert.equal(own.canWrite, true);
-  assert.deepEqual(Object.keys(own.albums[0].tracks[0]).sort(), ['duration', 'id', 'lrc', 'no', 'size', 'title', 'type']);
+  assert.deepEqual(Object.keys(own.albums[0].tracks[0]).sort(), ['artist', 'duration', 'id', 'lrc', 'no', 'size', 'title', 'type']);
   /* 封面公开（和音频不是同一条路） */
   const cv = await call(e, `/curio/api/music-cover?album=${id}`);
   assert.equal(cv.status, 200);
@@ -548,4 +549,297 @@ test('单曲进索引 / AI 读接口带 kind：索引副标题标「单曲」/ S
   const RD = await import(W + '/reader.js');
   const r = await RD.runQuery({ D1_MUSIC: e.db }, 'music', { q: 'joni mitchell 的单曲' });
   assert.deepEqual(r.albums.map((a) => [a.title, a.kind]), [['Big Yellow Taxi', 'single'], ['Blue', 'album']]);
+});
+
+/* ================= M1 后端（音乐分层方案 v1.18 十 / 十一 / 7.3 / 7.6） ================= */
+
+const musicPost = (e, body) => call(e, '/curio/api/music', { who: 'owner', method: 'POST', body });
+const upCover = (e, id) => call(e, `/curio/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' });
+const rowOf = (e, t, id) => e.db.raw.prepare(`SELECT * FROM ${t} WHERE id = ?`).get(id);
+const artists = (e) => e.db.raw.prepare('SELECT id, name FROM music_artists ORDER BY id').all().map((r) => r.name);
+/** 让 D1 下一个写曲目的 batch 在最后多跑一条坏语句：整批真回滚（测原子性和 R2 顺序；搜索索引重建那些只读 batch 不算） */
+function failNextBatch(e) {
+  const orig = e.db.batch;
+  e.db.batch = async (list) => {
+    if (!list.some((st) => /^UPDATE music_tracks/.test(st.sql || ''))) return orig(list);
+    e.db.batch = orig;
+    return orig([...list, e.db.prepare('INSERT INTO no_such_table VALUES (1)')]);
+  };
+}
+
+test('M1 校验：track.edit 收 artist（字符串）/ album_id（正整数 = 移到专辑，0 = 移出变单曲）；坏值 bad-album / bad-artist', () => {
+  assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, album_id: 5 }), { op: 'track.edit', id: 1, fields: { album_id: 5 } });
+  assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, album_id: 0 }), { op: 'track.edit', id: 1, fields: { album_id: 0 } });
+  assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, album_id: '0' }).fields, { album_id: 0 });
+  for (const v of [-1, 1.5, 'x', null, true]) assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, album_id: v }), { error: 'bad-album' }, String(v));
+  assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, artist: '  周杰伦  ' }).fields, { artist: '周杰伦' });
+  assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, artist: '' }).fields, { artist: '' });
+  assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, artist: 3 }), { error: 'bad-artist' });
+  assert.deepEqual(MU.parseMusicOp({ op: 'album.edit', id: 1, artist: {} }), { error: 'bad-artist' });
+  assert.deepEqual(MU.parseMusicOp({ op: 'album.add', title: 'A', artist: 1 }), { error: 'bad-artist' });
+});
+
+test('M1 十一 1：GET /curio/api/music 每首曲目带歌手名（按 artist_id 对 music_artists；0 → 空），访客和站长都有', async () => {
+  const e = makeEnv();
+  const id = await album(e);
+  const t1 = (await (await upTrack(e, id, 'no=1&title=A')).json()).id;
+  const t2 = (await (await upTrack(e, id, 'no=2&title=B')).json()).id;
+  assert.equal((await musicPost(e, { op: 'track.edit', id: t1, artist: 'Joni Mitchell' })).status, 200);
+  for (const who of [null, 'owner']) {
+    const list = (await (await call(e, '/curio/api/music', { who })).json()).albums;
+    assert.deepEqual(list[0].tracks.map((t) => [t.id, t.artist]), [[t1, 'Joni Mitchell'], [t2, '']], String(who));
+  }
+  /* artist_id 指向不存在的歌手（脏数据）→ 空，不报错 */
+  e.db.raw.prepare('UPDATE music_tracks SET artist_id = 999 WHERE id = ?').run(t2);
+  assert.equal((await (await call(e, '/curio/api/music')).json()).albums[0].tracks[1].artist, '');
+});
+
+test('M1 十一 4：歌手按名字匹配——去首尾空格后完全一致才算同一个，不合并繁简 / 大小写；没有就建；空 → artist_id 0 不建（album.add / album.edit / track.edit）', async () => {
+  const e = makeEnv();
+  const a = await album(e, { artist: '  周杰伦 ' });
+  assert.equal(rowOf(e, 'music_albums', a).artist, '周杰伦', '文本留作显示名');
+  const jay = rowOf(e, 'music_albums', a).artist_id;
+  assert.ok(jay > 0);
+  assert.deepEqual(artists(e), ['周杰伦']);
+  const b = await album(e, { title: 'B', artist: '周杰伦' });
+  assert.equal(rowOf(e, 'music_albums', b).artist_id, jay, '同名对上同一个');
+  const c = await album(e, { title: 'C', artist: '周杰倫' });
+  const d = await album(e, { title: 'D', artist: 'jay chou' });
+  await album(e, { title: 'E', artist: 'Jay Chou' });
+  assert.deepEqual(artists(e), ['周杰伦', '周杰倫', 'jay chou', 'Jay Chou'], '繁简、大小写各算一个');
+  assert.notEqual(rowOf(e, 'music_albums', c).artist_id, jay);
+  const none = await album(e, { title: 'F', artist: '   ' });
+  assert.equal(rowOf(e, 'music_albums', none).artist_id, 0);
+  assert.equal((await album(e, { title: 'G', artist: undefined })) > 0, true);
+  assert.equal(artists(e).length, 4, '空歌手不建');
+  /* album.edit：改歌手写 artist_id；改成空 → 0；不改歌手不动 artist_id */
+  assert.equal((await musicPost(e, { op: 'album.edit', id: d, artist: '周杰伦' })).status, 200);
+  assert.equal(rowOf(e, 'music_albums', d).artist_id, jay);
+  assert.equal((await musicPost(e, { op: 'album.edit', id: d, title: 'D2' })).status, 200);
+  assert.equal(rowOf(e, 'music_albums', d).artist_id, jay);
+  assert.equal((await musicPost(e, { op: 'album.edit', id: d, artist: '' })).status, 200);
+  assert.deepEqual([rowOf(e, 'music_albums', d).artist, rowOf(e, 'music_albums', d).artist_id], ['', 0]);
+  assert.equal((await musicPost(e, { op: 'album.edit', id: c, artist: 'Muse' })).status, 200);
+  assert.equal(artists(e).at(-1), 'Muse', 'album.edit 没有就建');
+  /* track.edit：改歌手写 artist_id（同名对上、空 → 0） */
+  const t = (await (await upTrack(e, a, 'no=1&title=晴天')).json()).id;
+  assert.equal(rowOf(e, 'music_tracks', t).artist_id, 0, '旧数据 / 新传的曲目不回填（十一 6）');
+  await musicPost(e, { op: 'track.edit', id: t, artist: ' 周杰伦' });
+  assert.equal(rowOf(e, 'music_tracks', t).artist_id, jay);
+  await musicPost(e, { op: 'track.edit', id: t, artist: '' });
+  assert.equal(rowOf(e, 'music_tracks', t).artist_id, 0);
+  assert.equal(artists(e).length, 5);
+});
+
+test('M1 十一 6：旧数据 artist_id 不回填——改到哪条补哪条，别的不动', async () => {
+  const e = makeEnv();
+  const a = await album(e);
+  const b = await album(e, { title: 'Hejira' });
+  e.db.raw.prepare('UPDATE music_albums SET artist_id = 0').run();
+  await musicPost(e, { op: 'album.edit', id: a, artist: 'Joni Mitchell' });
+  assert.ok(rowOf(e, 'music_albums', a).artist_id > 0);
+  assert.equal(rowOf(e, 'music_albums', b).artist_id, 0, '没改的那张不动');
+});
+
+test('M1 曲目改歌手：单曲里的曲目改歌手，单曲记录的歌手（文本 + artist_id）跟着改；单曲记录改歌手，它的曲目跟着改', async () => {
+  const e = makeEnv();
+  const s = await album(e, { kind: 'single', title: 'River', artist: '' });
+  const t = (await (await upTrack(e, s, 'no=1&title=River')).json()).id;
+  await musicPost(e, { op: 'track.edit', id: t, artist: 'Joni Mitchell' });
+  const jm = rowOf(e, 'music_tracks', t).artist_id;
+  assert.deepEqual([rowOf(e, 'music_albums', s).artist, rowOf(e, 'music_albums', s).artist_id], ['Joni Mitchell', jm]);
+  await musicPost(e, { op: 'album.edit', id: s, artist: 'Herbie Hancock' });
+  assert.equal(rowOf(e, 'music_tracks', t).artist_id, rowOf(e, 'music_albums', s).artist_id);
+  assert.notEqual(rowOf(e, 'music_tracks', t).artist_id, jm);
+  /* 专辑改歌手不动曲目（专辑里的曲目各有各的歌手） */
+  const a = await album(e);
+  const t2 = (await (await upTrack(e, a, 'no=1&title=A')).json()).id;
+  await musicPost(e, { op: 'album.edit', id: a, artist: 'Someone' });
+  assert.equal(rowOf(e, 'music_tracks', t2).artist_id, 0);
+});
+
+test('M1 移到专辑：只能移到 kind=album（单曲 400 target-single）；本来那张 400 same-album（十一 5）；目标不在 404；满 200 首 409；曲序接在最后；移空的专辑保留（十一 3）', async () => {
+  const e = makeEnv();
+  const a = await album(e, { title: 'A' });
+  const b = await album(e, { title: 'B' });
+  const s = await album(e, { kind: 'single', title: 'S' });
+  const t = (await (await upTrack(e, a, 'no=1&title=x')).json()).id;
+  await upTrack(e, b, 'no=4&title=y');
+  const r1 = await musicPost(e, { op: 'track.edit', id: t, album_id: s });
+  assert.equal(r1.status, 400);
+  assert.equal((await r1.json()).error, 'target-single');
+  const r2 = await musicPost(e, { op: 'track.edit', id: t, album_id: a, title: 'changed' });
+  assert.equal(r2.status, 400);
+  assert.equal((await r2.json()).error, 'same-album');
+  assert.equal(rowOf(e, 'music_tracks', t).title, 'x', '被拒时别的字段也没改');
+  const r3 = await musicPost(e, { op: 'track.edit', id: t, album_id: 999 });
+  assert.equal(r3.status, 404);
+  assert.equal((await r3.json()).error, 'album-not-found');
+  assert.equal((await musicPost(e, { op: 'track.edit', id: 999, album_id: b })).status, 404);
+  const ok = await musicPost(e, { op: 'track.edit', id: t, album_id: b });
+  assert.equal(ok.status, 200);
+  const list = (await ok.json()).albums;
+  assert.deepEqual(list.map((x) => [x.title, x.tracks.map((tr) => [tr.title, tr.no])]), [['A', []], ['B', [['y', 4], ['x', 5]]], ['S', []]]);
+  assert.ok(rowOf(e, 'music_albums', a), '专辑最后一首移走：专辑保留');
+  /* 满 200 首 */
+  const ins = e.db.raw.prepare('INSERT INTO music_tracks (album_id, no, title) VALUES (?, ?, ?)');
+  for (let i = 0; i < 199; i++) ins.run(a, i, 'f' + i);
+  const t3 = (await (await upTrack(e, a, 'no=1&title=z')).json()).id;
+  const full = await musicPost(e, { op: 'track.edit', id: t, album_id: a });
+  assert.equal(full.status, 409);
+  assert.equal((await full.json()).error, 'limit');
+  assert.equal(rowOf(e, 'music_tracks', t).album_id, b);
+  assert.ok(t3);
+});
+
+test('M1 7.6 单曲划进专辑：空单曲记录（和令牌）删掉、它的封面 R2 文件也删（D1 提交成功之后才删）；曲目用专辑封面', async () => {
+  const e = makeEnv();
+  const a = await album(e, { title: 'Blue' });
+  await upCover(e, a);
+  const albumCover = rowOf(e, 'music_albums', a).cover;
+  const s = await album(e, { kind: 'single', title: 'River' });
+  const t = (await (await upTrack(e, s, 'no=1&title=River')).json()).id;
+  await new Promise((r) => setTimeout(r, 3));
+  await upCover(e, s);
+  const singleCover = rowOf(e, 'music_albums', s).cover;
+  await call(e, '/curio/api/music-play', { who: 'owner', method: 'POST', body: { album: s } });
+  /* 记下 R2 删封面那一刻 D1 里单曲记录还在不在：必须已经不在（先提交 D1 再删 R2） */
+  const seen = [];
+  const del = e.r2m.delete.bind(e.r2m);
+  e.r2m.delete = async (k) => { seen.push([k, !!rowOf(e, 'music_albums', s)]); return del(k); };
+  const r = await musicPost(e, { op: 'track.edit', id: t, album_id: a });
+  assert.equal(r.status, 200);
+  assert.deepEqual(seen, [[singleCover, false]]);
+  assert.equal(rowOf(e, 'music_albums', s), undefined, '空单曲记录删了');
+  assert.equal(e.db.raw.prepare('SELECT COUNT(*) AS n FROM music_tokens WHERE album_id = ?').get(s).n, 0);
+  assert.equal(e.r2m.m.has(singleCover), false, '单曲自己的封面丢弃');
+  assert.equal(e.r2m.m.has(albumCover), true);
+  assert.equal(rowOf(e, 'music_tracks', t).album_id, a);
+  const j = await r.json();
+  assert.deepEqual(j.albums.map((x) => [x.kind, x.title, x.cover, x.tracks.map((tr) => tr.title)]), [['album', 'Blue', true, ['River']]], '曲目跟专辑走，用专辑封面');
+});
+
+test('M1 R2 顺序（失败路径）：单曲划进专辑时 D1 写失败 → 单曲记录、单曲旧封面都不动', async () => {
+  const e = makeEnv();
+  const a = await album(e, { title: 'Blue' });
+  const s = await album(e, { kind: 'single', title: 'River' });
+  const t = (await (await upTrack(e, s, 'no=1&title=River')).json()).id;
+  await upCover(e, s);
+  const singleCover = rowOf(e, 'music_albums', s).cover;
+  failNextBatch(e);
+  const r = await musicPost(e, { op: 'track.edit', id: t, album_id: a });
+  assert.equal(r.status, 500);
+  assert.equal(e.r2m.m.has(singleCover), true, 'D1 没提交，单曲旧封面不删');
+  assert.ok(rowOf(e, 'music_albums', s), '单曲记录还在（整批回滚）');
+  assert.equal(rowOf(e, 'music_tracks', t).album_id, s);
+});
+
+test('M1 十一 2 / 7.6 移出专辑变单曲：名 = 曲名、歌手 = 曲目的 artist_id（显示名取歌手表）、年份 = 原专辑、封面复制成新 key、排在最后；原专辑保留；本来是单曲 400 already-single', async () => {
+  const e = makeEnv();
+  const a = await album(e, { title: 'Blue', year: 1971 });
+  await upCover(e, a);
+  const albumCover = rowOf(e, 'music_albums', a).cover;
+  const later = await album(e, { kind: 'single', title: 'Later' });
+  const t = (await (await upTrack(e, a, 'no=3&title=River')).json()).id;
+  await musicPost(e, { op: 'track.edit', id: t, artist: 'Joni Mitchell' });
+  const jm = rowOf(e, 'music_tracks', t).artist_id;
+  const r = await musicPost(e, { op: 'track.edit', id: t, album_id: 0 });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  const sid = j.id;
+  assert.ok(sid > 0, '回新单曲的 id');
+  const s = rowOf(e, 'music_albums', sid);
+  assert.deepEqual([s.kind, s.title, s.artist, s.artist_id, s.year], ['single', 'River', 'Joni Mitchell', jm, 1971]);
+  assert.ok(s.cover && s.cover !== albumCover, '封面是新 key，不共用');
+  assert.match(s.cover, new RegExp(`^music/t${t}/cover-\\d+\\.webp$`));
+  assert.deepEqual(e.r2m.m.get(s.cover).bytes, e.r2m.m.get(albumCover).bytes, '内容是复制的');
+  assert.equal(e.r2m.m.get(s.cover).httpMetadata.contentType, 'image/webp');
+  assert.deepEqual([rowOf(e, 'music_tracks', t).album_id, rowOf(e, 'music_tracks', t).no], [sid, 1]);
+  assert.deepEqual(j.albums.map((x) => [x.id, x.kind, x.tracks.length]), [[a, 'album', 0], [later, 'single', 0], [sid, 'single', 1]], '原专辑空了也保留；新单曲排最后');
+  assert.ok(s.pos > rowOf(e, 'music_albums', later).pos);
+  /* 删原专辑不连带新单曲的封面 */
+  await musicPost(e, { op: 'album.del', id: a });
+  assert.equal(e.r2m.m.has(albumCover), false);
+  assert.equal(e.r2m.m.has(s.cover), true);
+  /* 本来就是单曲 → 400 already-single */
+  const again = await musicPost(e, { op: 'track.edit', id: t, album_id: 0 });
+  assert.equal(again.status, 400);
+  assert.equal((await again.json()).error, 'already-single');
+});
+
+test('M1 移出变单曲：同一请求里改名 / 改歌手照新值建单曲；原专辑没封面 → 单曲没封面；歌手 0 → 单曲歌手空', async () => {
+  const e = makeEnv();
+  const a = await album(e, { title: 'Blue', year: 0 });
+  const t1 = (await (await upTrack(e, a, 'no=1&title=x')).json()).id;
+  const t2 = (await (await upTrack(e, a, 'no=2&title=y')).json()).id;
+  const j1 = await (await musicPost(e, { op: 'track.edit', id: t1, album_id: 0, title: 'New Name', artist: 'Muse' })).json();
+  const s1 = rowOf(e, 'music_albums', j1.id);
+  assert.deepEqual([s1.title, s1.artist, s1.cover, s1.year], ['New Name', 'Muse', '', 0]);
+  assert.equal(s1.artist_id, rowOf(e, 'music_tracks', t1).artist_id);
+  assert.ok(s1.artist_id > 0);
+  const j2 = await (await musicPost(e, { op: 'track.edit', id: t2, album_id: 0 })).json();
+  const s2 = rowOf(e, 'music_albums', j2.id);
+  assert.deepEqual([s2.title, s2.artist, s2.artist_id], ['y', '', 0]);
+  assert.equal(e.r2m.m.size, 2, '只有两首音频，没有凭空的封面');
+});
+
+test('M1 移出变单曲：单曲满 500 → 409 limit（不复制封面）', async () => {
+  const e = makeEnv();
+  const a = await album(e);
+  await upCover(e, a);
+  const t = (await (await upTrack(e, a, 'no=1&title=x')).json()).id;
+  const ins = e.db.raw.prepare("INSERT INTO music_albums (title, kind) VALUES (?, 'single')");
+  for (let i = 0; i < 500; i++) ins.run('s' + i);
+  const size = e.r2m.m.size;
+  const r = await musicPost(e, { op: 'track.edit', id: t, album_id: 0 });
+  assert.equal(r.status, 409);
+  assert.equal((await r.json()).error, 'limit');
+  assert.equal(e.r2m.m.size, size);
+  assert.equal(rowOf(e, 'music_tracks', t).album_id, a);
+});
+
+test('M1 R2 顺序（失败路径）：移出变单曲时封面副本先于 D1 复制，D1 写失败就删掉副本；不留单曲、不留新歌手（同一 batch 回滚）', async () => {
+  const e = makeEnv();
+  const a = await album(e);
+  await upCover(e, a);
+  const t = (await (await upTrack(e, a, 'no=1&title=x')).json()).id;
+  const before = [...e.r2m.m.keys()].sort();
+  const order = [];
+  const put = e.r2m.put.bind(e.r2m);
+  e.r2m.put = async (k, v, o) => { order.push('r2-put'); return put(k, v, o); };
+  const batch = e.db.batch;
+  e.db.batch = async (list) => { if (list.some((st) => /^UPDATE music_tracks/.test(st.sql || ''))) order.push('d1-batch'); return batch(list); };
+  failNextBatch(e);
+  const r = await musicPost(e, { op: 'track.edit', id: t, album_id: 0, artist: 'Brand New Artist' });
+  assert.equal(r.status, 500);
+  assert.deepEqual(order, ['r2-put', 'd1-batch'], '先复制 R2，再写 D1');
+  assert.deepEqual([...e.r2m.m.keys()].sort(), before, '副本删了，原封面还在');
+  assert.equal(e.db.raw.prepare("SELECT COUNT(*) AS n FROM music_albums WHERE kind = 'single'").get().n, 0);
+  assert.equal(rowOf(e, 'music_tracks', t).album_id, a);
+  assert.deepEqual(artists(e), ['Joni Mitchell'], '新歌手跟着回滚');
+  /* 复制本身失败 → 503 storage，D1 不动 */
+  e.r2m.put = async () => { throw new Error('r2 down'); };
+  const r2 = await musicPost(e, { op: 'track.edit', id: t, album_id: 0 });
+  assert.equal(r2.status, 503);
+  assert.equal((await r2.json()).error, 'storage');
+  assert.equal(rowOf(e, 'music_tracks', t).album_id, a);
+  assert.equal(e.db.raw.prepare("SELECT COUNT(*) AS n FROM music_albums WHERE kind = 'single'").get().n, 0);
+});
+
+test('M1 上传：R2 写完、D1 写失败 → 当场删掉刚写的文件（音频、封面都一样；换封面时旧封面不动）', async () => {
+  const e = makeEnv();
+  const id = await album(e);
+  await upCover(e, id);
+  const oldCover = rowOf(e, 'music_albums', id).cover;
+  const prep = e.db.prepare;
+  e.db.prepare = (sql) => (/^(INSERT INTO music_tracks|UPDATE music_albums SET cover)/.test(sql) ? { bind: () => ({ run: async () => { throw new Error('d1 down'); } }) } : prep(sql));
+  const r = await upTrack(e, id, 'no=1&title=x');
+  assert.equal(r.status, 500);
+  await new Promise((r2) => setTimeout(r2, 3));
+  const c = await upCover(e, id);
+  assert.equal(c.status, 500);
+  e.db.prepare = prep;
+  assert.deepEqual([...e.r2m.m.keys()], [oldCover], '没有孤儿：新音频、新封面都删了，旧封面还在');
+  assert.equal(rowOf(e, 'music_albums', id).cover, oldCover);
+  assert.equal(e.db.raw.prepare('SELECT COUNT(*) AS n FROM music_tracks').get().n, 0);
 });
