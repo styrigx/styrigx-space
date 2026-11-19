@@ -8,9 +8,12 @@
 // 表（D1 styrigx-atlas-core，绑定 D1_MUSIC；迁移 migrations/0001_curio.sql，MUSIC_SCHEMA 只兜底全新的库，两边一致，测试核对）：
 //   music_albums  专辑：名、艺术家、年份、封面（R2_MUSIC 的 key）、排序
 //   music_tracks  曲目：专辑、曲序、名、时长（秒）、音频（R2_MUSIC 的 key、类型、字节数）、可选歌词 LRC
+//   music_artists 歌手（M1 起写）：名字 UNIQUE；专辑 / 曲目的 artist_id 指向它（0 = 没有歌手）。按名字对上：去掉首尾空格后完全一致，不做繁简 / 大小写合并；
+//                 没有就在同一个 batch 里建。专辑的 artist 文本留作显示名；曲目没有歌手文本，歌单里的曲目歌手名取这张表。旧数据不回填（归 M4）。
 //   music_tokens  播放令牌：随机 32 字节（crypto.getRandomValues，base64url），一张专辑一枚，10 分钟有效；
 //                 有效期内可以多次 Range 请求（拖进度）。不用 HMAC、不要任何 secret。签新令牌时顺手删过期的。
-// R2（绑定 R2_MUSIC，同一个桶 styrigx-atlas-core）：music/<专辑 id>/<曲序>-<时间>.<扩展名>、music/<专辑 id>/cover-<时间>.<扩展名>。
+// R2（绑定 R2_MUSIC，同一个桶 styrigx-atlas-core）：music/<专辑 id>/<曲序>-<时间>.<扩展名>、music/<专辑 id>/cover-<时间>.<扩展名>；
+//   曲目移出专辑变单曲时复制的封面：music/t<曲目 id>/cover-<时间>.<扩展名>（复制在写 D1 之前，那时还没有单曲 id）。
 //   不在 photos/ 下，照片清扫（photo-sweep.js）不碰；删专辑 / 删曲目时当场删。
 // 不进全站搜索索引 / AI 召回、不进站点地图（search-index.js 不读这些表；页面 noindex）。
 import { err, isSameOrigin } from './_lib.js';
@@ -104,9 +107,16 @@ function take(fields, b, all, required) {
   return { fields: out };
 }
 
+/** 歌手名（音乐 v1.18 十一 第 4 条）：去掉首尾空格（同其他单行字段，控制字符换空格、连续空白并成一个）后按原样比对，不做繁简、大小写合并；空 = 没有歌手 */
+export function artistName(v) { return line(v, L.short); }
+
 /**
- * 校验写操作：album.add {title, artist?, year?, kind?} / album.edit {id, title?, artist?, year?, kind?} / album.del {id} / track.edit {id, title?, no?, lrc?} / track.del {id}
+ * 校验写操作：
+ *   album.add {title, artist?, year?, kind?} / album.edit {id, title?, artist?, year?, kind?} / album.del {id}
+ *   track.edit {id, title?, no?, lrc?, artist?, album_id?} / track.del {id}
  * kind：album（缺省）/ single；别的值 bad-kind。
+ * track.edit 的 artist（M1）：曲目改歌手，写 artist_id（按名字对上 music_artists，没有就建；空 → 0）；不是字符串 bad-artist。
+ * track.edit 的 album_id（M1，音乐 v1.18 7.3 / 7.6 / 十一）：正整数 = 移到这张专辑；0 = 移出变单曲；别的值 bad-album。
  * @param {any} b
  */
 export function parseMusicOp(b) {
@@ -114,6 +124,7 @@ export function parseMusicOp(b) {
   switch (b.op) {
     case 'album.add': {
       if (b.title === undefined) return { error: 'bad-title' };
+      if (b.artist !== undefined && typeof b.artist !== 'string') return { error: 'bad-artist' };
       const r = take(ALBUM_FIELDS, b, true, 'title');
       if ('error' in r) return r;
       const kind = b.kind === undefined ? 'album' : kindOf(b.kind);
@@ -124,12 +135,23 @@ export function parseMusicOp(b) {
     case 'track.edit': {
       const id = posInt(b.id);
       if (!id) return { error: 'bad-id' };
+      if (b.artist !== undefined && typeof b.artist !== 'string') return { error: 'bad-artist' };
       const r = take(b.op === 'album.edit' ? ALBUM_FIELDS : TRACK_FIELDS, b, false, 'title');
       if ('error' in r) return r;
       if (b.op === 'album.edit' && b.kind !== undefined) {
         const kind = kindOf(b.kind);
         if (!kind) return { error: 'bad-kind' };
         r.fields.kind = kind;
+      }
+      if (b.op === 'track.edit') {
+        if (b.artist !== undefined) r.fields.artist = artistName(b.artist);
+        if (b.album_id !== undefined) {
+          const v = b.album_id;
+          if (!(typeof v === 'number' || (typeof v === 'string' && /^\d+$/.test(v)))) return { error: 'bad-album' };
+          const to = Number(v) === 0 ? 0 : posInt(v);
+          if (to === 0 && Number(v) !== 0) return { error: 'bad-album' };
+          r.fields.album_id = to;
+        }
       }
       if (!Object.keys(r.fields).length) return { error: 'nothing' };
       return { op: b.op, id, fields: r.fields };
@@ -146,29 +168,154 @@ export function parseMusicOp(b) {
 
 /**
  * 全部记录（专辑和单曲，各带 kind；按添加顺序，新的在后；封面横滑从第一张开始）和各自的曲目（按曲序）。只有元数据，从不带音频地址 / R2 key。
+ * 每首曲目带 artist（M1，十一 第 1 条）：按 music_tracks.artist_id 对 music_artists.name；0 或对不上 → ''。
  * full（管理的人：账号 + curio.write）多给 size / type / 有没有歌词；歌词正文在签播放令牌时给。
  * @param {any} db @param {boolean} [full]
  */
 export async function listAlbums(db, full = false) {
   const [as, ts] = await db.batch([
     db.prepare('SELECT id, title, artist, year, cover, kind FROM music_albums ORDER BY pos, id'),
-    db.prepare('SELECT id, album_id, no, title, duration, size, type, length(lrc) AS lrc_len FROM music_tracks ORDER BY album_id, no, id'),
+    db.prepare("SELECT t.id, t.album_id, t.no, t.title, t.duration, t.size, t.type, length(t.lrc) AS lrc_len, COALESCE(r.name, '') AS artist FROM music_tracks t LEFT JOIN music_artists r ON r.id = t.artist_id AND t.artist_id > 0 ORDER BY t.album_id, t.no, t.id"),
   ]);
   /** @type {Map<number, any[]>} */
   const by = new Map();
   for (const t of ts.results || []) {
     if (!by.has(t.album_id)) by.set(t.album_id, []);
-    const row = { id: t.id, no: t.no, title: t.title, duration: t.duration };
+    const row = { id: t.id, no: t.no, title: t.title, duration: t.duration, artist: t.artist || '' };
     by.get(t.album_id).push(full ? { ...row, size: t.size, type: t.type, lrc: (t.lrc_len || 0) > 0 } : row);
   }
   return (as.results || []).map((a) => ({ id: a.id, kind: a.kind === 'single' ? 'single' : 'album', title: a.title, artist: a.artist, year: a.year, cover: !!a.cover, tracks: by.get(a.id) || [] }));
 }
 
+/* ---------- 歌手 artist_id（M1，十一 第 4 条） ----------
+ * 同一个 batch 里先 INSERT OR IGNORE 歌手（name UNIQUE），再用子查询取 id 写进专辑 / 曲目：歌手和引用它的那条一起提交，写失败不留空歌手。 */
+const ARTIST_ID_SQL = (n) => `COALESCE((SELECT id FROM music_artists WHERE name = ?${n}), 0)`;
+/** @param {any} db @param {string} name @param {number} now */
+function artistUpsert(db, name, now) {
+  return name ? [db.prepare('INSERT OR IGNORE INTO music_artists (name, created_at, updated_at) VALUES (?1, ?2, ?2)').bind(name, now)] : [];
+}
+
+/** 曲目移出专辑变单曲时，复制的封面放哪（复制在写 D1 之前，那时还没有单曲 id，按曲目 id 起名）@param {number} trackId @param {string} src @param {number} now */
+export function copiedCoverKey(trackId, src, now) {
+  const m = /\.([a-z0-9]+)$/i.exec(src || '');
+  return `music/t${trackId}/cover-${now}.${m ? m[1].toLowerCase() : 'webp'}`;
+}
+
 /**
- * 执行已校验的写操作。返回 {error}（not-found / limit / single-tracks）或 {removed:[R2_MUSIC key…], id?}（删的音频 / 封面，交给调用方从 R2 删）。
- * @param {any} db @param {any} o @param {number} [now]
+ * track.edit（M1）：改名 / 曲序 / 歌词 / 歌手 / 所属专辑，一个 batch 提交。
+ *   移到专辑 album_id=N：目标要是 kind='album'（单曲 400 target-single）；就是本来那张 400 same-album；目标不在 404 album-not-found；满 200 首 409 limit。
+ *     曲序缺省接在目标专辑最后（max(no)+1，≤999）。原来是单曲（移走就空了）→ 同一个 batch 删掉这条单曲记录和它的令牌，
+ *     单曲旧封面放进 removed（调用方在 D1 提交成功之后才删 R2）。原来是专辑、移空了照样保留（十一 第 3 条）。
+ *   移出变单曲 album_id=0：本来就是单曲 400 already-single；单曲满 500 409 limit。新单曲：名 = 曲名、歌手 = 曲目的歌手（同一个 artist_id，显示名取歌手表）、
+ *     年份 = 原专辑年份、排在最后、曲序 1；封面：原专辑有封面就先在 R2 复制一份新 key（复制失败 503 storage，D1 不动），D1 写失败删掉副本。
+ *   改歌手 artist：写 artist_id；曲目在单曲里时，单曲记录的歌手（文本 + artist_id）跟着改。
+ * @param {any} db @param {any} o @param {number} now @param {any} r2
  */
-export async function applyMusicOp(db, o, now = Date.now()) {
+async function editTrack(db, o, now, r2) {
+  const f = { ...o.fields };
+  const cur = await db.prepare("SELECT t.id, t.album_id, t.title, t.artist_id, a.id AS aid, a.kind, a.year, a.cover, (SELECT COUNT(*) FROM music_tracks WHERE album_id = t.album_id) AS n_src, COALESCE(r.name, '') AS artist_name FROM music_tracks t LEFT JOIN music_albums a ON a.id = t.album_id LEFT JOIN music_artists r ON r.id = t.artist_id AND t.artist_id > 0 WHERE t.id = ?1").bind(o.id).first();
+  if (!cur) return { error: 'not-found' };
+  const srcSingle = cur.aid && cur.kind === 'single';
+  const hasArtist = f.artist !== undefined;
+  const move = f.album_id;
+  delete f.artist;
+  delete f.album_id;
+  /** @type {string[]} */
+  const removed = [];
+  let copied = '';
+  let moveOut = false;
+
+  if (move !== undefined) {
+    if (move > 0) {
+      if (move === cur.album_id) return { error: 'same-album' };
+      const to = await db.prepare('SELECT a.id, a.kind, (SELECT COUNT(*) FROM music_tracks WHERE album_id = a.id) AS n, (SELECT COALESCE(MAX(no), 0) FROM music_tracks WHERE album_id = a.id) AS maxno FROM music_albums a WHERE a.id = ?1').bind(move).first();
+      if (!to) return { error: 'album-not-found' };
+      if (to.kind === 'single') return { error: 'target-single' };
+      if (to.n >= L.tracks) return { error: 'limit' };
+      f.album_id = move;
+      if (f.no === undefined) f.no = Math.min(999, (to.maxno || 0) + 1);
+    } else {
+      if (srcSingle) return { error: 'already-single' };
+      const n = await db.prepare("SELECT COUNT(*) AS n FROM music_albums WHERE kind = 'single'").first();
+      if (n && n.n >= L.singles) return { error: 'limit' };
+      moveOut = true;
+      if (f.no === undefined) f.no = 1;
+    }
+  }
+
+  /* 移出：封面副本在写 D1 之前复制（7.6、十一「做的时候要守住的」） */
+  if (moveOut && cur.cover) {
+    if (!r2) return { error: 'storage' };
+    try {
+      const obj = await r2.get(cur.cover);
+      if (obj) {
+        const key = copiedCoverKey(cur.id, cur.cover, now);
+        const bytes = obj.arrayBuffer ? await obj.arrayBuffer() : obj.body;
+        await r2.put(key, bytes, { httpMetadata: obj.httpMetadata || {} });
+        copied = key;
+      } else console.error('[curio-music] album cover missing in r2, single gets no cover');
+    } catch (e) {
+      if (copied) { try { await r2.delete(copied); } catch (x) { /* 只记日志 */ } }
+      console.error('[curio-music] cover copy failed');
+      return { error: 'storage' };
+    }
+  }
+
+  const stmts = [];
+  if (hasArtist) stmts.push(...artistUpsert(db, o.fields.artist, now));
+  const newArtist = hasArtist ? o.fields.artist : cur.artist_name;
+  if (moveOut) {
+    const title = f.title !== undefined ? f.title : cur.title;
+    const aidSql = hasArtist ? (newArtist ? ARTIST_ID_SQL(7) : '0') : '?7';
+    const args = [title, newArtist, cur.year || 0, copied, now, 'single', hasArtist ? newArtist : (cur.artist_id || 0)];
+    if (hasArtist && !newArtist) args.pop();
+    stmts.push(db.prepare(`INSERT INTO music_albums (title, artist, year, cover, pos, created_at, updated_at, kind, artist_id) VALUES (?1, ?2, ?3, ?4, (SELECT COALESCE(MAX(pos), -1) + 1 FROM music_albums), ?5, ?5, ?6, ${aidSql})`).bind(...args));
+  }
+  /* 曲目本身 */
+  const sets = [];
+  const args = [];
+  for (const c of Object.keys(f)) { args.push(f[c]); sets.push(`${c} = ?${args.length}`); }
+  if (moveOut) sets.push('album_id = (SELECT MAX(id) FROM music_albums)');
+  if (hasArtist) {
+    if (newArtist) { args.push(newArtist); sets.push(`artist_id = ${ARTIST_ID_SQL(args.length)}`); } else sets.push('artist_id = 0');
+  }
+  args.push(o.id);
+  stmts.push(db.prepare(`UPDATE music_tracks SET ${sets.join(', ')} WHERE id = ?${args.length}`).bind(...args));
+  /* 单曲里的曲目改歌手（没移走）：单曲记录的歌手跟着改 */
+  if (hasArtist && srcSingle && move === undefined) {
+    stmts.push(newArtist
+      ? db.prepare(`UPDATE music_albums SET artist = ?1, artist_id = ${ARTIST_ID_SQL(1)}, updated_at = ?2 WHERE id = ?3`).bind(newArtist, now, cur.aid)
+      : db.prepare('UPDATE music_albums SET artist = ?1, artist_id = 0, updated_at = ?2 WHERE id = ?3').bind('', now, cur.aid));
+  }
+  /* 单曲划进专辑：空单曲记录（和令牌）同一个 batch 删；旧封面等提交成功后由调用方删 */
+  if (move > 0 && srcSingle && cur.n_src <= 1) {
+    stmts.push(db.prepare('DELETE FROM music_tokens WHERE album_id = ?1').bind(cur.aid));
+    stmts.push(db.prepare("DELETE FROM music_albums WHERE id = ?1 AND kind = 'single' AND NOT EXISTS (SELECT 1 FROM music_tracks WHERE album_id = ?1)").bind(cur.aid));
+    if (cur.cover) removed.push(cur.cover);
+  }
+
+  let out;
+  try {
+    out = await db.batch(stmts);
+  } catch (e) {
+    /* D1 写失败：删掉刚复制的封面副本（不留孤儿）；单曲旧封面没动 */
+    if (copied) { try { await r2.delete(copied); } catch (x) { console.error('[curio-music] cover copy cleanup failed'); } }
+    throw e;
+  }
+  if (moveOut) {
+    const ins = out[stmts.length - 2];
+    return { removed, id: ins && ins.meta && ins.meta.last_row_id };
+  }
+  return { removed };
+}
+
+/**
+ * 执行已校验的写操作。返回 {error}（not-found / limit / single-tracks / same-album / target-single / already-single / album-not-found / storage）
+ * 或 {removed:[R2_MUSIC key…], id?}（删的音频 / 封面，交给调用方在 D1 提交之后从 R2 删）。
+ * r2：track.edit 移出变单曲要复制封面时用（R2_MUSIC）。
+ * @param {any} db @param {any} o @param {number} [now] @param {any} [r2]
+ */
+export async function applyMusicOp(db, o, now = Date.now(), r2 = null) {
   switch (o.op) {
     case 'album.add': {
       const f = o.fields;
@@ -176,18 +323,21 @@ export async function applyMusicOp(db, o, now = Date.now()) {
       /* 上限按 kind 分开算：专辑 100、单曲 500 */
       const n = await db.prepare('SELECT SUM(kind = ?1) AS n, COALESCE(MAX(pos), -1) AS p FROM music_albums').bind(kind).first();
       if (n && n.n >= kindLimit(kind)) return { error: 'limit' };
-      const r = await db.prepare('INSERT INTO music_albums (title, artist, year, pos, created_at, updated_at, kind) VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6)')
-        .bind(f.title, f.artist || '', f.year || 0, (n ? n.p : -1) + 1, now, kind).run();
-      return { removed: [], id: r.meta && r.meta.last_row_id };
+      const artist = f.artist || '';
+      const res = await db.batch([
+        ...artistUpsert(db, artist, now),
+        db.prepare(`INSERT INTO music_albums (title, artist, year, pos, created_at, updated_at, kind, artist_id) VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6, ${artist ? ARTIST_ID_SQL(2) : '0'})`)
+          .bind(f.title, artist, f.year || 0, (n ? n.p : -1) + 1, now, kind),
+      ]);
+      const r = res[res.length - 1];
+      return { removed: [], id: r && r.meta && r.meta.last_row_id };
     }
-    case 'album.edit':
-    case 'track.edit': {
-      const T = o.op === 'album.edit' ? 'music_albums' : 'music_tracks';
-      const cur = await db.prepare(`SELECT ${T === 'music_albums' ? 'id, kind' : 'id'} FROM ${T} WHERE id = ?1`).bind(o.id).first();
+    case 'album.edit': {
+      const cur = await db.prepare('SELECT id, kind FROM music_albums WHERE id = ?1').bind(o.id).first();
       if (!cur) return { error: 'not-found' };
       /* 改 kind（Gray 2026-11-14 17:33）：专辑 → 单曲只在 ≤1 首时可以（否则 409 single-tracks）；单曲 → 专辑直接转；
          两个方向都按目标那边的上限算（专辑 100、单曲 500），超限 409 limit。和原来一样就当没改 */
-      if (T === 'music_albums' && o.fields.kind !== undefined) {
+      if (o.fields.kind !== undefined) {
         const to = o.fields.kind;
         if (to === (cur.kind === 'single' ? 'single' : 'album')) delete o.fields.kind;
         else {
@@ -202,12 +352,26 @@ export async function applyMusicOp(db, o, now = Date.now()) {
       }
       const cols = Object.keys(o.fields);
       const args = cols.map((c) => o.fields[c]);
-      let set = cols.map((c, i) => c + ' = ?' + (i + 1)).join(', ');
-      if (T === 'music_albums') { args.push(now); set += ', updated_at = ?' + args.length; }
+      const sets = cols.map((c, i) => c + ' = ?' + (i + 1));
+      const hasArtist = o.fields.artist !== undefined;
+      const artist = hasArtist ? o.fields.artist : '';
+      /* 改歌手：artist 文本留作显示名，artist_id 按名字对上 music_artists（没有就建；空 → 0）（M1） */
+      if (hasArtist) sets.push('artist_id = ' + (artist ? ARTIST_ID_SQL(cols.indexOf('artist') + 1) : '0'));
+      args.push(now); sets.push('updated_at = ?' + args.length);
       args.push(o.id);
-      await db.prepare(`UPDATE ${T} SET ${set} WHERE id = ?${args.length}`).bind(...args).run();
+      const stmts = [...(hasArtist ? artistUpsert(db, artist, now) : []), db.prepare(`UPDATE music_albums SET ${sets.join(', ')} WHERE id = ?${args.length}`).bind(...args)];
+      /* 单曲记录改歌手：它那一首曲目的 artist_id 跟着改（单曲的歌手就是曲目的歌手） */
+      const single = o.fields.kind !== undefined ? o.fields.kind === 'single' : cur.kind === 'single';
+      if (hasArtist && single) {
+        stmts.push(artist
+          ? db.prepare(`UPDATE music_tracks SET artist_id = ${ARTIST_ID_SQL(1)} WHERE album_id = ?2`).bind(artist, o.id)
+          : db.prepare('UPDATE music_tracks SET artist_id = 0 WHERE album_id = ?1').bind(o.id));
+      }
+      await db.batch(stmts);
       return { removed: [] };
     }
+    case 'track.edit':
+      return editTrack(db, o, now, r2);
     case 'album.del': {
       const a = await db.prepare('SELECT id, cover FROM music_albums WHERE id = ?1').bind(o.id).first();
       if (!a) return { error: 'not-found' };

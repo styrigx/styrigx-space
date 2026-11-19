@@ -1,16 +1,20 @@
 // workers/atlas-core/src/curio/api/music.js
 // 私人音乐的歌单（三层权限见 _music.js；档在 routes.js ROUTE_ACCESS）。
-// GET  /api/music   public：→ {ok, canWrite, albums:[{id, kind:'album'|'single', title, artist, year, cover, tracks:[{id, no, title, duration}]}]}——只有元数据，没有音频地址；
+// GET  /api/music   public：→ {ok, canWrite, albums:[{id, kind:'album'|'single', title, artist, year, cover, tracks:[{id, no, title, duration, artist}]}]}——只有元数据，没有音频地址；
+//                   曲目的 artist = music_artists.name（按 artist_id；0 → ''）（音乐 v1.18 十一 第 1 条）；
 //                   canWrite（账号 + curio.write）时曲目另带 size / type / lrc（有没有歌词），前端据此显示上传 / 删除。
 // POST /api/music   music 档 + 同源：body {op:'album.add'|'album.edit'|'album.del'|'track.edit'|'track.del', ...}（校验见 _music.js parseMusicOp）
 //                   成功 → {ok:true, canWrite:true, id?, albums}；删专辑 / 曲目连 R2_MUSIC 里的音频、封面一起删（删失败只记日志）。
+//                   track.edit（M1）另收 artist（改歌手，写 artist_id）、album_id（N = 移到专辑 N；0 = 移出变单曲，id = 新单曲）：
+//                     400 same-album / target-single / already-single / bad-album / bad-artist；404 album-not-found；409 limit；503 storage（复制封面失败，D1 没动）。
+//                   R2 删除一律在 D1 提交成功之后（单曲划进专辑：空单曲的旧封面也是）。
 // 无权限（app.js 守卫）：没有 v6 身份 401 unauthorized、档不够 403 forbidden；写非同源 403 origin。
 import { json, err, methodNotAllowed } from './_lib.js';
 import { readBody } from './_write.js';
 import { readAccess, viaV6, v6Of, auditRootOp } from './_auth.js';
 import { musicOrigin, ensureMusicSchema, listAlbums, parseMusicOp, applyMusicOp } from './_music.js';
 
-const STATUS = { 'not-found': 404, limit: 409, 'single-tracks': 409 };
+const STATUS = { 'not-found': 404, 'album-not-found': 404, limit: 409, 'single-tracks': 409, storage: 503 };
 
 export async function onRequestGet(context) {
   const { env } = context;
@@ -32,7 +36,7 @@ export async function onRequestPost(context) {
   /* 割接：经 v6 放进来的按 op 再判一次档（路由表：album.del 连曲目一起删 = 结构删除 → root；其余 curio-write） */
   if (viaV6(context) && !(await v6Of(context, o.op)).allowed) return err('forbidden', 403);
   await ensureMusicSchema(env.D1_MUSIC);
-  const r = await applyMusicOp(env.D1_MUSIC, o, Date.now());
+  const r = await applyMusicOp(env.D1_MUSIC, o, Date.now(), env.R2_MUSIC || null);
   if (r.error) return err(r.error, STATUS[r.error] || 400);
   for (const key of r.removed) {
     try { if (env.R2_MUSIC) await env.R2_MUSIC.delete(key); } catch (e) { console.error('[curio-music] r2 delete failed'); }

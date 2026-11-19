@@ -5,12 +5,18 @@
 // 上限：音频单文件 95 MB（MUSIC_LIMITS.trackBytes；Workers 请求体上限 100 MB），要带 Content-Length（没有 411）；封面 3 MB。
 // 音频类型看 Content-Type（AUDIO_TYPES 白名单，回放原样带回 + nosniff）；封面看头几个字节（webp / jpeg / png）。
 // R2_MUSIC：music/<专辑>/<曲序>-<时间>.<扩展名>、music/<专辑>/cover-<时间>.<扩展名>；换封面删旧的。
+// R2 写完、D1 写失败：当场删掉刚写的文件（不留孤儿；音乐 v1.18 M1），换封面时旧封面不动。
 // → 曲目 {ok:true, id}；封面 {ok:true}。400 参数不对 / 不是音频图片；404 专辑不在；409 曲目满了（专辑 200 首 limit；单曲已有 1 首 single-full）；413 太大
 import { err, json, methodNotAllowed } from './_lib.js';
 import { sniffImage } from './_image.js';
 import { musicOrigin, ensureMusicSchema, MUSIC_LIMITS, AUDIO_TYPES, trackKey } from './_music.js';
 
 const IMG_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+
+/** R2 写进去了、D1 却没写成：当场删掉，不留没人认的文件（音乐 v1.18 十 M1；错误照旧往上抛 → 500 internal） @param {any} r2 @param {string} key */
+async function dropOrphan(r2, key) {
+  try { await r2.delete(key); } catch (e) { console.error('[curio-music] orphan delete failed'); }
+}
 
 function intParam(sp, name, min, max) {
   const v = sp.get(name);
@@ -45,7 +51,12 @@ export async function onRequestPost(context) {
     if (!type) return err('not-image', 400);
     const key = `music/${albumId}/cover-${now}.${IMG_EXT[type]}`;
     try { await env.R2_MUSIC.put(key, bytes, { httpMetadata: { contentType: type } }); } catch (e) { return err('storage', 503); }
-    await db.prepare('UPDATE music_albums SET cover = ?1, updated_at = ?2 WHERE id = ?3').bind(key, now, albumId).run();
+    try {
+      await db.prepare('UPDATE music_albums SET cover = ?1, updated_at = ?2 WHERE id = ?3').bind(key, now, albumId).run();
+    } catch (e) {
+      await dropOrphan(env.R2_MUSIC, key);
+      throw e;
+    }
     if (album.cover) { try { await env.R2_MUSIC.delete(album.cover); } catch (e) { console.error('[curio-music] old cover delete failed'); } }
     return json({ ok: true });
   }
@@ -69,8 +80,14 @@ export async function onRequestPost(context) {
   } catch (e) {
     return err('storage', 503);
   }
-  const r = await db.prepare('INSERT INTO music_tracks (album_id, no, title, duration, r2_key, type, size, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)')
-    .bind(albumId, no, title, duration, key, type, len, now).run();
+  let r;
+  try {
+    r = await db.prepare('INSERT INTO music_tracks (album_id, no, title, duration, r2_key, type, size, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)')
+      .bind(albumId, no, title, duration, key, type, len, now).run();
+  } catch (e) {
+    await dropOrphan(env.R2_MUSIC, key);
+    throw e;
+  }
   return json({ ok: true, id: r.meta && r.meta.last_row_id });
 }
 
