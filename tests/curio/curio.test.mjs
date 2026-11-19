@@ -282,18 +282,28 @@ test('音乐 M3 导入后编辑：所属专辑下拉只列 kind=album、按名�
   const items = [{ trackId: 11, albumId: 1, name: 'A' }, { trackId: 12, albumId: 1, name: 'B' }];
   assert.deepEqual(MU.batchRequests(items, { artist: '', album: '', year: '' }, false), [], '都不改');
   assert.deepEqual(MU.batchRequests(items, { artist: ' X ', album: '2', year: 2000 }, false), [
-    { name: 'A', reqs: [{ op: 'track.edit', id: 11, artist: 'X', album_id: 2 }] },
-    { name: 'B', reqs: [{ op: 'track.edit', id: 12, artist: 'X', album_id: 2 }] },
+    { name: 'A', body: { op: 'track.edit', id: 11, artist: 'X', album_id: 2 } },
+    { name: 'B', body: { op: 'track.edit', id: 12, artist: 'X', album_id: 2 } },
   ], '专辑页：年份不发（曲目跟专辑走）');
   assert.deepEqual(MU.batchRequests(items, { artist: '', album: '1', year: '' }, false), [], '移到本来那张 = 不改');
-  assert.deepEqual(MU.batchRequests(items, { artist: '', album: '0', year: '' }, false).map((x) => x.reqs[0].album_id), [0, 0], '移出变单曲');
+  assert.deepEqual(MU.batchRequests(items, { artist: '', album: '0', year: '' }, false).map((x) => x.body.album_id), [0, 0], '移出变单曲');
   const singles = [{ trackId: 41, albumId: 31, name: 'River' }, { trackId: 42, albumId: 32, name: '晴天' }];
   assert.deepEqual(MU.batchRequests(singles, { artist: '周杰伦', album: '', year: 2003 }, true), [
-    { name: 'River', reqs: [{ op: 'track.edit', id: 41, artist: '周杰伦' }, { op: 'album.edit', id: 31, year: 2003 }] },
-    { name: '晴天', reqs: [{ op: 'track.edit', id: 42, artist: '周杰伦' }, { op: 'album.edit', id: 32, year: 2003 }] },
-  ]);
-  assert.deepEqual(MU.batchRequests(singles, { artist: '', album: '1', year: 2003 }, true).map((x) => x.reqs), [
-    [{ op: 'track.edit', id: 41, album_id: 1 }], [{ op: 'track.edit', id: 42, album_id: 1 }],
+    { name: 'River', body: { op: 'track.edit', id: 41, artist: '周杰伦', year: 2003 } },
+    { name: '晴天', body: { op: 'track.edit', id: 42, artist: '周杰伦', year: 2003 } },
+  ], '单曲：歌手 + 年份一个 track.edit（不发 album.edit）');
+  assert.deepEqual(MU.batchRequests(singles, { artist: '', album: '', year: 2003 }, true).map((x) => x.body), [
+    { op: 'track.edit', id: 41, year: 2003 }, { op: 'track.edit', id: 42, year: 2003 },
+  ], '单曲只改年份：也是 track.edit');
+  assert.deepEqual(MU.batchRequests(singles, { artist: '', album: '', year: 0 }, true).map((x) => x.body.year), [0, 0], '年份清空 = 0 也发');
+  assert.deepEqual(MU.batchRequests(singles, { artist: '周杰伦', album: '', year: '' }, true).map((x) => x.body), [
+    { op: 'track.edit', id: 41, artist: '周杰伦' }, { op: 'track.edit', id: 42, artist: '周杰伦' },
+  ], '单曲只改歌手：不带 year');
+  for (const f of [{ artist: 'A', album: '', year: 2003 }, { artist: '', album: '1', year: 2003 }, { artist: 'A', album: '', year: '' }]) {
+    for (const x of MU.batchRequests(singles, f, true)) assert.equal(x.body.op, 'track.edit', '单曲批量改只发 track.edit');
+  }
+  assert.deepEqual(MU.batchRequests(singles, { artist: '', album: '1', year: 2003 }, true).map((x) => x.body), [
+    { op: 'track.edit', id: 41, album_id: 1 }, { op: 'track.edit', id: 42, album_id: 1 },
   ], '单曲划进专辑：年份不发（单曲记录会删）');
   assert.deepEqual(MU.batchRequests(singles, { artist: '', album: '0', year: '' }, true), [], '单曲没有「移出变单曲」');
 });

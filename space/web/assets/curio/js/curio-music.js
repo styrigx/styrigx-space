@@ -108,9 +108,10 @@ function yearOf(v){
   return Number.isInteger(n) && n >= 1900 && n <= 2100 ? n : null;
 }
 /**
- * 批量改（十二 M3 第 3 条）→ 每条一组请求（前端逐条发，没有后端批量接口）。
+ * 批量改（十二 M3 第 3 条）→ 每条一个 track.edit（前端逐条发，没有后端批量接口）。
  * items = [{trackId, albumId（所在专辑 / 单曲记录 id）, name}]；f = {artist: ''（= 不改）, album: ''（不改）/ '0'（移出变单曲）/ 专辑 id, year: ''（不改）/ 数字}；
- * singles = 单曲区（年份只对单曲：album.edit 改单曲记录；单曲划进专辑时年份不发，记录会删）。没有要改的条目不出现。
+ * singles = 单曲区：年份只对单曲，跟歌手一起放进同一个 track.edit（后端同一个 batch 写进单曲记录，跟单曲编辑窗一样，Gray 审）；
+ * 单曲划进专辑时年份不发（记录会删）。没有要改的条目不出现。
  */
 function batchRequests(items, f, singles){
   var artist = String(f.artist == null ? '' : f.artist).trim();
@@ -118,12 +119,11 @@ function batchRequests(items, f, singles){
   var yr = singles && f.year !== '' && f.year != null ? Number(f.year) : null;
   var out = [];
   (items || []).forEach(function(it){
-    var reqs = [], b = { op: 'track.edit', id: it.trackId };
+    var b = { op: 'track.edit', id: it.trackId };
     if (artist) b.artist = artist;
     if (to !== null && to !== it.albumId && !(singles && to === 0)) b.album_id = to;
-    if (Object.keys(b).length > 2) reqs.push(b);
-    if (yr !== null && b.album_id === undefined) reqs.push({ op: 'album.edit', id: it.albumId, year: yr });
-    if (reqs.length) out.push({ name: it.name, reqs: reqs });
+    if (yr !== null && b.album_id === undefined) b.year = yr;
+    if (Object.keys(b).length > 2) out.push({ name: it.name, body: b });
   });
   return out;
 }
@@ -668,7 +668,7 @@ $('#mu-up-go').addEventListener('click', function(){
  *   单曲改名 / 改年份由后端在同一个 batch 写进单曲记录（Gray 审 1、3）；换封面走 music-upload kind=cover。
  *   左下「删除」→ 确认卡片（同删除单曲）→ track.del（curio-write 档；单曲唯一一首 → 后端连空单曲记录和封面一起删）。
  * 专辑标题旁「编辑」→ #mu-ae-wrap：名、歌手、年份（album.edit）+ 封面（music-upload kind=cover），一个入口统一改整张专辑。
- * 多选 → 「批量改」→ #mu-be-wrap：歌手、移专辑；年份只对单曲（album.edit 单曲记录）。逐条发请求（batchRequests），失败的列出来。 */
+ * 多选 → 「批量改」→ #mu-be-wrap：歌手、移专辑；年份只对单曲（跟歌手同一个 track.edit，后端写单曲记录）。每条一个请求（batchRequests），失败的列出来。 */
 function mkSheet(dlg, key){
   return G.SgxModalSheet ? G.SgxModalSheet(dlg, doc.createElement('span'), { ms: 240, reducedMs: 120, stateKey: key, modal: false, onOpen: function(){ upLock(true); }, onClosed: function(){ upLock(false); } })
     : { open: function(){ if (!dlg.open) { dlg.show(); dlg.classList.add('is-open'); upLock(true); } }, close: function(after){ if (dlg.open) { dlg.classList.remove('is-open'); dlg.close(); } upLock(false); if (after) after(); } };
@@ -888,9 +888,7 @@ $('#mu-be-save').addEventListener('click', function(){
   plan.forEach(function(item){
     chain = chain.then(function(){
       if (locked) return null;
-      var c = Promise.resolve();
-      item.reqs.forEach(function(b){ c = c.then(function(){ return req('POST', '/curio/api/music', b).then(function(j){ list = j.albums; }); }); });
-      return c.catch(function(e){ if (e.sgxLocked) { locked = true; return; } fails.push(item.name + '：' + errText(e)); });
+      return req('POST', '/curio/api/music', item.body).then(function(j){ list = j.albums; }).catch(function(e){ if (e.sgxLocked) { locked = true; return; } fails.push(item.name + '：' + errText(e)); });
     });
   });
   chain.then(function(){

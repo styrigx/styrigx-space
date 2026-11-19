@@ -5,7 +5,7 @@
 // - 歌词预填读失败（框是空的）→ 保存不带 lrc（不清掉已有歌词，Gray 审 4）
 // - 专辑标题旁「编辑」：名、歌手、年份（album.edit 只带改了的）+ 封面（music-upload kind=cover）
 // - 编辑窗里「删除」、单曲行删除键 → 确认卡片（同一张悬浮卡片）→ track.del（curio-write，Gray 审 2）；单曲唯一一首删了，单曲从列表消失
-// - 多选 → 批量改：歌手、移专辑（专辑页有「移出变单曲」）；年份只在单曲区出现（album.edit 单曲记录）；逐条发请求，失败的列出来
+// - 多选 → 批量改：歌手、移专辑（专辑页有「移出变单曲」）；年份只在单曲区出现，跟歌手同一个 track.edit（不发 album.edit，后端写单曲记录）；每条一个请求，失败的列出来
 // - 没有写权限：不画「⋯」「编辑」「多选」
 const { test, expect } = require('@playwright/test');
 
@@ -305,7 +305,7 @@ test('批量改（专辑页）：多选 → 点行选中（不播放、不画「
   await expect(page.locator('#mu-tracks .mu-more')).toHaveCount(2);
 });
 
-test('批量改（单曲区）：年份只在这里出现（album.edit 单曲记录）；歌手走 track.edit；没有「移出变单曲」；全成功 → 关窗、退出多选、提示', async ({ page }) => {
+test('批量改（单曲区）：年份只在这里出现；歌手 + 年份每首一个 track.edit（不发 album.edit）；没有「移出变单曲」；全成功 → 关窗、退出多选、提示', async ({ page }) => {
   const calls = await mockMusic(page);
   await page.goto('/curio/zh/music/');
   await page.locator('#mu-seg [data-sec="single"]').click();
@@ -321,9 +321,10 @@ test('批量改（单曲区）：年份只在这里出现（album.edit 单曲记
   await page.locator('#mu-be-save').click();
   await expect(page.locator('#mu-be-wrap')).toHaveJSProperty('open', false);
   expect(writes(calls)).toEqual([
-    { op: 'track.edit', id: 41, artist: '周杰伦' }, { op: 'album.edit', id: 31, year: 2003 },
-    { op: 'track.edit', id: 42, artist: '周杰伦' }, { op: 'album.edit', id: 32, year: 2003 },
+    { op: 'track.edit', id: 41, artist: '周杰伦', year: 2003 },
+    { op: 'track.edit', id: 42, artist: '周杰伦', year: 2003 },
   ]);
+  expect(calls.filter((c) => c.op === 'album.edit')).toEqual([]);
   await expect(page.locator('#bk-toast')).toHaveText('已改 2 条');
   await expect(page.locator('#mu-sel')).toBeVisible();
   await expect(page.locator('#mu-singles .mu-single-tx i')).toHaveText(['周杰伦', '周杰伦']);

@@ -932,6 +932,26 @@ test('M3 单曲改名 / 年份：track.edit 一个请求，曲目名、单曲记
   assert.equal(rowOf(e, 'music_tracks', t2).title, 'A2');
 });
 
+test('M3 批量改单曲的请求形状：track.edit 只带 artist + year（没有 title）→ 曲目歌手、单曲记录歌手 / artist_id / 年份同一个请求改好；写只在一个 db.batch 里', async () => {
+  const e = makeEnv();
+  const s = await album(e, { kind: 'single', title: '晴天', year: 0, artist: '' });
+  const t = (await (await upTrack(e, s, 'no=1&title=晴天')).json()).id;
+  const orig = e.db.batch;
+  let writes = 0;
+  e.db.batch = async (list) => { if (list.some((st) => /^\s*(INSERT|UPDATE|DELETE)/i.test(st.sql || ''))) writes++; return orig(list); };
+  const r = await musicPost(e, { op: 'track.edit', id: t, artist: '周杰伦', year: 2003 });
+  e.db.batch = orig;
+  assert.equal(r.status, 200);
+  assert.equal(writes, 1, '写只有一个 db.batch');
+  const jay = rowOf(e, 'music_tracks', t).artist_id;
+  assert.ok(jay > 0);
+  assert.deepEqual(artists(e), ['周杰伦']);
+  const row = rowOf(e, 'music_albums', s);
+  assert.deepEqual([row.title, row.artist, row.artist_id, row.year], ['晴天', '周杰伦', jay, 2003]);
+  assert.equal(rowOf(e, 'music_tracks', t).title, '晴天');
+  assert.deepEqual((await r.json()).albums.map((a) => [a.kind, a.title, a.artist, a.year, a.tracks[0].artist]), [['single', '晴天', '周杰伦', 2003, '周杰伦']]);
+});
+
 test('M3 年份只对单曲：专辑里的曲目、或同时移专辑 / 移出 → 400 year-not-single，什么都不改', async () => {
   const e = makeEnv();
   const a = await album(e, { title: 'Blue', year: 1971 });
