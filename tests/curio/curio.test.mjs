@@ -242,6 +242,55 @@ test('音乐：倍速循环、时间格式、LRC 解析与当前行、文件名 
   assert.equal(MU.TRACK_MAX, 95 * 1024 * 1024);
 });
 
+test('音乐 M3 导入后编辑：所属专辑下拉只列 kind=album、按名排序；编辑表单只带改了的字段（停在原处不带 album_id）；歌词改没改；年份；批量改逐条成请求（年份只对单曲）', () => {
+  const list = [
+    { id: 1, kind: 'album', title: 'Blue' }, { id: 9, kind: 'single', title: 'Aaa' }, { id: 2, kind: 'album', title: 'ammonia' },
+    { id: 3, title: '旧数据没 kind' }, { id: 4, kind: 'album', title: 'Album 10' }, { id: 5, kind: 'album', title: 'Album 9' },
+  ];
+  assert.deepEqual(MU.albumChoices(list, 'en').map((a) => a.id), [5, 4, 2, 1, 3], '单曲不列；自然序、不分大小写');
+  assert.deepEqual(MU.albumChoices([], 'zh'), []);
+
+  const t = { id: 11, title: 'A', artist: 'Joni' };
+  assert.equal(MU.trackEditBody(t, { albumId: 1, single: false }, { title: 'A', artist: 'Joni', album: '1', lrc: null }), null, '没改');
+  assert.deepEqual(MU.trackEditBody(t, { albumId: 1, single: false }, { title: ' B ', artist: '', album: '1', lrc: '' }), { op: 'track.edit', id: 11, title: 'B', artist: '', lrc: '' });
+  assert.deepEqual(MU.trackEditBody(t, { albumId: 1, single: false }, { title: 'A', artist: 'Joni', album: '2', lrc: null }), { op: 'track.edit', id: 11, album_id: 2 });
+  assert.deepEqual(MU.trackEditBody(t, { albumId: 1, single: false }, { title: 'A', artist: 'Joni', album: '0', lrc: null }), { op: 'track.edit', id: 11, album_id: 0 }, '移出变单曲');
+  assert.equal(MU.trackEditBody(t, { albumId: 31, single: true }, { title: 'A', artist: 'Joni', album: '0', lrc: null }), null, '单曲停在顶项 = 不移');
+  assert.deepEqual(MU.trackEditBody(t, { albumId: 31, single: true }, { title: 'A', artist: 'Joni', album: '1', lrc: null }), { op: 'track.edit', id: 11, album_id: 1 }, '单曲划进专辑');
+  assert.equal(MU.trackEditBody(t, { albumId: 1, single: false }, { title: '', artist: 'Joni', album: '1', lrc: null }), null, '空歌名不发（表单先拦）');
+
+  assert.equal(MU.lrcChange('', ''), null);
+  assert.equal(MU.lrcChange('', '[00:01]x'), '[00:01]x');
+  assert.equal(MU.lrcChange('[00:01]x', '[00:01]x'), null);
+  assert.equal(MU.lrcChange('[00:01]x', ''), '', '清空歌词');
+  assert.equal(MU.lrcChange(null, '  '), null, '有歌词但没读出来：空着不改');
+  assert.equal(MU.lrcChange(null, '[00:02]y'), '[00:02]y');
+
+  assert.equal(MU.yearOf(''), 0);
+  assert.equal(MU.yearOf(' 1971 '), 1971);
+  assert.equal(MU.yearOf('1899'), null);
+  assert.equal(MU.yearOf('2101'), null);
+  assert.equal(MU.yearOf('19.5'), null);
+
+  const items = [{ trackId: 11, albumId: 1, name: 'A' }, { trackId: 12, albumId: 1, name: 'B' }];
+  assert.deepEqual(MU.batchRequests(items, { artist: '', album: '', year: '' }, false), [], '都不改');
+  assert.deepEqual(MU.batchRequests(items, { artist: ' X ', album: '2', year: 2000 }, false), [
+    { name: 'A', reqs: [{ op: 'track.edit', id: 11, artist: 'X', album_id: 2 }] },
+    { name: 'B', reqs: [{ op: 'track.edit', id: 12, artist: 'X', album_id: 2 }] },
+  ], '专辑页：年份不发（曲目跟专辑走）');
+  assert.deepEqual(MU.batchRequests(items, { artist: '', album: '1', year: '' }, false), [], '移到本来那张 = 不改');
+  assert.deepEqual(MU.batchRequests(items, { artist: '', album: '0', year: '' }, false).map((x) => x.reqs[0].album_id), [0, 0], '移出变单曲');
+  const singles = [{ trackId: 41, albumId: 31, name: 'River' }, { trackId: 42, albumId: 32, name: '晴天' }];
+  assert.deepEqual(MU.batchRequests(singles, { artist: '周杰伦', album: '', year: 2003 }, true), [
+    { name: 'River', reqs: [{ op: 'track.edit', id: 41, artist: '周杰伦' }, { op: 'album.edit', id: 31, year: 2003 }] },
+    { name: '晴天', reqs: [{ op: 'track.edit', id: 42, artist: '周杰伦' }, { op: 'album.edit', id: 32, year: 2003 }] },
+  ]);
+  assert.deepEqual(MU.batchRequests(singles, { artist: '', album: '1', year: 2003 }, true).map((x) => x.reqs), [
+    [{ op: 'track.edit', id: 41, album_id: 1 }], [{ op: 'track.edit', id: 42, album_id: 1 }],
+  ], '单曲划进专辑：年份不发（单曲记录会删）');
+  assert.deepEqual(MU.batchRequests(singles, { artist: '', album: '0', year: '' }, true), [], '单曲没有「移出变单曲」');
+});
+
 /* ---------- 2026-11 对齐 PR-C2：分区列表公共部件（curio-list.js）+ 条目页（相关文章 / 前后条目） ---------- */
 const CL = require('../../space/web/assets/curio/js/curio-list.js');
 

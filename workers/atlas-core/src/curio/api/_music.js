@@ -386,10 +386,21 @@ export async function applyMusicOp(db, o, now = Date.now(), r2 = null) {
       return { removed };
     }
     case 'track.del': {
-      const t = await db.prepare('SELECT id, r2_key FROM music_tracks WHERE id = ?1').bind(o.id).first();
+      /* M3（十二 M3 第 4 条）：删的是单曲唯一一首 → 空单曲记录（和令牌）同一个 batch 删，它的封面 R2 文件也交给调用方删
+         （与 M1 单曲划进专辑同一口径；D1 提交成功之后才删 R2）。权限仍是 track.del 那一档（curio-write），不走 album.del 的 root。
+         专辑里删到空照样保留专辑（十一 第 3 条）。 */
+      const t = await db.prepare("SELECT t.id, t.r2_key, t.album_id, a.kind, a.cover, (SELECT COUNT(*) FROM music_tracks WHERE album_id = t.album_id) AS n FROM music_tracks t LEFT JOIN music_albums a ON a.id = t.album_id WHERE t.id = ?1").bind(o.id).first();
       if (!t) return { error: 'not-found' };
-      await db.prepare('DELETE FROM music_tracks WHERE id = ?1').bind(o.id).run();
-      return { removed: t.r2_key ? [t.r2_key] : [] };
+      const stmts = [db.prepare('DELETE FROM music_tracks WHERE id = ?1').bind(o.id)];
+      const lastOfSingle = t.kind === 'single' && t.n <= 1;
+      if (lastOfSingle) {
+        stmts.push(db.prepare('DELETE FROM music_tokens WHERE album_id = ?1').bind(t.album_id));
+        stmts.push(db.prepare("DELETE FROM music_albums WHERE id = ?1 AND kind = 'single' AND NOT EXISTS (SELECT 1 FROM music_tracks WHERE album_id = ?1)").bind(t.album_id));
+      }
+      await db.batch(stmts);
+      const removed = t.r2_key ? [t.r2_key] : [];
+      if (lastOfSingle && t.cover) removed.push(t.cover);
+      return { removed };
     }
     default:
       return { error: 'bad-op' };

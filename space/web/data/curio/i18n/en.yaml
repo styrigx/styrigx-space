@@ -159,6 +159,20 @@ music:
   delete: Delete
   trackOrderFollowsThe: 'Track order follows the number at the start of each file name (01, 02…). Each audio file can be up to 95 MB: mp3, m4a, aac, flac, ogg, opus, wav. The cover is resized to 1600 px.'
   upload: Upload
+  edit: Edit
+  editAlbum: Edit album
+  editTrack: Edit track
+  songName: Title
+  singer: Artist
+  inAlbum: Album
+  lyrics: Lyrics
+  lyricsPh: 'Paste LRC lyrics ([00:12.00]a line…)'
+  cover: Cover
+  save: Save
+  select: Select
+  batchEdit: Edit selected
+  batchTitle: Edit selected
+  keepPh: Unchanged
 curioCommon:
   cancel: Cancel
 curioItemView:
@@ -377,3 +391,25 @@ js:
     singleFull: This single already has its track.
     delSingle: Delete the single “{name}” and its file?
     delSingleBtn: Delete single “{name}”
+    editSingle: Edit single
+    editTrack: Edit track
+    badYear: Year must be between 1900 and 2100.
+    editBtn: Edit “{name}”
+    moveOut: Move out as a single
+    stayNoAlbum: Single (no album)
+    keep: Unchanged
+    coverPick: Change cover (optional)
+    coverHas: Has a cover; pick an image to replace it (optional)
+    coverAlbum: Uses the album cover once moved into an album
+    lrcLoading: Loading lyrics…
+    lrcUnread: Couldn't read the existing lyrics; leave this blank to keep them.
+    delTrack: Delete the track “{name}” and its file?
+    delTrackTitle: Delete track
+    delSingleTitle: Delete single
+    selN: '{n} selected'
+    selNone: Tap tracks to select
+    batchFail: "{n} didn't change:"
+    batchDone: '{n} changed'
+    savedEdit: Saved
+    errLimit: Limit reached.
+    errStorage: Couldn't copy the cover; nothing changed.

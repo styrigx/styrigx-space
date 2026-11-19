@@ -245,6 +245,47 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 .mu-del-no { background: transparent; border: 1px dashed var(--sgx-term-line); color: var(--sgx-text-primary); }
 .mu-del-ok { background: var(--sgx-danger); color: var(--sgx-on-danger); }
 .mu-del-no:focus-visible, .mu-del-ok:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+/* 导入后编辑（M3，音乐 v1.18 十二 M3）：曲目 / 单曲行右侧「⋯」（能写才画，同删除单曲键的行内按钮）；专辑标题旁「编辑」；多选条；
+   三个编辑窗 = 上传窗同款悬浮卡片（.sgx-up，手机单栏、桌面两栏），批量改窄一些（同删除确认）。底部：左删除（错误色文字）、右保存。 */
+.mu-track-row { display: flex; align-items: stretch; }
+.mu-track-row .mu-track { flex: 1 1 auto; min-width: 0; padding-right: 4px; }
+.mu-tracks li.mu-track-row + li .mu-track { border-top: 0; }
+.mu-tracks li + li.mu-track-row { border-top: 1px solid var(--sgx-divider); }
+.mu-more { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 44px; border: 0; background: transparent; color: var(--sgx-text-tertiary); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.mu-more svg { width: 20px; height: 20px; }
+.mu-more:hover { color: var(--sgx-text-primary); }
+.mu-more:active { background: var(--sgx-state-pressed-bg); }
+.mu-more:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+.mu-single-row .mu-more + .mu-single-del { margin-left: -4px; }
+.mu-edit-btn { height: 36px; padding: 0 12px; }
+.mu-edit-btn.hidden, .mu-sel-bar.hidden { display: none; }
+.mu-sel-bar { display: flex; align-items: center; justify-content: flex-end; gap: 4px; min-height: 40px; margin: 0 2px 6px; }
+.mu-sel-n { flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--sgx-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-sel-bar .cu-btn-text { height: 36px; padding: 0 12px; }
+.mu-sel-bar .cu-btn-text.hidden { display: none; }
+/* 多选：行首一个勾选框（替代曲序 / 小封面左侧），选中用主色 */
+.mu-check { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid var(--sgx-outline); color: transparent; }
+.mu-check svg { width: 16px; height: 16px; }
+[aria-pressed="true"] > .mu-check { background: var(--sgx-primary-fill); border-color: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); }
+.mu-ed .cu-field select.it-select { min-height: 46px; }
+.mu-ed-lrc textarea { min-height: 9.5em; font-family: var(--sgx-font-mono); font-size: 14px; line-height: 1.55; }
+.mu-ed-cover { display: flex; align-items: center; gap: 12px; }
+.mu-ed-cover.hidden { display: none; }
+.mu-ed-cover .cu-file { flex: 1 1 auto; min-width: 0; }
+.mu-ed-cover-im { position: relative; flex: none; width: 56px; height: 56px; border-radius: 12px; overflow: hidden; background: var(--sgx-surface-container-high, var(--sgx-surface-container)); }
+.mu-ed-cover-im img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.mu-ed-cover-im img.hidden { display: none; }
+.mu-ed-foot { display: flex; align-items: center; gap: 12px; }
+.mu-ed-foot .mu-up-go { flex: 1 1 auto; }
+.mu-ed-del { flex: none; height: 44px; padding: 0 14px; border-radius: 8px; background: transparent; color: var(--sgx-danger); font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 600; }
+.mu-ed-del:active { background: var(--sgx-state-pressed-bg); }
+.mu-ed-del:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+:root[data-sgx-layout="desktop"] .mu-ed-foot { justify-content: space-between; }
+:root[data-sgx-layout="desktop"] .mu-ed-foot .mu-up-go { flex: none; }
+.mu-be .sgx-qp-sheet { max-width: 440px; }
+.mu-be-msg { white-space: pre-line; overflow-wrap: anywhere; }
+:root[data-sgx-layout="desktop"] .mu-be .sgx-qp-sheet { width: min(520px, 86vw); }
+:root[data-sgx-layout="desktop"] .mu-be .mu-up-body { display: flex; }
 /* 标题栏 = 终端窗口标题栏：左三点，中间等宽小标题，右关闭 */
 .bk-titlebar { position: relative; display: grid; grid-template-columns: 64px 1fr 64px; align-items: center; height: 44px; flex-shrink: 0; margin-bottom: 14px; padding: 0 6px 0 14px;
   border-bottom: 1px solid var(--sgx-term-line); background: var(--sgx-surface-container-low); border-radius: 14px 14px 0 0; }

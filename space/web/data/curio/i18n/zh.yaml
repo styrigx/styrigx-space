@@ -157,6 +157,20 @@ music:
   delete: 删除
   trackOrderFollowsThe: 曲序按文件名开头的数字（01、02……）。单个音频文件不超过 95 MB，支持 mp3、m4a、aac、flac、ogg、opus、wav。封面会缩到 1600 像素。
   upload: 上传
+  edit: 编辑
+  editAlbum: 编辑专辑
+  editTrack: 编辑曲目
+  songName: 歌名
+  singer: 歌手
+  inAlbum: 所属专辑
+  lyrics: 歌词
+  lyricsPh: 贴 LRC 歌词（[00:12.00]一句……）
+  cover: 封面
+  save: 保存
+  select: 多选
+  batchEdit: 批量改
+  batchTitle: 批量改
+  keepPh: 不改
 curioCommon:
   cancel: 取消
 curioItemView:
@@ -367,3 +381,25 @@ js:
     singleFull: 这首单曲已经有音频了。
     delSingle: 确定删除单曲「{name}」（连同音频文件）吗？
     delSingleBtn: 删除单曲「{name}」
+    editSingle: 编辑单曲
+    editTrack: 编辑曲目
+    badYear: 年份要在 1900–2100 之间。
+    editBtn: 编辑「{name}」
+    moveOut: 移出变单曲
+    stayNoAlbum: 单曲（不划入专辑）
+    keep: 不改
+    coverPick: 换封面（可选）
+    coverHas: 已有封面，选图换掉（可选）
+    coverAlbum: 划进专辑后用专辑封面
+    lrcLoading: 正在读取歌词…
+    lrcUnread: 已有歌词没读出来；不动这一栏就不改。
+    delTrack: 确定删除曲目「{name}」（连同音频文件）吗？
+    delTrackTitle: 删除曲目
+    delSingleTitle: 删除单曲
+    selN: 已选 {n} 首
+    selNone: 点曲目选中
+    batchFail: '{n} 条没改成：'
+    batchDone: 已改 {n} 条
+    savedEdit: 已保存
+    errLimit: 到上限了。
+    errStorage: 封面没复制成，没改。

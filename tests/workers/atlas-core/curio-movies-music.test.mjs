@@ -843,3 +843,62 @@ test('M1 上传：R2 写完、D1 写失败 → 当场删掉刚写的文件（音
   assert.equal(rowOf(e, 'music_albums', id).cover, oldCover);
   assert.equal(e.db.raw.prepare('SELECT COUNT(*) AS n FROM music_tracks').get().n, 0);
 });
+
+/* ================= M3（十二 M3 第 4 条）：单条删曲目 ================= */
+
+test('M3 删单曲唯一一首（track.del）：空单曲记录、令牌、封面 R2 文件一起删（D1 提交成功之后才删 R2）；站长（curio-write，不是 root）就能删', async () => {
+  const e = makeEnv();
+  const s = await album(e, { kind: 'single', title: 'River' });
+  const t = (await (await upTrack(e, s, 'no=1&title=River')).json()).id;
+  await upCover(e, s);
+  const cover = rowOf(e, 'music_albums', s).cover;
+  const audio = rowOf(e, 'music_tracks', t).r2_key;
+  await call(e, '/curio/api/music-play', { who: 'owner', method: 'POST', body: { album: s } });
+  const seen = [];
+  const del = e.r2m.delete.bind(e.r2m);
+  e.r2m.delete = async (k) => { seen.push([k, !!rowOf(e, 'music_albums', s)]); return del(k); };
+  /* styrigx = 站长：默认组有 curio-write、没有 root（album.del 不够），track.del 照样能删 */
+  const r = await call(e, '/curio/api/music', { who: 'styrigx', method: 'POST', body: { op: 'track.del', id: t } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(seen, [[audio, false], [cover, false]], '音频、封面都在 D1 提交之后删');
+  assert.equal(rowOf(e, 'music_albums', s), undefined, '空单曲记录删了');
+  assert.equal(e.db.raw.prepare('SELECT COUNT(*) AS n FROM music_tokens WHERE album_id = ?').get(s).n, 0);
+  assert.equal(e.r2m.m.size, 0);
+  assert.deepEqual((await r.json()).albums, []);
+  /* 对照：同一个站长删单曲记录本身（album.del）不够档 */
+  const s2 = await album(e, { kind: 'single', title: 'Lake' });
+  assert.equal((await call(e, '/curio/api/music', { who: 'styrigx', method: 'POST', body: { op: 'album.del', id: s2 } })).status, 403);
+});
+
+test('M3 删专辑里的曲目（track.del）：专辑保留，删到空也保留（十一 3）；封面不动', async () => {
+  const e = makeEnv();
+  const a = await album(e, { title: 'Blue' });
+  const t1 = (await (await upTrack(e, a, 'no=1&title=A')).json()).id;
+  const t2 = (await (await upTrack(e, a, 'no=2&title=B')).json()).id;
+  await upCover(e, a);
+  const cover = rowOf(e, 'music_albums', a).cover;
+  assert.equal((await musicPost(e, { op: 'track.del', id: t1 })).status, 200);
+  const j = await (await musicPost(e, { op: 'track.del', id: t2 })).json();
+  assert.deepEqual(j.albums.map((x) => [x.kind, x.title, x.cover, x.tracks.length]), [['album', 'Blue', true, 0]]);
+  assert.deepEqual([...e.r2m.m.keys()], [cover]);
+  assert.equal((await (await musicPost(e, { op: 'track.del', id: t2 })).json()).error, 'not-found');
+});
+
+test('M3 R2 顺序（失败路径）：删单曲唯一一首时 D1 写失败 → 曲目、单曲记录、音频、封面都不动', async () => {
+  const e = makeEnv();
+  const s = await album(e, { kind: 'single', title: 'River' });
+  const t = (await (await upTrack(e, s, 'no=1&title=River')).json()).id;
+  await upCover(e, s);
+  const keys = [...e.r2m.m.keys()].sort();
+  const orig = e.db.batch;
+  e.db.batch = async (list) => {
+    if (!list.some((st) => /^DELETE FROM music_tracks WHERE id/.test(st.sql || ''))) return orig(list);
+    e.db.batch = orig;
+    return orig([...list, e.db.prepare('INSERT INTO no_such_table VALUES (1)')]);
+  };
+  const r = await musicPost(e, { op: 'track.del', id: t });
+  assert.equal(r.status, 500);
+  assert.ok(rowOf(e, 'music_tracks', t));
+  assert.ok(rowOf(e, 'music_albums', s));
+  assert.deepEqual([...e.r2m.m.keys()].sort(), keys);
+});
