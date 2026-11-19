@@ -115,7 +115,7 @@ async function askV6(request, env, action) {
 export const SUDO_HEADER = 'X-Sgx-Sudo';
 const SUDO_TICKET_RE = /^[A-Za-z0-9_-]{43}$/;
 
-/** 票绑的 action 在 body 里的接口（先卡大小再解析；同 _write.js MAX_BODY）：POST /curio/api/music 的 op（album.del） */
+/** 票绑的 action 在 body 里的接口（先卡大小再解析；同 _write.js MAX_BODY）：POST /curio/api/music 的 op（album.del；M4 起还有 artist.merge / artist.del） */
 const SUDO_BODY_ACTION = Object.freeze({ 'POST /curio/api/music': 'op' });
 const SUDO_BODY_MAX = 65536;
 

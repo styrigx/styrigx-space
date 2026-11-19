@@ -173,6 +173,16 @@ music:
   batchEdit: Edit selected
   batchTitle: Edit selected
   keepPh: Unchanged
+  backToMusic: Music
+  artistMissing: This artist isn't here.
+  artistNoWorks: No albums or singles yet.
+  editArtist: Edit artist
+  artistName: Name
+  style: Style
+  bio: About
+  mergeInto: Merge into another artist
+  merge: Merge…
+  hasWorksNote: This artist still has albums or tracks, so it can't be deleted. Merge it into another artist instead.
 curioCommon:
   cancel: Cancel
 curioItemView:
@@ -413,3 +423,21 @@ js:
     savedEdit: Saved
     errLimit: Limit reached.
     errStorage: Couldn't copy the cover; nothing changed.
+    arAlbums: '{n} albums'
+    arAlbums_one: '{n} album'
+    arSingles: '{n} singles'
+    arSingles_one: '{n} single'
+    similar: 'There''s already “{name}”. Tap to use it.'
+    avatarPick: Change photo (optional)
+    avatarHas: Has a photo; pick an image to replace it (optional)
+    avatarUp: Uploading the photo…
+    needArtist: Give the artist a name.
+    mergePick: Choose an artist
+    mergeTitle: Merge artist
+    mergeMsg: Merge “{from}” into “{to}”? Everything under “{from}” moves to “{to}”, and “{from}” is deleted.
+    mergeOk: Merge
+    merged: Merged
+    delArtistTitle: Delete artist
+    delArtist: Delete the artist “{name}”? It has no albums or tracks.
+    errArtistExists: There's already an artist with that name. Use Merge to combine them.
+    errHasWorks: This artist still has albums or tracks; merge it instead.

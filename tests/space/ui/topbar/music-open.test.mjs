@@ -195,3 +195,59 @@ test('四站顶栏都有遥控层标记；播放器页答 player-hello / 收 rem
   for (const k of ["'player-hello'", "'remote-cmd'", "'player-bye'", "m.cmd === 'prev'"]) assert.ok(mp.includes(k), k);
   for (const l of ['en', 'zh']) assert.match(rd(`space/web/data/common/frame/i18n/${l}.yaml`), /musicNow: .+\n  musicPlay: .+\n  musicPause: .+\n  musicPrev: .+\n  musicNext: .+\n  musicOpen: .+/);
 });
+
+/* ---------- 歌手页（M4，音乐 v1.19 十二 M4 第 3 条）：播放器点歌手名 → 主窗口打开歌手页，播放器不跳走 ---------- */
+function artistSetup(path, extra) {
+  const r = remoteSetup(path);
+  const nav = [];
+  /* 重新接一次，拿得到 navigate；doc 带 dispatchEvent（可取消） */
+  const ch = { onmessage: null, postMessage: (m) => sent.push(m) };
+  const sent = [];
+  const fired = [];
+  const doc = Object.assign({}, r.doc, { dispatchEvent: (e) => { fired.push(e); if (extra && extra.cancel && e.type === 'sgx-music-artist') e.preventDefault(); return !e.defaultPrevented; } });
+  mountMusic(doc, { channel: ch, path: path || '/blog/', open: () => null, navigate: (u) => nav.push(u) });
+  return { ch, sent, nav, fired, say: (m) => ch.onmessage({ data: m }) };
+}
+
+test('歌手页：主窗口答 artist-ask（带本页 id 和最近用过的时间）；播放器页自己不答', () => {
+  const a = artistSetup('/blog/');
+  a.sent.length = 0;
+  a.say({ type: 'artist-ask', req: 'r1', id: 3 });
+  assert.equal(a.sent.length, 1);
+  assert.equal(a.sent[0].type, 'artist-here');
+  assert.equal(a.sent[0].req, 'r1');
+  assert.equal(typeof a.sent[0].from, 'string');
+  assert.equal(typeof a.sent[0].at, 'number');
+  const p = artistSetup('/curio/music/player/');
+  p.sent.length = 0;
+  p.say({ type: 'artist-ask', req: 'r1', id: 3 });
+  assert.deepEqual(p.sent, []);
+});
+
+test('歌手页：artist-go 只给挑中的那页；奇趣音乐页接住 sgx-music-artist 就不整页跳，没人接才跳；地址只认音乐页 ?artist=<数字>', () => {
+  const a = artistSetup('/blog/');
+  a.say({ type: 'artist-ask', req: 'r1', id: 3 });
+  const me = a.sent.at(-1).from;
+  a.say({ type: 'artist-go', req: 'r1', to: 'someone-else', id: 3, url: '/curio/music/?artist=3' });
+  assert.deepEqual(a.nav, [], '不是给我的');
+  a.say({ type: 'artist-go', req: 'r1', to: me, id: 3, url: '/curio/zh/music/?artist=3' });
+  assert.deepEqual(a.nav, ['/curio/zh/music/?artist=3']);
+  assert.equal(a.fired.at(-1).type, 'sgx-music-artist');
+  assert.deepEqual(a.fired.at(-1).detail, { id: 3, url: '/curio/zh/music/?artist=3' });
+  for (const url of ['https://evil.com/', '//evil.com/curio/music/?artist=3', '/curio/music/?artist=3&x=1', 'javascript:alert(1)']) {
+    a.say({ type: 'artist-go', req: 'r2', to: me, id: 3, url });
+  }
+  assert.deepEqual(a.nav, ['/curio/zh/music/?artist=3'], '别的地址一律不跳');
+  const c = artistSetup('/curio/music/', { cancel: true });
+  c.say({ type: 'artist-ask', req: 'r1', id: 3 });
+  c.say({ type: 'artist-go', req: 'r1', to: c.sent.at(-1).from, id: 3, url: '/curio/music/?artist=3' });
+  assert.deepEqual(c.nav, [], '本页在页内换视图（歌不断）');
+});
+
+test('歌手页：播放器 / 共用核 / 奇趣音乐页三边接上（消息名同一套）', () => {
+  const core = rd('space/web/assets/common/js/music/music-core.js');
+  assert.match(core, /ask: 'artist-ask', here: 'artist-here', go: 'artist-go'/);
+  const mp = rd('space/web/assets/common/js/music/music-player.js');
+  assert.ok(mp.includes('CORE.ARTIST_MSG.ask') && mp.includes('CORE.ARTIST_MSG.go') && mp.includes('CORE.pickMain'));
+  assert.ok(rd('space/web/assets/curio/js/curio-music.js').includes("doc.addEventListener('sgx-music-artist'"));
+});

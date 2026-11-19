@@ -171,6 +171,16 @@ music:
   batchEdit: 批量改
   batchTitle: 批量改
   keepPh: 不改
+  backToMusic: 音乐
+  artistMissing: 找不到这位歌手。
+  artistNoWorks: 还没有专辑或单曲。
+  editArtist: 编辑歌手
+  artistName: 名字
+  style: 风格
+  bio: 简介
+  mergeInto: 合并到另一个歌手
+  merge: 合并…
+  hasWorksNote: 名下还有专辑或曲目，不能删除，只能合并到另一个歌手。
 curioCommon:
   cancel: 取消
 curioItemView:
@@ -403,3 +413,19 @@ js:
     savedEdit: 已保存
     errLimit: 到上限了。
     errStorage: 封面没复制成，没改。
+    arAlbums: '{n} 张专辑'
+    arSingles: '{n} 首单曲'
+    similar: 已有歌手「{name}」，点一下换成它
+    avatarPick: 换头像（可选）
+    avatarHas: 已有头像，选一张图替换（可选）
+    avatarUp: 正在传头像……
+    needArtist: 给歌手起个名字。
+    mergePick: 选一位歌手
+    mergeTitle: 合并歌手
+    mergeMsg: 把「{from}」合并到「{to}」吗？「{from}」名下的专辑、单曲和曲目都改到「{to}」名下，「{from}」删除。
+    mergeOk: 合并
+    merged: 已合并
+    delArtistTitle: 删除歌手
+    delArtist: 确定删除歌手「{name}」吗？名下没有专辑或曲目。
+    errArtistExists: 已有同名歌手，用「合并」把两位并到一起。
+    errHasWorks: 名下还有专辑或曲目，只能合并。

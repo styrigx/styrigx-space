@@ -334,3 +334,44 @@ test('durText：元数据到了用真实 duration；没到 / NaN / Infinity / 0 
   assert.equal(CORE.durText(NaN, undefined), '--:--');
   assert.equal(CORE.durText(245.6, 0), '4:05');
 });
+
+/* ---------- M4（音乐 v1.19 7.5 / 十二 M4）：单曲封面回退、主窗口挑选 ---------- */
+test('M4 coverOf：有封面用自己的；单曲没封面 → 歌手头像；歌手没头像 / 专辑没封面 → 空（默认图）', () => {
+  const arts = [{ id: 2, avatar: true }, { id: 5, avatar: false }];
+  assert.equal(CORE.coverOf({ id: 7, kind: 'album', cover: true, artist_id: 2 }, arts), '/curio/api/music-cover?album=7');
+  assert.equal(CORE.coverOf({ id: 7, kind: 'single', cover: true, artist_id: 2 }, arts, 9), '/curio/api/music-cover?album=7&v=9');
+  assert.equal(CORE.coverOf({ id: 8, kind: 'single', cover: false, artist_id: 2 }, arts), '/curio/api/music-cover?artist=2');
+  assert.equal(CORE.coverOf({ id: 8, kind: 'single', cover: false, artist_id: 5 }, arts), '');
+  assert.equal(CORE.coverOf({ id: 8, kind: 'single', cover: false, artist_id: 0 }, arts), '');
+  assert.equal(CORE.coverOf({ id: 8, kind: 'single', cover: false, artist_id: 99 }, arts), '', '对不上歌手表');
+  assert.equal(CORE.coverOf({ id: 9, kind: 'album', cover: false, artist_id: 2 }, arts), '', '专辑不回退到歌手头像（7.5 只说单曲）');
+  assert.equal(CORE.coverOf(null, arts), '');
+});
+
+test('M4 pickMain：挑最近用过的主窗口（at 最大，一样取先答的）；没人答 null；artistHref', () => {
+  assert.equal(CORE.pickMain([]), null);
+  assert.equal(CORE.pickMain([{ from: 'a', at: 5 }, { from: 'b', at: 9 }, { from: 'c', at: 9 }]).from, 'b');
+  assert.equal(CORE.pickMain([{ from: '', at: 99 }, { from: 'x', at: 1 }]).from, 'x');
+  assert.equal(CORE.artistHref('/curio/zh/music/', 3), '/curio/zh/music/?artist=3');
+  assert.deepEqual(Object.values(CORE.ARTIST_MSG), ['artist-ask', 'artist-here', 'artist-go']);
+});
+
+test('M4 curio-music 纯函数：artistOf 读 ?artist=；artistWorks 按 artist_id 分专辑 / 单曲；similarArtist 只差大小写 / 空格才提示；squareCrop 取中间正方形 ≤ 1000', () => {
+  assert.equal(MU.artistOf('?artist=12'), 12);
+  assert.equal(MU.artistOf('?x=1&artist=3'), 3);
+  for (const q of ['', '?artist=', '?artist=0', '?artist=-1', '?artist=1x', '?artist=99999999999']) assert.equal(MU.artistOf(q), 0, q);
+  const list = [
+    { id: 1, kind: 'album', artist_id: 2 }, { id: 2, kind: 'single', artist_id: 2 }, { id: 3, kind: 'album', artist_id: 5 }, { id: 4, kind: 'single', artist_id: 2 },
+  ];
+  const w = MU.artistWorks(list, 2);
+  assert.deepEqual([w.albums.map((a) => a.id), w.singles.map((a) => a.id)], [[1], [2, 4]]);
+  assert.deepEqual(MU.artistWorks(list, 0), { albums: [], singles: [] });
+  const arts = [{ id: 1, name: 'Jay Chou' }, { id: 2, name: '周杰伦' }];
+  assert.equal(MU.similarArtist('jay chou', arts), 'Jay Chou');
+  assert.equal(MU.similarArtist(' JayChou ', arts), 'Jay Chou');
+  assert.equal(MU.similarArtist('Jay Chou', arts), '', '完全一样 = 同一个人，不提示');
+  assert.equal(MU.similarArtist('周杰倫', arts), '', '繁简不合并（十一 第 4 条）');
+  assert.equal(MU.similarArtist('', arts), '');
+  assert.deepEqual(MU.squareCrop(3000, 2000, 1000), { sx: 500, sy: 0, side: 2000, out: 1000 });
+  assert.deepEqual(MU.squareCrop(400, 600, 1000), { sx: 0, sy: 100, side: 400, out: 400 });
+});

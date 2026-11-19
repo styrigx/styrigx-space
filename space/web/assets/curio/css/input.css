@@ -286,6 +286,24 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 .mu-be-msg { white-space: pre-line; overflow-wrap: anywhere; }
 :root[data-sgx-layout="desktop"] .mu-be .sgx-qp-sheet { width: min(520px, 86vw); }
 :root[data-sgx-layout="desktop"] .mu-be .mu-up-body { display: flex; }
+/* 歌手页（M4，音乐 v1.19 7.5 / 十二 M4）：音乐页 ?artist=<id> 视图。头部 = 圆形头像（没有用默认图标）· 名字 / 专辑数 · 单曲数 / 风格 · 「编辑」；
+   下面简介（有才显示）、专辑一区、单曲一区（行同单曲列表 .mu-single）。返回链接在最上面。 */
+.mu-ar-back { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; margin: 0 0 4px; padding: 0 10px 0 4px; border-radius: 8px; color: var(--sgx-text-secondary); font-size: 14px; text-decoration: none; }
+.mu-ar-back:active { background: var(--sgx-state-pressed-bg); }
+.mu-ar-back:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+.mu-ar-head { display: flex; align-items: center; gap: 16px; margin: 4px 2px 12px; }
+.mu-ar-av { position: relative; flex: none; width: 88px; height: 88px; border-radius: 999px; overflow: hidden; background: var(--sgx-surface-container-high, var(--sgx-surface-container)); color: var(--sgx-text-tertiary); }
+.mu-ar-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+.mu-ar-tx { flex: 1 1 auto; min-width: 0; }
+.mu-ar-bio { margin: 0 2px 12px; font-size: 14px; line-height: 1.6; color: var(--sgx-text-secondary); white-space: pre-line; overflow-wrap: anywhere; }
+.mu-ar-h { margin: 16px 2px 6px; font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 600; color: var(--sgx-text-secondary); }
+.mu-ar-av-im { border-radius: 999px; }
+.mu-ar-merge { display: flex; align-items: flex-end; gap: 8px; }
+.mu-ar-merge .cu-field { flex: 1 1 auto; min-width: 0; }
+.mu-ar-merge .cu-btn-text { flex: none; height: 46px; padding: 0 12px; }
+/* 歌手栏近似名提示（7.5）：一行小字按钮，点一下换成已有的歌手 */
+.mu-hint { align-self: flex-start; margin: -8px 0 0; padding: 2px 0; border: 0; background: transparent; color: var(--sgx-primary); font-size: 12px; text-align: left; cursor: pointer; }
+.mu-hint:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
 /* 标题栏 = 终端窗口标题栏：左三点，中间等宽小标题，右关闭 */
 .bk-titlebar { position: relative; display: grid; grid-template-columns: 64px 1fr 64px; align-items: center; height: 44px; flex-shrink: 0; margin-bottom: 14px; padding: 0 6px 0 14px;
   border-bottom: 1px solid var(--sgx-term-line); background: var(--sgx-surface-container-low); border-radius: 14px 14px 0 0; }

@@ -14,6 +14,11 @@
  *     列表里每一首各记各的令牌和过期时间，切到哪首才按需签哪首（同一个 sign / POST /curio/api/music-play）。顺序 / 随机、到尾停、续签都和专辑同一套。
  *     state.album 始终是正在放的那条记录（单曲时 = 这首单曲的记录 id），state.queue 不为空 = 单曲列表模式。
  * 只管声音和状态，不画界面：画什么由调用方的 onTrack / onChange / onStop 决定。
+ * 歌手页（M4，音乐 v1.19 7.5 / 十二 M4）的两个共用小件：
+ *   - coverOf：单曲没有封面时封面空 → 歌手头像 → 默认图（十二 M4 第 4 条；内嵌封面归 M2 上传时存成封面）；专辑照旧只用专辑封面。
+ *   - 弹出播放器里点歌手名 → 主窗口打开歌手页（播放器不跳走）：同一个频道「sgx-music」三步——播放器发 artist-ask，
+ *     各主窗口（顶栏 mountMusic，播放器页自己不答）答 artist-here（带最近一次用过的时间 at），播放器等一小会儿按 pickMain 挑一个，
+ *     发 artist-go 只给它；没人答由播放器自己退回（window.opener / 新标签页）。
  */
 (function(){
 "use strict";
@@ -56,6 +61,35 @@ function isSingle(a){ return !!a && a.kind === 'single'; }
  * 专辑「专辑名 · 歌手」；单曲只显示歌手，不显示专辑名（单曲的记录标题就是歌名，已经在标题里）。
  */
 function nowSub(a){ if (!a) return ''; return isSingle(a) ? String(a.artist || '') : [a.title, a.artist].filter(Boolean).join(' · '); }
+/**
+ * 封面地址（M4，十二 M4 第 4 条）：有封面 → 专辑 / 单曲自己的封面；单曲没封面、它的歌手有头像 → 歌手头像；都没有 ''（调用方画默认图）。
+ * arts = 歌手表（GET /curio/api/music 的 artists，[{id, avatar}]）；v 给了就加 &v= 防缓存。
+ * @param {any} a @param {any[]} arts @param {number} [v]
+ */
+function coverOf(a, arts, v){
+  if (!a) return '';
+  var q = v ? '&v=' + v : '';
+  if (a.cover) return '/curio/api/music-cover?album=' + a.id + q;
+  if (!isSingle(a) || !(a.artist_id > 0)) return '';
+  for (var k = 0; arts && k < arts.length; k++) if (arts[k].id === a.artist_id) return arts[k].avatar ? '/curio/api/music-cover?artist=' + a.artist_id + q : '';
+  return '';
+}
+/** 主窗口打开歌手页的三步消息名（同一个频道 sgx-music） */
+var ARTIST_MSG = Object.freeze({ ask: 'artist-ask', here: 'artist-here', go: 'artist-go' });
+/** 播放器等主窗口回答的时间（毫秒） */
+var ARTIST_WAIT_MS = 350;
+/**
+ * 几个主窗口都答了 artist-here：挑最近用过的那个（at 最大；一样大取先答的）；没人答 null。
+ * @param {Array<{from: string, at: number}>} replies
+ */
+function pickMain(replies){
+  var best = null;
+  (replies || []).forEach(function(r){ if (r && r.from && (!best || (Number(r.at) || 0) > (Number(best.at) || 0))) best = r; });
+  return best;
+}
+/** 歌手页地址：音乐页路径（英文 /curio/music/、中文 /curio/zh/music/）+ ?artist=<id> @param {string} musicPath @param {number} id */
+function artistHref(musicPath, id){ return String(musicPath || '/curio/music/') + '?artist=' + id; }
+
 /** 秒 → m:ss（≥ 1 小时 h:mm:ss） */
 function fmtTime(s){
   s = Math.max(0, Math.floor(Number(s) || 0));
@@ -230,7 +264,7 @@ function createPlayer(o){
   };
 }
 
-var api = { isSingle: isSingle, nowSub: nowSub, SPEEDS: SPEEDS, PLAYER_SPEEDS: PLAYER_SPEEDS, MODE_KEY: MODE_KEY, readMode: readMode, saveMode: saveMode, shuffleOrder: shuffleOrder, CHANNEL: CHANNEL, RENEW_MS: RENEW_MS, nextSpeed: nextSpeed, fmtTime: fmtTime, durText: durText, parseLrc: parseLrc, lrcIndex: lrcIndex, createPlayer: createPlayer };
+var api = { isSingle: isSingle, nowSub: nowSub, coverOf: coverOf, ARTIST_MSG: ARTIST_MSG, ARTIST_WAIT_MS: ARTIST_WAIT_MS, pickMain: pickMain, artistHref: artistHref, SPEEDS: SPEEDS, PLAYER_SPEEDS: PLAYER_SPEEDS, MODE_KEY: MODE_KEY, readMode: readMode, saveMode: saveMode, shuffleOrder: shuffleOrder, CHANNEL: CHANNEL, RENEW_MS: RENEW_MS, nextSpeed: nextSpeed, fmtTime: fmtTime, durText: durText, parseLrc: parseLrc, lrcIndex: lrcIndex, createPlayer: createPlayer };
 if (typeof module !== 'undefined' && module.exports) { module.exports = api; return; }
 G.SgxMusicCore = api;
 })();

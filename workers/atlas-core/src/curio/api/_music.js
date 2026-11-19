@@ -9,11 +9,15 @@
 //   music_albums  专辑：名、艺术家、年份、封面（R2_MUSIC 的 key）、排序
 //   music_tracks  曲目：专辑、曲序、名、时长（秒）、音频（R2_MUSIC 的 key、类型、字节数）、可选歌词 LRC
 //   music_artists 歌手（M1 起写）：名字 UNIQUE；专辑 / 曲目的 artist_id 指向它（0 = 没有歌手）。按名字对上：去掉首尾空格后完全一致，不做繁简 / 大小写合并；
-//                 没有就在同一个 batch 里建。专辑的 artist 文本留作显示名；曲目没有歌手文本，歌单里的曲目歌手名取这张表。旧数据不回填（归 M4）。
+//                 没有就在同一个 batch 里建。专辑的 artist 文本留作显示名；曲目没有歌手文本，歌单里的曲目歌手名取这张表。
+//                 M4（歌手页，音乐 v1.19 7.5 / 十二 M4）：artist.edit 改名 / 简介 / 风格（改名同一个 batch 把名下专辑的 artist 文本跟着改）；
+//                 artist.merge 并到另一个歌手（名下专辑 / 曲目的 artist_id 和专辑文本改过去，原歌手删掉）；artist.del 只删名下没有作品的。
+//                 头像 avatar = R2_MUSIC 的 key music/artist/<id>/avatar-<时间>.jpg（music-upload kind=avatar）。旧数据回填是生产 SQL，单独报批，不在代码里。
 //   music_tokens  播放令牌：随机 32 字节（crypto.getRandomValues，base64url），一张专辑一枚，10 分钟有效；
 //                 有效期内可以多次 Range 请求（拖进度）。不用 HMAC、不要任何 secret。签新令牌时顺手删过期的。
 // R2（绑定 R2_MUSIC，同一个桶 styrigx-atlas-core）：music/<专辑 id>/<曲序>-<时间>.<扩展名>、music/<专辑 id>/cover-<时间>.<扩展名>；
 //   曲目移出专辑变单曲时复制的封面：music/t<曲目 id>/cover-<时间>.<扩展名>（复制在写 D1 之前，那时还没有单曲 id）。
+//   歌手头像（M4）：music/artist/<歌手 id>/avatar-<时间>.jpg；合并 / 删歌手时等 D1 提交成功之后删。
 //   不在 photos/ 下，照片清扫（photo-sweep.js）不碰；删专辑 / 删曲目时当场删。
 // 不进全站搜索索引 / AI 召回、不进站点地图（search-index.js 不读这些表；页面 noindex）。
 import { err, isSameOrigin } from './_lib.js';
@@ -33,8 +37,9 @@ export const MUSIC_SCHEMA = [
 /**
  * 上限（音乐分层方案 v1.13）：专辑 100 张、单曲 500 首，按 music_albums.kind 分开算；每张专辑 200 首；名字 / 艺术家 120 字；歌词 60000 字；
  * 单个音频文件 95 MB（Workers 请求体上限 100 MB，留余量；浏览器端直传，不分片）；封面 3 MB（浏览器先缩到 1600 webp）。
+ * 歌手（M4）：名字、风格同 short 120 字；简介 bio 2000 字（方案没定，取保守值）；头像同封面 3 MB（浏览器裁方、≤ 1000、jpeg）。
  */
-export const MUSIC_LIMITS = { albums: 100, singles: 500, tracks: 200, short: 120, lrc: 60000, trackBytes: 95 * 1024 * 1024, coverBytes: 3 * 1024 * 1024 };
+export const MUSIC_LIMITS = { albums: 100, singles: 500, tracks: 200, short: 120, lrc: 60000, bio: 2000, trackBytes: 95 * 1024 * 1024, coverBytes: 3 * 1024 * 1024 };
 /** 播放令牌有效期：10 分钟 */
 export const TOKEN_TTL_MS = 10 * 60 * 1000;
 export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
@@ -110,10 +115,19 @@ function take(fields, b, all, required) {
 /** 歌手名（音乐 v1.18 十一 第 4 条）：去掉首尾空格（同其他单行字段，控制字符换空格、连续空白并成一个）后按原样比对，不做繁简、大小写合并；空 = 没有歌手 */
 export function artistName(v) { return line(v, L.short); }
 
+/** 歌手简介（M4）：多行，只留换行和可见字符，截断到 2000 字 */
+function cleanBio(v) {
+  if (typeof v !== 'string') return null;
+  return v.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '').trim().slice(0, L.bio);
+}
+
 /**
  * 校验写操作：
  *   album.add {title, artist?, year?, kind?} / album.edit {id, title?, artist?, year?, kind?} / album.del {id}
  *   track.edit {id, title?, no?, lrc?, artist?, album_id?, year?} / track.del {id}
+ *   artist.edit {id, name?, bio?, style?}（M4，curio-write）：name 同 artistName 清理，空 bad-name；bio / style 不是字符串 bad-bio / bad-style
+ *   artist.merge {id, into}（M4，root）：把 id 并进 into；into 不是正整数 bad-into，和 id 相同 same-artist
+ *   artist.del {id}（M4，root）：只删名下没有作品的
  * kind：album（缺省）/ single；别的值 bad-kind。
  * track.edit 的 artist（M1）：曲目改歌手，写 artist_id（按名字对上 music_artists，没有就建；空 → 0）；不是字符串 bad-artist。
  * track.edit 的 album_id（M1，音乐 v1.18 7.3 / 7.6 / 十一）：正整数 = 移到这张专辑；0 = 移出变单曲；别的值 bad-album。
@@ -163,9 +177,40 @@ export function parseMusicOp(b) {
       return { op: b.op, id, fields: r.fields };
     }
     case 'album.del':
-    case 'track.del': {
+    case 'track.del':
+    case 'artist.del': {
       const id = posInt(b.id);
       return id ? { op: b.op, id } : { error: 'bad-id' };
+    }
+    case 'artist.edit': {
+      const id = posInt(b.id);
+      if (!id) return { error: 'bad-id' };
+      /** @type {Record<string, any>} */
+      const fields = {};
+      if (b.name !== undefined) {
+        const n = typeof b.name === 'string' ? artistName(b.name) : '';
+        if (!n) return { error: 'bad-name' };
+        fields.name = n;
+      }
+      if (b.bio !== undefined) {
+        const v = cleanBio(b.bio);
+        if (v === null) return { error: 'bad-bio' };
+        fields.bio = v;
+      }
+      if (b.style !== undefined) {
+        if (typeof b.style !== 'string') return { error: 'bad-style' };
+        fields.style = line(b.style, L.short);
+      }
+      if (!Object.keys(fields).length) return { error: 'nothing' };
+      return { op: b.op, id, fields };
+    }
+    case 'artist.merge': {
+      const id = posInt(b.id);
+      if (!id) return { error: 'bad-id' };
+      const into = posInt(b.into);
+      if (!into) return { error: 'bad-into' };
+      if (into === id) return { error: 'same-artist' };
+      return { op: b.op, id, into };
     }
     default:
       return { error: 'bad-op' };
@@ -175,22 +220,35 @@ export function parseMusicOp(b) {
 /**
  * 全部记录（专辑和单曲，各带 kind；按添加顺序，新的在后；封面横滑从第一张开始）和各自的曲目（按曲序）。只有元数据，从不带音频地址 / R2 key。
  * 每首曲目带 artist（M1，十一 第 1 条）：按 music_tracks.artist_id 对 music_artists.name；0 或对不上 → ''。
+ * 专辑 / 曲目带 artist_id（M4，歌手页 ?artist=<id> 的链接）：对得上歌手表才给，0 或对不上（脏数据）→ 0。
  * full（管理的人：账号 + curio.write）多给 size / type / 有没有歌词；歌词正文在签播放令牌时给。
  * @param {any} db @param {boolean} [full]
  */
 export async function listAlbums(db, full = false) {
-  const [as, ts] = await db.batch([
-    db.prepare('SELECT id, title, artist, year, cover, kind FROM music_albums ORDER BY pos, id'),
-    db.prepare("SELECT t.id, t.album_id, t.no, t.title, t.duration, t.size, t.type, length(t.lrc) AS lrc_len, COALESCE(r.name, '') AS artist FROM music_tracks t LEFT JOIN music_artists r ON r.id = t.artist_id AND t.artist_id > 0 ORDER BY t.album_id, t.no, t.id"),
+  return (await listMusic(db, full)).albums;
+}
+
+/**
+ * 歌单 + 歌手表（M4）：{albums: listAlbums 那份, artists: [{id, name, avatar: 有没有头像, bio, style}]}（按名字排序，同名不会有：name UNIQUE）。
+ * 歌手表全量给（含名下没有作品的：歌手页要能看到、合并 / 删掉它们）；和歌单同一个 batch 读。
+ * @param {any} db @param {boolean} [full]
+ */
+export async function listMusic(db, full = false) {
+  const [as, ts, rs] = await db.batch([
+    db.prepare('SELECT a.id, a.title, a.artist, a.year, a.cover, a.kind, COALESCE(r.id, 0) AS artist_id FROM music_albums a LEFT JOIN music_artists r ON r.id = a.artist_id AND a.artist_id > 0 ORDER BY a.pos, a.id'),
+    db.prepare("SELECT t.id, t.album_id, t.no, t.title, t.duration, t.size, t.type, length(t.lrc) AS lrc_len, COALESCE(r.name, '') AS artist, COALESCE(r.id, 0) AS artist_id FROM music_tracks t LEFT JOIN music_artists r ON r.id = t.artist_id AND t.artist_id > 0 ORDER BY t.album_id, t.no, t.id"),
+    db.prepare('SELECT id, name, avatar, bio, style FROM music_artists ORDER BY name, id'),
   ]);
   /** @type {Map<number, any[]>} */
   const by = new Map();
   for (const t of ts.results || []) {
     if (!by.has(t.album_id)) by.set(t.album_id, []);
-    const row = { id: t.id, no: t.no, title: t.title, duration: t.duration, artist: t.artist || '' };
+    const row = { id: t.id, no: t.no, title: t.title, duration: t.duration, artist: t.artist || '', artist_id: t.artist_id || 0 };
     by.get(t.album_id).push(full ? { ...row, size: t.size, type: t.type, lrc: (t.lrc_len || 0) > 0 } : row);
   }
-  return (as.results || []).map((a) => ({ id: a.id, kind: a.kind === 'single' ? 'single' : 'album', title: a.title, artist: a.artist, year: a.year, cover: !!a.cover, tracks: by.get(a.id) || [] }));
+  const albums = (as.results || []).map((a) => ({ id: a.id, kind: a.kind === 'single' ? 'single' : 'album', title: a.title, artist: a.artist, artist_id: a.artist_id || 0, year: a.year, cover: !!a.cover, tracks: by.get(a.id) || [] }));
+  const artists = (rs.results || []).map((r) => ({ id: r.id, name: r.name, avatar: !!r.avatar, bio: r.bio || '', style: r.style || '' }));
+  return { albums, artists };
 }
 
 /* ---------- 歌手 artist_id（M1，十一 第 4 条） ----------
@@ -334,7 +392,8 @@ async function editTrack(db, o, now, r2) {
 }
 
 /**
- * 执行已校验的写操作。返回 {error}（not-found / limit / single-tracks / same-album / target-single / already-single / album-not-found / storage）
+ * 执行已校验的写操作。返回 {error}（not-found / limit / single-tracks / same-album / target-single / already-single / album-not-found / storage /
+ * artist-exists / artist-has-works / into-not-found）
  * 或 {removed:[R2_MUSIC key…], id?}（删的音频 / 封面，交给调用方在 D1 提交之后从 R2 删）。
  * r2：track.edit 移出变单曲要复制封面时用（R2_MUSIC）。
  * @param {any} db @param {any} o @param {number} [now] @param {any} [r2]
@@ -426,9 +485,76 @@ export async function applyMusicOp(db, o, now = Date.now(), r2 = null) {
       if (lastOfSingle && t.cover) removed.push(t.cover);
       return { removed };
     }
+    case 'artist.edit':
+      return editArtist(db, o, now);
+    case 'artist.merge':
+      return mergeArtist(db, o, now);
+    case 'artist.del': {
+      /* M4（7.5）：名下还有作品（专辑 / 单曲记录 / 曲目的 artist_id 指着它）就不让删（409 artist-has-works，只能合并）；root 档、结构删除。
+         删的那条语句自己再带 NOT EXISTS（读完到写之间有人改了也不会删掉有作品的）；头像等 D1 提交成功之后由调用方删 */
+      const a = await db.prepare('SELECT r.id, r.avatar, (SELECT COUNT(*) FROM music_albums WHERE artist_id = r.id) AS n_al, (SELECT COUNT(*) FROM music_tracks WHERE artist_id = r.id) AS n_tr FROM music_artists r WHERE r.id = ?1').bind(o.id).first();
+      if (!a) return { error: 'not-found' };
+      if (a.n_al > 0 || a.n_tr > 0) return { error: 'artist-has-works' };
+      const [r] = await db.batch([
+        db.prepare('DELETE FROM music_artists WHERE id = ?1 AND NOT EXISTS (SELECT 1 FROM music_albums WHERE artist_id = ?1) AND NOT EXISTS (SELECT 1 FROM music_tracks WHERE artist_id = ?1)').bind(o.id),
+      ]);
+      if (!(r && r.meta && r.meta.changes > 0)) return { error: 'artist-has-works' };
+      return { removed: a.avatar ? [a.avatar] : [] };
+    }
     default:
       return { error: 'bad-op' };
   }
+}
+
+/**
+ * artist.edit（M4，7.5「名字改了，名下的单曲和专辑跟着改」）：改名 / 简介 / 风格，一个 batch。
+ *   改名：新名字已是别的歌手 → 409 artist-exists（同名只能合并，不在这里悄悄并掉）；和原来一样当没改。
+ *     名下专辑 / 单曲记录的 artist 文本（显示名）同一个 batch 跟着改；曲目只有 artist_id，不用动。
+ * @param {any} db @param {any} o @param {number} now
+ */
+async function editArtist(db, o, now) {
+  const cur = await db.prepare('SELECT id, name FROM music_artists WHERE id = ?1').bind(o.id).first();
+  if (!cur) return { error: 'not-found' };
+  const f = { ...o.fields };
+  if (f.name !== undefined && f.name === cur.name) delete f.name;
+  if (f.name !== undefined) {
+    const dup = await db.prepare('SELECT id FROM music_artists WHERE name = ?1 AND id <> ?2').bind(f.name, o.id).first();
+    if (dup) return { error: 'artist-exists' };
+  }
+  const cols = Object.keys(f);
+  if (!cols.length) return { removed: [] };
+  const args = cols.map((c) => f[c]);
+  const sets = cols.map((c, i) => c + ' = ?' + (i + 1));
+  args.push(now); sets.push('updated_at = ?' + args.length);
+  args.push(o.id);
+  const stmts = [db.prepare(`UPDATE music_artists SET ${sets.join(', ')} WHERE id = ?${args.length}`).bind(...args)];
+  if (f.name !== undefined) stmts.push(db.prepare('UPDATE music_albums SET artist = ?1, updated_at = ?2 WHERE artist_id = ?3').bind(f.name, now, o.id));
+  await db.batch(stmts);
+  return { removed: [] };
+}
+
+/**
+ * artist.merge（M4，7.5「名下还有作品只能合并到另一个歌手」）：把 id 名下的专辑 / 单曲记录（artist_id + artist 文本 = 目标名字）、
+ * 曲目（artist_id）都改到 into，再删掉 id 这条歌手；一个 batch，失败整体回滚。目标的名字、头像、简介、风格不动；
+ * 原歌手的头像等 D1 提交成功之后由调用方删。404 not-found（原歌手不在）/ into-not-found（目标不在）。
+ * @param {any} db @param {any} o @param {number} now
+ */
+async function mergeArtist(db, o, now) {
+  const from = await db.prepare('SELECT id, avatar FROM music_artists WHERE id = ?1').bind(o.id).first();
+  if (!from) return { error: 'not-found' };
+  const to = await db.prepare('SELECT id, name FROM music_artists WHERE id = ?1').bind(o.into).first();
+  if (!to) return { error: 'into-not-found' };
+  await db.batch([
+    db.prepare('UPDATE music_albums SET artist_id = ?1, artist = ?2, updated_at = ?3 WHERE artist_id = ?4').bind(to.id, to.name, now, from.id),
+    db.prepare('UPDATE music_tracks SET artist_id = ?1 WHERE artist_id = ?2').bind(to.id, from.id),
+    db.prepare('DELETE FROM music_artists WHERE id = ?1').bind(from.id),
+  ]);
+  return { removed: from.avatar ? [from.avatar] : [], id: to.id };
+}
+
+/** 歌手头像的 R2 key（十二 M4 第 2 条） @param {number} artistId @param {number} now */
+export function avatarKey(artistId, now) {
+  return `music/artist/${artistId}/avatar-${now}.jpg`;
 }
 
 /** 随机令牌：32 字节 crypto.getRandomValues → base64url（43 字符，无填充） */

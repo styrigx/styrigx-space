@@ -1199,6 +1199,10 @@ html.mu-view-only .mu-lyrics { display: none; }
 .mp-title { margin: 0; font-size: 20px; font-weight: 800; overflow-wrap: anywhere; }
 .mp-sub { margin: 2px 0 0; font-size: 13px; color: var(--sgx-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mp-sub:empty { display: none; }
+/* 歌手名 → 歌手页（M4，音乐 v1.19 7.5 / 十二 M4）：奇趣音乐页的专辑副标题 / 单曲行 / 播放条、弹出播放器的歌手名；平时同周围文字，悬停主色 + 下划线 */
+.mu-artist-a { color: inherit; text-decoration: none; cursor: pointer; border-radius: 4px; }
+.mu-artist-a:hover { color: var(--sgx-primary); text-decoration: underline; text-underline-offset: 2px; }
+a.mu-artist-a:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 1px; }
 .mp-note { display: flex; align-items: center; gap: 10px; margin: 0; padding: 10px 14px; border-radius: 1rem; background: var(--sgx-surface-container-high, var(--sgx-surface-container)); font-size: 14px; }
 .mp-note.hidden { display: none; }
 .mp-note > span { flex: 1; min-width: 0; }
