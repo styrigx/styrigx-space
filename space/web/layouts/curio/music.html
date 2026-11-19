@@ -23,7 +23,16 @@
           <h2 id="mu-album-title" class="mu-album-title"></h2>
           <p id="mu-album-sub" class="mu-album-sub"></p>
         </div>
+        {{/* 专辑页一个编辑入口（M3，音乐 v1.18 十二 M3 第 1 条 / 7.6）：名、歌手、年份、封面；能写（canWrite）才显示 */}}
+        <button id="mu-album-edit" type="button" class="cu-btn-text mu-edit-btn hidden">{{ $tr.music.edit }}</button>
         <button id="mu-play-all" type="button" class="mu-play-all" aria-label="{{ $tr.music.playAlbum }}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg><svg class="mu-ic-lock" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
+      </div>
+      {{/* 多选（M3 批量改，十二 M3 第 3 条）：专辑页 / 单曲区各自进多选；能写才显示。进了多选，点一行 = 选中 / 取消，不播放 */}}
+      <div id="mu-sel-bar" class="mu-sel-bar hidden">
+        <span id="mu-sel-n" class="mu-sel-n"></span>
+        <button id="mu-sel" type="button" class="cu-btn-text">{{ $tr.music.select }}</button>
+        <button id="mu-sel-edit" type="button" class="cu-btn-text hidden">{{ $tr.music.batchEdit }}</button>
+        <button id="mu-sel-x" type="button" class="cu-btn-text hidden">{{ $tr.curioCommon.cancel }}</button>
       </div>
       <ol id="mu-tracks" class="mu-tracks" aria-label="{{ $tr.music.tracks }}"></ol>
       <ul id="mu-singles" class="mu-tracks mu-singles hidden" aria-label="{{ $tr.music.singles }}"></ul>
@@ -109,6 +118,88 @@
     <div class="mu-up-foot mu-del-foot">
       <button id="mu-del-cancel" type="button" class="mu-del-no">{{ $tr.curioCommon.cancel }}</button>
       <button id="mu-del-ok" type="button" class="mu-del-ok disabled:opacity-50">{{ $tr.music.delete }}</button>
+    </div>
+  </div>
+</dialog>
+
+{{/* ===== 导入后编辑（M3，音乐 v1.18 十二 M3 / 7.4 / 7.6）：三个悬浮卡片，同上传窗 <dialog class="sgx-qp sgx-up">（共享 modalSheet）。
+   曲目 / 单曲（行右侧「⋯」）：歌名、歌手、所属专辑（只列 kind=album，按名排序，顶上「移出变单曲」）、歌词；单曲多一个封面（专辑里的曲目不设封面，7.6）；左下删除（确认沿用删除单曲的卡片，track.del）。
+   专辑（标题旁「编辑」）：名、歌手、年份、封面。批量改（多选后）：歌手、移专辑；年份只对单曲。歌手 M4 之前只填文本（不做联想）。 ===== */}}
+<dialog id="mu-ed-wrap" class="sgx-qp sgx-up mu-ed" aria-labelledby="mu-ed-title">
+  <div class="sgx-qp-sheet" tabindex="-1">
+    <div class="mu-up-head">
+      <h2 id="mu-ed-title" class="mu-up-title">{{ $tr.music.editTrack }}</h2>
+      <button id="mu-ed-x" type="button" class="mu-up-x" aria-label="{{ $tr.music.close }}">{{ partial "curio/icon.html" (dict "name" "x-mark" "uid" "mue-x") }}</button>
+    </div>
+    <form id="mu-ed-form" class="mu-up-body" novalidate>
+      <div class="mu-up-col">
+        <label class="cu-field"><span>{{ $tr.music.songName }}</span><input id="mu-ed-name" type="text" maxlength="120" autocomplete="off"></label>
+        <label class="cu-field"><span>{{ $tr.music.singer }}</span><input id="mu-ed-artist" type="text" maxlength="120" autocomplete="off"></label>
+        <label class="cu-field"><span>{{ $tr.music.inAlbum }}</span><select id="mu-ed-album" class="it-select"></select></label>
+        {{/* 单曲才有年份（写单曲记录；曲目表没有年份列，专辑曲目的年份跟专辑走）；空 = 不填 */}}
+        <label id="mu-ed-year-row" class="cu-field hidden"><span>{{ $tr.music.year }}</span><input id="mu-ed-year" type="number" inputmode="numeric" min="1900" max="2100" step="1"></label>
+        <div id="mu-ed-cover-row" class="mu-ed-cover hidden">
+          <span class="mu-ed-cover-im" aria-hidden="true"><img id="mu-ed-cover-img" alt="" class="hidden"></span>
+          <label class="cu-file"><input id="mu-ed-cover" type="file" accept="image/*" class="sr-only"><span id="mu-ed-cover-name"></span></label>
+        </div>
+        <p id="mu-ed-msg" class="hidden text-sm"></p>
+      </div>
+      <div class="mu-up-col">
+        <label class="cu-field mu-ed-lrc"><span>{{ $tr.music.lyrics }}</span><textarea id="mu-ed-lrc" rows="7" maxlength="60000" spellcheck="false" placeholder="{{ $tr.music.lyricsPh }}"></textarea></label>
+        <p id="mu-ed-lrc-note" class="hidden text-xs text-m-on-surface-variant"></p>
+      </div>
+    </form>
+    <div class="mu-up-foot mu-ed-foot">
+      <button id="mu-ed-del" type="button" class="mu-ed-del">{{ $tr.music.delete }}</button>
+      <button id="mu-ed-save" type="button" class="mu-up-go disabled:opacity-50">{{ $tr.music.save }}</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="mu-ae-wrap" class="sgx-qp sgx-up mu-ed" aria-labelledby="mu-ae-title">
+  <div class="sgx-qp-sheet" tabindex="-1">
+    <div class="mu-up-head">
+      <h2 id="mu-ae-title" class="mu-up-title">{{ $tr.music.editAlbum }}</h2>
+      <button id="mu-ae-x" type="button" class="mu-up-x" aria-label="{{ $tr.music.close }}">{{ partial "curio/icon.html" (dict "name" "x-mark" "uid" "mua-x") }}</button>
+    </div>
+    <form id="mu-ae-form" class="mu-up-body" novalidate>
+      <div class="mu-up-col">
+        <label class="cu-field"><span>{{ $tr.music.album }}</span><input id="mu-ae-name" type="text" maxlength="120" autocomplete="off"></label>
+        <div class="it-two">
+          <label class="cu-field"><span>{{ $tr.music.singer }}</span><input id="mu-ae-artist" type="text" maxlength="120" autocomplete="off"></label>
+          <label class="cu-field"><span>{{ $tr.music.year }}</span><input id="mu-ae-year" type="number" inputmode="numeric" min="1900" max="2100" step="1"></label>
+        </div>
+        <p id="mu-ae-msg" class="hidden text-sm"></p>
+      </div>
+      <div class="mu-up-col">
+        <div class="mu-ed-cover">
+          <span class="mu-ed-cover-im" aria-hidden="true"><img id="mu-ae-cover-img" alt="" class="hidden"></span>
+          <label class="cu-file"><input id="mu-ae-cover" type="file" accept="image/*" class="sr-only"><span id="mu-ae-cover-name"></span></label>
+        </div>
+      </div>
+    </form>
+    <div class="mu-up-foot">
+      <button id="mu-ae-save" type="button" class="mu-up-go disabled:opacity-50">{{ $tr.music.save }}</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="mu-be-wrap" class="sgx-qp sgx-up mu-ed mu-be" aria-labelledby="mu-be-title">
+  <div class="sgx-qp-sheet" tabindex="-1">
+    <div class="mu-up-head">
+      <h2 id="mu-be-title" class="mu-up-title">{{ $tr.music.batchTitle }}</h2>
+      <button id="mu-be-x" type="button" class="mu-up-x" aria-label="{{ $tr.music.close }}">{{ partial "curio/icon.html" (dict "name" "x-mark" "uid" "mub-x") }}</button>
+    </div>
+    <form id="mu-be-form" class="mu-up-body" novalidate>
+      <div class="mu-up-col">
+        <label class="cu-field"><span>{{ $tr.music.singer }}</span><input id="mu-be-artist" type="text" maxlength="120" autocomplete="off" placeholder="{{ $tr.music.keepPh }}"></label>
+        <label class="cu-field"><span>{{ $tr.music.inAlbum }}</span><select id="mu-be-album" class="it-select"></select></label>
+        <label id="mu-be-year-row" class="cu-field hidden"><span>{{ $tr.music.year }}</span><input id="mu-be-year" type="number" inputmode="numeric" min="1900" max="2100" step="1" placeholder="{{ $tr.music.keepPh }}"></label>
+        <p id="mu-be-msg" class="mu-be-msg hidden text-sm"></p>
+      </div>
+    </form>
+    <div class="mu-up-foot">
+      <button id="mu-be-save" type="button" class="mu-up-go disabled:opacity-50">{{ $tr.music.save }}</button>
     </div>
   </div>
 </dialog>

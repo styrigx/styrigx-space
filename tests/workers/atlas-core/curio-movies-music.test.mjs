@@ -843,3 +843,150 @@ test('M1 上传：R2 写完、D1 写失败 → 当场删掉刚写的文件（音
   assert.equal(rowOf(e, 'music_albums', id).cover, oldCover);
   assert.equal(e.db.raw.prepare('SELECT COUNT(*) AS n FROM music_tracks').get().n, 0);
 });
+
+/* ================= M3（十二 M3 第 4 条）：单条删曲目 ================= */
+
+test('M3 删单曲唯一一首（track.del）：空单曲记录、令牌、封面 R2 文件一起删（D1 提交成功之后才删 R2）；站长（curio-write，不是 root）就能删', async () => {
+  const e = makeEnv();
+  const s = await album(e, { kind: 'single', title: 'River' });
+  const t = (await (await upTrack(e, s, 'no=1&title=River')).json()).id;
+  await upCover(e, s);
+  const cover = rowOf(e, 'music_albums', s).cover;
+  const audio = rowOf(e, 'music_tracks', t).r2_key;
+  await call(e, '/curio/api/music-play', { who: 'owner', method: 'POST', body: { album: s } });
+  const seen = [];
+  const del = e.r2m.delete.bind(e.r2m);
+  e.r2m.delete = async (k) => { seen.push([k, !!rowOf(e, 'music_albums', s)]); return del(k); };
+  /* styrigx = 站长：默认组有 curio-write、没有 root（album.del 不够），track.del 照样能删 */
+  const r = await call(e, '/curio/api/music', { who: 'styrigx', method: 'POST', body: { op: 'track.del', id: t } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(seen, [[audio, false], [cover, false]], '音频、封面都在 D1 提交之后删');
+  assert.equal(rowOf(e, 'music_albums', s), undefined, '空单曲记录删了');
+  assert.equal(e.db.raw.prepare('SELECT COUNT(*) AS n FROM music_tokens WHERE album_id = ?').get(s).n, 0);
+  assert.equal(e.r2m.m.size, 0);
+  assert.deepEqual((await r.json()).albums, []);
+  /* 对照：同一个站长删单曲记录本身（album.del）不够档 */
+  const s2 = await album(e, { kind: 'single', title: 'Lake' });
+  assert.equal((await call(e, '/curio/api/music', { who: 'styrigx', method: 'POST', body: { op: 'album.del', id: s2 } })).status, 403);
+});
+
+test('M3 删专辑里的曲目（track.del）：专辑保留，删到空也保留（十一 3）；封面不动', async () => {
+  const e = makeEnv();
+  const a = await album(e, { title: 'Blue' });
+  const t1 = (await (await upTrack(e, a, 'no=1&title=A')).json()).id;
+  const t2 = (await (await upTrack(e, a, 'no=2&title=B')).json()).id;
+  await upCover(e, a);
+  const cover = rowOf(e, 'music_albums', a).cover;
+  assert.equal((await musicPost(e, { op: 'track.del', id: t1 })).status, 200);
+  const j = await (await musicPost(e, { op: 'track.del', id: t2 })).json();
+  assert.deepEqual(j.albums.map((x) => [x.kind, x.title, x.cover, x.tracks.length]), [['album', 'Blue', true, 0]]);
+  assert.deepEqual([...e.r2m.m.keys()], [cover]);
+  assert.equal((await (await musicPost(e, { op: 'track.del', id: t2 })).json()).error, 'not-found');
+});
+
+test('M3 R2 顺序（失败路径）：删单曲唯一一首时 D1 写失败 → 曲目、单曲记录、音频、封面都不动', async () => {
+  const e = makeEnv();
+  const s = await album(e, { kind: 'single', title: 'River' });
+  const t = (await (await upTrack(e, s, 'no=1&title=River')).json()).id;
+  await upCover(e, s);
+  const keys = [...e.r2m.m.keys()].sort();
+  const orig = e.db.batch;
+  e.db.batch = async (list) => {
+    if (!list.some((st) => /^DELETE FROM music_tracks WHERE id/.test(st.sql || ''))) return orig(list);
+    e.db.batch = orig;
+    return orig([...list, e.db.prepare('INSERT INTO no_such_table VALUES (1)')]);
+  };
+  const r = await musicPost(e, { op: 'track.del', id: t });
+  assert.equal(r.status, 500);
+  assert.ok(rowOf(e, 'music_tracks', t));
+  assert.ok(rowOf(e, 'music_albums', s));
+  assert.deepEqual([...e.r2m.m.keys()].sort(), keys);
+});
+
+/* ================= M3（Gray 审 1、3）：单曲改名 / 改年份一个 track.edit、一个 batch ================= */
+
+test('M3 校验：track.edit 收 year（0 / 空 = 不填，1900–2100），别的值 bad-year', () => {
+  assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, year: 1971 }).fields, { year: 1971 });
+  assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, year: '2100' }).fields, { year: 2100 });
+  for (const v of [0, '0', '']) assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, year: v }).fields, { year: 0 }, String(v));
+  for (const v of [1899, 2101, 1971.5, 'x', true, {}]) assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, year: v }), { error: 'bad-year' }, String(v));
+});
+
+test('M3 单曲改名 / 年份：track.edit 一个请求，曲目名、单曲记录名、单曲年份一起改；只改年份也行；专辑里的曲目改名不动专辑名', async () => {
+  const e = makeEnv();
+  const s = await album(e, { kind: 'single', title: 'River', year: 1970 });
+  const t = (await (await upTrack(e, s, 'no=1&title=River')).json()).id;
+  const r = await musicPost(e, { op: 'track.edit', id: t, title: 'River (Live)', year: 1971 });
+  assert.equal(r.status, 200);
+  assert.equal(rowOf(e, 'music_tracks', t).title, 'River (Live)');
+  assert.deepEqual([rowOf(e, 'music_albums', s).title, rowOf(e, 'music_albums', s).year], ['River (Live)', 1971]);
+  assert.deepEqual((await r.json()).albums.map((a) => [a.kind, a.title, a.year, a.tracks[0].title]), [['single', 'River (Live)', 1971, 'River (Live)']]);
+  /* 只改年份（曲目本身没有要改的列）；0 = 清空 */
+  assert.equal((await musicPost(e, { op: 'track.edit', id: t, year: 0 })).status, 200);
+  assert.deepEqual([rowOf(e, 'music_albums', s).title, rowOf(e, 'music_albums', s).year], ['River (Live)', 0]);
+  /* 专辑里的曲目改名：专辑名不动 */
+  const a = await album(e, { title: 'Blue' });
+  const t2 = (await (await upTrack(e, a, 'no=1&title=A')).json()).id;
+  await musicPost(e, { op: 'track.edit', id: t2, title: 'A2' });
+  assert.equal(rowOf(e, 'music_albums', a).title, 'Blue');
+  assert.equal(rowOf(e, 'music_tracks', t2).title, 'A2');
+});
+
+test('M3 批量改单曲的请求形状：track.edit 只带 artist + year（没有 title）→ 曲目歌手、单曲记录歌手 / artist_id / 年份同一个请求改好；写只在一个 db.batch 里', async () => {
+  const e = makeEnv();
+  const s = await album(e, { kind: 'single', title: '晴天', year: 0, artist: '' });
+  const t = (await (await upTrack(e, s, 'no=1&title=晴天')).json()).id;
+  const orig = e.db.batch;
+  let writes = 0;
+  e.db.batch = async (list) => { if (list.some((st) => /^\s*(INSERT|UPDATE|DELETE)/i.test(st.sql || ''))) writes++; return orig(list); };
+  const r = await musicPost(e, { op: 'track.edit', id: t, artist: '周杰伦', year: 2003 });
+  e.db.batch = orig;
+  assert.equal(r.status, 200);
+  assert.equal(writes, 1, '写只有一个 db.batch');
+  const jay = rowOf(e, 'music_tracks', t).artist_id;
+  assert.ok(jay > 0);
+  assert.deepEqual(artists(e), ['周杰伦']);
+  const row = rowOf(e, 'music_albums', s);
+  assert.deepEqual([row.title, row.artist, row.artist_id, row.year], ['晴天', '周杰伦', jay, 2003]);
+  assert.equal(rowOf(e, 'music_tracks', t).title, '晴天');
+  assert.deepEqual((await r.json()).albums.map((a) => [a.kind, a.title, a.artist, a.year, a.tracks[0].artist]), [['single', '晴天', '周杰伦', 2003, '周杰伦']]);
+});
+
+test('M3 年份只对单曲：专辑里的曲目、或同时移专辑 / 移出 → 400 year-not-single，什么都不改', async () => {
+  const e = makeEnv();
+  const a = await album(e, { title: 'Blue', year: 1971 });
+  const b = await album(e, { title: 'Court' });
+  const t = (await (await upTrack(e, a, 'no=1&title=A')).json()).id;
+  const s = await album(e, { kind: 'single', title: 'River', year: 1970 });
+  const ts = (await (await upTrack(e, s, 'no=1&title=River')).json()).id;
+  for (const body of [{ id: t, year: 1999 }, { id: t, year: 1999, album_id: 0 }, { id: t, year: 1999, album_id: b }, { id: ts, year: 1999, album_id: a }]) {
+    const r = await musicPost(e, { op: 'track.edit', title: 'X', ...body });
+    assert.equal(r.status, 400, JSON.stringify(body));
+    assert.equal((await r.json()).error, 'year-not-single');
+  }
+  assert.deepEqual([rowOf(e, 'music_tracks', t).title, rowOf(e, 'music_tracks', t).album_id, rowOf(e, 'music_albums', a).year], ['A', a, 1971]);
+  assert.deepEqual([rowOf(e, 'music_tracks', ts).title, rowOf(e, 'music_tracks', ts).album_id, rowOf(e, 'music_albums', s).year], ['River', s, 1970]);
+  assert.equal((await musicPost(e, { op: 'track.edit', id: ts, year: 1899 })).status, 400);
+});
+
+test('M3 原子性（失败路径）：单曲改名 + 年份 + 歌手时 D1 写失败 → 曲目名、单曲记录名 / 年份 / 歌手都不动、不留新歌手（同一 batch 回滚）', async () => {
+  const e = makeEnv();
+  const s = await album(e, { kind: 'single', title: 'River', year: 1970, artist: '' });
+  const t = (await (await upTrack(e, s, 'no=1&title=River')).json()).id;
+  const before = { ...rowOf(e, 'music_albums', s) };
+  failNextBatch(e);
+  const r = await musicPost(e, { op: 'track.edit', id: t, title: 'River (Live)', year: 1971, artist: 'Joni Mitchell' });
+  assert.equal(r.status, 500);
+  assert.equal(rowOf(e, 'music_tracks', t).title, 'River');
+  assert.deepEqual({ ...rowOf(e, 'music_albums', s) }, before);
+  assert.deepEqual(artists(e), []);
+  /* 只改年份（batch 里没有 UPDATE music_tracks）也一样回滚 */
+  const orig = e.db.batch;
+  e.db.batch = async (list) => {
+    if (!list.some((st) => /^UPDATE music_albums/.test(st.sql || ''))) return orig(list);
+    e.db.batch = orig;
+    return orig([...list, e.db.prepare('INSERT INTO no_such_table VALUES (1)')]);
+  };
+  assert.equal((await musicPost(e, { op: 'track.edit', id: t, year: 1971 })).status, 500);
+  assert.equal(rowOf(e, 'music_albums', s).year, 1970);
+});

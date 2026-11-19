@@ -45,6 +45,11 @@ async function mockMusic(page, list, opts = {}) {
     let id;
     if (b.op === 'album.add') { id = 90; albums.push({ id, kind: b.kind || 'album', title: b.title, artist: b.artist, year: b.year, cover: false, tracks: [] }); }
     if (b.op === 'album.del') albums = albums.filter((x) => x.id !== b.id);
+    /* track.del（M3）：删的是单曲唯一一首 → 后端连单曲记录一起删 */
+    if (b.op === 'track.del') {
+      for (const a of albums) a.tracks = a.tracks.filter((x) => x.id !== b.id);
+      albums = albums.filter((x) => !(x.kind === 'single' && !x.tracks.length));
+    }
     return r.fulfill({ json: { ok: true, canWrite: true, id, albums } });
   });
   await page.route('**/api/music-upload**', async (r) => {
@@ -202,7 +207,7 @@ test('弹出播放器：专辑列表末尾多一项「单曲」；选它曲目�
   await expect(page.locator('#mp-tracks .mu-track')).toHaveCount(3);
 });
 
-test('删除单曲：每行删除键（仅能写）；先弹悬浮确认卡片（不从底部升起），取消不删；确认 → album.del、列表刷新、提示「已删除」；正在放的被删就停；删光后分段隐藏回到专辑', async ({ page }) => {
+test('删除单曲：每行删除键（仅能写）；先弹悬浮确认卡片（不从底部升起），取消不删；确认 → track.del（删曲目那一档，M3 Gray 审 2；后端连单曲记录和封面一起删）、列表刷新、提示「已删除」；正在放的被删就停；删光后分段隐藏回到专辑', async ({ page }) => {
   const calls = await mockMusic(page, [ALBUM, ...SINGLES]);
   /* 这条用 30 秒的音频：River 删之前一直在放（1 秒的会自己接到下一首） */
   const LONG = wav(30);
@@ -221,7 +226,7 @@ test('删除单曲：每行删除键（仅能写）；先弹悬浮确认卡片�
   await expect(dlg).toHaveJSProperty('open', true);
   await expect(dlg).toHaveClass(/sgx-qp/);
   await expect(dlg).toHaveClass(/sgx-up/);
-  await expect(page.locator('#mu-del-msg')).toHaveText('确定删除单曲「晴天」（连同音频文件）吗？');
+  await expect(page.locator('#mu-del-msg')).toHaveText('确定删除单曲「晴天」（连同音频文件）吗？单曲记录和它的封面也会一起删除。');
   expect(plays(calls)).toEqual([31]);
   /* 悬浮卡片：贴近顶部、四周留白，不是贴底的底部弹层 */
   const vp = page.viewportSize();
@@ -233,13 +238,13 @@ test('删除单曲：每行删除键（仅能写）；先弹悬浮确认卡片�
   /* 取消：不删 */
   await page.locator('#mu-del-cancel').click();
   await expect(dlg).toHaveJSProperty('open', false);
-  expect(calls.filter((c) => c.op === 'album.del')).toEqual([]);
+  expect(calls.filter((c) => c.op === 'album.del' || c.op === 'track.del')).toEqual([]);
   await expect(page.locator('#mu-singles .mu-single-tx b')).toHaveText(['River', '晴天', 'Both Sides Now']);
   /* 确认：删晴天（不在放），播放条不动 */
   await page.locator('#mu-singles [data-del="32"]').click();
   await page.locator('#mu-del-ok').click();
   await expect(dlg).toHaveJSProperty('open', false);
-  expect(calls.filter((c) => c.op === 'album.del')).toEqual([{ op: 'album.del', id: 32 }]);
+  expect(calls.filter((c) => c.op === 'album.del' || c.op === 'track.del')).toEqual([{ op: 'track.del', id: 42 }]);
   await expect(page.locator('#mu-singles .mu-single-tx b')).toHaveText(['River', 'Both Sides Now']);
   await expect(page.locator('#bk-toast')).toHaveText('已删除');
   await expect(page.locator('#mu-player')).toBeVisible();
@@ -255,7 +260,8 @@ test('删除单曲：每行删除键（仅能写）；先弹悬浮确认卡片�
   await expect(page.locator('#mu-singles')).toBeHidden();
   await expect(page.locator('.mu-cover')).toHaveCount(1);
   await expect(page.locator('#mu-album-title')).toHaveText('Blue');
-  expect(calls.filter((c) => c.op === 'album.del').map((c) => c.id)).toEqual([32, 31, 33]);
+  expect(calls.filter((c) => c.op === 'track.del').map((c) => c.id)).toEqual([42, 41, 43]);
+  expect(calls.filter((c) => c.op === 'album.del')).toEqual([], '不走 album.del（root + 票）');
 });
 
 test('删除单曲：没有写权限（canWrite=false）不画删除键', async ({ page }) => {

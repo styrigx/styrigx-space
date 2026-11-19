@@ -8,6 +8,9 @@
 //                   track.edit（M1）另收 artist（改歌手，写 artist_id）、album_id（N = 移到专辑 N；0 = 移出变单曲，id = 新单曲）：
 //                     400 same-album / target-single / already-single / bad-album / bad-artist；404 album-not-found；409 limit；503 storage（复制封面失败，D1 没动）。
 //                   R2 删除一律在 D1 提交成功之后（单曲划进专辑：空单曲的旧封面也是）。
+//                   track.edit（M3）另收 year（只给单曲里的曲目，写进单曲记录；专辑曲目 / 同时移专辑 400 year-not-single、不合格 400 bad-year）；
+//                     单曲里的曲目改名，单曲记录的名同一个 batch 跟着改。
+//                   track.del（M3）：删的是单曲唯一一首 → 空单曲记录连同它的封面一起删（权限仍是 track.del 的 curio-write）。
 // 无权限（app.js 守卫）：没有 v6 身份 401 unauthorized、档不够 403 forbidden；写非同源 403 origin。
 import { json, err, methodNotAllowed } from './_lib.js';
 import { readBody } from './_write.js';
