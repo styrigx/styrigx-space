@@ -389,7 +389,7 @@ js:
     lrcOne: Lyrics .lrc (optional)
     needSong: Give the song a title.
     singleFull: This single already has its track.
-    delSingle: Delete the single “{name}” and its file?
+    delSingle: Delete the single “{name}” and its file? The single's record and its cover will be deleted too.
     delSingleBtn: Delete single “{name}”
     editSingle: Edit single
     editTrack: Edit track

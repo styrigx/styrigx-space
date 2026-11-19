@@ -902,3 +902,71 @@ test('M3 R2 顺序（失败路径）：删单曲唯一一首时 D1 写失败 →
   assert.ok(rowOf(e, 'music_albums', s));
   assert.deepEqual([...e.r2m.m.keys()].sort(), keys);
 });
+
+/* ================= M3（Gray 审 1、3）：单曲改名 / 改年份一个 track.edit、一个 batch ================= */
+
+test('M3 校验：track.edit 收 year（0 / 空 = 不填，1900–2100），别的值 bad-year', () => {
+  assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, year: 1971 }).fields, { year: 1971 });
+  assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, year: '2100' }).fields, { year: 2100 });
+  for (const v of [0, '0', '']) assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, year: v }).fields, { year: 0 }, String(v));
+  for (const v of [1899, 2101, 1971.5, 'x', true, {}]) assert.deepEqual(MU.parseMusicOp({ op: 'track.edit', id: 1, year: v }), { error: 'bad-year' }, String(v));
+});
+
+test('M3 单曲改名 / 年份：track.edit 一个请求，曲目名、单曲记录名、单曲年份一起改；只改年份也行；专辑里的曲目改名不动专辑名', async () => {
+  const e = makeEnv();
+  const s = await album(e, { kind: 'single', title: 'River', year: 1970 });
+  const t = (await (await upTrack(e, s, 'no=1&title=River')).json()).id;
+  const r = await musicPost(e, { op: 'track.edit', id: t, title: 'River (Live)', year: 1971 });
+  assert.equal(r.status, 200);
+  assert.equal(rowOf(e, 'music_tracks', t).title, 'River (Live)');
+  assert.deepEqual([rowOf(e, 'music_albums', s).title, rowOf(e, 'music_albums', s).year], ['River (Live)', 1971]);
+  assert.deepEqual((await r.json()).albums.map((a) => [a.kind, a.title, a.year, a.tracks[0].title]), [['single', 'River (Live)', 1971, 'River (Live)']]);
+  /* 只改年份（曲目本身没有要改的列）；0 = 清空 */
+  assert.equal((await musicPost(e, { op: 'track.edit', id: t, year: 0 })).status, 200);
+  assert.deepEqual([rowOf(e, 'music_albums', s).title, rowOf(e, 'music_albums', s).year], ['River (Live)', 0]);
+  /* 专辑里的曲目改名：专辑名不动 */
+  const a = await album(e, { title: 'Blue' });
+  const t2 = (await (await upTrack(e, a, 'no=1&title=A')).json()).id;
+  await musicPost(e, { op: 'track.edit', id: t2, title: 'A2' });
+  assert.equal(rowOf(e, 'music_albums', a).title, 'Blue');
+  assert.equal(rowOf(e, 'music_tracks', t2).title, 'A2');
+});
+
+test('M3 年份只对单曲：专辑里的曲目、或同时移专辑 / 移出 → 400 year-not-single，什么都不改', async () => {
+  const e = makeEnv();
+  const a = await album(e, { title: 'Blue', year: 1971 });
+  const b = await album(e, { title: 'Court' });
+  const t = (await (await upTrack(e, a, 'no=1&title=A')).json()).id;
+  const s = await album(e, { kind: 'single', title: 'River', year: 1970 });
+  const ts = (await (await upTrack(e, s, 'no=1&title=River')).json()).id;
+  for (const body of [{ id: t, year: 1999 }, { id: t, year: 1999, album_id: 0 }, { id: t, year: 1999, album_id: b }, { id: ts, year: 1999, album_id: a }]) {
+    const r = await musicPost(e, { op: 'track.edit', title: 'X', ...body });
+    assert.equal(r.status, 400, JSON.stringify(body));
+    assert.equal((await r.json()).error, 'year-not-single');
+  }
+  assert.deepEqual([rowOf(e, 'music_tracks', t).title, rowOf(e, 'music_tracks', t).album_id, rowOf(e, 'music_albums', a).year], ['A', a, 1971]);
+  assert.deepEqual([rowOf(e, 'music_tracks', ts).title, rowOf(e, 'music_tracks', ts).album_id, rowOf(e, 'music_albums', s).year], ['River', s, 1970]);
+  assert.equal((await musicPost(e, { op: 'track.edit', id: ts, year: 1899 })).status, 400);
+});
+
+test('M3 原子性（失败路径）：单曲改名 + 年份 + 歌手时 D1 写失败 → 曲目名、单曲记录名 / 年份 / 歌手都不动、不留新歌手（同一 batch 回滚）', async () => {
+  const e = makeEnv();
+  const s = await album(e, { kind: 'single', title: 'River', year: 1970, artist: '' });
+  const t = (await (await upTrack(e, s, 'no=1&title=River')).json()).id;
+  const before = { ...rowOf(e, 'music_albums', s) };
+  failNextBatch(e);
+  const r = await musicPost(e, { op: 'track.edit', id: t, title: 'River (Live)', year: 1971, artist: 'Joni Mitchell' });
+  assert.equal(r.status, 500);
+  assert.equal(rowOf(e, 'music_tracks', t).title, 'River');
+  assert.deepEqual({ ...rowOf(e, 'music_albums', s) }, before);
+  assert.deepEqual(artists(e), []);
+  /* 只改年份（batch 里没有 UPDATE music_tracks）也一样回滚 */
+  const orig = e.db.batch;
+  e.db.batch = async (list) => {
+    if (!list.some((st) => /^UPDATE music_albums/.test(st.sql || ''))) return orig(list);
+    e.db.batch = orig;
+    return orig([...list, e.db.prepare('INSERT INTO no_such_table VALUES (1)')]);
+  };
+  assert.equal((await musicPost(e, { op: 'track.edit', id: t, year: 1971 })).status, 500);
+  assert.equal(rowOf(e, 'music_albums', s).year, 1970);
+});

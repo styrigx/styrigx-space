@@ -1,9 +1,10 @@
 // 音乐 v1.18 M3「导入后编辑」（十二 M3 第 1–6 条、7.4 管理、7.6 封面规则）。接口用 page.route 假数据（照 M1 接口的口径做一个小内存后端），不碰线上。
 // - 曲目行 / 单曲行右侧「⋯」→ 编辑窗：歌名、歌手、所属专辑、歌词；单曲多一个封面（专辑里的曲目没有封面栏，7.6）；所有改动一个 track.edit
 // - 「所属专辑」下拉只列 kind=album，按名排序，顶上「移出变单曲」；停在原处不带 album_id；选别的专辑 → album_id:N；移出 → album_id:0
-// - 单曲改名另发 album.edit 改单曲记录名；单曲换封面 → music-upload kind=cover（单曲记录）；单曲选了划进专辑 → 封面栏不可用、不传封面、不发 album.edit
+// - 单曲改名 / 改年份也只发一个 track.edit（后端同一个 batch 写单曲记录，Gray 审 1、3）；单曲换封面 → music-upload kind=cover（单曲记录）；单曲选了划进专辑 → 封面栏、年份栏不可用、不传封面、不发年份
+// - 歌词预填读失败（框是空的）→ 保存不带 lrc（不清掉已有歌词，Gray 审 4）
 // - 专辑标题旁「编辑」：名、歌手、年份（album.edit 只带改了的）+ 封面（music-upload kind=cover）
-// - 编辑窗里「删除」→ 确认卡片（同删除单曲那张悬浮卡片）→ track.del；单曲唯一一首删了，单曲从列表消失
+// - 编辑窗里「删除」、单曲行删除键 → 确认卡片（同一张悬浮卡片）→ track.del（curio-write，Gray 审 2）；单曲唯一一首删了，单曲从列表消失
 // - 多选 → 批量改：歌手、移专辑（专辑页有「移出变单曲」）；年份只在单曲区出现（album.edit 单曲记录）；逐条发请求，失败的列出来
 // - 没有写权限：不画「⋯」「编辑」「多选」
 const { test, expect } = require('@playwright/test');
@@ -43,7 +44,9 @@ async function mockMusic(page, opts = {}) {
     let id;
     if (b.op === 'track.edit') {
       const f = findTrack(b.id);
-      if (b.title !== undefined) f.tr.title = b.title;
+      if (b.year !== undefined && !(f.a.kind === 'single' && b.album_id === undefined)) return r.fulfill({ status: 400, json: { ok: false, error: 'year-not-single' } });
+      if (b.title !== undefined) { f.tr.title = b.title; if (f.a.kind === 'single' && b.album_id === undefined) f.a.title = b.title; }
+      if (b.year !== undefined) f.a.year = b.year;
       if (b.artist !== undefined) { f.tr.artist = b.artist; if (f.a.kind === 'single') f.a.artist = b.artist; }
       if (b.lrc !== undefined) { lrcs[b.id] = b.lrc; f.tr.lrc = !!b.lrc; }
       if (b.album_id !== undefined) {
@@ -68,6 +71,7 @@ async function mockMusic(page, opts = {}) {
   await page.route('**/api/music-play', async (r) => {
     const b = r.request().postDataJSON();
     calls.push({ play: b.album });
+    if (opts.playFail) return r.fulfill({ status: 500, json: { ok: false, error: 'server' } });
     const a = albums.find((x) => x.id === b.album);
     return r.fulfill({ json: { ok: true, ttl: 600000, tracks: a.tracks.map((x) => ({ ...x, src: '/curio/api/music-stream?t=' + 'A'.repeat(43) + '&id=' + x.id, lrc: lrcs[x.id] || '' })) } });
   });
@@ -135,7 +139,7 @@ test('移专辑：选别的专辑 → album_id:N（曲目跟过去）；选「�
   await expect(page.locator('#mu-singles .mu-single-tx b')).toHaveText(['River', '那天下雨了 [mqms2]', 'Little Green']);
 });
 
-test('单曲「⋯」：多一个封面栏；改名 = track.edit + album.edit 单曲记录名；换封面 = music-upload kind=cover（单曲记录）；选了划进专辑 → 封面栏不可用、不传封面', async ({ page }) => {
+test('单曲「⋯」：多一个封面栏、一个年份栏；改名 / 改年份 = 一个 track.edit（后端连单曲记录一起改）；换封面 = music-upload kind=cover（单曲记录）；选了划进专辑 → 封面栏不可用、不传封面', async ({ page }) => {
   const calls = await mockMusic(page);
   await page.goto('/curio/zh/music/');
   await page.locator('#mu-seg [data-sec="single"]').click();
@@ -148,26 +152,37 @@ test('单曲「⋯」：多一个封面栏；改名 = track.edit + album.edit �
   /* 单曲的顶项 = 不划入专辑（当前状态） */
   await expect(page.locator('#mu-ed-album option')).toHaveText(['单曲（不划入专辑）', 'ammonia avenue', 'Blue', 'Court and Spark']);
   await expect(page.locator('#mu-ed-album')).toHaveValue('0');
+  await expect(page.locator('#mu-ed-year-row')).toBeVisible();
+  await expect(page.locator('#mu-ed-year')).toHaveValue('');
+  /* 年份校验同专辑：1900–2100，空 = 不填 */
+  await page.locator('#mu-ed-year').fill('1800');
+  await page.locator('#mu-ed-save').click();
+  await expect(page.locator('#mu-ed-msg')).toHaveText('年份要在 1900–2100 之间。');
+  expect(writes(calls)).toEqual([]);
+  await page.locator('#mu-ed-year').fill('2003');
   await page.locator('#mu-ed-name').fill('那天下雨了');
   await page.locator('#mu-ed-artist').fill('周杰伦');
   await page.locator('#mu-ed-cover').setInputFiles([{ name: 'rain.png', mimeType: 'image/png', buffer: PNG }]);
   await expect(page.locator('#mu-ed-cover-name')).toHaveText('rain.png');
   await page.locator('#mu-ed-save').click();
   await expect(page.locator('#mu-ed-wrap')).toHaveJSProperty('open', false, { timeout: 15000 });
-  expect(writes(calls)).toEqual([{ op: 'track.edit', id: 42, title: '那天下雨了', artist: '周杰伦' }, { op: 'album.edit', id: 32, title: '那天下雨了' }]);
+  expect(writes(calls)).toEqual([{ op: 'track.edit', id: 42, title: '那天下雨了', artist: '周杰伦', year: 2003 }]);
   expect(calls.filter((c) => c.upload)).toEqual([{ upload: 'cover', album: 32 }]);
   await expect(page.locator('#mu-singles .mu-single-tx b')).toHaveText(['River', '那天下雨了']);
   await expect(page.locator('#mu-singles .mu-single-tx i')).toHaveText(['Joni Mitchell', '周杰伦']);
   /* 划进专辑：封面栏不可用（用专辑封面）、不传封面、不发 album.edit；空单曲记录没了 */
   await page.locator('#mu-singles [data-ed="0"]').click();
   await expect(page.locator('#mu-ed-cover-name')).toHaveText('已有封面，选图换掉（可选）');
+  await expect(page.locator('#mu-ed-year')).toHaveValue('1971');
+  await page.locator('#mu-ed-year').fill('1972');
   await page.locator('#mu-ed-album').selectOption('1');
   await expect(page.locator('#mu-ed-cover')).toBeDisabled();
+  await expect(page.locator('#mu-ed-year')).toBeDisabled();
   await expect(page.locator('#mu-ed-cover-name')).toHaveText('划进专辑后用专辑封面');
   await page.locator('#mu-ed-name').fill('River (album)');
   await page.locator('#mu-ed-save').click();
   await expect(page.locator('#mu-ed-wrap')).toHaveJSProperty('open', false);
-  expect(writes(calls).slice(2)).toEqual([{ op: 'track.edit', id: 41, title: 'River (album)', album_id: 1 }]);
+  expect(writes(calls).slice(1)).toEqual([{ op: 'track.edit', id: 41, title: 'River (album)', album_id: 1 }]);
   expect(calls.filter((c) => c.upload)).toHaveLength(1);
   await expect(page.locator('#mu-singles .mu-single-tx b')).toHaveText(['那天下雨了']);
 });
@@ -224,15 +239,39 @@ test('删曲目：编辑窗「删除」→ 悬浮确认卡片（同删除单曲�
   await page.locator('#mu-singles [data-ed="1"]').click();
   await page.locator('#mu-ed-del').click();
   await expect(page.locator('#mu-del-title')).toHaveText('删除单曲');
-  await expect(page.locator('#mu-del-msg')).toHaveText('确定删除单曲「那天下雨了 [mqms2]」（连同音频文件）吗？');
+  await expect(page.locator('#mu-del-msg')).toHaveText('确定删除单曲「那天下雨了 [mqms2]」（连同音频文件）吗？单曲记录和它的封面也会一起删除。');
   await page.locator('#mu-del-ok').click();
   expect(writes(calls)[1]).toEqual({ op: 'track.del', id: 42 });
   await expect(page.locator('#mu-singles .mu-single-tx b')).toHaveText(['River']);
-  /* 行上的删除键照旧走 album.del（标题复原） */
+  /* 行上的删除键也走 track.del（Gray 审 2：curio-write 档，不走 album.del 的 root + 票）；文案说明单曲记录和封面一起删 */
   await page.locator('#mu-singles [data-del="31"]').click();
   await expect(page.locator('#mu-del-title')).toHaveText('删除单曲');
-  await expect(page.locator('#mu-del-msg')).toHaveText('确定删除单曲「River」（连同音频文件）吗？');
-  await page.locator('#mu-del-cancel').click();
+  await expect(page.locator('#mu-del-msg')).toHaveText('确定删除单曲「River」（连同音频文件）吗？单曲记录和它的封面也会一起删除。');
+  await page.locator('#mu-del-ok').click();
+  await expect(page.locator('#mu-del-wrap')).toHaveJSProperty('open', false);
+  expect(writes(calls)[2]).toEqual({ op: 'track.del', id: 41 });
+  expect(writes(calls).filter((c) => c.op === 'album.del')).toEqual([]);
+});
+
+test('歌词预填读失败（框是空的）：保存不带 lrc，已有歌词不被清掉；只发改了的歌名（Gray 审 4）', async ({ page }) => {
+  const calls = await mockMusic(page, { playFail: true });
+  await page.goto('/curio/zh/music/');
+  await page.locator('#mu-tracks [data-ed="0"]').click();
+  await expect(page.locator('#mu-ed-lrc-note')).toHaveText('已有歌词没读出来；不动这一栏就不改。');
+  await expect(page.locator('#mu-ed-lrc')).toBeEnabled();
+  await expect(page.locator('#mu-ed-lrc')).toHaveValue('');
+  await page.locator('#mu-ed-name').fill('All I Want (Live)');
+  await page.locator('#mu-ed-save').click();
+  await expect(page.locator('#mu-ed-wrap')).toHaveJSProperty('open', false);
+  expect(writes(calls)).toEqual([{ op: 'track.edit', id: 11, title: 'All I Want (Live)' }]);
+  expect(writes(calls)[0]).not.toHaveProperty('lrc');
+  /* 只填空白也不算改 */
+  await page.locator('#mu-tracks [data-ed="0"]').click();
+  await expect(page.locator('#mu-ed-lrc-note')).toHaveText('已有歌词没读出来；不动这一栏就不改。');
+  await page.locator('#mu-ed-lrc').fill('   ');
+  await page.locator('#mu-ed-save').click();
+  await expect(page.locator('#mu-ed-wrap')).toHaveJSProperty('open', false);
+  expect(writes(calls)).toHaveLength(1);
 });
 
 test('批量改（专辑页）：多选 → 点行选中（不播放、不画「⋯」）→ 批量改：歌手 + 移专辑（有「移出变单曲」，没有年份）；逐条一个 track.edit；失败的列出来', async ({ page }) => {

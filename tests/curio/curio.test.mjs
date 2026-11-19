@@ -258,6 +258,13 @@ test('音乐 M3 导入后编辑：所属专辑下拉只列 kind=album、按名�
   assert.equal(MU.trackEditBody(t, { albumId: 31, single: true }, { title: 'A', artist: 'Joni', album: '0', lrc: null }), null, '单曲停在顶项 = 不移');
   assert.deepEqual(MU.trackEditBody(t, { albumId: 31, single: true }, { title: 'A', artist: 'Joni', album: '1', lrc: null }), { op: 'track.edit', id: 11, album_id: 1 }, '单曲划进专辑');
   assert.equal(MU.trackEditBody(t, { albumId: 1, single: false }, { title: '', artist: 'Joni', album: '1', lrc: null }), null, '空歌名不发（表单先拦）');
+  /* 单曲年份（Gray 审 3）：同一个 track.edit 带 year；没改不带；划进专辑不带；专辑里的曲目不带 */
+  const ts = { id: 41, title: 'River', artist: 'Joni', year: 1971 };
+  assert.deepEqual(MU.trackEditBody(ts, { albumId: 31, single: true }, { title: 'River (Live)', artist: 'Joni', album: '0', lrc: null, year: 1972 }), { op: 'track.edit', id: 41, title: 'River (Live)', year: 1972 }, '单曲改名 + 年份：一个请求');
+  assert.equal(MU.trackEditBody(ts, { albumId: 31, single: true }, { title: 'River', artist: 'Joni', album: '0', lrc: null, year: 1971 }), null, '年份没改');
+  assert.deepEqual(MU.trackEditBody(ts, { albumId: 31, single: true }, { title: 'River', artist: 'Joni', album: '0', lrc: null, year: 0 }), { op: 'track.edit', id: 41, year: 0 }, '清空年份');
+  assert.deepEqual(MU.trackEditBody(ts, { albumId: 31, single: true }, { title: 'River', artist: 'Joni', album: '1', lrc: null, year: 1972 }), { op: 'track.edit', id: 41, album_id: 1 }, '划进专辑不带年份');
+  assert.deepEqual(MU.trackEditBody(t, { albumId: 1, single: false }, { title: 'B', artist: 'Joni', album: '1', lrc: null, year: 1999 }), { op: 'track.edit', id: 11, title: 'B' }, '专辑曲目不带年份');
 
   assert.equal(MU.lrcChange('', ''), null);
   assert.equal(MU.lrcChange('', '[00:01]x'), '[00:01]x');

@@ -113,7 +113,7 @@ export function artistName(v) { return line(v, L.short); }
 /**
  * 校验写操作：
  *   album.add {title, artist?, year?, kind?} / album.edit {id, title?, artist?, year?, kind?} / album.del {id}
- *   track.edit {id, title?, no?, lrc?, artist?, album_id?} / track.del {id}
+ *   track.edit {id, title?, no?, lrc?, artist?, album_id?, year?} / track.del {id}
  * kind：album（缺省）/ single；别的值 bad-kind。
  * track.edit 的 artist（M1）：曲目改歌手，写 artist_id（按名字对上 music_artists，没有就建；空 → 0）；不是字符串 bad-artist。
  * track.edit 的 album_id（M1，音乐 v1.18 7.3 / 7.6 / 十一）：正整数 = 移到这张专辑；0 = 移出变单曲；别的值 bad-album。
@@ -145,6 +145,12 @@ export function parseMusicOp(b) {
       }
       if (b.op === 'track.edit') {
         if (b.artist !== undefined) r.fields.artist = artistName(b.artist);
+        /* year（M3）：只给单曲里的曲目（写进单曲记录；曲目表没有年份列）；0 或 1900–2100，别的值 bad-year */
+        if (b.year !== undefined) {
+          const y = year(b.year);
+          if (y === null) return { error: 'bad-year' };
+          r.fields.year = y;
+        }
         if (b.album_id !== undefined) {
           const v = b.album_id;
           if (!(typeof v === 'number' || (typeof v === 'string' && /^\d+$/.test(v)))) return { error: 'bad-album' };
@@ -209,6 +215,9 @@ export function copiedCoverKey(trackId, src, now) {
  *   移出变单曲 album_id=0：本来就是单曲 400 already-single；单曲满 500 409 limit。新单曲：名 = 曲名、歌手 = 曲目的歌手（同一个 artist_id，显示名取歌手表）、
  *     年份 = 原专辑年份、排在最后、曲序 1；封面：原专辑有封面就先在 R2 复制一份新 key（复制失败 503 storage，D1 不动），D1 写失败删掉副本。
  *   改歌手 artist：写 artist_id；曲目在单曲里时，单曲记录的歌手（文本 + artist_id）跟着改。
+ *   改名 title（M3）：曲目在单曲里、没移走时，单曲记录的名跟着改（同一个 batch，列表显示的是记录名）。
+ *   年份 year（M3）：只收单曲里、没移走的曲目，写进单曲记录（同一个 batch）；专辑里的曲目 / 同时移专辑 400 year-not-single
+ *     （曲目表没有年份列，专辑曲目的年份跟专辑走，改专辑年份走 album.edit）。
  * @param {any} db @param {any} o @param {number} now @param {any} r2
  */
 async function editTrack(db, o, now, r2) {
@@ -218,8 +227,12 @@ async function editTrack(db, o, now, r2) {
   const srcSingle = cur.aid && cur.kind === 'single';
   const hasArtist = f.artist !== undefined;
   const move = f.album_id;
+  const hasYear = f.year !== undefined;
+  const newYear = f.year;
   delete f.artist;
   delete f.album_id;
+  delete f.year;
+  if (hasYear && !(srcSingle && move === undefined)) return { error: 'year-not-single' };
   /** @type {string[]} */
   const removed = [];
   let copied = '';
@@ -280,12 +293,23 @@ async function editTrack(db, o, now, r2) {
     if (newArtist) { args.push(newArtist); sets.push(`artist_id = ${ARTIST_ID_SQL(args.length)}`); } else sets.push('artist_id = 0');
   }
   args.push(o.id);
-  stmts.push(db.prepare(`UPDATE music_tracks SET ${sets.join(', ')} WHERE id = ?${args.length}`).bind(...args));
+  /* 只改年份（单曲记录）时曲目本身没有要改的列 */
+  if (sets.length) stmts.push(db.prepare(`UPDATE music_tracks SET ${sets.join(', ')} WHERE id = ?${args.length}`).bind(...args));
   /* 单曲里的曲目改歌手（没移走）：单曲记录的歌手跟着改 */
   if (hasArtist && srcSingle && move === undefined) {
     stmts.push(newArtist
       ? db.prepare(`UPDATE music_albums SET artist = ?1, artist_id = ${ARTIST_ID_SQL(1)}, updated_at = ?2 WHERE id = ?3`).bind(newArtist, now, cur.aid)
       : db.prepare('UPDATE music_albums SET artist = ?1, artist_id = 0, updated_at = ?2 WHERE id = ?3').bind('', now, cur.aid));
+  }
+  /* 单曲里的曲目改名 / 改年份（没移走）：单曲记录的名、年份跟着改（M3，同一个 batch，失败一起回滚） */
+  if (srcSingle && move === undefined && (f.title !== undefined || hasYear)) {
+    const as = [];
+    const aa = [];
+    if (f.title !== undefined) { aa.push(f.title); as.push(`title = ?${aa.length}`); }
+    if (hasYear) { aa.push(newYear); as.push(`year = ?${aa.length}`); }
+    aa.push(now); as.push(`updated_at = ?${aa.length}`);
+    aa.push(cur.aid);
+    stmts.push(db.prepare(`UPDATE music_albums SET ${as.join(', ')} WHERE id = ?${aa.length}`).bind(...aa));
   }
   /* 单曲划进专辑：空单曲记录（和令牌）同一个 batch 删；旧封面等提交成功后由调用方删 */
   if (move > 0 && srcSingle && cur.n_src <= 1) {

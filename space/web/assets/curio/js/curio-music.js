@@ -82,8 +82,10 @@ function lrcChange(orig, val){
 }
 /**
  * 编辑表单 → 一个 track.edit 请求（所有改动一次发，后端一个 batch 提交）；什么都没改返回 null。
- * t = 表单打开时显示的值 {id, title, artist}；cur = {albumId, single}；f = {title, artist, album: 下拉的值（'0' = 移出变单曲 / 专辑 id）, lrc: lrcChange 的结果}。
+ * t = 表单打开时显示的值 {id, title, artist, year（单曲记录的年份）}；cur = {albumId, single}；
+ * f = {title, artist, album: 下拉的值（'0' = 移出变单曲 / 专辑 id）, lrc: lrcChange 的结果, year: yearOf 的结果（单曲才有）}。
  * 下拉停在原处（单曲停在顶项、曲目停在本专辑）= 不移，不带 album_id（后端对「移到本来那张」回 400，十一 第 5 条）。
+ * 单曲：改名后端连单曲记录名一起改；year 只在单曲没移走时带（后端写单曲记录，专辑曲目 / 移专辑时 400）。都在同一个请求、同一个 batch（Gray 审 1、3）。
  */
 function trackEditBody(t, cur, f){
   var b = { op: 'track.edit', id: t.id };
@@ -95,6 +97,7 @@ function trackEditBody(t, cur, f){
     var to = Number(f.album);
     if (!(cur.single ? to === 0 : to === cur.albumId)) b.album_id = to;
   }
+  if (cur.single && b.album_id === undefined && f.year != null && f.year !== (Number(t.year) || 0)) b.year = f.year;
   return Object.keys(b).length > 2 ? b : null;
 }
 /** 年份栏：空 = 0（不填）；1900–2100 的整数；不合格 null */
@@ -486,12 +489,16 @@ var delDlg = $('#mu-del-wrap'), delId = 0;
 var delOp = null;
 var delSheet = G.SgxModalSheet ? G.SgxModalSheet(delDlg, doc.createElement('span') /* 共享状态机要一个同步 aria-expanded 的按钮；删除键是每行画的，给个占位 */, { ms: 240, reducedMs: 120, stateKey: 'sgxMuDel', modal: false, onOpen: function(){ upLock(true); }, onClosed: function(){ upLock(false); delId = 0; delOp = null; } })
   : { open: function(){ if (!delDlg.open) { delDlg.show(); delDlg.classList.add('is-open'); upLock(true); } }, close: function(){ if (delDlg.open) { delDlg.classList.remove('is-open'); delDlg.close(); } upLock(false); delId = 0; delOp = null; } };
-/** 弹确认：id = 单曲记录 id */
+/** 弹确认：id = 单曲记录 id。删的是它那一首（track.del，curio-write 档，十二 M3 第 4 条；Gray 审 2）：后端连空单曲记录和封面一起删。
+ *  没有曲目的单曲记录（旧数据）没有 track.del 可发，才退回 album.del（root + 票） */
 function askDelSingle(id){
   var a = singles.filter(function(x){ return x.id === id; })[0];
   if (!a || !canWrite) return;
   delId = id;
-  askDel({ title: T.delSingleTitle, msg: tr('delSingle', { name: a.title }), run: function(){ return delAlbum(id); }, stops: function(){ return P.state.album === id; } });
+  var t = a.tracks[0];
+  askDel({ title: T.delSingleTitle, msg: tr('delSingle', { name: a.title }),
+    run: function(){ return t ? req('POST', '/curio/api/music', { op: 'track.del', id: t.id }) : delAlbum(id); },
+    stops: function(){ return P.state.album === id; } });
 }
 /** 弹确认卡片（删单曲 / 删曲目共用） */
 function askDel(o){
@@ -657,8 +664,8 @@ $('#mu-up-go').addEventListener('click', function(){
 
 /* ---------- 导入后编辑（M3，音乐 v1.18 十二 M3 / 7.4 / 7.6） ----------
  * 曲目行 / 单曲行「⋯」→ #mu-ed-wrap：歌名、歌手（M4 之前只填文本，不联想）、所属专辑（只列 kind=album 按名排序，顶上「移出变单曲」）、歌词；
- *   单曲多一个封面（专辑里的曲目不设封面，7.6；单曲选了划进专辑 → 封面不传，用专辑封面）。所有改动一个 track.edit（后端一个 batch）；
- *   单曲改名另发一个 album.edit 改单曲记录的名（列表显示的是记录名；单曲划进专辑时记录会删，不发）；换封面走 music-upload kind=cover。
+ *   单曲多一个封面、一个年份（专辑里的曲目不设封面，7.6；单曲选了划进专辑 → 封面不传、年份不发，跟专辑走）。所有改动一个 track.edit（后端一个 batch）：
+ *   单曲改名 / 改年份由后端在同一个 batch 写进单曲记录（Gray 审 1、3）；换封面走 music-upload kind=cover。
  *   左下「删除」→ 确认卡片（同删除单曲）→ track.del（curio-write 档；单曲唯一一首 → 后端连空单曲记录和封面一起删）。
  * 专辑标题旁「编辑」→ #mu-ae-wrap：名、歌手、年份（album.edit）+ 封面（music-upload kind=cover），一个入口统一改整张专辑。
  * 多选 → 「批量改」→ #mu-be-wrap：歌手、移专辑；年份只对单曲（album.edit 单曲记录）。逐条发请求（batchRequests），失败的列出来。 */
@@ -709,6 +716,7 @@ var ed = null, edGen = 0;
 function edCoverName(){
   var into = ed.single && $('#mu-ed-album').value !== '0';
   $('#mu-ed-cover').disabled = into;
+  $('#mu-ed-year').disabled = into;  /* 划进专辑：年份跟专辑走，不发 */
   $('#mu-ed-cover-name').textContent = into ? T.coverAlbum : ed.cover ? ed.cover.name : ed.a.cover ? T.coverHas : T.coverPick;
 }
 /** 歌词正文只在签播放令牌时给（GET 只说有没有）：直接调 music-play 读这张的歌词，不走 req（401 不切只看模式、不请人进站） */
@@ -731,6 +739,8 @@ function openTrackEdit(a, t){
   $('#mu-ed-artist').value = single ? (a.artist || '') : (t.artist || '');
   fillAlbums($('#mu-ed-album'), [{ v: '0', t: single ? T.stayNoAlbum : T.moveOut }], single ? '0' : a.id);
   $('#mu-ed-cover-row').classList.toggle('hidden', !single);
+  $('#mu-ed-year-row').classList.toggle('hidden', !single);
+  $('#mu-ed-year').value = single && a.year ? String(a.year) : '';
   if (single) { coverPreview($('#mu-ed-cover-img'), a); edCoverName(); }
   var ta = $('#mu-ed-lrc'), note = $('#mu-ed-lrc-note');
   ta.value = ''; ta.disabled = !!t.lrc; note.classList.toggle('hidden', !t.lrc); note.textContent = t.lrc ? T.lrcLoading : '';
@@ -748,17 +758,18 @@ $('#mu-ed-save').addEventListener('click', function(){
   var e0 = ed, a = e0.a, t = e0.t, single = e0.single, btn = this;
   var name = $('#mu-ed-name').value.trim();
   if (!name) return edMsg(T.needSong, true);
-  var body = trackEditBody({ id: t.id, title: single ? a.title : t.title, artist: single ? a.artist : t.artist }, { albumId: a.id, single: single },
-    { title: name, artist: $('#mu-ed-artist').value, album: $('#mu-ed-album').value, lrc: $('#mu-ed-lrc').disabled ? null : lrcChange(e0.lrc, $('#mu-ed-lrc').value) });
+  var yr = null;
+  if (single && !$('#mu-ed-year').disabled) { yr = yearOf($('#mu-ed-year').value); if (yr === null) return edMsg(T.badYear, true); }
+  var body = trackEditBody({ id: t.id, title: single ? a.title : t.title, artist: single ? a.artist : t.artist, year: single ? a.year : 0 }, { albumId: a.id, single: single },
+    { title: name, artist: $('#mu-ed-artist').value, album: $('#mu-ed-album').value, lrc: $('#mu-ed-lrc').disabled ? null : lrcChange(e0.lrc, $('#mu-ed-lrc').value), year: yr });
   var stay = !(body && body.album_id !== undefined);  /* 没移走 */
-  var rename = single && stay && name !== a.title;      /* 单曲改名：单曲记录的名也改 */
   var cover = single && stay && e0.cover;
-  if (!body && !rename && !cover) return edSheet.close();
+  if (!body && !cover) return edSheet.close();
   btn.disabled = true; edMsg('');
   var list = null;
+  /* 歌名、歌手、歌词、所属专辑、单曲的名 / 年份：一个 track.edit（后端一个 batch）；换封面另走 music-upload */
   (body ? req('POST', '/curio/api/music', body) : Promise.resolve(null)).then(function(j){
     if (j) list = j.albums;
-    if (rename) return req('POST', '/curio/api/music', { op: 'album.edit', id: a.id, title: name }).then(function(j2){ list = j2.albums; });
   }).then(function(){
     if (!cover) return null;
     edMsg(T.cover);

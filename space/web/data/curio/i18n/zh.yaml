@@ -379,7 +379,7 @@ js:
     lrcOne: 歌词 .lrc（可选）
     needSong: 填一下歌名。
     singleFull: 这首单曲已经有音频了。
-    delSingle: 确定删除单曲「{name}」（连同音频文件）吗？
+    delSingle: 确定删除单曲「{name}」（连同音频文件）吗？单曲记录和它的封面也会一起删除。
     delSingleBtn: 删除单曲「{name}」
     editSingle: 编辑单曲
     editTrack: 编辑曲目

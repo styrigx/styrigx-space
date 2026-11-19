@@ -136,6 +136,8 @@
         <label class="cu-field"><span>{{ $tr.music.songName }}</span><input id="mu-ed-name" type="text" maxlength="120" autocomplete="off"></label>
         <label class="cu-field"><span>{{ $tr.music.singer }}</span><input id="mu-ed-artist" type="text" maxlength="120" autocomplete="off"></label>
         <label class="cu-field"><span>{{ $tr.music.inAlbum }}</span><select id="mu-ed-album" class="it-select"></select></label>
+        {{/* 单曲才有年份（写单曲记录；曲目表没有年份列，专辑曲目的年份跟专辑走）；空 = 不填 */}}
+        <label id="mu-ed-year-row" class="cu-field hidden"><span>{{ $tr.music.year }}</span><input id="mu-ed-year" type="number" inputmode="numeric" min="1900" max="2100" step="1"></label>
         <div id="mu-ed-cover-row" class="mu-ed-cover hidden">
           <span class="mu-ed-cover-im" aria-hidden="true"><img id="mu-ed-cover-img" alt="" class="hidden"></span>
           <label class="cu-file"><input id="mu-ed-cover" type="file" accept="image/*" class="sr-only"><span id="mu-ed-cover-name"></span></label>
