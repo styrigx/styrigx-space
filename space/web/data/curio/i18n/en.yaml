@@ -157,6 +157,8 @@ music:
   upload: Upload
   modeOne: One track
   modeBatch: Batch
+  dropHere: 'Drop to add: audio, cover images, .lrc lyrics'
+  abandon: Give up the rest
   uploadOne: Upload a track
   newAlbumName: New album name
   chooseOne: Choose audio
@@ -376,11 +378,7 @@ js:
     needAudio: Choose at least one audio file.
     tooBig: '{name} is over 95 MB.'
     badType: '{name} isn''t an audio file we take.'
-    up: 'Uploading {i} of {n}: {name}'
     cover: Uploading the cover…
-    lyrics: Adding lyrics…
-    partial: '{n} files didn''t upload.'
-    partial_one: '{n} file didn''t upload.'
     delAlbum: Delete this album and its files?
     del: Delete
     choose: Choose tracks
@@ -415,7 +413,43 @@ js:
     listHead: 'Will be uploaded as (editable afterwards):'
     newArtist: new artist
     noArtist: no artist
-    unmatched: 'Not matched: {names}'
+    listJob: 'Status of each track:'
+    stWait: Waiting
+    stUp: Uploading {p}%
+    stDone: Done
+    stFail: Failed
+    stSkip: Skipped
+    whyLocked: 'Not signed in: sign in, then tap “Retry failed” to continue.'
+    whyNetwork: The connection dropped.
+    whyTooLarge: The file is too large.
+    whyNotAudio: Not an audio file we take.
+    whyAlbumGone: The album is gone.
+    whyStorage: Storage error.
+    whyCover: The audio is up, but the cover didn't upload.
+    whyEdit: The audio is up, but the artist / lyrics weren't saved.
+    whyAlbum: The new album couldn't be created.
+    whyAlbumCover: The album cover didn't upload.
+    whyOther: Something went wrong.
+    uploading: Uploading…
+    retryN: Retry failed ({n})
+    partialRetry: '{n} tracks didn''t upload; you can retry just the failed ones.'
+    partialRetry_one: '{n} track didn''t upload; you can retry just that one.'
+    allSkipped: Every track is marked to skip; nothing to upload.
+    leftSingles: '{n} single records have no audio yet: uploading a single with the same title and artist reuses one, or delete them in Singles.'
+    leftSingles_one: '{n} single record has no audio yet: uploading a single with the same title and artist reuses it, or delete it in Singles.'
+    leftAlbum: The new album “{name}” stays (still empty); you can keep uploading to it under existing albums.
+    dupSingle: 'Possible duplicate: there''s already a single “{title}” ({artist}).'
+    dupAlbum: 'Possible duplicate: “{album}” already has “{title}” ({artist}).'
+    dupBatch: 'Possible duplicate: same as #{n} “{title}” in this batch.'
+    skipThis: Skip this one
+    pairHead: 'Not matched by file name; pair them by hand (optional):'
+    pairLrc: Lyrics
+    pairCover: Cover
+    pairNone: Don't use
+    pairTrack: '{n}. {title}'
+    pairFor: Which track gets {name}
+    dropOther: '{n} files aren''t audio, images or .lrc and weren''t added.'
+    dropOther_one: '{n} file isn''t audio, an image or .lrc and wasn''t added.'
     singleFull: This single already has its track.
     delSingle: Delete the single “{name}” and its file? The single's record and its cover will be deleted too.
     delSingleBtn: Delete single “{name}”

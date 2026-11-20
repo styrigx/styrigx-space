@@ -218,14 +218,48 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 .mu-up-list { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .mu-up-list-h { margin: 0; font-size: 12px; color: var(--sgx-text-secondary); }
 .mu-up-rows { margin: 0; padding: 0; list-style: none; max-height: 15rem; overflow-y: auto; border: 1px solid var(--sgx-outline-variant); border-radius: 12px; }
-.mu-up-rows li { display: flex; align-items: baseline; gap: 8px; padding: 7px 12px; font-size: 13px; min-width: 0; }
+.mu-up-rows li { display: flex; flex-direction: column; gap: 5px; padding: 7px 12px; font-size: 13px; min-width: 0; }
 .mu-up-rows li + li { border-top: 1px solid var(--sgx-divider); }
 .mu-up-rows b { flex: 1 1 auto; min-width: 0; font-weight: 600; color: var(--sgx-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mu-up-rows span { flex: 0 1 auto; min-width: 0; max-width: 55%; color: var(--sgx-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-up-who { flex: 0 1 auto; min-width: 0; max-width: 55%; color: var(--sgx-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mu-up-new { margin-left: 4px; padding: 0 5px; border-radius: 6px; background: var(--sgx-surface-container-high, var(--sgx-surface-container)); font-size: 11px; color: var(--sgx-primary); }
 .mu-up-none { color: var(--sgx-text-tertiary); }
-.mu-up-miss { margin: 0; font-size: 12px; color: var(--sgx-danger); overflow-wrap: anywhere; }
-#mu-up-form input:disabled { opacity: .5; }
+/* PR-b：每首一行（li 竖排）：上一行歌名 · 歌手 · 状态，下面进度条 / 失败原因 / 重复提醒 + 跳过；没对上的文件手动配（文件名 · 下拉）。 */
+.mu-up-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 13px; }
+.mu-up-st { flex: none; margin-left: auto; font-family: var(--sgx-font-mono); font-size: 12px; color: var(--sgx-text-secondary); white-space: nowrap; }
+.mu-up-row.is-up .mu-up-st { color: var(--sgx-primary); }
+.mu-up-row.is-done .mu-up-st { color: var(--sgx-success); }
+.mu-up-row.is-fail .mu-up-st { color: var(--sgx-danger); font-weight: 600; }
+.mu-up-row.is-skip { opacity: .6; }
+.mu-up-bar { display: block; height: 4px; border-radius: 999px; overflow: hidden; background: var(--sgx-surface-container-high, var(--sgx-surface-container)); }
+.mu-up-bar i { display: block; height: 100%; border-radius: inherit; background: var(--sgx-primary-fill); transition: width .2s linear; }
+.mu-up-why, .mu-up-dup { margin: 0; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.mu-up-why { color: var(--sgx-danger); }
+.mu-up-dup { color: var(--sgx-warning); }
+.mu-up-skip { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; font-size: 12px; color: var(--sgx-text-primary); cursor: pointer; }
+.mu-up-skip input { width: 16px; height: 16px; margin: 0; accent-color: var(--sgx-primary-fill); }
+.mu-up-pair { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.mu-up-pair-h { margin: 0; font-size: 12px; color: var(--sgx-text-secondary); }
+.mu-up-pair-row { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.2fr); align-items: center; gap: 8px; font-size: 13px; }
+.mu-up-pair-k { padding: 0 6px; border-radius: 6px; background: var(--sgx-surface-container-high, var(--sgx-surface-container)); font-size: 11px; color: var(--sgx-text-secondary); white-space: nowrap; }
+.mu-up-pair-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sgx-text-primary); }
+.mu-up-pair-row select { min-width: 0; width: 100%; height: 38px; padding-top: 0; padding-bottom: 0; }
+/* 桌面字小一点；手机保持 16px（iOS 小于 16px 的输入框聚焦会放大） */
+:root[data-sgx-layout="desktop"] .mu-up-pair-row select { height: 34px; font-size: 13px; }
+/* 底部：「放弃剩下的」靠左小字键，「上传 / 重试失败的」主键 */
+.mu-up-foot2 { display: flex; align-items: center; gap: 12px; }
+.mu-up-foot2 .mu-up-go { flex: 1 1 auto; }
+:root[data-sgx-layout="desktop"] .mu-up-foot2 .mu-up-go { flex: none; }
+.mu-up-abandon { flex: none; height: 44px; padding: 0 14px; border-radius: 8px; background: transparent; color: var(--sgx-text-secondary); font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 600; }
+.mu-up-abandon.hidden { display: none; }
+.mu-up-abandon:active { background: var(--sgx-state-pressed-bg); }
+.mu-up-abandon:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+/* 拖放：拖着文件经过上传窗时，卡片上盖一层虚线框 + 一句「松手加入」 */
+.mu-up-drop { display: none; }
+.sgx-up .sgx-qp-sheet.is-drag .mu-up-drop { position: absolute; inset: 8px; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 16px; border: 2px dashed var(--sgx-primary); border-radius: 12px;
+  background: color-mix(in srgb, var(--sgx-primary) 10%, color-mix(in srgb, var(--sgx-mat-solid) 80%, transparent)); color: var(--sgx-primary); font-family: var(--sgx-font-mono); font-size: 14px; font-weight: 600; text-align: center; pointer-events: none; }
+#mu-up-form input:disabled, #mu-up-form select:disabled, #mu-up-kind .sgx-chip:disabled { opacity: .5; }
+#mu-up-kind .sgx-chip:disabled { cursor: default; }
 /* 桌面两栏：左栏的选音频框不跟右栏一样撑高（右栏的封面 / 歌词框照旧撑满） */
 :root[data-sgx-layout="desktop"] #mu-up-form .mu-up-col:first-child > .cu-file { flex: none; min-height: 56px; }
 #mu-up-form .cu-file:has(input:disabled) { opacity: .5; cursor: default; border-style: solid; }

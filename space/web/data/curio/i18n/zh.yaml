@@ -155,6 +155,8 @@ music:
   upload: 上传
   modeOne: 单首
   modeBatch: 批量
+  dropHere: 松手加入：音频、封面图、.lrc 歌词
+  abandon: 放弃剩下的
   uploadOne: 上传一首
   newAlbumName: 新专辑名
   chooseOne: 选音频
@@ -368,10 +370,7 @@ js:
     needAudio: 至少选一个音频文件。
     tooBig: '{name} 超过 95 MB 了。'
     badType: '{name} 不是能用的音频。'
-    up: 正在上传 {i}/{n}：{name}
     cover: 正在上传封面…
-    lyrics: 正在写入歌词…
-    partial: 有 {n} 个文件没传上去。
     delAlbum: 确定删除这张专辑（连同音频文件）吗？
     del: 删除
     choose: 选音频（可多选）
@@ -405,7 +404,40 @@ js:
     listHead: 将这样上传（传完还能改）：
     newArtist: 新歌手
     noArtist: 没有歌手
-    unmatched: '没对上：{names}'
+    listJob: 每首的状态：
+    stWait: 等待
+    stUp: 上传中 {p}%
+    stDone: 完成
+    stFail: 失败
+    stSkip: 跳过
+    whyLocked: 没进站：进站后点「重试失败的」接着传。
+    whyNetwork: 网络断了。
+    whyTooLarge: 文件太大了。
+    whyNotAudio: 不是能用的音频。
+    whyAlbumGone: 专辑不在了。
+    whyStorage: 存储出错了。
+    whyCover: 音频传上了，封面没传上。
+    whyEdit: 音频传上了，歌手 / 歌词没写上。
+    whyAlbum: 新专辑没建成。
+    whyAlbumCover: 专辑封面没传上。
+    whyOther: 出了点问题。
+    uploading: 上传中…
+    retryN: 重试失败的（{n}）
+    partialRetry: 有 {n} 首没传上，可以只重试失败的。
+    allSkipped: 都勾了跳过，没有要传的。
+    leftSingles: 留下 {n} 条还没有音频的单曲记录：再传同名同歌手的单曲会接着用它，也可以在单曲区删掉。
+    leftAlbum: 新专辑「{name}」留着（还是空的），可以在「已有专辑」里接着传。
+    dupSingle: 可能重复：已有单曲「{title}」（{artist}）。
+    dupAlbum: 可能重复：专辑「{album}」里已有「{title}」（{artist}）。
+    dupBatch: 可能重复：和这批第 {n} 首「{title}」一样。
+    skipThis: 跳过这首
+    pairHead: 没按文件名对上，手动配一下（可选）：
+    pairLrc: 歌词
+    pairCover: 封面
+    pairNone: 不用
+    pairTrack: '{n}. {title}'
+    pairFor: '{name} 配给哪首'
+    dropOther: 有 {n} 个文件不是音频、图片或 .lrc，没加进来。
     singleFull: 这首单曲已经有音频了。
     delSingle: 确定删除单曲「{name}」（连同音频文件）吗？单曲记录和它的封面也会一起删除。
     delSingleBtn: 删除单曲「{name}」

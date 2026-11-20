@@ -4,6 +4,7 @@
 // - 批量「这批划入哪个专辑」：不划 = 每首一条单曲（封面 / 歌词按文件名对上，内嵌封面兜底）；已有专辑；新建（歌手默认取多数）；右栏列出每首会传成什么、没对上的文件
 // - 每首传完一个 track.edit 写歌手（artist_id）/ 歌词；封面（选的、内嵌的）都裁方、≤ 1000、jpeg
 // - 412 宽：上传窗开着时右下角 AI 浮钮藏起来（不压「上传」键），关窗回来
+// - Gray 2026-11-20 定 3 / 4：同一批里的重复也提醒（可勾跳过，不拦）；真在传的时候挂 beforeunload，传完 / 停下摘掉
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
@@ -42,12 +43,13 @@ const LIST = () => [
 ];
 const ARTISTS = [{ id: 2, name: 'Joni Mitchell', avatar: false, bio: '', style: '' }, { id: 5, name: '周杰伦', avatar: false, bio: '', style: '' }, { id: 8, name: 'Jay Chou', avatar: false, bio: '', style: '' }];
 
-async function mockMusic(page) {
+/* opts（PR-b）：track(info) → 回什么（{status, json} 让这次失败；Promise 先压着不回；不给 = 正常）；edit(body) 同理；list = 换一份歌单 */
+async function mockMusic(page, opts = {}) {
   await page.route('**/avatar/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>' }));
   await page.route('**/api/lock-session-check', (r) => r.fulfill({ json: { ok: true } }));
   await page.route('**/api/identity', (r) => { const b = r.request().postData() || ''; return b.includes('"whoami"') ? r.fulfill({ json: { ok: true, user: { root: true } } }) : r.fallback(); });
   const calls = [];
-  const albums = LIST();
+  const albums = opts.list ? opts.list() : LIST();
   let nextAlbum = 90, nextTrack = 900;
   await page.route('**/api/music-cover**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG1 }));
   await page.route('**/api/music', async (r) => {
@@ -55,6 +57,7 @@ async function mockMusic(page) {
     if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite: true, albums, artists: ARTISTS } });
     const b = req.postDataJSON();
     calls.push(b);
+    if (b.op === 'track.edit' && opts.edit) { const o = await opts.edit(b); if (o) return r.fulfill({ status: o.status, json: o.json }); }
     let id;
     if (b.op === 'album.add') { id = nextAlbum++; albums.push({ id, kind: b.kind || 'album', title: b.title, artist: b.artist, artist_id: 0, year: b.year, cover: false, tracks: [] }); }
     return r.fulfill({ json: { ok: true, canWrite: true, id, albums, artists: ARTISTS } });
@@ -65,10 +68,13 @@ async function mockMusic(page) {
     const kind = u.searchParams.get('kind'), album = Number(u.searchParams.get('album'));
     const body = req.postDataBuffer() || Buffer.alloc(0);
     if (kind === 'track') {
+      const info = { album, title: u.searchParams.get('title'), xhr: req.resourceType() === 'xhr' };
+      calls.push({ start: 'track', ...info });
+      if (opts.track) { const o = await opts.track(info); if (o) { calls.push({ fail: 'track', ...info }); return r.fulfill({ status: o.status, json: o.json }); } }
       const a = albums.find((x) => x.id === album);
       const tid = nextTrack++;
       a.tracks.push(t(tid, Number(u.searchParams.get('no')), u.searchParams.get('title')));
-      calls.push({ upload: 'track', album, no: Number(u.searchParams.get('no')), title: u.searchParams.get('title'), id: tid });
+      calls.push({ upload: 'track', album, no: Number(u.searchParams.get('no')), title: u.searchParams.get('title'), id: tid, xhr: info.xhr });
       return r.fulfill({ json: { ok: true, id: tid } });
     }
     calls.push({ upload: kind, album, type: req.headers()['content-type'], size: jpegSize(body) });
@@ -190,18 +196,24 @@ test('批量 · 不划：右栏列出每首（标签 / 文件名预填，新歌�
   await expect(rows.locator('b')).toHaveText(['那天下雨了', '稻香', '晴天', 'Rainy Day']);
   await expect(rows.nth(3)).toContainText('Jay Chou');
   await expect(rows.nth(3).locator('.mu-up-new')).toHaveCount(0);
-  await expect(page.locator('#mu-up-list .mu-up-miss')).toHaveText('没对上：stray.lrc');
+  /* 没对上的列出来，可手动配（PR-b）；这里不配 */
+  await expect(page.locator('#mu-up-list .mu-up-pair-row')).toHaveCount(1);
+  await expect(page.locator('#mu-up-list .mu-up-pair-name')).toHaveText('stray.lrc');
   await page.locator('#mu-up-go').click();
   await done(page);
   expect(calls.filter((c) => c.op === 'album.add').map((c) => [c.kind, c.title, c.artist])).toEqual([
     ['single', '那天下雨了', '周杰伦'], ['single', '稻香', '周杰伦'], ['single', '晴天', '周杰伦'], ['single', 'Rainy Day', 'Jay Chou'],
   ]);
   expect(calls.filter((c) => c.upload === 'cover')).toEqual([{ upload: 'cover', album: 91, type: 'image/jpeg', size: { w: 24, h: 24 } }]);
-  expect(calls.filter((c) => c.upload === 'track').map((c) => [c.album, c.no])).toEqual([[90, 1], [91, 1], [92, 1], [93, 1]]);
-  expect(calls.filter((c) => c.op === 'track.edit')).toEqual([
-    { op: 'track.edit', id: 900, artist: '周杰伦' }, { op: 'track.edit', id: 901, artist: '周杰伦' },
-    { op: 'track.edit', id: 902, artist: '周杰伦', lrc: '[00:01.00]晴' }, { op: 'track.edit', id: 903, artist: 'Jay Chou' },
-  ]);
+  /* 并发 2：音频谁先传完不一定，按专辑比 */
+  const ups = calls.filter((c) => c.upload === 'track');
+  expect(ups.map((c) => [c.album, c.no]).sort()).toEqual([[90, 1], [91, 1], [92, 1], [93, 1]]);
+  expect(ups.every((c) => c.xhr)).toBe(true);
+  const idOf = (alb) => ups.find((c) => c.album === alb).id;
+  expect(calls.filter((c) => c.op === 'track.edit').sort((a, b) => a.id - b.id)).toEqual([
+    { op: 'track.edit', id: idOf(90), artist: '周杰伦' }, { op: 'track.edit', id: idOf(91), artist: '周杰伦' },
+    { op: 'track.edit', id: idOf(92), artist: '周杰伦', lrc: '[00:01.00]晴' }, { op: 'track.edit', id: idOf(93), artist: 'Jay Chou' },
+  ].sort((a, b) => a.id - b.id));
   await expect(page.locator('#bk-toast')).toHaveText('已上传');
 });
 
@@ -218,8 +230,10 @@ test('批量 · 已有专辑：接在最后、不建记录、不传封面；没�
   await done(page);
   expect(calls.filter((c) => c.op === 'album.add')).toEqual([]);
   expect(calls.filter((c) => c.upload === 'cover')).toEqual([]);
-  expect(calls.filter((c) => c.upload === 'track').map((c) => [c.album, c.no, c.title])).toEqual([[1, 3, 'b'], [1, 4, '新人']]);
-  expect(calls.filter((c) => c.op === 'track.edit')).toEqual([{ op: 'track.edit', id: 900, artist: '周杰伦' }, { op: 'track.edit', id: 901, artist: 'x' }]);
+  const ups = calls.filter((c) => c.upload === 'track');
+  expect(ups.map((c) => [c.album, c.no, c.title]).sort()).toEqual([[1, 3, 'b'], [1, 4, '新人']]);
+  const idOf = (title) => ups.find((c) => c.title === title).id;
+  expect(calls.filter((c) => c.op === 'track.edit').sort((a, b) => a.id - b.id)).toEqual([{ op: 'track.edit', id: idOf('b'), artist: '周杰伦' }, { op: 'track.edit', id: idOf('新人'), artist: 'x' }].sort((a, b) => a.id - b.id));
 });
 
 test('批量 · 新建专辑：专辑歌手默认取多数（亲手改过就不动）；专辑封面用第一首的内嵌封面；曲序取文件名开头的数字', async ({ page }) => {
@@ -235,7 +249,7 @@ test('批量 · 新建专辑：专辑歌手默认取多数（亲手改过就不�
   await done(page);
   expect(calls.filter((c) => c.op === 'album.add')).toEqual([{ op: 'album.add', kind: 'album', title: '合集', artist: '周杰伦', year: 0 }]);
   expect(calls.filter((c) => c.upload === 'cover')).toEqual([{ upload: 'cover', album: 90, type: 'image/jpeg', size: { w: 24, h: 24 } }]);
-  expect(calls.filter((c) => c.upload === 'track').map((c) => [c.no, c.title])).toEqual([[1, '那天下雨了'], [2, '稻香'], [3, '晴天'], [4, 'Rainy Day']]);
+  expect(calls.filter((c) => c.upload === 'track').map((c) => [c.no, c.title]).sort()).toEqual([[1, '那天下雨了'], [2, '稻香'], [3, '晴天'], [4, 'Rainy Day']]);
   /* 亲手改过专辑歌手：换一批文件不再覆盖 */
   await page.locator('#mu-upload').click();
   await page.locator('#mu-up-kind [data-kind="batch"]').click();
@@ -257,4 +271,271 @@ test('412 / 360 宽：上传窗开着时 AI 浮钮藏起来（不压底部「上
   await page.locator('#mu-up-x').click();
   await expect(page.locator('#mu-up-wrap')).toHaveJSProperty('open', false);
   await expect(fab).toBeVisible();
+});
+
+/* ---------- PR-b：并发 2、每文件状态、只重试失败、XHR 进度、拖放、去重提醒、手动配对、传一半留下的空记录 ---------- */
+const deferred = () => { let res; const p = new Promise((r) => { res = r; }); return { p, res }; };
+const STORAGE = { status: 503, json: { ok: false, error: 'storage' } };
+
+test('PR-b 并发 2：同时只传两首，其余「等待」；传的那两首「上传中」带进度条；走 XHR', async ({ page }) => {
+  const gates = [];
+  const calls = await mockMusic(page, { track: () => { const d = deferred(); gates.push(d); return d.p; } });
+  await open(page);
+  await page.locator('#mu-up-kind [data-kind="batch"]').click();
+  await page.locator('#mu-up-audio').setInputFiles(BATCH());
+  await expect(page.locator('#mu-up-list li')).toHaveCount(4);
+  await page.locator('#mu-up-go').click();
+  const rows = page.locator('#mu-up-list li');
+  await expect.poll(() => calls.filter((c) => c.start === 'track').length).toBe(2);
+  await expect(rows.locator('.mu-up-st')).toHaveText([/上传中 \d+%/, /上传中 \d+%/, '等待', '等待']);
+  await expect(rows.nth(0).locator('.mu-up-bar[role="progressbar"]')).toHaveCount(1);
+  await expect(page.locator('#mu-up-go')).toBeDisabled();
+  await expect(page.locator('#mu-up-go')).toHaveText('上传中…');
+  await expect(page.locator('#mu-up-audio')).toBeDisabled();
+  await page.waitForTimeout(300);
+  expect(calls.filter((c) => c.start === 'track').length).toBe(2);
+  gates[0].res(null);
+  await expect.poll(() => calls.filter((c) => c.start === 'track').length).toBe(3);
+  await expect(rows.nth(0).locator('.mu-up-st')).toHaveText('完成');
+  gates[1].res(null); await expect.poll(() => gates.length).toBe(4);
+  gates[2].res(null); gates[3].res(null);
+  await done(page);
+  expect(calls.filter((c) => c.start === 'track').every((c) => c.xhr)).toBe(true);
+});
+
+test('PR-b 只重试失败的：失败那首写原因、窗口留着；重试只重传它、用已建的单曲记录，不再建；已传的不重传', async ({ page }) => {
+  let n = 0;
+  const calls = await mockMusic(page, { track: (i) => (i.title === '稻香' && n++ === 0 ? STORAGE : null) });
+  await open(page);
+  await page.locator('#mu-up-kind [data-kind="batch"]').click();
+  await page.locator('#mu-up-audio').setInputFiles(BATCH());
+  await page.locator('#mu-up-go').click();
+  const rows = page.locator('#mu-up-list li');
+  await expect(page.locator('#mu-up-go')).toHaveText('重试失败的（1）');
+  await expect(rows.locator('.mu-up-st')).toHaveText(['完成', '失败', '完成', '完成']);
+  await expect(rows.nth(1).locator('.mu-up-why')).toHaveText('存储出错了。');
+  await expect(page.locator('#mu-up-msg')).toHaveText('有 1 首没传上，可以只重试失败的。');
+  await expect(page.locator('#mu-up-abandon')).toBeVisible();
+  await expect(page.locator('#mu-up-wrap')).toHaveJSProperty('open', true);
+  /* 传上的那几首已经显示在页面上 */
+  await expect(page.locator('#mu-singles li')).toHaveCount(4);
+  /* 关窗再开：任务还在 */
+  await page.locator('#mu-up-x').click();
+  await expect(page.locator('#mu-up-wrap')).toHaveJSProperty('open', false);
+  await page.locator('#mu-upload').click();
+  await expect(page.locator('#mu-up-go')).toHaveText('重试失败的（1）');
+  const before = calls.length;
+  await page.locator('#mu-up-go').click();
+  await done(page);
+  const again = calls.slice(before);
+  expect(again.filter((c) => c.op === 'album.add')).toEqual([]);
+  expect(again.filter((c) => c.upload === 'track').map((c) => [c.album, c.title])).toEqual([[91, '稻香']]);
+  expect(again.filter((c) => c.upload === 'cover')).toEqual([], '封面第一次已经传上');
+  expect(again.filter((c) => c.op === 'track.edit').map((c) => c.artist)).toEqual(['周杰伦']);
+  await expect(page.locator('#bk-toast')).toHaveText('已上传');
+});
+
+test('PR-b 歌手 / 歌词没写上：只算这首失败；重试只补 track.edit，不重传音频', async ({ page }) => {
+  let n = 0;
+  const calls = await mockMusic(page, { edit: () => (n++ === 0 ? STORAGE : null) });
+  await open(page);
+  await page.locator('#mu-up-audio').setInputFiles([audio('周杰伦 - 告白气球.mp3', 'notag.mp3')]);
+  await page.locator('#mu-up-go').click();
+  await expect(page.locator('#mu-up-go')).toHaveText('重试失败的（1）');
+  await expect(page.locator('#mu-up-list li .mu-up-why')).toHaveText('音频传上了，歌手 / 歌词没写上。');
+  const before = calls.length;
+  await page.locator('#mu-up-go').click();
+  await done(page);
+  const again = calls.slice(before);
+  expect(again.filter((c) => c.upload || c.op === 'album.add')).toEqual([]);
+  expect(again.filter((c) => c.op === 'track.edit')).toEqual([{ op: 'track.edit', id: 900, artist: '周杰伦' }]);
+});
+
+test('PR-b 新建专辑全失败：重试不再建专辑；放弃剩下的 → 空专辑留着、提示一句', async ({ page }) => {
+  const calls = await mockMusic(page, { track: () => STORAGE });
+  await open(page);
+  await page.locator('#mu-up-kind [data-kind="batch"]').click();
+  await page.locator('#mu-up-audio').setInputFiles(BATCH().slice(0, 2));
+  await page.locator('#mu-up-album').selectOption('new');
+  await page.locator('#mu-up-aname').fill('合集');
+  await page.locator('#mu-up-go').click();
+  await expect(page.locator('#mu-up-go')).toHaveText('重试失败的（2）');
+  await page.locator('#mu-up-go').click();
+  await expect(page.locator('#mu-up-go')).toHaveText('重试失败的（2）');
+  expect(calls.filter((c) => c.op === 'album.add').length).toBe(1);
+  expect(calls.filter((c) => c.start === 'track').length).toBe(4);
+  await page.locator('#mu-up-abandon').click();
+  await expect(page.locator('#mu-up-wrap')).toHaveJSProperty('open', false);
+  await expect(page.locator('#bk-toast')).toContainText('新专辑「合集」留着');
+  /* 再开是一张空表 */
+  await page.locator('#mu-upload').click();
+  await expect(page.locator('#mu-up-go')).toHaveText('上传');
+  await expect(page.locator('#mu-up-audio')).toBeEnabled();
+  await expect(page.locator('#mu-up-list')).toBeHidden();
+});
+
+test('PR-b 单曲传一半放弃：空单曲记录留着，下次传同名同歌手的单曲接着用它（不再 album.add）', async ({ page }) => {
+  let fail = true;
+  const calls = await mockMusic(page, { track: () => (fail ? STORAGE : null) });
+  await open(page);
+  await page.locator('#mu-up-audio').setInputFiles([audio('周杰伦 - 告白气球.mp3', 'notag.mp3')]);
+  await page.locator('#mu-up-go').click();
+  await expect(page.locator('#mu-up-list li .mu-up-why')).toHaveText('存储出错了。');
+  await page.locator('#mu-up-abandon').click();
+  await expect(page.locator('#bk-toast')).toContainText('留下 1 条还没有音频的单曲记录');
+  expect(calls.filter((c) => c.op === 'album.add').length).toBe(1);
+  fail = false;
+  await page.locator('#mu-upload').click();
+  await page.locator('#mu-up-audio').setInputFiles([audio('周杰伦 - 告白气球.mp3', 'notag.mp3')]);
+  await page.locator('#mu-up-go').click();
+  await done(page);
+  expect(calls.filter((c) => c.op === 'album.add').length).toBe(1);
+  expect(calls.filter((c) => c.upload === 'track').map((c) => [c.album, c.title])).toEqual([[90, '告白气球']]);
+});
+
+test('PR-b 去重提醒：歌名 + 大小和已有曲目一样就提醒；批量可勾「跳过这首」，跳过的不传；单首只提醒不拦', async ({ page }) => {
+  const size = FX('notag.mp3').length;
+  const list = () => { const l = LIST(); l[0].tracks.push(t(13, 3, '告白气球', { ...JAY, size })); return l; };
+  const calls = await mockMusic(page, { list });
+  await open(page);
+  await page.locator('#mu-up-audio').setInputFiles([audio('周杰伦 - 告白气球.mp3', 'notag.mp3')]);
+  await expect(page.locator('#mu-up-list .mu-up-dup')).toHaveText('可能重复：专辑「叶惠美」里已有「告白气球」（周杰伦）。');
+  await expect(page.locator('#mu-up-list .mu-up-skip')).toHaveCount(0);
+  await page.locator('#mu-up-kind [data-kind="batch"]').click();
+  await page.locator('#mu-up-audio').setInputFiles([audio('周杰伦 - 告白气球.mp3', 'notag.mp3'), audio('周杰伦 - 晴天2.mp3', 'tagged.flac', 'audio/flac')]);
+  await expect(page.locator('#mu-up-list .mu-up-dup')).toHaveCount(1);
+  await page.locator('#mu-up-list .mu-up-skip input').check();
+  await page.locator('#mu-up-go').click();
+  await done(page);
+  expect(calls.filter((c) => c.upload === 'track').map((c) => c.title)).toEqual(['稻香']);
+  expect(calls.filter((c) => c.op === 'album.add').map((c) => c.title)).toEqual(['稻香']);
+});
+
+test('PR-b 手动配对：没按文件名对上的歌词 / 封面在右栏选配给哪首，上传时用上；配了就不再算没对上', async ({ page }) => {
+  const calls = await mockMusic(page);
+  await open(page);
+  await page.locator('#mu-up-kind [data-kind="batch"]').click();
+  await page.locator('#mu-up-audio').setInputFiles([audio('01 a.mp3', 'notag.mp3'), audio('02 b.mp3', 'notag.mp3')]);
+  await page.locator('#mu-up-lrc').setInputFiles([{ name: 'stray.lrc', mimeType: 'text/plain', buffer: Buffer.from('[00:01.00]x') }]);
+  await page.locator('#mu-up-cover').setInputFiles([{ name: 'pic.png', mimeType: 'image/png', buffer: png(30, 20) }]);
+  const pairs = page.locator('#mu-up-list .mu-up-pair-row');
+  await expect(pairs).toHaveCount(2);
+  await expect(pairs.locator('.mu-up-pair-name')).toHaveText(['stray.lrc', 'pic.png']);
+  await pairs.nth(0).locator('select').selectOption({ label: '2. b' });
+  await pairs.nth(1).locator('select').selectOption({ label: '1. a' });
+  await expect(pairs.nth(0).locator('select')).toHaveValue('1');
+  await page.locator('#mu-up-go').click();
+  await done(page);
+  const ups = calls.filter((c) => c.upload === 'track');
+  const edit = calls.filter((c) => c.op === 'track.edit');
+  expect(edit).toEqual([{ op: 'track.edit', id: ups.find((c) => c.title === 'b').id, lrc: '[00:01.00]x' }]);
+  expect(calls.filter((c) => c.upload === 'cover')).toEqual([{ upload: 'cover', album: 90, type: 'image/jpeg', size: { w: 20, h: 20 } }]);
+});
+
+test('PR-b 拖放：拖着文件经过上传窗出「松手加入」；放下按类型分到音频 / 歌词 / 封面，单首拖进多首自动切批量；别的文件提示没加', async ({ page }) => {
+  await mockMusic(page);
+  await open(page);
+  const mp3 = FX('notag.mp3').toString('base64');
+  await page.evaluate((b64) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const dt = new DataTransfer();
+    dt.items.add(new File([bytes], '01 - 周杰伦 - 晴天.mp3', { type: 'audio/mpeg' }));
+    dt.items.add(new File([bytes], '02 - 周杰伦 - 稻香.mp3', { type: 'audio/mpeg' }));
+    dt.items.add(new File(['[00:01.00]晴'], '01 - 周杰伦 - 晴天.lrc', { type: 'text/plain' }));
+    dt.items.add(new File(['x'], 'notes.pdf', { type: 'application/pdf' }));
+    window.__dt = dt;
+    document.querySelector('#mu-up-form').dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  }, mp3);
+  await expect(page.locator('#mu-up-wrap .sgx-qp-sheet')).toHaveClass(/is-drag/);
+  await expect(page.locator('.mu-up-drop')).toBeVisible();
+  await page.evaluate(() => document.querySelector('#mu-up-form').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: window.__dt })));
+  await expect(page.locator('#mu-up-wrap .sgx-qp-sheet')).not.toHaveClass(/is-drag/);
+  await expect(page.locator('#mu-up-kind [data-kind="batch"]')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#mu-up-list li b')).toHaveText(['晴天', '稻香']);
+  await expect(page.locator('#mu-up-lrc-name')).toHaveText('01 - 周杰伦 - 晴天.lrc');
+  await expect(page.locator('#mu-up-msg')).toHaveText('有 1 个文件不是音频、图片或 .lrc，没加进来。');
+  await expect(page.locator('#mu-up-list .mu-up-pair-row')).toHaveCount(0);
+});
+
+test('Gray 定 3 同一批里的重复：两份一样的文件，后一份提醒「和这批第 1 首一样」+「跳过这首」默认不勾（不拦）；勾了只传前一份', async ({ page }) => {
+  const calls = await mockMusic(page);
+  await open(page);
+  await page.locator('#mu-up-kind [data-kind="batch"]').click();
+  /* 01 / 02 是同一个带标签的文件（歌名 + 大小一样）；告白气球不重复 */
+  await page.locator('#mu-up-audio').setInputFiles([audio('01 a.mp3', 'v23-cover.mp3'), audio('02 b.mp3', 'v23-cover.mp3'), audio('03 - 周杰伦 - 告白气球.mp3', 'notag.mp3')]);
+  const rows = page.locator('#mu-up-list li');
+  await expect(rows).toHaveCount(3);
+  await expect(rows.locator('b')).toHaveText(['那天下雨了', '那天下雨了', '告白气球']);
+  await expect(page.locator('#mu-up-list .mu-up-dup')).toHaveCount(1);
+  await expect(rows.nth(1).locator('.mu-up-dup')).toHaveText('可能重复：和这批第 1 首「那天下雨了」一样。');
+  await expect(rows.nth(0).locator('.mu-up-dup')).toHaveCount(0);
+  const skip = rows.nth(1).locator('.mu-up-skip input');
+  await expect(skip).not.toBeChecked();
+  await expect(rows.nth(1).locator('.mu-up-skip')).toHaveText('跳过这首');
+  await skip.check();
+  await page.locator('#mu-up-go').click();
+  await done(page);
+  expect(calls.filter((c) => c.upload === 'track').map((c) => c.title).sort()).toEqual(['告白气球', '那天下雨了']);
+  expect(calls.filter((c) => c.op === 'album.add').length).toBe(2);
+});
+
+test('Gray 定 3 同一批里的重复不拦：不勾照传两份；库里有的先报库里的', async ({ page }) => {
+  const size = FX('notag.mp3').length;
+  const list = () => { const l = LIST(); l[0].tracks.push(t(13, 3, '告白气球', { ...JAY, size })); return l; };
+  const calls = await mockMusic(page, { list });
+  await open(page);
+  await page.locator('#mu-up-kind [data-kind="batch"]').click();
+  await page.locator('#mu-up-audio').setInputFiles([audio('01 a.mp3', 'v23-cover.mp3'), audio('02 b.mp3', 'v23-cover.mp3'), audio('03 - 周杰伦 - 告白气球.mp3', 'notag.mp3'), audio('04 - 周杰伦 - 告白气球.mp3', 'notag.mp3')]);
+  const rows = page.locator('#mu-up-list li');
+  await expect(rows).toHaveCount(4);
+  await expect(rows.nth(1).locator('.mu-up-dup')).toHaveText('可能重复：和这批第 1 首「那天下雨了」一样。');
+  /* 告白气球两份都撞上库里的：都报库里的那条 */
+  await expect(rows.nth(2).locator('.mu-up-dup')).toHaveText('可能重复：专辑「叶惠美」里已有「告白气球」（周杰伦）。');
+  await expect(rows.nth(3).locator('.mu-up-dup')).toHaveText('可能重复：专辑「叶惠美」里已有「告白气球」（周杰伦）。');
+  await page.locator('#mu-up-go').click();
+  await done(page);
+  expect(calls.filter((c) => c.upload === 'track').map((c) => c.title).sort()).toEqual(['告白气球', '告白气球', '那天下雨了', '那天下雨了']);
+});
+
+test('Gray 定 4 beforeunload：只在真在传的时候拦（会弹离开确认）；没开始、停在失败、重试传完、放弃之后都不拦', async ({ page }) => {
+  const gates = [];
+  let n = 0;
+  await mockMusic(page, { track: (i) => { if (i.title === '告白气球' && n++ === 0) return STORAGE; const d = deferred(); gates.push(d); return d.p; } });
+  /* 派一个可取消的 beforeunload：有人 preventDefault 就是会拦 */
+  const guarded = () => page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; });
+  await open(page);
+  expect(await guarded()).toBe(false);
+  await page.locator('#mu-up-kind [data-kind="batch"]').click();
+  await page.locator('#mu-up-audio').setInputFiles([audio('周杰伦 - 告白气球.mp3', 'notag.mp3'), audio('02.flac', 'tagged.flac', 'audio/flac')]);
+  await expect(page.locator('#mu-up-list li')).toHaveCount(2);
+  expect(await guarded()).toBe(false);
+  await page.locator('#mu-up-go').click();
+  await expect.poll(() => gates.length).toBe(1);
+  expect(await guarded()).toBe(true);
+  /* 真的关页面：浏览器弹离开确认；点取消留在页面上，接着传 */
+  const dialogs = [];
+  page.on('dialog', (d) => { dialogs.push(d.type()); d.dismiss().catch(() => {}); });
+  await page.close({ runBeforeUnload: true });
+  await expect.poll(() => dialogs).toEqual(['beforeunload']);
+  expect(page.isClosed()).toBe(false);
+  gates[0].res(null);
+  /* 停在失败（等重试）：不算在传，不拦 */
+  await expect(page.locator('#mu-up-go')).toHaveText('重试失败的（1）');
+  expect(await guarded()).toBe(false);
+  await page.locator('#mu-up-go').click();
+  await expect.poll(() => gates.length).toBe(2);
+  expect(await guarded()).toBe(true);
+  gates[1].res(null);
+  await done(page);
+  expect(await guarded()).toBe(false);
+  /* 再来一次失败后放弃：也不拦 */
+  n = 0;
+  await page.locator('#mu-upload').click();
+  await page.locator('#mu-up-audio').setInputFiles([audio('周杰伦 - 告白气球.mp3', 'notag.mp3')]);
+  await page.locator('#mu-up-go').click();
+  await expect(page.locator('#mu-up-go')).toHaveText('重试失败的（1）');
+  await page.locator('#mu-up-abandon').click();
+  await expect(page.locator('#mu-up-wrap')).toHaveJSProperty('open', false);
+  expect(await guarded()).toBe(false);
+  expect(dialogs).toEqual(['beforeunload']);
 });
