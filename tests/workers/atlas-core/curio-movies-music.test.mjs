@@ -1108,9 +1108,14 @@ test('M4 artist.merge（root）：名下专辑 / 单曲记录（artist_id + 显�
   assert.equal(rowOf(e, 'music_artists', from), undefined);
   assert.deepEqual([rowOf(e, 'music_albums', a).artist_id, rowOf(e, 'music_albums', a).artist, rowOf(e, 'music_albums', s).artist_id, rowOf(e, 'music_albums', s).artist], [into, '周杰伦', into, '周杰伦']);
   assert.deepEqual([rowOf(e, 'music_tracks', t).artist_id, rowOf(e, 'music_tracks', ts).artist_id], [into, into]);
-  assert.deepEqual({ ...rowOf(e, 'music_artists', into), created_at: 0, updated_at: 0 }, { id: into, name: '周杰伦', avatar: '', bio: '目标的简介', style: '', created_at: 0, updated_at: 0 });
+  /* 目标没有头像 → 原歌手的头像搬过去（Gray 2026-11-20）：R2 复制成目标的 key、D1 同一个 batch 写上；名字 / 简介 / 风格不动 */
+  const moved = rowOf(e, 'music_artists', into).avatar;
+  assert.match(moved, new RegExp('^music/artist/' + into + '/avatar-\\d+\\.jpg$'));
+  assert.deepEqual([...e.r2m.m.get(moved).bytes], [...JPEG], '副本就是原头像');
+  assert.equal(e.r2m.m.has(av), false, '原头像删了');
+  assert.deepEqual({ ...rowOf(e, 'music_artists', into), avatar: '', created_at: 0, updated_at: 0 }, { id: into, name: '周杰伦', avatar: '', bio: '目标的简介', style: '', created_at: 0, updated_at: 0 });
   const j = await r.json();
-  assert.deepEqual(j.artists.map((x) => x.name), ['周杰伦']);
+  assert.deepEqual(j.artists.map((x) => [x.name, x.avatar]), [['周杰伦', true]]);
   /* 错误 */
   assert.equal((await (await musicPost(e, { op: 'artist.merge', id: from, into })).json()).error, 'not-found');
   const nf = await musicPost(e, { op: 'artist.merge', id: into, into: 999 });
@@ -1119,7 +1124,7 @@ test('M4 artist.merge（root）：名下专辑 / 单曲记录（artist_id + 显�
   assert.equal((await musicPost(e, { op: 'artist.merge', id: into, into })).status, 400);
 });
 
-test('M4 artist.merge 原子性（失败路径）：D1 写失败 → 专辑、曲目、原歌手和它的头像都不动', async () => {
+test('M4 artist.merge 原子性（失败路径）：D1 写失败 → 专辑、曲目、原歌手和它的头像都不动，搬给目标的头像副本删掉', async () => {
   const e = makeEnv();
   const a = await album(e, { artist: 'Jay Chou' });
   const t = (await (await upTrack(e, a, 'no=1&title=晴天')).json()).id;
@@ -1135,10 +1140,64 @@ test('M4 artist.merge 原子性（失败路径）：D1 写失败 → 专辑、�
     e.db.batch = orig;
     return orig([...list, e.db.prepare('INSERT INTO no_such_table VALUES (1)')]);
   };
+  const puts = [];
+  const put = e.r2m.put.bind(e.r2m);
+  e.r2m.put = async (k, v, opt) => { puts.push(k); return put(k, v, opt); };
   assert.equal((await musicPost(e, { op: 'artist.merge', id: from, into })).status, 500);
   assert.ok(rowOf(e, 'music_artists', from));
   assert.deepEqual([rowOf(e, 'music_albums', a).artist_id, rowOf(e, 'music_albums', a).artist, rowOf(e, 'music_tracks', t).artist_id], [from, 'Jay Chou', from]);
+  /* 头像搬家：D1 之前复制过一份给目标，D1 失败后删掉（不留孤儿）；原头像还在，目标还是没有头像 */
+  assert.equal(puts.length, 1);
+  assert.match(puts[0], new RegExp('^music/artist/' + into + '/avatar-'));
   assert.deepEqual([...e.r2m.m.keys()], keys);
+  assert.equal(rowOf(e, 'music_artists', into).avatar, '');
+  assert.ok(e.r2m.m.has(rowOf(e, 'music_artists', from).avatar));
+});
+
+test('M4 artist.merge 头像：目标已有头像 → 原歌手的头像丢掉（D1 提交之后删），目标的不动、不复制', async () => {
+  const e = makeEnv();
+  await album(e, { artist: 'Jay Chou' });
+  await album(e, { title: '叶惠美', artist: '周杰伦' });
+  const from = artistId(e, 'Jay Chou');
+  const into = artistId(e, '周杰伦');
+  await upAvatar(e, from);
+  await new Promise((r) => setTimeout(r, 2));
+  await upAvatar(e, into);
+  const avFrom = rowOf(e, 'music_artists', from).avatar;
+  const avInto = rowOf(e, 'music_artists', into).avatar;
+  const puts = [];
+  const put = e.r2m.put.bind(e.r2m);
+  e.r2m.put = async (k, v, opt) => { puts.push(k); return put(k, v, opt); };
+  assert.equal((await musicPost(e, { op: 'artist.merge', id: from, into })).status, 200);
+  assert.deepEqual(puts, []);
+  assert.equal(rowOf(e, 'music_artists', into).avatar, avInto);
+  assert.deepEqual([e.r2m.m.has(avFrom), e.r2m.m.has(avInto)], [false, true]);
+});
+
+test('M4 artist.merge 头像（失败路径）：复制副本失败 → 503 storage，D1 没动、原头像还在；原头像在 R2 里找不到 → 照常合并，目标不挂头像', async () => {
+  const e = makeEnv();
+  const a = await album(e, { artist: 'Jay Chou' });
+  await album(e, { title: '叶惠美', artist: '周杰伦' });
+  const from = artistId(e, 'Jay Chou');
+  const into = artistId(e, '周杰伦');
+  await upAvatar(e, from);
+  const av = rowOf(e, 'music_artists', from).avatar;
+  const put = e.r2m.put.bind(e.r2m);
+  e.r2m.put = async () => { throw new Error('r2 down'); };
+  const r = await musicPost(e, { op: 'artist.merge', id: from, into });
+  assert.equal(r.status, 503);
+  assert.equal((await r.json()).error, 'storage');
+  assert.ok(rowOf(e, 'music_artists', from));
+  assert.equal(rowOf(e, 'music_albums', a).artist_id, from);
+  assert.deepEqual([...e.r2m.m.keys()], [av]);
+  /* 原头像丢了（R2 里没有）：不拦合并 */
+  e.r2m.put = put;
+  e.r2m.m.delete(av);
+  assert.equal((await musicPost(e, { op: 'artist.merge', id: from, into })).status, 200);
+  assert.equal(rowOf(e, 'music_artists', from), undefined);
+  assert.equal(rowOf(e, 'music_albums', a).artist_id, into);
+  assert.equal(rowOf(e, 'music_artists', into).avatar, '');
+  assert.deepEqual([...e.r2m.m.keys()], []);
 });
 
 test('M4 artist.del（root）：名下还有作品（专辑 / 单曲 / 曲目）409 artist-has-works，只能合并；没有作品才删，头像等 D1 提交之后删；站长 403', async () => {

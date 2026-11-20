@@ -427,6 +427,10 @@ js:
     arAlbums_one: '{n} album'
     arSingles: '{n} singles'
     arSingles_one: '{n} single'
+    arRelOnly: 'No albums or singles of their own yet. Their tracks are on {albums}.'
+    arRelMore: '{albums} and {n} more'
+    arRelItem: '{a}'
+    arSep: ', '
     similar: 'There''s already “{name}”. Tap to use it.'
     avatarPick: Change photo (optional)
     avatarHas: Has a photo; pick an image to replace it (optional)

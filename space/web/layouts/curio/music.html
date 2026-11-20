@@ -62,6 +62,7 @@
           <h3 id="mu-ar-singles-h" class="mu-ar-h hidden">{{ $tr.music.singles }}</h3>
           <ul id="mu-ar-singles" class="mu-tracks mu-singles" aria-labelledby="mu-ar-singles-h"></ul>
           <p id="mu-ar-none" class="hidden text-center py-10 text-[15px] text-m-on-surface-variant">{{ $tr.music.artistNoWorks }}</p>
+          <p id="mu-ar-rel" class="mu-ar-rel hidden"></p>
         </div>
       </section>
     </div>
@@ -246,7 +247,8 @@
     </div>
     <form id="mu-ar-form" class="mu-up-body" novalidate>
       <div class="mu-up-col">
-        <label class="cu-field"><span>{{ $tr.music.artistName }}</span><input id="mu-ar-name-in" type="text" maxlength="120" autocomplete="off"></label>
+        <label class="cu-field"><span>{{ $tr.music.artistName }}</span><input id="mu-ar-name-in" type="text" maxlength="120" autocomplete="off" aria-describedby="mu-ar-name-err"></label>
+        <p id="mu-ar-name-err" class="hidden text-sm mu-ar-name-err" aria-live="polite"></p>
         <label class="cu-field"><span>{{ $tr.music.style }}</span><input id="mu-ar-style-in" type="text" maxlength="120" autocomplete="off"></label>
         <label class="cu-field"><span>{{ $tr.music.bio }}</span><textarea id="mu-ar-bio-in" rows="3" maxlength="2000"></textarea></label>
         <p id="mu-ar-msg" class="hidden text-sm"></p>

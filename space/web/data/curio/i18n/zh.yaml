@@ -415,6 +415,10 @@ js:
     errStorage: 封面没复制成，没改。
     arAlbums: '{n} 张专辑'
     arSingles: '{n} 首单曲'
+    arRelOnly: '还没有自己的专辑或单曲；有曲目收在{albums}里。'
+    arRelMore: '{albums}等 {total} 张专辑'
+    arRelItem: '「{a}」'
+    arSep: '、'
     similar: 已有歌手「{name}」，点一下换成它
     avatarPick: 换头像（可选）
     avatarHas: 已有头像，选一张图替换（可选）

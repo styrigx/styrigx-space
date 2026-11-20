@@ -298,6 +298,13 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 .mu-ar-bio { margin: 0 2px 12px; font-size: 14px; line-height: 1.6; color: var(--sgx-text-secondary); white-space: pre-line; overflow-wrap: anywhere; }
 .mu-ar-h { margin: 16px 2px 6px; font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 600; color: var(--sgx-text-secondary); }
 .mu-ar-av-im { border-radius: 999px; }
+/* 名下没有专辑 / 单曲、但别的专辑里有 TA 的曲目：一行提示（Gray 2026-11-20）；专辑链接用主色，悬停才加下划线（常驻下划线只给歌手名） */
+.mu-ar-rel { margin: 24px 2px 8px; text-align: center; font-size: 15px; line-height: 1.6; color: var(--sgx-text-secondary); overflow-wrap: anywhere; }
+.mu-ar-rel-a { color: var(--sgx-primary); text-decoration: none; border-radius: 4px; }
+.mu-ar-rel-a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.mu-ar-rel-a:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 1px; }
+/* 名字栏的错就贴在名字栏下面 */
+.mu-ar-name-err { margin: -4px 2px 2px; }
 .mu-ar-merge { display: flex; align-items: flex-end; gap: 8px; }
 .mu-ar-merge .cu-field { flex: 1 1 auto; min-width: 0; }
 .mu-ar-merge .cu-btn-text { flex: none; height: 46px; padding: 0 12px; }

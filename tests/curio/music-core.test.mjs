@@ -375,3 +375,19 @@ test('M4 curio-music 纯函数：artistOf 读 ?artist=；artistWorks 按 artist_
   assert.deepEqual(MU.squareCrop(3000, 2000, 1000), { sx: 500, sy: 0, side: 2000, out: 1000 });
   assert.deepEqual(MU.squareCrop(400, 600, 1000), { sx: 0, sy: 100, side: 400, out: 400 });
 });
+
+test('M4 curio-music relatedAlbums（歌手页诚实空状态，Gray 2026-11-20）：别的歌手的专辑里有 TA 的曲目 → 那些专辑（不算单曲记录、不算 TA 自己的），保持顺序', () => {
+  const tr = (id, artist_id) => ({ id, artist_id });
+  const list = [
+    { id: 1, kind: 'album', artist_id: 2, tracks: [tr(11, 2), tr(12, 7)] },
+    { id: 2, kind: 'single', artist_id: 5, tracks: [tr(21, 7)] },
+    { id: 3, kind: 'album', artist_id: 7, tracks: [tr(31, 7)] },
+    { id: 4, kind: 'album', artist_id: 0, tracks: [tr(41, 7), tr(42, 7)] },
+    { id: 5, kind: 'album', artist_id: 2, tracks: [] },
+    { id: 6, kind: 'album', artist_id: 2 },
+  ];
+  assert.deepEqual(MU.relatedAlbums(list, 7).map((a) => a.id), [1, 4]);
+  assert.deepEqual(MU.relatedAlbums(list, 9), []);
+  assert.deepEqual(MU.relatedAlbums(list, 0), []);
+  assert.deepEqual(MU.relatedAlbums(null, 7), []);
+});

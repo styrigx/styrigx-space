@@ -147,6 +147,16 @@ function artistWorks(list, id){
   (list || []).forEach(function(a){ if (a.artist_id === id) (CORE.isSingle(a) ? out.singles : out.albums).push(a); });
   return out;
 }
+/**
+ * 歌手页的诚实空状态（Gray 2026-11-20）：这位名下没有专辑 / 单曲，但别的歌手的专辑里收了 TA 的曲目 → 那些专辑（只算专辑，不算单曲记录），保持歌单顺序。
+ * 专辑区本身仍只按专辑的 artist_id 列（同 artistWorks）。
+ */
+function relatedAlbums(list, id){
+  if (!(id > 0)) return [];
+  return (list || []).filter(function(a){
+    return !CORE.isSingle(a) && a.artist_id !== id && (a.tracks || []).some(function(t){ return t.artist_id === id; });
+  });
+}
 /** 比对用：小写、去掉所有空白 */
 function artistKey(s){ return String(s == null ? '' : s).toLowerCase().replace(/\s+/g, ''); }
 /**
@@ -199,7 +209,7 @@ function makeTr(dict, lang){
   };
 }
 
-var pure = { readDict: readDict, makeTr: makeTr, SPEEDS: SPEEDS, TRACK_MAX: TRACK_MAX, nextSpeed: nextSpeed, fmtTime: fmtTime, parseLrc: parseLrc, lrcIndex: lrcIndex, trackFromName: trackFromName, sortByName: sortByName, audioType: audioType, lrcKey: lrcKey, splitKinds: splitKinds, pickSection: pickSection, albumChoices: albumChoices, lrcChange: lrcChange, trackEditBody: trackEditBody, yearOf: yearOf, batchRequests: batchRequests, artistOf: artistOf, artistWorks: artistWorks, similarArtist: similarArtist, squareCrop: squareCrop };
+var pure = { readDict: readDict, makeTr: makeTr, SPEEDS: SPEEDS, TRACK_MAX: TRACK_MAX, nextSpeed: nextSpeed, fmtTime: fmtTime, parseLrc: parseLrc, lrcIndex: lrcIndex, trackFromName: trackFromName, sortByName: sortByName, audioType: audioType, lrcKey: lrcKey, splitKinds: splitKinds, pickSection: pickSection, albumChoices: albumChoices, lrcChange: lrcChange, trackEditBody: trackEditBody, yearOf: yearOf, batchRequests: batchRequests, artistOf: artistOf, artistWorks: artistWorks, relatedAlbums: relatedAlbums, similarArtist: similarArtist, squareCrop: squareCrop };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxCurioMusic = pure;
 
@@ -1030,7 +1040,12 @@ function renderArtist(){
   $('#mu-ar-edit').classList.toggle('hidden', !canWrite);
   $('#mu-ar-albums-h').classList.toggle('hidden', !w.albums.length);
   $('#mu-ar-singles-h').classList.toggle('hidden', !w.singles.length);
-  $('#mu-ar-none').classList.toggle('hidden', !!(w.albums.length || w.singles.length));
+  /* 名下没有专辑 / 单曲：别的专辑里收了 TA 的曲目 → 一行提示链到那些专辑；真的什么都没有才说「还没有专辑或单曲」 */
+  var empty = !(w.albums.length || w.singles.length), rel = empty ? relatedAlbums(all, r.id) : [];
+  $('#mu-ar-none').classList.toggle('hidden', !empty || rel.length > 0);
+  var relEl = $('#mu-ar-rel');
+  relEl.classList.toggle('hidden', !rel.length);
+  relEl.innerHTML = rel.length ? relLine(rel) : '';
   $('#mu-ar-albums').innerHTML = w.albums.map(function(a){
     var u2 = coverUrl(a);
     return '<li><button type="button" class="mu-single" data-al="' + a.id + '">'
@@ -1045,6 +1060,24 @@ function renderArtist(){
       + '<span class="mu-track-dur">' + (t && t.duration ? fmtTime(t.duration) : '') + '</span></button></li>';
   }).join('');
 }
+/** 字典里的一句，{name} 处换成一段已转义的 HTML（其余部分转义；先换数字变量，再拼 HTML，专辑名里的「{n}」不会被当成占位） */
+function htmlLine(key, slot, html, vars){
+  var parts = tr(key, vars).split('{' + slot + '}');
+  return esc(parts[0]) + (parts.length > 1 ? html + esc(parts.slice(1).join('{' + slot + '}')) : '');
+}
+/** 「有曲目收在「A」、「B」、「C」等 n 张专辑里」：最多链三张，多的说个数 */
+function relLine(rel){
+  var shown = rel.slice(0, 3);
+  var links = shown.map(function(a){ return htmlLine('arRelItem', 'a', '<a class="mu-ar-rel-a" href="./" data-rel="' + a.id + '">' + esc(a.title) + '</a>'); }).join(esc(T.arSep || ', '));
+  if (rel.length > shown.length) links = htmlLine('arRelMore', 'albums', links, { n: rel.length - shown.length, total: rel.length });
+  return htmlLine('arRelOnly', 'albums', links, { n: rel.length });
+}
+$('#mu-ar-rel').addEventListener('click', function(e){
+  var a = e.target.closest('a[data-rel]');
+  if (!a || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  goArtist(0, { album: Number(a.dataset.rel) });
+});
 /* 歌手页：点专辑 → 回音乐页那张专辑；点单曲 → 这位歌手的单曲当播放列表（同单曲区） */
 $('#mu-ar-albums').addEventListener('click', function(e){
   var b = e.target.closest('[data-al]');
@@ -1081,6 +1114,13 @@ function fillArtistList(){
 var arDlg = $('#mu-ar-wrap'), arSheet = mkSheet(arDlg, 'sgxMuAr');
 wire(arDlg, arSheet, '#mu-ar-x');
 var arMsg = msgOf('#mu-ar-msg');
+/* 名字栏自己的错（没填 / 重名）显示在名字栏正下方（Gray 2026-11-20），其余的错照旧在表单底下 */
+var arNameMsg = msgOf('#mu-ar-name-err');
+function arNameErr(m){ arNameMsg(m, true); var i = $('#mu-ar-name-in'); if (m) i.setAttribute('aria-invalid', 'true'); else i.removeAttribute('aria-invalid'); }
+$('#mu-ar-name-in').addEventListener('input', function(){ arNameErr(''); });
+/* 头像预览：选了图就在圆框里先显示（本地 object URL，圆框 object-fit: cover 正好是中间那块正方形，同 squareCrop）；换图 / 重开窗时收掉旧的 */
+var arPreview = '';
+function arDropPreview(){ if (arPreview) { try { URL.revokeObjectURL(arPreview); } catch (e) {} arPreview = ''; } }
 /** ar = {r: 歌手, file: 新选的头像, works: 名下作品数} */
 var ar = null;
 function arAvatarName(){ $('#mu-ar-av-name').textContent = ar.file ? ar.file.name : ar.r.avatar ? T.avatarHas : T.avatarPick; }
@@ -1099,6 +1139,7 @@ $('#mu-ar-edit').addEventListener('click', function(){
   all.forEach(function(a){ a.tracks.forEach(function(t){ if (t.artist_id === r.id && a.artist_id !== r.id) tracks++; }); });
   ar = { r: r, file: null, works: w.albums.length + w.singles.length + tracks };
   $('#mu-ar-form').reset();
+  arDropPreview(); arNameErr('');
   $('#mu-ar-name-in').value = r.name; $('#mu-ar-style-in').value = r.style || ''; $('#mu-ar-bio-in').value = r.bio || '';
   var img = $('#mu-ar-av-img'), u = avatarUrl(r);
   img.classList.toggle('hidden', !u); if (u) img.src = u; else img.removeAttribute('src');
@@ -1113,7 +1154,16 @@ $('#mu-ar-edit').addEventListener('click', function(){
   arSheet.open();
 });
 $('#mu-ar-into').addEventListener('change', function(){ $('#mu-ar-merge').disabled = !this.value; });
-$('#mu-ar-av').addEventListener('change', function(){ if (!ar) return; ar.file = this.files && this.files[0] || null; arAvatarName(); });
+$('#mu-ar-av').addEventListener('change', function(){
+  if (!ar) return;
+  ar.file = this.files && this.files[0] || null;
+  arAvatarName();
+  var img = $('#mu-ar-av-img'), u = ar.file ? '' : avatarUrl(ar.r);
+  arDropPreview();
+  if (ar.file) { try { arPreview = u = URL.createObjectURL(ar.file); } catch (e) { u = ''; } }
+  img.classList.toggle('hidden', !u);
+  if (u) img.src = u; else img.removeAttribute('src');
+});
 /** 头像：取中间的正方形、缩到 ≤ 1000、jpeg（十二 M4 第 2 条，同封面一套裁切） */
 function cropAvatar(file){
   return new Promise(function(resolve, reject){
@@ -1133,14 +1183,14 @@ $('#mu-ar-save').addEventListener('click', function(){
   if (!ar) return;
   var r = ar.r, file = ar.file, btn = this;
   var name = $('#mu-ar-name-in').value.trim(), style = $('#mu-ar-style-in').value.trim(), bio = $('#mu-ar-bio-in').value.trim();
-  if (!name) return arMsg(T.needArtist, true);
+  if (!name) { arNameErr(T.needArtist); return $('#mu-ar-name-in').focus(); }
   var b = { op: 'artist.edit', id: r.id };
   if (name !== r.name) b.name = name;
   if (style !== (r.style || '')) b.style = style;
   if (bio !== (r.bio || '')) b.bio = bio;
   var edit = Object.keys(b).length > 2;
   if (!edit && !file) return arSheet.close();
-  btn.disabled = true; arMsg('');
+  btn.disabled = true; arMsg(''); arNameErr('');
   var list = null;
   (edit ? req('POST', '/curio/api/music', b) : Promise.resolve(null)).then(function(j){
     if (j) list = j.albums;
@@ -1150,10 +1200,12 @@ $('#mu-ar-save').addEventListener('click', function(){
       .then(function(){ coverVer = Date.now(); return req('GET', '/curio/api/music'); }).then(function(j2){ list = j2.albums; });
   }).then(function(){
     if (list) refresh(list);
+    arDropPreview();
     arSheet.close(); toast(T.savedEdit);
   }).catch(function(e){
     if (list) refresh(list);
-    if (!e.sgxLocked) arMsg(arErr(e), true);
+    if (e.sgxLocked) return;
+    if (e && e.code === 'artist-exists') { arMsg(''); arNameErr(arErr(e)); $('#mu-ar-name-in').focus(); } else arMsg(arErr(e), true);
   }).then(function(){ btn.disabled = false; });
 });
 /** root 档（合并 / 删歌手）：先领一次性票再发（同删专辑 delAlbum） */

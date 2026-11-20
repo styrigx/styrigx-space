@@ -488,7 +488,7 @@ export async function applyMusicOp(db, o, now = Date.now(), r2 = null) {
     case 'artist.edit':
       return editArtist(db, o, now);
     case 'artist.merge':
-      return mergeArtist(db, o, now);
+      return mergeArtist(db, o, now, r2);
     case 'artist.del': {
       /* M4（7.5）：名下还有作品（专辑 / 单曲记录 / 曲目的 artist_id 指着它）就不让删（409 artist-has-works，只能合并）；root 档、结构删除。
          删的那条语句自己再带 NOT EXISTS（读完到写之间有人改了也不会删掉有作品的）；头像等 D1 提交成功之后由调用方删 */
@@ -535,21 +535,58 @@ async function editArtist(db, o, now) {
 
 /**
  * artist.merge（M4，7.5「名下还有作品只能合并到另一个歌手」）：把 id 名下的专辑 / 单曲记录（artist_id + artist 文本 = 目标名字）、
- * 曲目（artist_id）都改到 into，再删掉 id 这条歌手；一个 batch，失败整体回滚。目标的名字、头像、简介、风格不动；
- * 原歌手的头像等 D1 提交成功之后由调用方删。404 not-found（原歌手不在）/ into-not-found（目标不在）。
- * @param {any} db @param {any} o @param {number} now
+ * 曲目（artist_id）都改到 into，再删掉 id 这条歌手；一个 batch，失败整体回滚。目标的名字、简介、风格不动。
+ * 头像（Gray 2026-11-20 定）：
+ *   - 目标没有头像、原歌手有 → 搬过去：D1 写之前先在 R2 复制成目标的 key（music/artist/<目标>/avatar-<时间>.jpg），
+ *     目标的 avatar 在同一个 batch 里写上；D1 失败 → 删掉这份副本（不留孤儿），原头像不动；
+ *     复制失败 → 503 storage，D1 没动；原头像在 R2 里找不到 → 照常合并，目标不挂头像（只记日志）。
+ *   - 目标已有头像 → 原歌手的头像丢掉（目标的不动）。
+ *   原歌手的头像一律等 D1 提交成功之后由调用方删。
+ * 404 not-found（原歌手不在）/ into-not-found（目标不在）。
+ * @param {any} db @param {any} o @param {number} now @param {any} [r2]
  */
-async function mergeArtist(db, o, now) {
+async function mergeArtist(db, o, now, r2) {
   const from = await db.prepare('SELECT id, avatar FROM music_artists WHERE id = ?1').bind(o.id).first();
   if (!from) return { error: 'not-found' };
-  const to = await db.prepare('SELECT id, name FROM music_artists WHERE id = ?1').bind(o.into).first();
+  const to = await db.prepare('SELECT id, name, avatar FROM music_artists WHERE id = ?1').bind(o.into).first();
   if (!to) return { error: 'into-not-found' };
-  await db.batch([
+  let copied = '';
+  if (from.avatar && !to.avatar) {
+    if (!r2) return { error: 'storage' };
+    const key = avatarKey(to.id, now);
+    try {
+      const obj = await r2.get(from.avatar);
+      if (obj) {
+        const bytes = obj.arrayBuffer ? await obj.arrayBuffer() : obj.body;
+        await r2.put(key, bytes, { httpMetadata: obj.httpMetadata || { contentType: 'image/jpeg' } });
+        copied = key;
+      } else console.error('[curio-music] artist avatar missing in r2, merge target gets none');
+    } catch (e) {
+      try { await r2.delete(key); } catch (x) { /* 只记日志 */ }
+      console.error('[curio-music] avatar copy failed');
+      return { error: 'storage' };
+    }
+  }
+  const stmts = [
     db.prepare('UPDATE music_albums SET artist_id = ?1, artist = ?2, updated_at = ?3 WHERE artist_id = ?4').bind(to.id, to.name, now, from.id),
     db.prepare('UPDATE music_tracks SET artist_id = ?1 WHERE artist_id = ?2').bind(to.id, from.id),
     db.prepare('DELETE FROM music_artists WHERE id = ?1').bind(from.id),
-  ]);
-  return { removed: from.avatar ? [from.avatar] : [], id: to.id };
+  ];
+  /* 目标的头像只在它还空着时写（读完到写之间有人给目标传了头像 → 不覆盖，副本交给调用方删） */
+  if (copied) stmts.push(db.prepare("UPDATE music_artists SET avatar = ?1, updated_at = ?2 WHERE id = ?3 AND avatar = ''").bind(copied, now, to.id));
+  let out;
+  try {
+    out = await db.batch(stmts);
+  } catch (e) {
+    if (copied) { try { await r2.delete(copied); } catch (x) { console.error('[curio-music] avatar copy cleanup failed'); } }
+    throw e;
+  }
+  const removed = from.avatar ? [from.avatar] : [];
+  if (copied) {
+    const w = out && out[stmts.length - 1];
+    if (!(w && w.meta && w.meta.changes > 0)) removed.push(copied);
+  }
+  return { removed, id: to.id };
 }
 
 /** 歌手头像的 R2 key（十二 M4 第 2 条） @param {number} artistId @param {number} now */

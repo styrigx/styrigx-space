@@ -13,6 +13,7 @@
 //                   track.del（M3）：删的是单曲唯一一首 → 空单曲记录连同它的封面一起删（权限仍是 track.del 的 curio-write）。
 //                   歌手（M4，音乐 v1.19 7.5 / 十二 M4）：artist.edit {id, name?, bio?, style?}（curio-write；改名名下专辑文本跟着改；重名 409 artist-exists）、
 //                     artist.merge {id, into}（root + 一次性票；404 not-found / into-not-found）、artist.del {id}（root + 一次性票；名下有作品 409 artist-has-works）。
+//                     合并：目标没有头像就把原歌手的头像搬过去（R2 先复制、D1 同一个 batch 写上，复制失败 503 storage），目标有就丢掉原头像。
 //                     合并 / 删掉的歌手头像等 D1 提交成功之后删。GET / POST 的回答多一个 artists（歌手表，listMusic），专辑 / 曲目多 artist_id。
 // 无权限（app.js 守卫）：没有 v6 身份 401 unauthorized、档不够 403 forbidden；写非同源 403 origin。
 import { json, err, methodNotAllowed } from './_lib.js';

@@ -30,7 +30,7 @@ const DATA = () => ({
   ],
 });
 
-/** opts.canWrite 默认 true；opts.fail(b) 返回错误码就让这条写请求失败 */
+/** opts.canWrite 默认 true；opts.fail(b) 返回错误码就让这条写请求失败；opts.edit(db) 改假数据 */
 async function mockMusic(page, opts = {}) {
   const canWrite = opts.canWrite !== false;
   await page.route('**/avatar/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>' }));
@@ -38,6 +38,7 @@ async function mockMusic(page, opts = {}) {
   await page.route('**/api/identity', (r) => { const b = r.request().postData() || ''; return canWrite && b.includes('"whoami"') ? r.fulfill({ json: { ok: true, user: { root: true } } }) : r.fallback(); });
   const calls = [];
   const db = DATA();
+  if (opts.edit) opts.edit(db);
   await page.route('**/api/music-cover**', (r) => { calls.push({ cover: new URL(r.request().url()).search }); return r.fulfill({ status: 200, contentType: 'image/png', body: PNG }); });
   await page.route('**/api/music', async (r) => {
     const req = r.request();
@@ -183,6 +184,11 @@ test('编辑歌手：名字 / 风格 / 简介只发改了的、一个 artist.edi
   await page.locator('#mu-ar-name-in').fill('Joni');
   await page.locator('#mu-ar-bio-in').fill('简介新');
   await page.locator('#mu-ar-av').setInputFiles({ name: 'joni.png', mimeType: 'image/png', buffer: PNG });
+  /* 选了图：圆框里先显示本地预览（object URL），不等上传 */
+  await expect(page.locator('#mu-ar-av-name')).toHaveText('joni.png');
+  await expect(page.locator('#mu-ar-av-img')).toBeVisible();
+  await expect(page.locator('#mu-ar-av-img')).toHaveAttribute('src', /^blob:/);
+  expect(await page.locator('#mu-ar-av-img').evaluate((i) => i.complete && i.naturalWidth > 0)).toBe(true);
   await page.locator('#mu-ar-save').click();
   await expect(dlg).toHaveJSProperty('open', false);
   expect(writes(calls)).toEqual([{ op: 'artist.edit', id: 2, name: 'Joni', bio: '简介新', ticket: '' }]);
@@ -199,17 +205,80 @@ test('编辑歌手：名字 / 风格 / 简介只发改了的、一个 artist.edi
   expect(writes(calls)).toHaveLength(1);
 });
 
-test('编辑歌手：重名 409 artist-exists → 窗里提示用「合并」，不关窗；名字不能空', async ({ page }) => {
+test('编辑歌手：重名 409 artist-exists → 名字栏正下方提示用「合并」，不关窗；名字不能空（同一处）；一改名字提示就收', async ({ page }) => {
   await mockMusic(page, { fail: (b) => (b.op === 'artist.edit' && b.name === '周杰伦' ? 'artist-exists' : '') });
   await page.goto('/curio/zh/music/?artist=4');
   await page.locator('#mu-ar-edit').click();
-  await page.locator('#mu-ar-name-in').fill('');
+  const nameIn = page.locator('#mu-ar-name-in'), err = page.locator('#mu-ar-name-err');
+  await nameIn.fill('');
   await page.locator('#mu-ar-save').click();
-  await expect(page.locator('#mu-ar-msg')).toHaveText('给歌手起个名字。');
-  await page.locator('#mu-ar-name-in').fill('周杰伦');
+  await expect(err).toHaveText('给歌手起个名字。');
+  await expect(nameIn).toHaveAttribute('aria-invalid', 'true');
+  await nameIn.fill('周杰伦');
+  await expect(err).toBeHidden();
   await page.locator('#mu-ar-save').click();
-  await expect(page.locator('#mu-ar-msg')).toHaveText('已有同名歌手，用「合并」把两位并到一起。');
+  await expect(err).toHaveText('已有同名歌手，用「合并」把两位并到一起。');
+  await expect(err).toHaveClass(/text-m-error/);
+  await expect(page.locator('#mu-ar-msg')).toBeHidden();
+  /* 位置：名字栏下面、风格栏上面（不在简介框底下） */
+  const [bi, be, bs] = await Promise.all([nameIn.boundingBox(), err.boundingBox(), page.locator('#mu-ar-style-in').boundingBox()]);
+  expect(be.y).toBeGreaterThanOrEqual(bi.y + bi.height - 1);
+  expect(be.y + be.height).toBeLessThanOrEqual(bs.y);
   await expect(page.locator('#mu-ar-wrap')).toHaveJSProperty('open', true);
+});
+
+test('歌手页诚实空状态：名下没有专辑 / 单曲、但别的专辑里有 TA 的曲目 → 不说「还没有」，一行提示链到那些专辑（专辑区仍只按专辑歌手列）', async ({ page }) => {
+  const NASH = { artist: 'Graham Nash', artist_id: 7 };
+  await mockMusic(page, { edit: (db) => {
+    db.artists.push({ id: 7, name: 'Graham Nash', avatar: false, bio: '', style: '' }, { id: 8, name: 'David Crosby', avatar: false, bio: '', style: '' });
+    db.albums[0].tracks.push(t(13, 3, 'Carey', NASH));
+    for (const [i, id] of [[0, 14], [1, 22], [2, 32]]) db.albums[i].tracks.push(t(id, 9, 'Guest ' + id, { artist: 'David Crosby', artist_id: 8 }));
+    db.albums.push({ id: 5, kind: 'album', title: 'Déjà Vu', artist: 'CSNY', artist_id: 0, year: 1970, cover: false, tracks: [t(61, 1, 'Almost Cut My Hair', { artist: 'David Crosby', artist_id: 8 })] });
+    /* 单曲记录里挂着 TA 的曲目不算「专辑」 */
+    db.albums[3].tracks.push(t(53, 2, 'River (Nash)', NASH));
+  } });
+  await page.goto('/curio/zh/music/?artist=7');
+  await expect(page.locator('#mu-ar-sub')).toHaveText('0 张专辑 · 0 首单曲');
+  await expect(page.locator('#mu-ar-none')).toBeHidden();
+  await expect(page.locator('#mu-ar-albums-h')).toBeHidden();
+  const rel = page.locator('#mu-ar-rel');
+  await expect(rel).toBeVisible();
+  await expect(rel).toHaveText('还没有自己的专辑或单曲；有曲目收在「Blue」里。');
+  await expect(rel.locator('a')).toHaveCount(1);
+  /* 多于三张：链三张，其余说个数 */
+  await page.goto('/curio/zh/music/?artist=8');
+  await expect(rel).toHaveText('还没有自己的专辑或单曲；有曲目收在「Blue」、「Court and Spark」、「Ammonia Avenue」等 4 张专辑里。');
+  await expect(rel.locator('a')).toHaveText(['Blue', 'Court and Spark', 'Ammonia Avenue']);
+  await page.goto('/curio/music/?artist=8');
+  await expect(rel).toHaveText('No albums or singles of their own yet. Their tracks are on Blue, Court and Spark, Ammonia Avenue and 1 more.');
+  /* 点链接 → 回音乐页那张专辑（页内换） */
+  await page.goto('/curio/zh/music/?artist=7');
+  await page.evaluate(() => { window.__sameDoc = 1; });
+  await rel.locator('a', { hasText: 'Blue' }).click();
+  await expect(page).toHaveURL(/\/curio\/zh\/music\/$/);
+  await expect(page.locator('#mu-album-title')).toHaveText('Blue');
+  expect(await page.evaluate(() => window.__sameDoc)).toBe(1);
+  /* 真的什么都没有：照旧「还没有专辑或单曲」，没有提示行 */
+  await page.goto('/curio/zh/music/?artist=6');
+  await expect(page.locator('#mu-ar-none')).toHaveText('还没有专辑或单曲。');
+  await expect(rel).toBeHidden();
+});
+
+test('歌手名链接常驻一条淡下划线（手机上也看得出能点），悬停换主色；别的链接不加', async ({ page }) => {
+  await mockMusic(page);
+  await page.goto('/curio/zh/music/');
+  const link = page.locator('#mu-album-sub a.mu-artist-a');
+  const st = () => link.evaluate((a) => { const c = getComputedStyle(a); return { line: c.textDecorationLine, dc: c.textDecorationColor, color: c.color }; });
+  const base = await st();
+  expect(base.line).toBe('underline');
+  expect(base.dc).not.toBe(base.color);
+  await link.hover();
+  await expect.poll(async () => (await st()).color).not.toBe(base.color);
+  const hov = await st();
+  expect(hov.dc).toBe(hov.color);
+  /* 返回链接（别的链接）不加下划线 */
+  await page.goto('/curio/zh/music/?artist=2');
+  expect(await page.locator('#mu-ar-back').evaluate((a) => getComputedStyle(a).textDecorationLine)).toBe('none');
 });
 
 test('合并（root）：选目标 → 确认卡片（确认键「合并」）→ artist.merge {id, into} → 切到目标歌手页', async ({ page }) => {
