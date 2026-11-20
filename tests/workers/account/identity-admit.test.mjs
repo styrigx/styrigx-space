@@ -51,11 +51,11 @@ test('styrigx：组档放行、root 档 need-root；su root 后 root 档放行�
 test('临时用户：只有给的组；救援会话只走 rescue 路由', async () => {
   const env = identityEnv();
   seedBase(env);
-  seedUser(env, { uid: 1001, name: 'guest', expiresAt: NOW + 86400000, groups: ['listen'] });
+  seedUser(env, { uid: 1001, name: 'guest', expiresAt: NOW + 86400000, groups: ['music-use'] });
   const t = await seedSession(env, { uid: 1001 });
   assert.equal((await A.admitRoute(env, reqWithToken(t.token), 'POST', '/curio/api/music-play', NOW)).allowed, true);
   const ai = await A.admitRoute(env, reqWithToken(t.token), 'POST', '/api/ai', NOW);
-  assert.deepEqual([ai.allowed, ai.reason], [false, 'need-ai']);
+  assert.deepEqual([ai.allowed, ai.reason], [false, 'need-ai-use']);
   const r = await seedSession(env, { uid: 0, rescue: true, expiresAt: NOW + 600000 });
   assert.equal((await A.admitRoute(env, reqWithToken(r.token), 'POST', '/api/identity', NOW, { action: 'whoami' })).allowed, true, '/api/identity whoami 在救援白名单');
   assert.equal((await A.admitRoute(env, reqWithToken(r.token), 'POST', '/curio/api/import', NOW)).allowed, false, '救援不做日常 root 操作');

@@ -1,5 +1,5 @@
 // 奇趣拆页（P4-3）新增的两个子页（手机）：电影 /curio/movies/、私人音乐 /curio/music/。接口用 page.route 假数据，不碰线上。
-// - 电影：无权限（canWrite=false）只读，没有「电影」按钮、详情没有编辑；有权限：添加（海报「移动和缩放」→ 2:3、长边 ≤1600、webp 上传 kind=movie）、编辑、删除要确认
+// - 电影：无权限（canManage=false）只读，没有「电影」按钮、详情没有编辑；有权限：添加（海报「移动和缩放」→ 2:3、长边 ≤1600、webp 上传 kind=movie）、编辑、删除要确认
 // - 音乐（v5 S3 三层）：歌单谁都能看（tab 一直在）；访客（没进站）= 只看模式：播放键是锁、播放条只显示专辑，点播放打开终端预填 su ；
 //   进站了能听，没账号 + curio.write 看不到上传 / 删除；有权限：封面横滑切专辑；整张按曲序播放（POST music-play 拿短链，<audio> 走 music-stream）；歌词跟着亮；倍速循环；下一首；
 //   上传专辑（album.add → 音频按文件名排序逐个直传、曲序 / 曲名取自文件名 → .lrc 按文件名对上 track.edit）
@@ -54,7 +54,7 @@ async function mockMovies(page, can) {
   });
   await page.route('**/api/movies', async (r) => {
     const req = r.request();
-    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite: can, showPrivate: can, movies } });
+    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canManage: can, showPrivate: can, movies } });
     if (!can) return r.fulfill({ status: 403, json: { ok: false, error: 'forbidden' } });
     const b = req.postDataJSON();
     calls.push(b);
@@ -62,7 +62,7 @@ async function mockMovies(page, can) {
     if (b.op === 'movie.add') { id = next++; movies = [{ poster: false, ...b, id, op: undefined }, ...movies]; }
     if (b.op === 'movie.edit') movies = movies.map((m) => (m.id === b.id ? { ...m, ...b, op: undefined } : m));
     if (b.op === 'movie.del') movies = movies.filter((m) => m.id !== b.id);
-    return r.fulfill({ json: { ok: true, canWrite: true, showPrivate: true, id, movies } });
+    return r.fulfill({ json: { ok: true, canManage: true, showPrivate: true, id, movies } });
   });
   return calls;
 }
@@ -179,15 +179,15 @@ async function mockMusic(page, who) {
   await page.route('**/api/music-cover**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
   await page.route('**/api/music', async (r) => {
     const req = r.request();
-    /* 歌单公开：只有元数据（访客也一样）；canWrite 才多给 size / type / lrc */
-    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite: can, albums: can ? albums : albums.map((a) => ({ ...a, tracks: a.tracks.map(({ id, no, title, duration }) => ({ id, no, title, duration })) })) } });
+    /* 歌单公开：只有元数据（访客也一样）；canManage 才多给 size / type / lrc */
+    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canManage: can, albums: can ? albums : albums.map((a) => ({ ...a, tracks: a.tracks.map(({ id, no, title, duration }) => ({ id, no, title, duration })) })) } });
     if (!can) return deny(r);
     const b = req.postDataJSON();
     calls.push(b);
     let id;
     if (b.op === 'album.add') { id = 9; albums.push({ id, title: b.title, artist: b.artist, year: b.year, cover: false, tracks: [] }); }
     if (b.op === 'album.del') albums = albums.filter((a) => a.id !== b.id);
-    return r.fulfill({ json: { ok: true, canWrite: true, id, albums } });
+    return r.fulfill({ json: { ok: true, canManage: true, id, albums } });
   });
   await page.route('**/api/music-upload**', async (r) => {
     if (!can) return deny(r);

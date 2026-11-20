@@ -2,7 +2,7 @@
  *
  * 2026-11 对齐 PR-C2（设计稿 pg=curio / citem）：封面卡（海报当封面，没有就胶片图标；「movies · 年份 · 导演」/ 片名 / 评分）。默认顺序 = 接口的（最近看的在前）。
  * 点卡片 → 条目页 ?id=（原名、年份、导演、观看日期、评分；短评当正文；底部 cd ../prev │ 相关文章 / cd ../next），取代旧的详情弹层；能编辑时条目页里「vim …」编辑。
- * 能编辑（接口回 canWrite：账号会话 + curio.write）：页头命令链「touch curio/movies/ +」新建；编辑弹层里删除（要确认）。无权限只读，看不到添加命令。
+ * 能编辑（接口回 canManage：curio-manage）：页头命令链「touch curio/movies/ +」新建；编辑弹层里删除（要确认）。无权限只读，看不到添加命令。
  * 海报：借 curio-items.js 的裁剪 + 照片状态（window.SgxCurioPhoto.box('mv', 'movie')：2:3 取景框，长边 ≤1600、webp），保存后再传 /curio/api/photo?kind=movie。
  * 确认框、提示条、弹层开关、页底一行借 curio.js 的（window.SgxCurioUI）。
  * 数据：GET /curio/api/movies；写：POST /curio/api/movies {op: movie.add | movie.edit | movie.del}。
@@ -69,7 +69,7 @@ T.stars = function(n){ return tr('stars', { n: n }); };
 var FILM = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M7.5 4.5v15M16.5 4.5v15M3.5 9h4M3.5 15h4M16.5 9h4M16.5 15h4"/></svg>';
 function starSvg(n){ return '<svg viewBox="0 0 24 24" width="' + n + '" height="' + n + '" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="currentColor"/></svg>'; }
 
-var movies = [], canWrite = false, showPrivate = false, loaded = false, editing = null, rating = 0;
+var movies = [], canManage = false, showPrivate = false, loaded = false, editing = null, rating = 0;
 var ver = {};
 var photo = PH ? PH.box('mv', 'movie') : null;
 
@@ -109,7 +109,7 @@ function card(m, i){
 function render(){
   $('#mv-list').innerHTML = movies.map(card).join('');
   var e = $('#mv-empty');
-  e.textContent = canWrite ? T.emptyAdmin : T.empty;
+  e.textContent = canManage ? T.emptyAdmin : T.empty;
   e.classList.toggle('hidden', !loaded || movies.length > 0);
   if (loaded && G.SgxCurioList) G.SgxCurioList.count('movies', movies.length);
   if (loaded && UI && UI.itemId()) route(UI.itemId());
@@ -128,7 +128,7 @@ function view(m){
   var IT_T = G.SgxCurioItemsT || {};
   UI.showItem({ dir: 'movies', name: m.title, meta: ['movies', movieSub(m)].filter(Boolean).join(' · '), spec: spec, prose: m.review,
     img: m.poster ? '<img src="' + posterUrl(m.id) + '" alt="">' : '<span class="it-media-ic">' + FILM + '</span>',
-    edit: canWrite ? { k: 'vim curio/movies/' + UI.slug(m.title), d: T.editCmd, fn: function(){ openEdit(find(m.id)); } } : null,
+    edit: canManage ? { k: 'vim curio/movies/' + UI.slug(m.title), d: T.editCmd, fn: function(){ openEdit(find(m.id)); } } : null,
     prev: nb.prev ? { href: '?id=' + nb.prev.id, id: nb.prev.id, k: 'cd ../prev', title: nb.prev.title } : { href: '?', id: 0, k: 'cd ..', title: IT_T.back || '' },
     next: rel ? { href: rel.u, k: IT_T.related || '', title: rel.t } : nb.next ? { href: '?id=' + nb.next.id, id: nb.next.id, k: 'cd ../next', title: nb.next.title } : null });
 }
@@ -200,9 +200,9 @@ $('#mv-del').addEventListener('click', function(){
 
 /* ---------- 启动 ---------- */
 getJSON('/curio/api/movies').then(function(j){
-  canWrite = !!j.canWrite; showPrivate = !!j.showPrivate; movies = j.movies || []; loaded = true;
-  $('#mv-fab').classList.toggle('hidden', !canWrite);
-  if (UI && UI.signin) UI.signin(canWrite);
+  canManage = !!j.canManage; showPrivate = !!j.showPrivate; movies = j.movies || []; loaded = true;
+  $('#mv-fab').classList.toggle('hidden', !canManage);
+  if (UI && UI.signin) UI.signin(canManage);
   doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); });
   render();
 }).catch(function(e){

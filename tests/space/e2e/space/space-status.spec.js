@@ -218,12 +218,12 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
     });
 
-    test('已登录但不在 status 组（403，#404 未决项第 5 项）：锁卡换「当前用户没有这个权限 / 需要 status 组，先 su root」；按钮预填 su root，页面标记不改', async ({ page }) => {
+    test('已登录但不在 status 组（403，#404 未决项第 5 项）：锁卡换「当前用户没有这个权限 / 需要 status-use 组，先 su root」；按钮预填 su root，页面标记不改', async ({ page }) => {
       await go(page, '/zh/status/', { api: { status: 403, body: { ok: false, error: 'forbidden' } } });
       await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'locked');
       await expect(page.locator('#st-root')).toHaveAttribute('data-lock-perm', '');
       await expect(page.locator('#st-locked .st-msg-title')).toHaveText('Permission denied — 当前用户没有这个权限');
-      await expect(page.locator('#st-locked .st-msg-sub')).toHaveText('服务状态、可用率和用量需要 status 组，先 su root。');
+      await expect(page.locator('#st-locked .st-msg-sub')).toHaveText('服务状态、可用率和用量需要 status-use 组，先 su root。');
       const before = await page.locator('html').getAttribute('data-sgx-lock-session');
       await page.locator('#st-locked [data-st="sudo"]').click();
       await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');

@@ -76,19 +76,19 @@ test('加组 / 删组：变了才 +1 并作废会话；临时用户进不了特�
   seedBase(env);
   seedUser(env, { uid: 1001, name: 'alice', expiresAt: NOW + 7 * DAY });
   const s = await seedSession(env, { uid: 1001 });
-  assert.deepEqual(await U.addToGroup(env, 1001, 'listen', NOW), { ok: true, changed: true });
+  assert.deepEqual(await U.addToGroup(env, 1001, 'music-use', NOW), { ok: true, changed: true });
   assert.equal(epoch(env, 1001), 1);
   assert.deepEqual(sessions(env, 1001), [], '组变了 → 会话作废');
   assert.equal((await S.admitSession(env, s.token, NOW)).ok, false);
-  assert.deepEqual(await U.addToGroup(env, 1001, 'listen', NOW), { ok: true, changed: false });
+  assert.deepEqual(await U.addToGroup(env, 1001, 'music-use', NOW), { ok: true, changed: false });
   assert.equal(epoch(env, 1001), 1, '没变化不动 epoch');
-  for (const g of ['wheel', 'sudoers', 'curio-write', 'daymark-write']) assert.deepEqual(await U.addToGroup(env, 1001, g, NOW), { ok: false, reason: 'temporary' });
+  for (const g of ['wheel', 'sudoers', 'curio-manage', 'daymark-manage']) assert.deepEqual(await U.addToGroup(env, 1001, g, NOW), { ok: false, reason: 'temporary' });
   assert.deepEqual(await U.addToGroup(env, 0, 'wheel', NOW), { ok: false, reason: 'root' });
   assert.deepEqual(await U.addToGroup(env, 4242, 'ai', NOW), { ok: false, reason: 'no-user' });
-  assert.deepEqual(await U.getGroups(env, 1001), ['listen']);
-  assert.deepEqual(await U.removeFromGroup(env, 1001, 'listen'), { ok: true, changed: true });
+  assert.deepEqual(await U.getGroups(env, 1001), ['music-use']);
+  assert.deepEqual(await U.removeFromGroup(env, 1001, 'music-use'), { ok: true, changed: true });
   assert.equal(epoch(env, 1001), 2);
-  assert.deepEqual(await U.removeFromGroup(env, 1001, 'listen'), { ok: true, changed: false });
+  assert.deepEqual(await U.removeFromGroup(env, 1001, 'music-use'), { ok: true, changed: false });
 });
 
 test('改期限：+1 并作废会话；在特权 / 写组里不能设期限；root 不能有期限；坏值拒绝', async () => {

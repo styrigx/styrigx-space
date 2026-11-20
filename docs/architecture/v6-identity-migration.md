@@ -5,14 +5,14 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-SPEC-005 |
-| 版本 | 0.1 |
-| 日期 | 2026-11-11 |
-| 状态 | 已执行（迁移已跑完，脚本已删）；与定稿冲突处以定稿 v5.5 为准（见下文各处标注） |
+| 版本 | 0.2 |
+| 日期 | 2026-11-21 |
+| 状态 | 已执行（迁移已跑完，脚本已删）；与定稿冲突处以定稿 v5.5 为准（见下文各处标注）；组名 2026-11-21 起按《v6 组权限重设计 v1.1》（ADR-0007，见 §8） |
 
 
 > 状态：P1（2026-11-11），基线 main 05abe443。**P1 只写脚本与文档，不对任何生产 D1 做数据写入**；什么时候执行由 Gray 在 P2 / P3 批准。
 > 表结构：`workers/account/migrations/0006_identity.sql`（合并后由账号部署 job 建空表）。脚本：`space/scripts/v6-identity-migrate.mjs`（只生成 SQL，不连 Cloudflare）。
-> 相关：ADR-0006、`docs/architecture/v6-route-inventory.md`。
+> 相关：ADR-0006、ADR-0007（组权限 v1.1）、`docs/architecture/v6-route-inventory.md`。
 
 ## 1. 新表（账号库 styrigx-account，不新增 D1）
 
@@ -59,7 +59,7 @@
 | uid | 名 | 组 | 期限 |
 |---|---|---|---|
 | 0 | root | 无（root 本来就是全部权限；`canJoinGroup` 拒绝给 root 加组） | 永久（代码拒绝给 root 设期限） |
-| 1000 | styrigx | wheel、sudoers、listen、ai、status、curio-write、daymark-write | 永久 |
+| 1000 | styrigx | wheel、sudoers、listen、ai、status、curio-write、daymark-write（P1 迁移时的组名；2026-11-21 起改为 wheel、sudoers、music-use、curio-use、daymark-use、status-use、ai-use、music-manage、curio-manage、daymark-manage，割接见 §8） | 永久 |
 
 ## 3. 通行密钥：只改挂 uid，RP 不变
 
@@ -103,3 +103,28 @@
 - `useradd -e YYYY-MM-DD`：按 Linux 语义，**该日 00:00（Asia/Shanghai）起失效**（可用到前一天结束），存 UTC 毫秒（`core/users.js expiryFromDate`；例：`2026-12-01` → `2026-11-30T16:00:00Z`）。
 - 会话：styrigx 层 30 天滑动续期（只在剩余不到一半时续写，每会话每天至多一次；admit 只读）；root 层 ≤ 1 小时、前台空闲 15 分钟弹回；救援 15 分钟、不续期。
 - 到期之后（P2c）：到期即禁用、会话作废；**到期满 30 天**（`core/user-expiry.js` `EXPIRED_USER_GRACE_MS`）自动删除，删法同 userdel（会话、身份栈、凭据、组；用户行留墓碑 `#deleted-<uid>`，uid 不复用）。每日 03:41 CST 一轮（styrigx-status → `JOB_ACCOUNT`），useradd 前另懒清理一次。宽限期内用户行、凭据、组都还在（只是登不上）。
+
+## 8. 组权限 v1.1 割接（2026-11-21，《v6 组权限重设计 v1.1》第九节 + 《music 搬家设计稿 v1.0》第 1 步；ADR-0007）
+
+**不写 migration、不跑生产 SQL**：生产账号库只读核查（Gray / Muse 2026-11-20 22:30，三条 SELECT）显示 `account_user_groups` 共 7 行，全是 uid 1000 styrigx（`wheel`、`sudoers`、`listen`、`ai`、`status`、`curio-write`、`daymark-write`）；受影响的只有站长一人，割接用身份命令重新授予。
+
+| 旧组名 | 新组名 |
+|---|---|
+| `listen` | `music-use` |
+| `ai` | `ai-use` |
+| `status` | `status-use` |
+| `curio-write` | `curio-manage`（音乐的写权限另拆到新的 `music-manage`） |
+| `daymark-write` | `daymark-manage` |
+| —— | 新增 `curio-use`、`daymark-use`、`music-manage` |
+
+顺序：
+
+1. 合权限 PR（账号 Worker 组常量与路由表、atlas-core `visibility()` 与 `canManage`、前端字段名）。路径不动（音乐仍在 `/curio/api/music*`）。
+2. 部署账号 Worker（**Gray 单独批**）与 atlas-core。
+3. 部署后旧组名在会话读组时被过滤掉（`core/identity-session.js` 只认 `GROUPS` 里的名字），站长暂时只剩 `wheel`、`sudoers`；sudo 不受影响。
+4. 站长执行 `sudo usermod -aG music-use,music-manage,curio-use,curio-manage,daymark-use,daymark-manage,status-use,ai-use styrigx`：epoch +1、会话全部作废，**重新登录一次**。
+5. 验证：`groups` 显示新的 10 个组；听歌、上传、编辑、AI、状态卡、私密行都正常；访客 / test 看不到私密行、不能写。
+6. 旧名留下的 5 行：已经不给任何权限。清理用 `sudo usermod -rG listen,ai,status,curio-write,daymark-write styrigx`（`-rG` 允许删不在 `GROUPS` 里的旧名，不允许加；会再让会话作废一次，可以放到下次需要登录前做，或交给 Janitor）。
+
+回滚：revert 权限 PR 并重新部署；旧名的 5 行还在库里，回滚后自动重新生效（新名的行在旧代码里同样被过滤掉）。
+

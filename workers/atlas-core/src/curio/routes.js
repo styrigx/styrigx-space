@@ -37,38 +37,49 @@ export const API_ROUTES = new Map([
 
 /**
  * 访问档（v5 S3，一档一个守卫，见 api/_auth.js GUARDS；app.js handle 是唯一套用它们的地方）：
- * - public：谁都能调（publicRead：不拒绝；要私密行 / canWrite 的 handler 自己 readAccess）
+ * - public：谁都能调（publicRead：不拒绝；要私密行 / canManage 的 handler 调公用 visibility()，common/visibility.js）
  * - entry：按账号 Worker 路由表的档问 v6（requireEntry：没有身份 401 unauthorized，档不够 403 forbidden）；写接口在 handler 里另要同源
  * - music：同 entry（requireMusic：音乐的上传 / 管理，档同其他写接口）
  * 精确匹配「方法 + 路由表路径」（结尾一个 / 当同一条）；表里没有的方法 / 路径一律 entry（fail closed）。
+ * product（组权限 v1.1 §八）：这一行归哪个产品（同账号 Worker 路由表行上的 product）；公用 visibility(context) 从命中的这一行取，
+ * 不另传。音乐在搬家第 1 步仍挂在 /curio/api/music* 下，但 product 是 'music'。
  * 改这张表 = 改谁能调接口：tests/workers/atlas-core/curio.test.mjs 对整张表做快照。
- * @type {ReadonlyArray<Readonly<{method: string, path: string, access: 'public'|'entry'|'music'}>>}
+ * @type {ReadonlyArray<Readonly<{method: string, path: string, access: 'public'|'entry'|'music', product: 'curio'|'music'}>>}
  */
 export const ROUTE_ACCESS = Object.freeze([
-  { method: 'GET', path: '/api/items', access: 'public' },
-  { method: 'POST', path: '/api/items', access: 'entry' },
-  { method: 'GET', path: '/api/links', access: 'public' },
-  { method: 'POST', path: '/api/links', access: 'entry' },
-  { method: 'GET', path: '/api/movies', access: 'public' },
-  { method: 'POST', path: '/api/movies', access: 'entry' },
-  { method: 'GET', path: '/api/photo', access: 'public' },
-  { method: 'POST', path: '/api/photo', access: 'entry' },
-  { method: 'DELETE', path: '/api/photo', access: 'entry' },
-  { method: 'GET', path: '/api/icon', access: 'public' },
-  { method: 'GET', path: '/api/preview', access: 'entry' },
-  { method: 'GET', path: '/api/export', access: 'entry' },
-  { method: 'POST', path: '/api/import', access: 'entry' },
-  /* 音乐三层：歌单 / 封面公开（不含任何音频地址）；听 = 进站（签播放令牌、取音频）；上传 / 管理 = 账号 + curio.write */
-  { method: 'GET', path: '/api/music', access: 'public' },
-  { method: 'POST', path: '/api/music', access: 'music' },
-  { method: 'GET', path: '/api/music-cover', access: 'public' },
-  { method: 'POST', path: '/api/music-play', access: 'entry' },
-  { method: 'GET', path: '/api/music-stream', access: 'entry' },
-  { method: 'HEAD', path: '/api/music-stream', access: 'entry' },
-  { method: 'POST', path: '/api/music-upload', access: 'music' },
+  { method: 'GET', path: '/api/items', access: 'public', product: 'curio' },
+  { method: 'POST', path: '/api/items', access: 'entry', product: 'curio' },
+  { method: 'GET', path: '/api/links', access: 'public', product: 'curio' },
+  { method: 'POST', path: '/api/links', access: 'entry', product: 'curio' },
+  { method: 'GET', path: '/api/movies', access: 'public', product: 'curio' },
+  { method: 'POST', path: '/api/movies', access: 'entry', product: 'curio' },
+  { method: 'GET', path: '/api/photo', access: 'public', product: 'curio' },
+  { method: 'POST', path: '/api/photo', access: 'entry', product: 'curio' },
+  { method: 'DELETE', path: '/api/photo', access: 'entry', product: 'curio' },
+  { method: 'GET', path: '/api/icon', access: 'public', product: 'curio' },
+  { method: 'GET', path: '/api/preview', access: 'entry', product: 'curio' },
+  { method: 'GET', path: '/api/export', access: 'entry', product: 'curio' },
+  { method: 'POST', path: '/api/import', access: 'entry', product: 'curio' },
+  /* 音乐三层：歌单 / 封面公开（不含任何音频地址）；听 = music-use（签播放令牌、取音频）；上传 / 管理 = music-manage（档在账号 Worker 路由表） */
+  { method: 'GET', path: '/api/music', access: 'public', product: 'music' },
+  { method: 'POST', path: '/api/music', access: 'music', product: 'music' },
+  { method: 'GET', path: '/api/music-cover', access: 'public', product: 'music' },
+  { method: 'POST', path: '/api/music-play', access: 'entry', product: 'music' },
+  { method: 'GET', path: '/api/music-stream', access: 'entry', product: 'music' },
+  { method: 'HEAD', path: '/api/music-stream', access: 'entry', product: 'music' },
+  { method: 'POST', path: '/api/music-upload', access: 'music', product: 'music' },
 ].map((r) => Object.freeze(r)));
 
-const ACCESS_KEYS = new Map(ROUTE_ACCESS.map((r) => [r.method + ' ' + r.path, r.access]));
+const ROUTE_KEYS = new Map(ROUTE_ACCESS.map((r) => [r.method + ' ' + r.path, r]));
+
+/**
+ * 命中的表行（不在表里 → null）。path = 去掉 /curio 前缀后的路径。
+ * @param {string} method @param {string} path
+ */
+export function routeOf(method, path) {
+  const p = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+  return ROUTE_KEYS.get(String(method || 'GET').toUpperCase() + ' ' + p) || null;
+}
 
 /**
  * 这个请求是哪一档（不在表里 → entry）。path = 去掉 /curio 前缀后的路径。
@@ -76,6 +87,6 @@ const ACCESS_KEYS = new Map(ROUTE_ACCESS.map((r) => [r.method + ' ' + r.path, r.
  * @returns {'public'|'entry'|'music'}
  */
 export function accessOf(method, path) {
-  const p = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
-  return ACCESS_KEYS.get(String(method || 'GET').toUpperCase() + ' ' + p) || 'entry';
+  const r = routeOf(method, path);
+  return r ? r.access : 'entry';
 }

@@ -1,5 +1,5 @@
 // 奇趣（workers/atlas-core/src/curio，2026-11-14 合并进 atlas-core）的「设备」「游戏」两栏（/api/items、/api/photo）：
-// - 没有 v6 身份 401；写：非同源 403、档不够（没写组）403 forbidden
+// - 没有 v6 身份 401；写：非同源 403、档不够（没 manage 组）403 forbidden
 // - 校验：名字必填、类型 / 状态 / 评分 / 日期只收合法值、关联设备必须存在、不能「换成」自己
 // - 读：没登录账号看不到私密条目；指向私密设备的 replaced_by / device_id 对没登录账号置 0
 // - 增改删排序；删设备时别人指向它的都清零；删条目连 R2 照片一起删
@@ -49,7 +49,7 @@ function makeR2() {
     async delete(key) { m.delete(key); },
   };
 }
-/* 网关 v6 替身（../_v6who.mjs）：null 访客、'lock' 有身份没组、'owner' root、'noscope' 只有 listen */
+/* 网关 v6 替身（../_v6who.mjs）：null 访客、'lock' 有身份没组、'owner' root、'noscope' 只有 music-use */
 const auth = (who) => whoAuth(who);
 const ORIGIN = 'https://styrigx.com';
 const SITE = ORIGIN + '/curio';
@@ -137,13 +137,13 @@ test('读：没登录账号看不到私密条目，指向私密设备的关联�
   await post(e, { op: 'game.add', title: '公开游戏', device_id: b });
   await post(e, { op: 'game.add', title: '私密游戏', private: true });
   const v = await get(e, 'lock');
-  assert.equal(v.canWrite, false);
+  assert.equal(v.canManage, false);
   assert.equal(v.showPrivate, false);
   assert.equal('admin' in v, false); // old-name guard
   assert.deepEqual(v.devices.map((d) => [d.name, d.replaced_by]), [['公开机', 0]]);
   assert.deepEqual(v.games.map((g) => [g.title, g.device_id]), [['公开游戏', 0]]);
   const o = await get(e, 'owner');
-  assert.equal(o.canWrite, true);
+  assert.equal(o.canManage, true);
   assert.equal(o.showPrivate, true);
   assert.equal('admin' in o, false); // old-name guard
   assert.equal(o.devices.length, 2);

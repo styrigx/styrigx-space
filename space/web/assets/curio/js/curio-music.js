@@ -1,7 +1,7 @@
 /* assets/js/curio-music.js —— 奇趣「音乐」私人子页（P4-3 奇趣拆页：/curio/music/；浏览器 IIFE；node 测试时导出纯函数）。
  *
  * 三层（v5 S3；接口档在 workers/atlas-core/src/curio/routes.js ROUTE_ACCESS）：
- *   - 看：GET /curio/api/music 谁都能调（只有专辑 / 曲目元数据，没有音频地址）；回 canWrite（账号 + curio.write）才显示上传 / 删除专辑。
+ *   - 看：GET /curio/api/music 谁都能调（只有专辑 / 曲目元数据，没有音频地址）；回 canManage（music-manage）才显示上传 / 删除专辑。
  *   - 听：要进站。没进站（网关标记 <html data-sgx-lock-session="locked">，或签令牌回 401）= 只看模式（html.mu-view-only）：
  *     播放整张 / 播放键是锁，播放条显示当前专辑和「未进站，仅可浏览」，上一首 / 下一首 / 倍速 / 进度不可用；
  *     点播放、点曲目都发 sgx:sudo（经 curio.js SgxCurioUI.sudo；= common/js/auth/sudo.js SUDO_EVENT），顶栏终端预填 su 。
@@ -27,7 +27,7 @@
  *     专辑数和单曲数（有简介 / 风格才显示），下面专辑一区、单曲一区。点专辑回到音乐页那张专辑；单曲区点一首 = 这位歌手的单曲当播放列表。
  *   - 入口：专辑标题下的歌手名、单曲行的歌手名、播放条里的歌手名（链接 / data-artist）；弹出播放器里的歌手名经 BroadcastChannel 让主窗口切过来
  *     （顶栏 mountMusic 收 artist-go 发 sgx-music-artist 事件，本页接住就在页内换视图，不接就整页跳过来）。
- *   - 改歌手（能写才有「编辑」）：名字、风格、简介（artist.edit，curio-write）+ 头像（浏览器裁方、≤ 1000、jpeg，music-upload kind=avatar）；
+ *   - 改歌手（能写才有「编辑」）：名字、风格、简介（artist.edit，music-manage）+ 头像（浏览器裁方、≤ 1000、jpeg，music-upload kind=avatar）；
  *     合并到另一个歌手（artist.merge）、删歌手（artist.del，名下没作品才能删）都是 root 档：先确认，再领一次性票（同删专辑）。
  *   - 单曲没封面：封面空 → 歌手头像 → 默认图（共用核 coverOf）。
  *   - 歌手栏联想（7.5「输入带联想」）：上传 / 编辑 / 批量改的歌手栏挂同一个 <datalist>（已有歌手）；输入和已有歌手只差大小写 / 空格时提示一句，可点一下换成已有的。
@@ -427,8 +427,8 @@ function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(
 function toast(m){ if (UI) UI.toast(m); }
 /** 只看模式：没进站（网关标记；签令牌 401 时改成 true） */
 var viewOnly = doc.documentElement.getAttribute('data-sgx-lock-session') === 'locked';
-/** 写的权限（GET /api/music 回的 canWrite：账号 + curio.write） */
-var canWrite = false;
+/** 写的权限（GET /api/music 回的 canManage：music-manage） */
+var canManage = false;
 /** 请人进站：顶栏终端预填 su （curio.js SgxCurioUI.sudo → sgx:sudo，topbar/panel.js 接） */
 function askSudo(){ if (UI && UI.sudo) UI.sudo(); }
 /** 本页接口：401 = 没进站（切到只看模式 + 请人进站，抛 sgxLocked，调用方不再报错）；其它错误带 code 抛出 */
@@ -467,7 +467,7 @@ function xhrUpload(url, body, type, onPct){
     x.send(body);
   });
 }
-/** 失败提示：403 forbidden（2b：v6 身份不在 listen / curio-write，或 album.del 不是 root）说没权限，其余「出了点问题」 */
+/** 失败提示：403 forbidden（2b：v6 身份不在 music-use / music-manage，或 album.del 不是 root）说没权限，其余「出了点问题」 */
 function failMsg(e){ return e && e.code === 'forbidden' && T.noPermission ? T.noPermission : T.failed; }
 function album(){ return albums[cur] || null; }
 /** 删专辑 / 单曲（album.del = root 档，D-3 a′）：先拿票再发；sudo 行带专辑 id */
@@ -499,15 +499,15 @@ function renderSingles(){
   box.innerHTML = singles.map(function(a, i){
     var t = a.tracks[0], on = !!P.state.queue && P.state.i >= 0 && P.state.album === a.id;
     var picked = sel.on && !!sel.ids[a.id];
-    return '<li' + (canWrite ? ' class="mu-single-row"' : '') + '><button type="button" class="mu-single' + (on ? ' on' : '') + '" data-s="' + i + '"' + (on ? ' aria-current="true"' : '') + (sel.on ? ' aria-pressed="' + picked + '"' : '') + (t ? '' : ' disabled') + '>'
+    return '<li' + (canManage ? ' class="mu-single-row"' : '') + '><button type="button" class="mu-single' + (on ? ' on' : '') + '" data-s="' + i + '"' + (on ? ' aria-current="true"' : '') + (sel.on ? ' aria-pressed="' + picked + '"' : '') + (t ? '' : ' disabled') + '>'
       + (sel.on ? CHECK : '')
       + singleIm(a)
       + '<span class="mu-single-tx"><b>' + esc(a.title) + '</b><i>' + (sel.on ? esc(a.artist || '') : artistLink(a.artist, a.artist_id, true)) + '</i></span>'
       + '<span class="mu-track-dur">' + (t && t.duration ? fmtTime(t.duration) : '') + '</span></button>'
       /* 「⋯」编辑（M3：歌名、歌手、歌词、所属专辑、封面）；多选时不画 */
-      + (canWrite && t && !sel.on ? '<button type="button" class="mu-more" data-ed="' + i + '" aria-label="' + esc(tr('editBtn', { name: a.title })) + '" title="' + esc(tr('editBtn', { name: a.title })) + '">' + MORE + '</button>' : '')
-      /* 删除单曲（同「删除专辑」权限：接口回 canWrite 才画；点了先弹确认） */
-      + (canWrite && !sel.on ? '<button type="button" class="mu-single-del" data-del="' + a.id + '" aria-label="' + esc(tr('delSingleBtn', { name: a.title })) + '" title="' + esc(tr('delSingleBtn', { name: a.title })) + '">' + TRASH + '</button>' : '')
+      + (canManage && t && !sel.on ? '<button type="button" class="mu-more" data-ed="' + i + '" aria-label="' + esc(tr('editBtn', { name: a.title })) + '" title="' + esc(tr('editBtn', { name: a.title })) + '">' + MORE + '</button>' : '')
+      /* 删除单曲（同「删除专辑」权限：接口回 canManage 才画；点了先弹确认） */
+      + (canManage && !sel.on ? '<button type="button" class="mu-single-del" data-del="' + a.id + '" aria-label="' + esc(tr('delSingleBtn', { name: a.title })) + '" title="' + esc(tr('delSingleBtn', { name: a.title })) + '">' + TRASH + '</button>' : '')
       + '</li>';
   }).join('');
 }
@@ -532,8 +532,8 @@ function renderAlbum(){
   $('#mu-empty').classList.toggle('hidden', all.length > 0);
   ['#mu-covers', '#mu-dots'].forEach(function(s){ $(s).classList.toggle('hidden', !albums.length || !inAlb); });
   doc.querySelector('.mu-head').classList.toggle('hidden', !a || !inAlb);
-  doc.querySelector('.mu-album-acts').classList.toggle('hidden', !a || !canWrite || !inAlb);
-  $('#mu-album-edit').classList.toggle('hidden', !a || !canWrite || !inAlb);
+  doc.querySelector('.mu-album-acts').classList.toggle('hidden', !a || !canManage || !inAlb);
+  $('#mu-album-edit').classList.toggle('hidden', !a || !canManage || !inAlb);
   renderSelBar(a, inAlb);
   $('#mu-tracks').innerHTML = '';
   renderSeg(); renderSingles();
@@ -544,11 +544,11 @@ function renderAlbum(){
   $('#mu-play-all').disabled = !a.tracks.length;
   $('#mu-tracks').innerHTML = a.tracks.map(function(t, i){
     var on = P.state.album === a.id && P.state.i === i, picked = sel.on && !!sel.ids[t.id];
-    return '<li' + (canWrite ? ' class="mu-track-row"' : '') + '><button type="button" class="mu-track' + (on ? ' on' : '') + '" data-t="' + i + '"' + (on ? ' aria-current="true"' : '') + (sel.on ? ' aria-pressed="' + picked + '"' : '') + '>'
+    return '<li' + (canManage ? ' class="mu-track-row"' : '') + '><button type="button" class="mu-track' + (on ? ' on' : '') + '" data-t="' + i + '"' + (on ? ' aria-current="true"' : '') + (sel.on ? ' aria-pressed="' + picked + '"' : '') + '>'
       + (sel.on ? CHECK : '<span class="mu-track-no">' + (t.no || i + 1) + '</span>') + '<span class="mu-track-title">' + esc(t.title) + '</span>'
       + '<span class="mu-track-dur">' + (t.duration ? fmtTime(t.duration) : '') + '</span></button>'
       /* 「⋯」编辑（M3：歌名、歌手、歌词、所属专辑；专辑里的曲目不设封面，7.6）；多选时不画 */
-      + (canWrite && !sel.on ? '<button type="button" class="mu-more" data-ed="' + i + '" aria-label="' + esc(tr('editBtn', { name: t.title })) + '" title="' + esc(tr('editBtn', { name: t.title })) + '">' + MORE + '</button>' : '')
+      + (canManage && !sel.on ? '<button type="button" class="mu-more" data-ed="' + i + '" aria-label="' + esc(tr('editBtn', { name: t.title })) + '" title="' + esc(tr('editBtn', { name: t.title })) + '">' + MORE + '</button>' : '')
       + '</li>';
   }).join('');
   doc.querySelectorAll('#mu-dots i').forEach(function(d, i){ d.classList.toggle('on', i === cur); });
@@ -742,11 +742,11 @@ var delDlg = $('#mu-del-wrap'), delId = 0;
 var delOp = null;
 var delSheet = G.SgxModalSheet ? G.SgxModalSheet(delDlg, doc.createElement('span') /* 共享状态机要一个同步 aria-expanded 的按钮；删除键是每行画的，给个占位 */, { ms: 240, reducedMs: 120, stateKey: 'sgxMuDel', modal: false, onOpen: function(){ upLock(true); }, onClosed: function(){ upLock(false); delId = 0; delOp = null; } })
   : { open: function(){ if (!delDlg.open) { delDlg.show(); delDlg.classList.add('is-open'); upLock(true); } }, close: function(){ if (delDlg.open) { delDlg.classList.remove('is-open'); delDlg.close(); } upLock(false); delId = 0; delOp = null; } };
-/** 弹确认：id = 单曲记录 id。删的是它那一首（track.del，curio-write 档，十二 M3 第 4 条；Gray 审 2）：后端连空单曲记录和封面一起删。
+/** 弹确认：id = 单曲记录 id。删的是它那一首（track.del，music-manage 档，十二 M3 第 4 条；Gray 审 2）：后端连空单曲记录和封面一起删。
  *  没有曲目的单曲记录（旧数据）没有 track.del 可发，才退回 album.del（root + 票） */
 function askDelSingle(id){
   var a = singles.filter(function(x){ return x.id === id; })[0];
-  if (!a || !canWrite) return;
+  if (!a || !canManage) return;
   delId = id;
   var t = a.tracks[0];
   askDel({ title: T.delSingleTitle, msg: tr('delSingle', { name: a.title }),
@@ -1319,7 +1319,7 @@ function jobAbandon(){
  * 曲目行 / 单曲行「⋯」→ #mu-ed-wrap：歌名、歌手（M4 之前只填文本，不联想）、所属专辑（只列 kind=album 按名排序，顶上「移出变单曲」）、歌词；
  *   单曲多一个封面、一个年份（专辑里的曲目不设封面，7.6；单曲选了划进专辑 → 封面不传、年份不发，跟专辑走）。所有改动一个 track.edit（后端一个 batch）：
  *   单曲改名 / 改年份由后端在同一个 batch 写进单曲记录（Gray 审 1、3）；换封面走 music-upload kind=cover。
- *   左下「删除」→ 确认卡片（同删除单曲）→ track.del（curio-write 档；单曲唯一一首 → 后端连空单曲记录和封面一起删）。
+ *   左下「删除」→ 确认卡片（同删除单曲）→ track.del（music-manage 档；单曲唯一一首 → 后端连空单曲记录和封面一起删）。
  * 专辑标题旁「编辑」→ #mu-ae-wrap：名、歌手、年份（album.edit）+ 封面（music-upload kind=cover），一个入口统一改整张专辑。
  * 多选 → 「批量改」→ #mu-be-wrap：歌手、移专辑；年份只对单曲（跟歌手同一个 track.edit，后端写单曲记录）。每条一个请求（batchRequests），失败的列出来。 */
 function mkSheet(dlg, key){
@@ -1383,7 +1383,7 @@ function loadLrc(albumId, trackId){
     });
 }
 function openTrackEdit(a, t){
-  if (!canWrite || !a || !t) return;
+  if (!canManage || !a || !t) return;
   var single = CORE.isSingle(a), gen = ++edGen;
   ed = { a: a, t: t, single: single, lrc: t.lrc ? null : '', cover: null };
   $('#mu-ed-form').reset();
@@ -1457,7 +1457,7 @@ var ae = null;
 function aeCoverName(){ $('#mu-ae-cover-name').textContent = ae.cover ? ae.cover.name : ae.a.cover ? T.coverHas : T.coverPick; }
 $('#mu-album-edit').addEventListener('click', function(){
   var a = album();
-  if (!a || !canWrite) return;
+  if (!a || !canManage) return;
   ae = { a: a, cover: null };
   $('#mu-ae-form').reset();
   $('#mu-ae-name').value = a.title; $('#mu-ae-artist').value = a.artist || ''; $('#mu-ae-year').value = a.year ? String(a.year) : '';
@@ -1499,7 +1499,7 @@ $('#mu-ae-save').addEventListener('click', function(){
 function renderSelBar(a, inAlb){
   var has = inAlb ? !!(a && a.tracks.length) : singles.length > 0;
   var bar = $('#mu-sel-bar');
-  bar.classList.toggle('hidden', !canWrite || !has);
+  bar.classList.toggle('hidden', !canManage || !has);
   if (!has && sel.on) selExit();
   var n = selCount();
   $('#mu-sel-n').textContent = sel.on ? (n ? T.selN(n) : T.selNone) : '';
@@ -1604,7 +1604,7 @@ function renderArtist(){
   var img = $('#mu-ar-img'), u = avatarUrl(r);
   img.classList.toggle('hidden', !u);
   if (u) { if (img.getAttribute('src') !== u) img.src = u; } else img.removeAttribute('src');
-  $('#mu-ar-edit').classList.toggle('hidden', !canWrite);
+  $('#mu-ar-edit').classList.toggle('hidden', !canManage);
   $('#mu-ar-albums-h').classList.toggle('hidden', !w.albums.length);
   $('#mu-ar-singles-h').classList.toggle('hidden', !w.singles.length);
   /* 名下没有专辑 / 单曲：别的专辑里收了 TA 的曲目 → 一行提示链到那些专辑；真的什么都没有才说「还没有专辑或单曲」 */
@@ -1699,7 +1699,7 @@ function arErr(e){
 }
 $('#mu-ar-edit').addEventListener('click', function(){
   var r = artistById(view);
-  if (!r || !canWrite) return;
+  if (!r || !canManage) return;
   var w = artistWorks(all, r.id);
   /* 名下作品：专辑 / 单曲记录之外，曲目自己也可能指着这位（专辑里改过歌手的曲目），删之前都要算上 */
   var tracks = 0;
@@ -1793,10 +1793,10 @@ $('#mu-ar-del').addEventListener('click', function(){
 function done(){ doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); }); }
 req('GET', '/curio/api/music').then(function(j){
   setData(j.albums);
-  canWrite = !!j.canWrite;
+  canManage = !!j.canManage;
   done();
   $('#mu-app').classList.remove('hidden');
-  $('#mu-upload').classList.toggle('hidden', !canWrite);
+  $('#mu-upload').classList.toggle('hidden', !canManage);
   renderCovers();
   if (viewOnly) setViewOnly(true); else renderAlbum();
 }).catch(function(){

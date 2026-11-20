@@ -1,7 +1,7 @@
 // /api/quotes —— 句子的读和写。
 //
 // GET    /api/quotes             公开（v5 S3）：账号已登录拿全部，没登录只拿公开的。按添加时间倒序。
-//                                返回 {ok:true, canWrite, showPrivate, quotes:[{id,text,trans,author,source,source_type,tags,visibility,created_at,updated_at}]}
+//                                返回 {ok:true, canManage, showPrivate, quotes:[{id,text,trans,author,source,source_type,tags,visibility,created_at,updated_at}]}
 //                                showPrivate 时每句另带 note（随手一笔）和 collections（所在百味专题 id）；没登录账号的响应里没有这两个键。
 // POST   /api/quotes             账号会话 + 作用域 daymark.write + 同源：新增。body {text, trans?, author?, source?, source_type?, tags?, visibility?, note?, collections?}
 // PUT    /api/quotes?id=<id>     账号会话 + daymark.write + 同源：修改，只改给了的字段（collections 给了就按它重设归属：新加的排到专题末尾）
@@ -10,7 +10,7 @@
 // 错误：400 bad-json / bad-body / bad-text / bad-visibility / bad-source-type / bad-collections / nothing / bad-id；
 //       401 unauthorized；403 origin / forbidden；404 not-found；409 limit；413 too-large
 import { json, err, methodNotAllowed } from './_lib.js';
-import { readAccess } from './_auth.js';
+import { visibility, filterPrivate } from '../../common/visibility.js';
 import { readBody, guardWrite, idParam } from './_write.js';
 import { ensureSchema, parseQuote, rowToQuote, newId, LIMITS, QUOTE_COLS } from './_quotes.js';
 
@@ -49,16 +49,17 @@ async function fullQuote(db, id) {
   return q;
 }
 
+/** 句子是不是私密的（visibility 列不是 'public' 的都算私密，同原 SQL「WHERE visibility = 'public'」） @param {any} r */
+const isPrivateQuote = (r) => r.visibility !== 'public';
+
 export async function onRequestGet(context) {
   const { env } = context;
-  const vis = await readAccess(context);
+  const vis = await visibility(context);
   await ensureSchema(env.D1_QUOTES);
   const showPrivate = vis.showPrivate;
-  const sql = showPrivate
-    ? `SELECT ${QUOTE_COLS} FROM quotes ORDER BY created_at DESC, id`
-    : `SELECT ${QUOTE_COLS} FROM quotes WHERE visibility = 'public' ORDER BY created_at DESC, id`;
-  const { results } = await env.D1_QUOTES.prepare(sql).all();
-  const quotes = (results || []).map((r) => rowToQuote(r, showPrivate));
+  const { results } = await env.D1_QUOTES.prepare(`SELECT ${QUOTE_COLS} FROM quotes ORDER BY created_at DESC, id`).all();
+  /* 公用私密过滤（组权限 v1.1 §八）：句子表的私密列是 visibility（'private' / 'public'，历史结构，不改列） */
+  const quotes = filterPrivate(results || [], showPrivate, isPrivateQuote).map((r) => rowToQuote(r, showPrivate));
   if (showPrivate) {
     const m = await env.D1_QUOTES.prepare(
       'SELECT cq.quote_id AS q, cq.collection_id AS c FROM collection_quotes cq JOIN collections c ON c.id = cq.collection_id ORDER BY c.sort, c.created_at, c.id'

@@ -11,7 +11,7 @@
  *   - 曲目列表：当前专辑，点一首直接播，正在播的高亮。专辑列表可收起，点一张换专辑（换的是列表，点曲目 / 播放才开播）。
  *   - Media Session：锁屏 / 耳机键 播放、暂停、上一首、下一首、拖进度；显示歌名、歌手、专辑、封面。
  *   - 防同时响：共用核的 BroadcastChannel「sgx-music」，奇趣页开播这边自动停，反过来一样。
- *   - 登录过期提示：签令牌 401（没进站 / 进站过期，listen 档拒）→ 一句提示 +「登录」（发 sgx:sudo，顶栏终端预填 su ；第 7 步进 Platform 前是借 curio.js 的 SgxCurioUI.sudo，同一个事件），
+ *   - 登录过期提示：签令牌 401（没登录 / 会话过期，music-use 档拒）→ 一句提示 +「登录」（发 sgx:sudo，顶栏终端预填 su ；第 7 步进 Platform 前是借 curio.js 的 SgxCurioUI.sudo，同一个事件），
  *     403 → 没有权限；都不静默卡住。页面带网关标记 data-sgx-lock-session="locked" 时一打开就提示。
  *   - 单窗口（2c）：窗口名 sgx-music-player，顶栏音乐图标（topbar/panel.js mountMusic）按这个名字找，已开就切过来不重开。
  * 单曲（音乐 v1.13 ②，Gray 2026-11-14 17:33）：专辑列表最后多一项「单曲」（有单曲才有），选它曲目表 = 全部单曲，点一首从那首开始，

@@ -1,6 +1,6 @@
 {{- /* 奇趣 › 发现（2026-11 对齐 PR-C2）：奇趣首页 /curio/ 和 /curio/finds/ 同一份内容（设计稿 pg=curio：首页就是 ls curio/，默认 finds/ 这个 tab），curio.js 画。
    分类 chips（hash #c/<分类 id>）+ 封面卡（站点图标当封面，「finds · 域名」/ 名字 / #分类）；分页、排序、grep 在 curio-list.js。
-   能编辑（canWrite）：页头命令链 收藏 / 管理分类 / 导入 / 导出，长按卡片（或键盘 E）编辑。数据走 /curio/api/links 等（接口 Worker workers/atlas-core，代码在 src/curio/）。
+   能编辑（canManage）：页头命令链 收藏 / 管理分类 / 导入 / 导出，长按卡片（或键盘 E）编辑。数据走 /curio/api/links 等（接口 Worker workers/atlas-core，代码在 src/curio/）。
    参数（dict）：page、tr、lang、home（true = 奇趣首页） */ -}}
 {{- $p := .page }}{{ $tr := .tr }}{{ $lang := .lang -}}
 <main id="cu-main" class="cu-wrap" data-cu-page="finds">
@@ -18,7 +18,7 @@
 </main>
 
 
-{{/* ===== 收藏 / 编辑弹层（canWrite） ===== */}}
+{{/* ===== 收藏 / 编辑弹层（canManage） ===== */}}
 <div id="edit-wrap" class="bk-overlay fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="edit-title">
   <div class="bk-overlay-backdrop absolute inset-0" data-close="edit"></div>
   <div class="bk-panel text-m-on-surface shadow-2xl">
@@ -72,7 +72,7 @@
   </div>
 </div>
 
-{{/* ===== 管理分类（canWrite）：改名、私密、上下移、删（空的才能删）、新建 ===== */}}
+{{/* ===== 管理分类（canManage）：改名、私密、上下移、删（空的才能删）、新建 ===== */}}
 <div id="cats-wrap" class="bk-overlay fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="cats-title">
   <div class="bk-overlay-backdrop absolute inset-0" data-close="cats"></div>
   <div class="bk-panel text-m-on-surface shadow-2xl">
@@ -93,7 +93,7 @@
   </div>
 </div>
 
-{{/* ===== 导入浏览器书签（canWrite） ===== */}}
+{{/* ===== 导入浏览器书签（canManage） ===== */}}
 <div id="import-wrap" class="bk-overlay fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="import-title">
   <div class="bk-overlay-backdrop absolute inset-0" data-close="import"></div>
   <div class="bk-panel bk-dialog text-m-on-surface shadow-2xl">

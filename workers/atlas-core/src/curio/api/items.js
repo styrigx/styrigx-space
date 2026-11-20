@@ -1,11 +1,11 @@
 // workers/core/src/api/items.js
-// GET  /api/items   公开（v5 S3）：{ok, canWrite, showPrivate, devices:[...], games:[...]}；没登录账号只拿公开的（见 _items.js listItems）。
-// POST /api/items   账号会话 + 作用域 curio.write + 同源：body {op:'device.add'|'device.edit'|'device.del'|'device.order'|'game.*', ...}（校验见 _items.js parseItemOp）。
-//                   成功 → {ok:true, canWrite:true, showPrivate:true, id?, devices, games}（带回最新全部，前端整页重画；add 带新条目 id，好接着传照片）
+// GET  /api/items   公开（v5 S3）：{ok, canManage, showPrivate, devices:[...], games:[...]}（showPrivate = curio-use，canManage = curio-manage，公用 visibility()）；看不到私密的只拿公开的（见 _items.js listItems）。
+// POST /api/items   curio-manage + 同源：body {op:'device.add'|'device.edit'|'device.del'|'device.order'|'game.*', ...}（校验见 _items.js parseItemOp）。
+//                   成功 → {ok:true, canManage:true, showPrivate:true, id?, devices, games}（带回最新全部，前端整页重画；add 带新条目 id，好接着传照片）
 //                   删条目时它的照片从 R2 一起删（R2 删失败不影响结果，只记日志）。
 //                   400 参数不对；404 不存在（含关联的设备不存在）；409 limit / mismatch
 import { json, err, methodNotAllowed } from './_lib.js';
-import { readAccess } from './_auth.js';
+import { visibility } from '../../common/visibility.js';
 import { readBody, guardWrite } from './_write.js';
 import { ensureItemSchema, listItems, parseItemOp, applyItemOp, itemDb } from './_items.js';
 
@@ -13,7 +13,7 @@ const STATUS = { 'not-found': 404, mismatch: 409, limit: 409 };
 
 export async function onRequestGet(context) {
   const { env } = context;
-  const vis = await readAccess(context);
+  const vis = await visibility(context);
   /* 设备 + 游戏一起读是跨两套数据的一个 batch：用主表 devices 的绑定 D1_DEVICES（见 _items.js listItems） */
   if (!env || !env.D1_DEVICES) return err('server', 503);
   await ensureItemSchema(env.D1_DEVICES);
@@ -38,7 +38,7 @@ export async function onRequestPost(context) {
   for (const key of r.removed) {
     try { if (env.R2_PHOTOS) await env.R2_PHOTOS.delete(key); } catch (e) { console.error('[curio-items] photo delete failed'); }
   }
-  const out = { ok: true, canWrite: true, showPrivate: true, ...(await listItems(env.D1_DEVICES, true)) };
+  const out = { ok: true, canManage: true, showPrivate: true, ...(await listItems(env.D1_DEVICES, true)) };
   if (r.id) out.id = r.id;
   return json(out);
 }

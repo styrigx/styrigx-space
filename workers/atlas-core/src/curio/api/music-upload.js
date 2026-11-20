@@ -2,8 +2,8 @@
 // POST /api/music-upload?album=N&kind=track&no=K&title=…&duration=S   body = 音频本身（浏览器直传，不分片）
 // POST /api/music-upload?album=N&kind=cover                           body = 封面图片（浏览器先缩到 1600、转 webp）
 // POST /api/music-upload?artist=N&kind=avatar                         body = 歌手头像（M4，十二 M4 第 2 条：浏览器裁方、≤ 1000、jpeg；只收 jpeg）
-//   R2 key music/artist/<id>/avatar-<时间>.jpg；换头像删旧的（D1 写成功之后）；D1 写失败当场删新的。权限同封面（curio-write，不加新路由）。
-// 权限：music 档（进站 + 账号会话 + curio.write，app.js 守卫）+ 同源（_music.js musicOrigin）。
+//   R2 key music/artist/<id>/avatar-<时间>.jpg；换头像删旧的（D1 写成功之后）；D1 写失败当场删新的。权限同封面（music-manage，不加新路由）。
+// 权限：music 档（music-manage，app.js 守卫）+ 同源（_music.js musicOrigin）。
 // 上限：音频单文件 95 MB（MUSIC_LIMITS.trackBytes；Workers 请求体上限 100 MB），要带 Content-Length（没有 411）；封面 3 MB。
 // 音频类型看 Content-Type（AUDIO_TYPES 白名单，回放原样带回 + nosniff）；封面看头几个字节（webp / jpeg / png）。
 // R2_MUSIC：music/<专辑>/<曲序>-<时间>.<扩展名>、music/<专辑>/cover-<时间>.<扩展名>；换封面删旧的。

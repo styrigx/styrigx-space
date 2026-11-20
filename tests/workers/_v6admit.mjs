@@ -8,10 +8,12 @@
  * 身份按 sgx-session 的值（测试里约定的名字）：
  * - root     uid 0（su root 之后的栈顶），非救援
  * - rescue   uid 0，救援会话（白名单外一律拒）
- * - styrigx  uid 1000，默认七组（wheel、sudoers、listen、ai、status、curio-write、daymark-write）
- * - alice    uid 1001，只有 listen
+ * - styrigx  uid 1000，默认十组（wheel、sudoers、全部 -use、全部 -manage；组权限 v1.1 §四）
+ * - alice    uid 1001，只有 music-use
  * - temp     uid 1002，无组（临时用户）
- * - bob      uid 1003，只有 ai（2c：能用 AI，但不是站长，看不到私密召回）
+ * - bob      uid 1003，只有 ai-use（2c：能用 AI，但不是站长，看不到私密召回）
+ * - viewer   uid 1004，只有 use 组（curio-use、daymark-use、music-use：组权限 v1.1 §七 A，看得到私密行、管不了）
+ * - keeper   uid 1000，只有 manage 组（curio-manage、daymark-manage、music-manage：manage 包含 use，permits 第 3 步）
  * - 其他值   坏 / 过期令牌（没有身份）
  *
  * v6Space(base, { calls, audits }) → 在 base（conclusionAuth 那种 { conclusion }）上加 admit / auditRoot；calls 记每次 admit 的参数，audits 记 auditRoot。
@@ -25,9 +27,11 @@ export const IDENTITIES = Object.freeze({
   root: { uid: 0, name: 'root', groups: [], rescue: false },
   rescue: { uid: 0, name: 'root', groups: [], rescue: true },
   styrigx: { uid: 1000, name: 'styrigx', groups: [...G.STYRIGX_DEFAULT_GROUPS], rescue: false },
-  alice: { uid: 1001, name: 'alice', groups: ['listen'], rescue: false },
+  alice: { uid: 1001, name: 'alice', groups: ['music-use'], rescue: false },
   temp: { uid: 1002, name: 'temp', groups: [], rescue: false },
-  bob: { uid: 1003, name: 'bob', groups: ['ai'], rescue: false },
+  bob: { uid: 1003, name: 'bob', groups: ['ai-use'], rescue: false },
+  viewer: { uid: 1004, name: 'viewer', groups: ['curio-use', 'daymark-use', 'music-use'], rescue: false },
+  keeper: { uid: 1000, name: 'styrigx', groups: ['curio-manage', 'daymark-manage', 'music-manage'], rescue: false },
 });
 
 /** @param {string} cookie */

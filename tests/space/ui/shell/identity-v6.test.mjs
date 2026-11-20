@@ -65,18 +65,19 @@ test('createWho（v6 P4：只有 v6）：首帧访客，refresh 问 whoami 以�
   assert.equal(w.get(), 'nobody', 'drop 回访客');
 });
 
-test('man（P4-3，定稿 v5.5 §四）：按 root → 站长 → 普通用户 → 访客分段、各人只看到自己这一层及以下，root 看全部；ask 按 ai 组、sudo 按 sudoers 组', async () => {
+test('man（P4-3，定稿 v5.5 §四）：按 root → 站长 → 普通用户 → 访客分段、各人只看到自己这一层及以下，root 看全部；ask 按 ai-use 组、sudo 按 sudoers 组', async () => {
   const out = async (w, u) => (await run(createShell({ act, storage: mem(), who: Object.assign(fixedWho(w), { v6: () => u || null }) }), 'man')).out.slice(1).map((o) => o.seg[0][1]);
   const names = async (w, u) => (await out(w, u)).filter(Boolean);
   const n0 = await names('nobody');
   for (const c of ['whoami', 'su', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'lock', 'passwd', 'passkey', 'device', 'profile', 'sub', 'sudo', 'ask']) assert.ok(!n0.includes(c), 'nobody 不列 ' + c);
   assert.ok(n0.includes('find') && n0.includes('man'));
-  const alice = { name: 'alice', webmaster: false, groups: ['listen', 'ai'] };
+  const alice = { name: 'alice', webmaster: false, groups: ['music-use', 'ai-use'] };
   const u = await names('u:alice', alice);
   for (const c of ['whoami', 'su', 'groups', 'who', 'lock', 'passwd', 'profile', 'exit', 'ask', 'find']) assert.ok(u.includes(c), 'user 列 ' + c);
   for (const c of ['passkey', 'device', 'sudo', 'useradd', 'userdel', 'usermod', 'sub', 'app', 'share']) assert.ok(!u.includes(c), 'user 不列 ' + c);
-  assert.ok(!(await names('u:alice', { name: 'alice', webmaster: false, groups: ['listen'] })).includes('ask'), '不在 ai 组不列 ask');
-  const sty = { name: 'styrigx', webmaster: true, groups: ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write'] };
+  assert.ok(!(await names('u:alice', { name: 'alice', webmaster: false, groups: ['music-use'] })).includes('ask'), '不在 ai-use 组不列 ask');
+  assert.ok(!(await names('u:alice', { name: 'alice', webmaster: false, groups: ['ai'] })).includes('ask'), '旧组名 ai 不算');
+  const sty = { name: 'styrigx', webmaster: true, groups: ['wheel', 'sudoers', 'music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use', 'music-manage', 'curio-manage', 'daymark-manage'] };
   const o = await names('u:styrigx', sty);
   for (const c of ['passkey', 'device', 'sudo', 'ask', 'passwd', 'whoami', 'find', 'man']) assert.ok(o.includes(c), '站长列 ' + c);
   for (const c of ['useradd', 'userdel', 'usermod', 'sub']) assert.ok(!o.includes(c), '站长不列 root 层 ' + c);
@@ -95,8 +96,8 @@ test('man（P4-3，定稿 v5.5 §四）：按 root → 站长 → 普通用户 �
 test('命令分流：sudo <管理命令> → 身份层（每次验自己的凭据）；v6 P4：sudo styrigx / sudo root 旧写法删了 → 用法', async () => {
   const sh = createShell({ act, storage: mem(), who: fixedWho('u:styrigx') });
   const L = layers(true);
-  assert.equal((await run(sh, 'sudo useradd bob -e 2099-12-01 -G listen', L.v)).flow, true);
-  assert.deepEqual(L.calls.at(-1), ['sudo', ['useradd', 'bob', '-e', '2099-12-01', '-G', 'listen']]);
+  assert.equal((await run(sh, 'sudo useradd bob -e 2099-12-01 -G music-use', L.v)).flow, true);
+  assert.deepEqual(L.calls.at(-1), ['sudo', ['useradd', 'bob', '-e', '2099-12-01', '-G', 'music-use']]);
   await run(sh, 'sudo passwd alice', L.v);
   assert.deepEqual(L.calls.at(-1), ['sudo', ['passwd', 'alice']]);
   await run(sh, 'sudo who', L.v);
@@ -130,8 +131,8 @@ test('命令分流：exit / lock / passwd 转身份层；su / whoami / groups / 
   assert.deepEqual(L.calls.at(-1), ['whoami']);
   await run(sh, 'groups styrigx', L.v);
   assert.deepEqual(L.calls.at(-1), ['groups', 'styrigx']);
-  await run(sh, 'usermod -aG listen,ai bob', L.v);
-  assert.deepEqual(L.calls.at(-1), ['admin', { action: 'usermod', op: '-aG', groups: ['listen', 'ai'], name: 'bob' }, 'usermod -aG listen,ai bob']);
+  await run(sh, 'usermod -aG music-use,ai-use bob', L.v);
+  assert.deepEqual(L.calls.at(-1), ['admin', { action: 'usermod', op: '-aG', groups: ['music-use', 'ai-use'], name: 'bob' }, 'usermod -aG music-use,ai-use bob']);
   await run(sh, 'userdel bob', L.v);
   assert.deepEqual(L.calls.at(-1), ['admin', { action: 'userdel', name: 'bob' }, 'userdel bob']);
   const n = L.calls.length;
@@ -176,7 +177,7 @@ test('P3 rescue（定稿 v5.2 §九）：访客敲 rescue → 身份层（输恢
 
 test('参数解析（ident-args，与服务端同写法）', () => {
   assert.deepEqual(parseUseradd(['bob']), { name: 'bob' });
-  assert.deepEqual(parseUseradd(['-G', 'listen,ai', 'bob', '-e', '2099-01-02']), { name: 'bob', groups: ['listen', 'ai'], expire: '2099-01-02' });
+  assert.deepEqual(parseUseradd(['-G', 'music-use,ai-use', 'bob', '-e', '2099-01-02']), { name: 'bob', groups: ['music-use', 'ai-use'], expire: '2099-01-02' });
   assert.equal(parseUseradd(['bob', 'carl']), null);
   assert.equal(parseUseradd(['-e', 'tomorrow', 'bob']), null);
   assert.deepEqual(parseUsermod(['-rG', 'wheel', 'styrigx']), { op: '-rG', groups: ['wheel'], name: 'styrigx' });

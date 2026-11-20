@@ -93,7 +93,7 @@ test('默认拒绝与精确匹配', () => {
   assert.equal(RA.levelOf('GET', '/api/status/x'), null, '多一段');
   assert.equal(RA.levelOf('GET', '/api/%73tatus'), null, '编码');
   assert.equal(RA.levelOf('GET', '/API/status'), null, '大小写');
-  assert.equal(RA.levelOf('GET', '/api/status/'), 'status', '结尾一个 / 算同一条');
+  assert.equal(RA.levelOf('GET', '/api/status/'), 'status-use', '结尾一个 / 算同一条');
   assert.equal(RA.levelOf('GET', '/avatar/96.webp'), 'public');
   assert.equal(RA.levelOf('GET', '/avatar/a/b'), null);
 });
@@ -115,9 +115,9 @@ test('action：源码里出现的 action / op 都在表里；没写 action 用�
   const music = readFileSync(W + 'atlas-core/src/curio/api/_music.js', 'utf8');
   for (const m of music.matchAll(/case '([a-z]+\.[a-z]+)'/g)) assert.ok(RA.levelOf('POST', '/curio/api/music', { action: m[1] }), 'music ' + m[1]);
   assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'album.del' }), 'root');
-  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'track.del' }), 'curio-write');
-  /* M4（音乐 v1.19 十二 M4 第 1 条）：改歌手信息 curio-write；合并、删歌手 root（一次性票） */
-  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.edit' }), 'curio-write');
+  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'track.del' }), 'music-manage');
+  /* M4（音乐 v1.19 十二 M4 第 1 条）：改歌手信息 music-manage（组权限 v1.1 §六，原 curio-write）；合并、删歌手 root（一次性票） */
+  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.edit' }), 'music-manage');
   assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.merge' }), 'root');
   assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.del' }), 'root');
   /* 定稿 v5.5 §五 / §七：设备列表站长直读（webmaster），踢出属后台控制（root，站长 sudo） */
@@ -134,20 +134,21 @@ test('档合法；删除两级；sudo 继任；root 不能从访客直接登录'
     assert.ok(G.ACCESS_LEVELS.includes(r.level), r.path);
     assert.ok(Object.isFrozen(r));
     if (r.del === 'bulk') assert.equal(r.level, 'root', '结构删除只属 root：' + r.method + ' ' + r.path);
-    if (r.del === 'item' && r.method === 'DELETE') assert.ok(rank(r.level) === 1, '单条删除归写组：' + r.path);
+    if (r.del === 'item' && r.method === 'DELETE') assert.ok(rank(r.level) === 1, '单条删除归 manage 组：' + r.path);
     assert.ok(typeof r.why === 'string' && r.why.length > 0);
   }
   assert.equal(RA.levelOf('POST', '/curio/api/import'), 'root');
   for (const p of ['/api/account/session', '/api/account/reauth', '/api/account/reset', '/api/account/keys', '/api/account/grants']) assert.equal(RA.ruleOf('POST', p), null, p + '（v6 P4 删）');
   assert.equal(RA.levelOf('POST', '/api/identity', { action: 'su' }), 'public', 'su root 的 wheel 要求在接口内（身份命令），不在路由档');
-  assert.equal(RA.levelOf('DELETE', '/daymark/api/quotes'), 'daymark-write');
-  assert.equal(RA.levelOf('DELETE', '/curio/api/photo'), 'curio-write');
+  assert.equal(RA.levelOf('DELETE', '/daymark/api/quotes'), 'daymark-manage');
+  assert.equal(RA.levelOf('DELETE', '/curio/api/photo'), 'curio-manage');
 });
 
 test('摘要快照：各档路由数（改表必须改这里）', () => {
   const count = {};
   for (const r of RA.ROUTE_ACCESS) count[r.level] = (count[r.level] || 0) + 1;
-  assert.deepEqual(count, { public: 24, ai: 2, status: 1, root: 5, webmaster: 5, user: 1, 'curio-write': 8, listen: 3, 'daymark-write': 6 }, 'P4-3（定稿 v5.5 §五）：avatar PUT / DELETE、prefs POST、devices 由 user 改 webmaster');
+  assert.deepEqual(count, { public: 24, 'ai-use': 2, 'status-use': 1, root: 5, webmaster: 5, user: 1, 'curio-manage': 6, 'music-manage': 2, 'music-use': 3, 'daymark-manage': 6 },
+    'P4-3（定稿 v5.5 §五）：avatar PUT / DELETE、prefs POST、devices 由 user 改 webmaster；组权限 v1.1 §六：音乐的 POST music / music-upload 从 curio-write 拆到 music-manage');
   assert.equal(RA.ROUTE_ACCESS.length, 55, 'v6 P4 删旧入口 20 条（78 → 58），应用授权 /api/account/grants 删除（58 → 57），数字健康 POST / GET /api/wellbeing 删除（57 → 55）');
   assert.equal(RA.ROUTE_ACCESS.filter((r) => r.decided).length, 14, 'Gray 2026-11-11 定稿的 17 条，P4 删 lock-all-devices 后 16 条，数字健康两条删除后 14 条');
   assert.equal(RA.ROUTE_ACCESS.filter((r) => 'doubt' in r).length, 0, '不再有存疑');
@@ -189,4 +190,66 @@ test('盘点文档 docs/architecture/v6-route-inventory.md 与表一致（每一
     const head = '| ' + r.method + ' | `' + r.path + '` | **' + r.level + '**';
     assert.ok(lines.some((l) => l.startsWith(head)), '文档缺 ' + head);
   }
+});
+
+test('组权限 v1.1 §八：带 product 的行组名由 product / kind 推出，推出来的组都在 GROUPS 里；kind 与档一致；覆盖处有 overrideWhy', () => {
+  const products = RA.ROUTE_ACCESS.filter((r) => r.product !== undefined);
+  assert.ok(products.length >= 30, '产品行');
+  for (const r of products) {
+    const where = r.method + ' ' + r.path;
+    assert.ok(G.PRODUCTS.includes(r.product), where + ' product ' + r.product);
+    const d = RA.derivedOf(r);
+    for (const l of [d.level].concat(d.actions ? Object.values(d.actions) : []).filter(Boolean)) {
+      if (l === 'public') continue;
+      assert.ok(G.GROUPS.includes(l), where + ' 推出的组 ' + l + ' 不在 GROUPS 里');
+    }
+    if (r.kind === 'read') {
+      assert.equal(r.level, 'public', where);
+      assert.equal(r.actions.private, r.product + '-use', where + ' private = <产品>-use（v1.1 §七 A）');
+      assert.equal(r.actions.manage, r.product + '-manage', where + ' manage = <产品>-manage');
+    }
+    if (r.kind === 'use') assert.equal(r.level, r.product + '-use', where);
+    if (r.kind === 'manage') {
+      assert.equal(r.level, r.product + '-manage', where);
+      for (const [a, l] of Object.entries(r.actions || {})) assert.ok(l === 'root' || l === r.product + '-manage', where + ' ' + a + ' = ' + l + '（manage 行的 action 只能是本产品 manage 或 root）');
+    }
+    /* 带 product 的行，档里的组名只能是本产品的组 */
+    for (const l of [r.level].concat(r.actions ? Object.values(r.actions) : [])) {
+      if (['public', 'user', 'webmaster', 'root'].includes(l)) continue;
+      assert.ok(l === r.product + '-use' || l === r.product + '-manage', where + ' ' + l);
+    }
+  }
+  /* 表里出现的组名档（不论有没有 product）全在 GROUPS 里（旧名 listen / curio-write … 一条都不剩） */
+  for (const r of RA.ROUTE_ACCESS) {
+    for (const l of [r.level].concat(r.actions ? Object.values(r.actions) : [])) {
+      if (['public', 'user', 'webmaster', 'root'].includes(l)) continue;
+      assert.ok(G.GROUPS.includes(l), r.method + ' ' + r.path + ' ' + l);
+    }
+  }
+  /* 唯一的覆盖：POST /api/ai 的 private = webmaster（AI 私密召回跨产品，v1.1 §六） */
+  const over = RA.ROUTE_ACCESS.filter((r) => r.overrideWhy);
+  assert.deepEqual(over.map((r) => r.method + ' ' + r.path), ['POST /api/ai']);
+  assert.equal(RA.levelOf('POST', '/api/ai', { action: 'private' }), 'webmaster');
+  assert.equal(RA.levelOf('GET', '/api/ai'), 'ai-use');
+  assert.equal(RA.levelOf('GET', '/api/status'), 'status-use');
+  /* 音乐（搬家第 1 步：路径不动，只换档） */
+  assert.equal(RA.levelOf('GET', '/curio/api/music'), 'public');
+  assert.equal(RA.levelOf('GET', '/curio/api/music', { action: 'private' }), 'music-use');
+  assert.equal(RA.levelOf('GET', '/curio/api/music', { action: 'manage' }), 'music-manage');
+  assert.equal(RA.levelOf('POST', '/curio/api/music'), 'music-manage');
+  assert.equal(RA.levelOf('POST', '/curio/api/music-upload'), 'music-manage');
+  for (const m of ['POST /curio/api/music-play', 'GET /curio/api/music-stream', 'HEAD /curio/api/music-stream']) assert.equal(RA.levelOf(...m.split(' ')), 'music-use', m);
+  assert.equal(RA.levelOf('GET', '/curio/api/music-cover'), 'public');
+  for (const a of ['album.del', 'artist.merge', 'artist.del']) assert.equal(RA.levelOf('POST', '/curio/api/music', { action: a }), 'root', a + ' 仍是 root');
+  assert.equal(RA.ruleOf('POST', '/curio/api/music').sudoTicket, true, 'sudoTicket 不变');
+  assert.equal(RA.ruleOf('GET', '/music/api/music'), null, '/music/api/* 是搬家第 2 步，这一步不加');
+});
+
+test('product / kind 推导：写错就抛（表写错 Worker 起不来）', () => {
+  assert.throws(() => RA.derivedOf({ product: 'nope', kind: 'read', method: 'GET', path: '/x' }), /bad product/);
+  assert.throws(() => RA.derivedOf({ product: 'curio', kind: 'write', method: 'GET', path: '/x' }), /bad kind/);
+  assert.throws(() => RA.derivedOf({ product: 'ai', kind: 'manage', method: 'POST', path: '/x' }), /no manage group/);
+  assert.deepEqual(RA.derivedOf({ product: 'ai', kind: 'read' }), { level: 'public', actions: { private: 'ai-use' } }, '没有 manage 组的产品不推 manage');
+  assert.deepEqual(RA.derivedOf({ product: 'curio' }), {}, '只写 product 不写 kind：不推导');
+  assert.deepEqual(RA.derivedOf({}), {});
 });

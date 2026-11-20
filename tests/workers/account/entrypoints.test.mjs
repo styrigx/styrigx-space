@@ -32,7 +32,7 @@ beforeEach(() => _resetSecretCache());
 function makeEnv(over = {}) {
   const db = makeAccountD1();
   db.raw.prepare("INSERT INTO account_users (uid, name, avatar, expires_at, epoch, disabled, created_at) VALUES (1000, 'styrigx', '', 0, 0, 0, 1)").run();
-  for (const g of ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write']) db.raw.prepare('INSERT INTO account_user_groups (uid, grp, added_at) VALUES (1000, ?, 1)').run(g);
+  for (const g of ['wheel', 'sudoers', 'music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use', 'music-manage', 'curio-manage', 'daymark-manage']) db.raw.prepare('INSERT INTO account_user_groups (uid, grp, added_at) VALUES (1000, ?, 1)').run(g);
   return {
     SGX_ENV: 'production',
     D1_ACCOUNT: db,

@@ -65,6 +65,7 @@
 | ADR-0004 | [`decisions/ADR-0004-ai-models.md`](decisions/ADR-0004-ai-models.md) | 决策 | AI 模型选择：Gemma 4 默认，Gemini 3.5 Flash Lite / 3.8 Flash |
 | ADR-0005 | [`decisions/ADR-0005-terminal-entry-v5.md`](decisions/ADR-0005-terminal-entry-v5.md) | 决策 | v5 终端与进站：一个终端、唯一入口 `sudo styrigx`、三处上锁、提示符按 by |
 | ADR-0006 | [`decisions/ADR-0006-identity-v6.md`](decisions/ADR-0006-identity-v6.md) | 决策 | v6 身份统一：account worker 唯一签发者、root / 普通用户、权限 = 组、服务端身份栈 |
+| ADR-0007 | [`decisions/ADR-0007-groups-use-manage.md`](decisions/ADR-0007-groups-use-manage.md) | 决策 | v6 组权限重设计 v1.1：三类权限、产品组 `<产品>-use` / `<产品>-manage`、路由表写 product 推组名、私密行给 use、`canManage` |
 | SGX-DOC-001 | [`guides/glossary.md`](guides/glossary.md) | 参考 | 术语表 |
 | SGX-CON-001 | [`guides/contributing/pr-and-commits.md`](guides/contributing/pr-and-commits.md) | 规范 | 分支、提交、PR、合并 |
 | SGX-CON-002 | [`guides/contributing/blog-writing.md`](guides/contributing/blog-writing.md) | 规范 | 写博客 |

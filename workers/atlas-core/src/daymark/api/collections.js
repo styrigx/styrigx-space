@@ -1,7 +1,7 @@
 // /api/collections —— 百味里的自建专题（主人建的句子合集）。
 //
 // GET    /api/collections            公开（v5 S3）。按 sort、created_at 排好。
-//                                    返回 {ok:true, canWrite, showPrivate, collections:[{id,name,intro,created_at,sort,quote_ids:[…按专题内顺序]}]}
+//                                    返回 {ok:true, canManage, showPrivate, collections:[{id,name,intro,created_at,sort,quote_ids:[…按专题内顺序]}]}
 //                                    没登录账号：quote_ids 只含公开句子；一句公开句子都没有的专题不返回。
 // POST   /api/collections            账号会话 + 作用域 daymark.write + 同源：新建。body {name, intro?}；排到最后
 // PUT    /api/collections?id=<id>    账号会话 + daymark.write + 同源：改 name / intro / sort；给 quote_ids 就按它重设专题里的句子和顺序
@@ -10,7 +10,8 @@
 // 写操作成功返回 {ok:true, collection}（删除返回 {ok:true}）。
 // 错误：400 bad-json / bad-body / bad-name / bad-sort / bad-quote-ids / nothing / bad-id；401 unauthorized；403 origin / forbidden；404 not-found；409 limit；413 too-large
 import { json, err, methodNotAllowed } from './_lib.js';
-import { readAccess, auditRootOp } from './_auth.js';
+import { auditRootOp } from './_auth.js';
+import { visibility } from '../../common/visibility.js';
 import { readBody, guardWrite, idParam } from './_write.js';
 import { ensureSchema, parseCollection, newId, LIMITS } from './_quotes.js';
 
@@ -41,7 +42,7 @@ async function one(db, id) {
 
 export async function onRequestGet(context) {
   const { env } = context;
-  const vis = await readAccess(context);
+  const vis = await visibility(context);
   await ensureSchema(env.D1_QUOTES);
   const showPrivate = vis.showPrivate;
   const { results } = await env.D1_QUOTES.prepare(`SELECT ${COLS} FROM collections ORDER BY sort, created_at, id`).all();

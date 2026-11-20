@@ -5,11 +5,11 @@
  *   grep / 排序 / 分页在 curio-list.js（只动画好的卡片）；filterCats 的搜索词留给以后。
  * - 封面卡（设计稿 .cc）：封面位放站点图标（/api/icon?id=，R2 缓存；取不到显示首字母方块）、「finds · 域名」、名字、#分类；私密的带小锁（只有账号已登录看得到私密的）。
  *   点卡片在新标签页打开网址。
- * - 能编辑（接口回 canWrite：账号已登录 + 作用域 curio.write）：页头命令链「收藏 / 管理分类 / 导入书签 / 导出书签」；长按卡片（或键盘 E 键）编辑。
+ * - 能编辑（接口回 canManage：curio-manage）：页头命令链「收藏 / 管理分类 / 导入书签 / 导出书签」；长按卡片（或键盘 E 键）编辑。
  *   编辑弹层：网址（「自动填写」抓标题、简介、图标）、名字、英文名和英文简介、简介、分类（可就地新建）、自定义图标、仅自己可见、上移 / 下移、删除。
- * - 不能编辑（canWrite=false）：命令链里只有一条（#cu-signin，signinHint）：
+ * - 不能编辑（canManage=false）：命令链里只有一条（#cu-signin，signinHint）：
  *   没登录 →「su · su 登录后可编辑」，点了打开顶栏终端、预填 su （2c，v6 割接；data-sec-open）；
- *   已以 v6 用户登录但不在 curio-write → 无权限句「当前用户没有这个权限。」（「未获账号授权 → 应用授权」那一层随应用授权删除，v6 P4）。
+ *   已以 v6 用户登录但不在 curio-manage → 无权限句「当前用户没有这个权限。」（「未获账号授权 → 应用授权」那一层随应用授权删除，v6 P4）。
  * - 中英文：名字、简介各两份，当前语言那份为空时显示另一份。
  *
  * 数据：GET /api/links；写：POST /api/links {op}、POST /api/import（原文）；GET /api/preview；导出是 /api/export 的下载链接。
@@ -167,8 +167,8 @@ T.count = function(n){ return tr('count', { n: n }); };
 
 var $ = function(s){ return doc.querySelector(s); };
 var cats = [];
-var canWrite = false;    /* 接口回的 canWrite：账号已登录 + curio.write */
-var showPrivate = false; /* 接口回的 showPrivate：账号已登录（看得到私密的） */
+var canManage = false;    /* 接口回的 canManage：curio-manage */
+var showPrivate = false; /* 接口回的 showPrivate：curio-use（看得到私密的；manage 包含 use） */
 var loaded = false;
 var cat = 0;
 var query = '';
@@ -264,7 +264,7 @@ function onLongPress(root, sel, fn){
   });
   root.addEventListener('pointermove', function(e){ if (Math.abs(e.clientX - x0) > 10 || Math.abs(e.clientY - y0) > 10) clearTimeout(timer); });
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(function(t){ root.addEventListener(t, function(){ clearTimeout(timer); }); });
-  root.addEventListener('contextmenu', function(e){ if (canWrite && e.target.closest && e.target.closest(sel)) e.preventDefault(); });
+  root.addEventListener('contextmenu', function(e){ if (canManage && e.target.closest && e.target.closest(sel)) e.preventDefault(); });
   root.addEventListener('click', function(e){ if (fired) { fired = false; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
 }
 
@@ -428,7 +428,7 @@ function render(){
   list.innerHTML = html;
   var empty = $('#cu-empty');
   var none = loaded && !countLinks(shown);
-  empty.textContent = query ? T.noMatch : canWrite ? T.emptyAdmin : T.emptyVisitor;
+  empty.textContent = query ? T.noMatch : canManage ? T.emptyAdmin : T.emptyVisitor;
   empty.classList.toggle('hidden', !none);
   if (loaded && G.SgxCurioList) G.SgxCurioList.count('finds', countLinks(cats));
 }
@@ -541,12 +541,12 @@ $('#cu-fab').addEventListener('click', function(){ openEdit(null); });
 
 /* 能编辑：长按卡片编辑；键盘：卡片上按 E 编辑 */
 onLongPress($('#cu-list'), '.cu-cc', function(el){
-  if (!canWrite) return;
+  if (!canManage) return;
   var hit = findLink(Number(el.dataset.id));
   if (hit) { try { navigator.vibrate && navigator.vibrate(12); } catch (e) {} openEdit(hit.link, hit.cat.id); }
 });
 $('#cu-list').addEventListener('keydown', function(e){
-  if (!canWrite || (e.key !== 'e' && e.key !== 'E')) return;
+  if (!canManage || (e.key !== 'e' && e.key !== 'E')) return;
   var el = e.target.closest && e.target.closest('.cu-cc');
   var hit = el && findLink(Number(el.dataset.id));
   if (hit) { e.preventDefault(); openEdit(hit.link, hit.cat.id); }
@@ -665,13 +665,13 @@ $('#menu-export').addEventListener('click', function(e){
 function boot(){
   cat = parseHash(G.location.hash);
   getJSON('/curio/api/links').then(function(j){
-    canWrite = !!j.canWrite;
+    canManage = !!j.canManage;
     showPrivate = !!j.showPrivate;
     cats = j.cats || [];
     loaded = true;
-    doc.documentElement.classList.toggle('cu-can-write', canWrite);
-    ['#cu-fab', '#menu-cats', '#menu-import', '#menu-export'].forEach(function(id){ $(id).classList.toggle('hidden', !canWrite); });
-    applySignin(canWrite);
+    doc.documentElement.classList.toggle('cu-can-write', canManage);
+    ['#cu-fab', '#menu-cats', '#menu-import', '#menu-export'].forEach(function(id){ $(id).classList.toggle('hidden', !canManage); });
+    applySignin(canManage);
     $('#cu-loading').classList.add('hidden');
     render();
   }).catch(function(e){

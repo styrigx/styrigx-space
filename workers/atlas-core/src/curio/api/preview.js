@@ -1,5 +1,5 @@
 // workers/core/src/api/preview.js
-// GET /api/preview?url=<网址>  —— 添加收藏时自动填名字、简介、图标。v6 路由档 curio-write（算在收藏的写里）；必须同站（同源 GET 浏览器常不带 Origin，见 _lib.js 的 isSameSite）。
+// GET /api/preview?url=<网址>  —— 添加收藏时自动填名字、简介、图标。v6 路由档 curio-manage（算在收藏的管理里）；必须同站（同源 GET 浏览器常不带 Origin，见 _lib.js 的 isSameSite）。
 // 抓取规则和安全限制见 _preview.js（只抓公网 http/https、6 秒、256 KB、最多 3 次跳转）。
 // 返回 200 {ok:true, url, title, desc, icon}（url 是跳转后的最终地址）；抓不到 → 200 {ok:false, error}；网址不合格 → 400。
 import { json, err, methodNotAllowed, isSameSite } from './_lib.js';

@@ -54,13 +54,13 @@ async function mockMusic(page, opts = {}) {
   await page.route('**/api/music-cover**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG1 }));
   await page.route('**/api/music', async (r) => {
     const req = r.request();
-    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite: true, albums, artists: ARTISTS } });
+    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canManage: true, albums, artists: ARTISTS } });
     const b = req.postDataJSON();
     calls.push(b);
     if (b.op === 'track.edit' && opts.edit) { const o = await opts.edit(b); if (o) return r.fulfill({ status: o.status, json: o.json }); }
     let id;
     if (b.op === 'album.add') { id = nextAlbum++; albums.push({ id, kind: b.kind || 'album', title: b.title, artist: b.artist, artist_id: 0, year: b.year, cover: false, tracks: [] }); }
-    return r.fulfill({ json: { ok: true, canWrite: true, id, albums, artists: ARTISTS } });
+    return r.fulfill({ json: { ok: true, canManage: true, id, albums, artists: ARTISTS } });
   });
   await page.route('**/api/music-upload**', async (r) => {
     const req = r.request();

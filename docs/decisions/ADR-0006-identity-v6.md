@@ -2,7 +2,7 @@
 
 | 项 | 值 |
 |---|---|
-| 状态 | 已采纳（P1–P3 已实施，P4 收尾中）；以定稿 v5.5（2026-11-11 20:12，冻结）为准 |
+| 状态 | 已采纳（P1–P3 已实施，P4 收尾中）；以定稿 v5.5（2026-11-11 20:12，冻结）为准；§2.3 的组名与私密行归属已被 ADR-0007 取代（本文保留为历史） |
 | 日期 | 2026-11-11 |
 | 决策者 | Sloan Gray |
 | 关联 | 取代 ADR-0003 §2.3、ADR-0005 §2.2.3–§2.2.4（sudo 段）；SGX-SPEC-004（路由盘点）、SGX-SPEC-005（迁移对照）、SGX-SPEC-006（STEPUP / APP 去向） |
@@ -28,6 +28,8 @@
 - 徽章（顶栏盾标，四档；定稿 v5.5 §七）：点击按当前身份还能晋升到哪一档预填，只预填、回车才生效——访客 `su `、普通用户 `exit`、站长 `su root`、root `exit`。徽章与头像是两个东西。
 
 ### 2.3 权限 = 组（fail closed）
+
+**〔组名与私密行归属已被 ADR-0007 取代（v6 组权限重设计 v1.1）：`listen` / `ai` / `status` → `music-use` / `ai-use` / `status-use`，写组 `<产品>-write` → `<产品>-manage`（音乐另拆 `music-manage`），新增 `curio-use`、`daymark-use`；私密行给 `<产品>-use`；路由表写 `product` 推组名〕**
 
 - 组：`wheel`（可 su root）、`sudoers`（可 sudo）、`listen`、`ai`、`status`、`curio-write`、`daymark-write`（上传、编辑、单条内容删除）。删除不做组：**批量 / 结构删除只属 root**。
 - styrigx 默认：wheel、sudoers、listen、ai、status、curio-write、daymark-write。新用户默认无组。

@@ -5,8 +5,10 @@
 //   devices  设备：名字、类型、购买 / 退役日期、换成了哪台（replaced_by）、系统版本、参数、配件、体验、照片（R2 key）、私密、排序
 //   games    游戏：名字、平台、关联设备（device_id，可空）、版本、状态（想玩 / 在玩 / 通关 / 搁置）、评分 0–5、评价、封面（R2 key）、私密、排序
 // 只存一种语言（站点作者自己写的话），不像收藏那样分中英文。
-// 私密：没登录账号看不到私密的条目；游戏关联的设备是私密的，没登录账号拿到的游戏里 device_id 置 0（不泄露那台设备）。
+// 私密：看不到私密的（没有 curio-use）看不到私密的条目；游戏关联的设备是私密的，看不到私密的人拿到的游戏里 device_id 置 0（不泄露那台设备）。
 // 照片的上传 / 读取 / 删除在 src/api/photo.js；删条目时顺手删 R2 里的照片（applyItemOp 返回 {removed} 交给调用方删）。
+
+import { filterPrivate } from '../../common/visibility.js';
 
 export const ITEM_SCHEMA = [
   "CREATE TABLE IF NOT EXISTS devices (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'other', bought_at TEXT NOT NULL DEFAULT '', retired_at TEXT NOT NULL DEFAULT '', replaced_by INTEGER NOT NULL DEFAULT 0, os TEXT NOT NULL DEFAULT '', specs TEXT NOT NULL DEFAULT '', accessories TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', photo TEXT NOT NULL DEFAULT '', private INTEGER NOT NULL DEFAULT 0, pos INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0)",
@@ -189,10 +191,10 @@ export async function listItems(db, showPrivate) {
     db.prepare('SELECT * FROM devices ORDER BY pos, id'),
     db.prepare('SELECT * FROM games ORDER BY pos, id'),
   ]);
-  const devices = (ds.results || []).filter((r) => showPrivate || !r.private).map(rowDevice);
+  const devices = filterPrivate(ds.results || [], showPrivate).map(rowDevice);
   const seen = new Set(devices.map((d) => d.id));
   for (const d of devices) if (d.replaced_by && !seen.has(d.replaced_by)) d.replaced_by = 0;
-  const games = (gs.results || []).filter((r) => showPrivate || !r.private).map(rowGame);
+  const games = filterPrivate(gs.results || [], showPrivate).map(rowGame);
   for (const g of games) if (g.device_id && !seen.has(g.device_id)) g.device_id = 0;
   return { devices, games };
 }

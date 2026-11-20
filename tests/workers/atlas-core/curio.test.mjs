@@ -1,7 +1,7 @@
 // 奇趣接口（workers/atlas-core/src/curio）（2026-11-14 合并进 styrigx-atlas-core；本文件由 tests/workers/curio-core/ 迁来，旧迁移 / 种子 / wrangler.toml 的用例随旧目录删除，配置与迁移结构见 core.test.mjs）：
 // - 路由表与 src/api 接口文件一一对应；访问表 ROUTE_ACCESS（v5 S3）：读公开，写 / 导出 / 预览按 v6 路由档，每个请求最多问网关一次；网关出错当没有 v6
 // - 鉴权（v6，定稿 v5.3 §十二）：没有身份 401 unauthorized、档不够 403 forbidden；导入 / 导出 = root
-// - 收藏：没有写组只看公开（私密分类 / 私密收藏 / 空分类都不给），有写组看全部；写：非同源 403、校验、增改删排序
+// - 收藏：没有 use / manage 组只看公开（私密分类 / 私密收藏 / 空分类都不给），有 use 组看全部；写：非同源 403、校验、增改删排序
 // - 导入：先备份原文到 R2（R2 不可用就不导入）、文件夹 → 分类、按网址去重、默认私密、超上限一条不写、记录 imports
 // - 导出：Netscape HTML，要账号会话 + 同源
 // - 图标：R2 缓存命中直接回；没缓存现抓并存；抓不到存「没有」标记；没登录账号拿不到私密收藏的图标；内网地址不抓
@@ -156,7 +156,7 @@ test('访客：public 的读 200、其余 401，带运行标记；不存在的�
   assert.equal((await (await call('/curio/api/links', { who: 'garbage' })).json()).showPrivate, false);
 });
 
-test('每个接口请求最多问网关一次（守卫问到的 v6 结论经 context.data.v6 传给 handler）；cookie 原样转给 admit；不再有复验结论', async () => {
+test('每个接口请求每个 action 最多问网关一次（守卫问到的 v6 结论经 context.data.v6 传给 handler；公开读按 visibility 问 private、manage 两档）；cookie 原样转给 admit；不再有复验结论', async () => {
   const calls = [];
   const db = makeD1();
   const env = (who) => ({ SPACE: whoAuth(who, { calls }), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: makeR2() });
@@ -166,9 +166,9 @@ test('每个接口请求最多问网关一次（守卫问到的 v6 结论经 con
     body: body ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined,
   });
   const cases = [
-    ['owner', '/curio/api/links', 'GET', undefined, 1],
-    ['lock', '/curio/api/links', 'GET', undefined, 1],
-    ['owner', '/curio/api/items', 'GET', undefined, 1],
+    ['owner', '/curio/api/links', 'GET', undefined, 2],
+    ['lock', '/curio/api/links', 'GET', undefined, 2],
+    ['owner', '/curio/api/items', 'GET', undefined, 2],
     ['owner', '/curio/api/links', 'POST', { op: 'cat.add', name: '一' }, 1],
     ['lock', '/curio/api/links', 'POST', { op: 'cat.add', name: '二' }, 1],
     ['owner', '/curio/api/items', 'POST', { op: 'game.add', title: '空洞骑士', platform: 'PC', status: 'playing' }, 1],
@@ -187,7 +187,7 @@ test('每个接口请求最多问网关一次（守卫问到的 v6 结论经 con
     for (const c of calls) {
       assert.equal(c.cookie, 'sgx-session=x');
       assert.equal(c.path, new URL(ORIGIN + p).pathname);
-      assert.ok(c.opts === undefined || (c.opts && c.opts.action === 'private'), JSON.stringify(c.opts));
+      assert.ok(c.opts === undefined || (c.opts && (c.opts.action === 'private' || c.opts.action === 'manage')), JSON.stringify(c.opts));
     }
   }
   /* 档不够写是 403 forbidden、有档写成功：结论确实传到了 handler */
@@ -201,10 +201,10 @@ test('每个接口请求最多问网关一次（守卫问到的 v6 结论经 con
   await A.v6Of(ctx);
   assert.equal(calls.length, 1, '同一个 context 不再问第二次');
   /* 旧结论的接口随应用授权删除（定稿 v5.3 §十二） */
-  for (const gone of ['conclusionOf', 'askConclusion', 'normalizeConclusion', 'canReadPrivate', 'can', 'visibility', 'DENIED', 'SCOPE_WRITE']) assert.equal(gone in A, false, gone);
+  for (const gone of ['conclusionOf', 'askConclusion', 'normalizeConclusion', 'canReadPrivate', 'can', 'visibility', 'readAccess', 'DENIED', 'SCOPE_WRITE']) assert.equal(gone in A, false, gone);
 });
 
-test('写接口（v6 路由档 curio-write）：没有身份 401 unauthorized、有身份没写组 403 forbidden、有档 200', async () => {
+test('写接口（v6 路由档 curio-manage）：没有身份 401 unauthorized、有身份没 manage 组 403 forbidden、有档 200', async () => {
   const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0, 0, 0, 0]);
   const writes = [
     ['/curio/api/links', 'POST', { op: 'cat.add', name: '甲' }, 'application/json', 200],
@@ -254,7 +254,7 @@ test('导入 = root 档（原来要账号复验 → v6 sudo / root）：站长 4
   r = await imp2('owner');
   assert.equal(r.status, 200);
   const j = await r.json();
-  assert.equal(j.canWrite, true);
+  assert.equal(j.canManage, true);
   assert.equal(j.showPrivate, true);
   assert.equal('admin' in j, false); // old-name guard
 });
@@ -267,7 +267,7 @@ test('接口响应都带 nosniff 和 HSTS（core 不经过网关，自己补）'
   }
 });
 
-test('写：非同源 403、没 Origin 403、有身份没写组 403 forbidden', async () => {
+test('写：非同源 403、没 Origin 403、有身份没 manage 组 403 forbidden', async () => {
   const body = { op: 'cat.add', name: 'x' };
   assert.equal((await call('/curio/api/links', { who: 'owner', method: 'POST', body, origin: 'https://evil.com' })).status, 403);
   assert.equal((await call('/curio/api/links', { who: 'owner', method: 'POST', body, origin: null })).status, 403);
@@ -341,7 +341,7 @@ test('增、改、换分类、排序、删；重复网址 409；分类非空不�
   assert.deepEqual(j.cats.map((c) => c.id), [c2.id]);
 });
 
-test('读：没有写组只看公开（私密分类整个不给、私密收藏不给、空分类不给），有写组（v6 action private）全看到；响应是 canWrite / showPrivate，没有旧等级字段', async () => {
+test('读：没有 use / manage 组只看公开（私密分类整个不给、私密收藏不给、空分类不给），有 use 组（v6 action private；manage 包含 use）全看到；响应是 canManage / showPrivate，没有旧等级字段', async () => {
   const db = makeD1();
   await op(db, { op: 'cat.add', name: '公开' });
   await op(db, { op: 'cat.add', name: '私密', private: true });
@@ -350,23 +350,23 @@ test('读：没有写组只看公开（私密分类整个不给、私密收藏�
   await op(db, { op: 'link.add', cat: 1, url: 'https://q.com', name: 'Q', private: true });
   await op(db, { op: 'link.add', cat: 2, url: 'https://r.com', name: 'R' });
   const v = await list(db, 'lock');
-  assert.equal(v.canWrite, false);
+  assert.equal(v.canManage, false);
   assert.equal(v.showPrivate, false);
   assert.equal('admin' in v, false); // old-name guard
   assert.deepEqual(v.cats.map((c) => c.name.zh), ['公开']);
   assert.deepEqual(v.cats[0].links.map((l) => l.url), ['https://p.com/']);
   const o = await list(db, 'owner');
-  assert.equal(o.canWrite, true);
+  assert.equal(o.canManage, true);
   assert.equal(o.showPrivate, true);
   assert.equal('admin' in o, false); // old-name guard
   assert.deepEqual(o.cats.map((c) => c.links.length), [2, 1, 0]);
-  /* 有身份但没有写组（alice 只有 listen）：私密不给、不能写 */
+  /* 有身份但没有 use / manage 组（alice 只有 music-use）：私密不给、不能写 */
   const n = await list(db, 'noscope');
-  assert.equal(n.canWrite, false);
+  assert.equal(n.canManage, false);
   assert.equal(n.showPrivate, false);
   assert.deepEqual(n.cats.map((c) => c.name.zh), ['公开']);
   const st = await list(db, 'styrigx');
-  assert.equal(st.canWrite, true);
+  assert.equal(st.canManage, true);
   assert.equal(st.showPrivate, true);
 });
 
@@ -670,7 +670,7 @@ test('预览：内网、本机、自家域名、怪端口不抓；HTML 取 og �
   assert.deepEqual(r, { title: 'Tom & Jerry', desc: '', icon: 'https://ex.com/t.png' });
 });
 
-test('预览接口：没有身份 401、没写组 403 forbidden、非同源 403、坏网址 400', async () => {
+test('预览接口：没有身份 401、没 manage 组 403 forbidden、非同源 403、坏网址 400', async () => {
   assert.equal((await call('/curio/api/preview?url=https://x.com', { who: null })).status, 401);
   assert.equal((await call('/curio/api/preview?url=https://x.com', { who: 'lock' })).status, 403);
   assert.equal((await call('/curio/api/preview?url=https://x.com', { who: 'noscope' })).status, 403);

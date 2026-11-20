@@ -43,8 +43,8 @@ async function setup() {
     raw.prepare("INSERT INTO account_user_password (uid, record, pepper_id, must_change, expires_at) VALUES (?, ?, 'account', 0, 0)").run(uid, JSON.stringify(await makePasswordRecord(PW[name], PEP)));
   };
   await addUser(0, 'root', []);
-  await addUser(1000, 'styrigx', ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write']);
-  await addUser(1001, 'alice', ['listen', 'sudoers']);
+  await addUser(1000, 'styrigx', ['wheel', 'sudoers', 'music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use', 'music-manage', 'curio-manage', 'daymark-manage']);
+  await addUser(1001, 'alice', ['music-use', 'sudoers']);
   return env;
 }
 let ipN = 0;
@@ -135,27 +135,31 @@ test('AccountVerifier.admit 带 action：按 action 的档、回答带回 action
   assert.equal((await a(rt, 'POST', '/api/share')).reason, 'not-listed', '分享短链 v6 P4 删除：表里没有这条');
   assert.equal((await a(sty, 'GET', '/api/space-audit')).allowed, false);
   assert.equal((await a(rt, 'GET', '/api/space-audit')).allowed, true);
-  assert.equal((await a(ali, 'POST', '/curio/api/music-play')).allowed, true, 'listen');
+  assert.equal((await a(ali, 'POST', '/curio/api/music-play')).allowed, true, 'music-use');
   assert.equal(r.sessionId, undefined, '会话行 id 不出账号 Worker');
 });
 
-test('路由表：action private 挂在奇趣 / 日刻公开 GET 上（档 = 本站写组）和 POST /api/ai 上（2c：= webmaster）', () => {
+test('路由表：action private 挂在奇趣 / 日刻 / 音乐公开 GET 上（= <产品>-use，另有 manage = <产品>-manage，组权限 v1.1 §七、§八）和 POST /api/ai 上（2c：= webmaster）', () => {
   const withPrivate = RA.ROUTE_ACCESS.filter((r) => r.actions && Object.prototype.hasOwnProperty.call(r.actions, 'private'));
   assert.deepEqual(withPrivate.map((r) => r.method + ' ' + r.path).sort(), [
     'GET /curio/api/icon', 'GET /curio/api/items', 'GET /curio/api/links', 'GET /curio/api/movies', 'GET /curio/api/music', 'GET /curio/api/photo',
     'GET /daymark/api/collections', 'GET /daymark/api/quotes', 'POST /api/ai',
   ]);
   for (const r of withPrivate) {
-    assert.deepEqual(Object.keys(r.actions), ['private'], r.path);
     if (r.path === '/api/ai') {
-      /* AI 私密召回跨站（奇趣 / 日刻 / 博客），对应旧「账号会话」= 站长本人：webmaster；进接口本身仍是 ai 组 */
-      assert.equal(r.level, 'ai');
+      assert.deepEqual(Object.keys(r.actions), ['private'], r.path);
+      /* AI 私密召回跨站（奇趣 / 日刻 / 博客），对应旧「账号会话」= 站长本人：webmaster；进接口本身是 ai-use */
+      assert.equal(r.level, 'ai-use');
       assert.equal(r.actions.private, 'webmaster');
       assert.equal(RA.rescueOf('POST', '/api/ai', { action: 'private' }), false, '救援不可用');
       continue;
     }
+    assert.deepEqual(Object.keys(r.actions).sort(), ['manage', 'private'], r.path);
     assert.equal(r.level, 'public', r.path);
-    assert.equal(r.actions.private, r.path.startsWith('/curio/') ? 'curio-write' : 'daymark-write', r.path);
+    const product = r.path.startsWith('/curio/api/music') ? 'music' : r.path.startsWith('/curio/') ? 'curio' : 'daymark';
+    assert.equal(r.product, product, r.path);
+    assert.equal(r.actions.private, product + '-use', r.path);
+    assert.equal(r.actions.manage, product + '-manage', r.path);
   }
 });
 

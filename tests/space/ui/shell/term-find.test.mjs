@@ -41,11 +41,11 @@ const manNames = async (sh) => (await sh.exec('man')).out.slice(1).map((o) => o.
 
 test('listedFor：唯一判断点（P4-3：audience 取最低一层，各人看自己这一层及以下，root 看全部；group 只给组员列）', () => {
   const find = { name: 'find', audience: ['nobody'] };
-  const ask = { name: 'ask', audience: ['user', 'root6'], group: 'ai' };
+  const ask = { name: 'ask', audience: ['user', 'root6'], group: 'ai-use' };
   for (const w of ['nobody', 'u:alice', 'u:root']) assert.equal(listedFor(find, w), true, w + '：访客层的命令谁都列');
   assert.equal(listedFor(ask, 'u:root'), true);
-  assert.equal(listedFor(ask, 'u:alice', { name: 'alice', groups: ['ai'] }), true);
-  assert.equal(listedFor(ask, 'u:alice', { name: 'alice', groups: ['listen'] }), false);
+  assert.equal(listedFor(ask, 'u:alice', { name: 'alice', groups: ['ai-use'] }), true);
+  assert.equal(listedFor(ask, 'u:alice', { name: 'alice', groups: ['music-use'] }), false);
   assert.equal(listedFor(ask, 'nobody'), false);
   assert.equal(listedFor({ name: 'rescue', audience: [] }, 'u:root'), false, '空 audience 不进索引');
   for (const w of ['nobody', 'u:alice', 'u:root']) assert.equal(listedFor({ name: 'cd' }, w), true, w);

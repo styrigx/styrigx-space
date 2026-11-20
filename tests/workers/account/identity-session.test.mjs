@@ -58,7 +58,7 @@ test('styrigx 会话：一次查询、不写库；身份 = styrigx + 默认组',
   const a = await S.admitSession(env, t, NOW);
   assert.equal(a.ok, true);
   assert.equal(a.sessionId, id);
-  assert.deepEqual(a.identity, { uid: 1000, name: 'styrigx', groups: ['ai', 'curio-write', 'daymark-write', 'listen', 'status', 'sudoers', 'wheel'], rescue: false });
+  assert.deepEqual(a.identity, { uid: 1000, name: 'styrigx', groups: ['ai-use', 'curio-manage', 'curio-use', 'daymark-manage', 'daymark-use', 'music-manage', 'music-use', 'status-use', 'sudoers', 'wheel'], rescue: false });
   assert.equal(a.via, null);
   assert.equal(a.renew, false);
   assert.equal(env.D1_ACCOUNT.statements.length, 1, '一次 D1 查询');
@@ -152,9 +152,10 @@ test('renew 标志：剩余不到一半且一天内没续过才是 true（admit 
 
 test('组：只回认识的组（库里混进的未知组丢掉），排序', async () => {
   const env = identityEnv();
-  seedUser(env, { uid: 1001, name: 'alice', groups: ['status', 'listen', 'admin'] });
+  /* 组权限 v1.1 §九：部署后旧组名（listen、ai、status、curio-write、daymark-write）在会话读组时一样被过滤掉，不给任何权限 */
+  seedUser(env, { uid: 1001, name: 'alice', groups: ['status-use', 'music-use', 'admin', 'listen', 'ai', 'status', 'curio-write', 'daymark-write'] });
   const { token: t } = await seedSession(env, { uid: 1001 });
-  assert.deepEqual((await S.admitSession(env, t, NOW)).identity.groups, ['listen', 'status']);
+  assert.deepEqual((await S.admitSession(env, t, NOW)).identity.groups, ['music-use', 'status-use']);
 });
 
 test('admitRequest：从 Cookie 取 sgx-session；没有 → no-cookie（不查库）；读库出错 → error（fail closed）', async () => {

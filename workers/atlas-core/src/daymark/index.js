@@ -8,15 +8,15 @@
  *   1. 访问档（v5 S3）：routes.js ROUTE_ACCESS 按「方法 + 路径」给出 public / entry（不在表里 = entry），在这里套上那一档的守卫
  *      （api/_auth.js GUARDS）。public：今日一句（主站首页跨站调用，带 CORS，只给北京时间的今天，边缘缓存最多 60 秒，见 api/today.js）、
  *      句子 / 专题 / 往日的读（没有 v6 档只拿公开的）。entry：经网关 SpaceVerifier.admit 问 v6 会话的档，没有身份 → 401 unauthorized（不 302，fetch 不跟跳转）。
- *   2. 按路由表交给 src/api/<路径>.js；读私密（私密句子、随手一笔）按 v6 action 'private' 的档（_auth.js readAccess），
+ *   2. 按路由表交给 src/api/<路径>.js；读私密（私密句子、随手一笔）按 v6 action 'private' 的档（= daymark-use）、管理提示按 action 'manage'（= daymark-manage），都经公用 visibility()（common/visibility.js），
  *      写按路由表的档 + 同源（_auth.js requireScope）
  * 不在路由表里的路径 → 404；方法不支持 → 405。
  *
  * 全站搜索索引（src/search-index.js）：写接口成功后用 ctx.waitUntil 重建 KV site:daymark；
  * 每小时兜底重建（2026-11-10 起本 Worker 不自带 Cron：styrigx-status 的 Cron 经服务绑定 JOB_DAYMARK 调命名入口 HourlyJob，rpc/hourly-job.js），内容没变不写 KV。重建出错只打日志，不影响接口响应。
  */
-import { API_ROUTES, accessOf } from './routes.js';
-import { GUARDS } from './api/_auth.js';
+import { API_ROUTES, accessOf, routeOf } from './routes.js';
+import { GUARDS, v6Of } from './api/_auth.js';
 import { rebuildSearchIndex, isMutation } from './search-index.js';
 import { purgeTodayCache } from './api/today.js';
 
@@ -98,6 +98,9 @@ export async function handle(request, env, ctx) {
 
   const hit = resolve(path);
   const context = makeContext(request, env, ctx, hit ? hit.params : {}, hit ? hit.functionPath : path);
+  /* 组权限 v1.1 §八：公用 visibility(context) 从命中的路由行取 product，经本产品的 v6Of 问 private / manage 两档（common/visibility.js） */
+  context.data.route = routeOf(request.method, path);
+  context.data.ask = v6Of;
   /* 先过访问档（不在路由表里的路径也是 entry：没进门 401，进了门才 404） */
   const denied = await GUARDS[accessOf(request.method, path)](context);
   if (denied) return denied;

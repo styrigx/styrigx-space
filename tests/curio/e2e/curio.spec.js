@@ -1,10 +1,10 @@
 // 奇趣（手机）：接口用 page.route 假数据，不碰线上。2026-11 对齐 PR-C2（设计稿 pg=curio / citem）：首页 /curio/ 就是「发现」，
 //   分区 /curio/finds/、/devices/、/games/、/movies/、/music/（中文 /curio/zh/…）是页头的下划线 tab（#cu-tabs）。电影、音乐的用例在 curio-movies-music.spec.js。
 // - 顶栏：字标 · 页名胶囊（首页 = 奇趣，子页 = 子页名）· 外观 · 盾牌 · >_ · 头像；页头 tab 带计数，音乐 tab 仅本人可见
-// - 账号没登录（canWrite=false）：命令链里没有「收藏 / 管理分类 / 导入 / 导出」，只有「su · su 登录后可编辑」打开顶栏终端预填 su （2c，v6 割接）；封面卡点开新标签页；图标取不到显示首字母
+// - 账号没登录（canManage=false）：命令链里没有「收藏 / 管理分类 / 导入 / 导出」，只有「su · su 登录后可编辑」打开顶栏终端预填 su （2c，v6 割接）；封面卡点开新标签页；图标取不到显示首字母
 // - 分类 chips 筛选 + hash；grep 行内过滤；排序；分页条；旧 hash 地址（#devices、#games）在首页转到子页（#c/<分类> 就地生效）；左右滑切分区已删
 // - 设备 / 游戏：账号没登录只读；条目页 ?id=（取代详情弹层：面包屑、spec 表、换代互链、cd .. / cd ../next）；能编辑时新建（照片缩图后上传）、条目页里编辑、删除；使用天数
-// - 能编辑（canWrite + showPrivate）：私密带锁；没有「su 登录后可编辑」；收藏 → 填网址自动补全 → 保存发 link.add；长按卡片编辑、删除要确认；管理分类；导入发原文
+// - 能编辑（canManage + showPrivate）：私密带锁；没有「su 登录后可编辑」；收藏 → 填网址自动补全 → 保存发 link.add；长按卡片编辑、删除要确认；管理分类；导入发原文
 // - 英文页
 const { test, expect } = require('@playwright/test');
 
@@ -26,16 +26,19 @@ const CATS = [
 ];
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 
-/* signedIn = true：接口回 canWrite / showPrivate 都是 true（账号已登录）；false：都是 false（进门了、账号没登录） */
+/* signedIn = true：接口回 canManage / showPrivate 都是 true（有 curio-manage）；false：都是 false（访客 / 没组）；'use'：只有 curio-use（showPrivate true、canManage false） */
 async function mock(page, signedIn) {
-  let cats = signedIn
+  /* 组权限 v1.1 §七、§八：'use' = 只有 curio-use（看得到私密行、canManage false，管理入口不画） */
+  const show = signedIn === true || signedIn === 'use';
+  const manage = signedIn === true;
+  let cats = show
     ? JSON.parse(JSON.stringify(CATS))
     : JSON.parse(JSON.stringify(CATS)).filter((c) => !c.private).map((c) => ({ ...c, links: c.links.filter((l) => !l.private) })).filter((c) => c.links.length);
   const calls = [];
   await page.route('**/avatar/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>' }));
   await page.route('**/api/lock-session-check', (r) => r.fulfill({ json: { ok: true } }));
   /* D-3 a′：可写会话按 root 模拟（whoami 回 root），root 档操作不走领票；非 whoami 的身份请求放行给别的路由。 */
-  await page.route('**/api/identity', (r) => { const b = r.request().postData() || ''; return (signedIn) && b.includes('"whoami"') ? r.fulfill({ json: { ok: true, user: { root: true } } }) : r.fallback(); });
+  await page.route('**/api/identity', (r) => { const b = r.request().postData() || ''; return (manage) && b.includes('"whoami"') ? r.fulfill({ json: { ok: true, user: { root: true } } }) : r.fallback(); });
   await page.route('**/api/icon**', (r) => (new URL(r.request().url()).searchParams.get('id') === '11'
     ? r.fulfill({ status: 200, contentType: 'image/png', body: PNG })
     : r.fulfill({ status: 404, json: { ok: false } })));
@@ -43,7 +46,7 @@ async function mock(page, signedIn) {
   await page.route('**/api/import**', async (r) => {
     calls.push({ url: r.request().url(), body: r.request().postData(), type: r.request().headers()['content-type'] });
     cats = cats.concat({ id: 9, name: { zh: '工具', en: '' }, private: true, links: [{ id: 91, url: 'https://t.example/', name: { zh: 'T', en: '' }, desc: { zh: '', en: '' }, icon: '', private: true }] });
-    return r.fulfill({ json: { ok: true, found: 3, added: 1, skipped: 2, invalid: 0, cats_added: 1, backup: 'imports/x.html', canWrite: true, showPrivate: true, cats } });
+    return r.fulfill({ json: { ok: true, found: 3, added: 1, skipped: 2, invalid: 0, cats_added: 1, backup: 'imports/x.html', canManage: true, showPrivate: true, cats } });
   });
   let devices = [
     { id: 1, name: 'Galaxy S23', kind: 'phone', bought_at: '2023-03-01', retired_at: '2025-03-01', replaced_by: 2, os: 'One UI 6', specs: '8GB / 256GB', accessories: '', notes: '小屏好用', photo: false, private: false },
@@ -54,7 +57,7 @@ async function mock(page, signedIn) {
     { id: 7, title: '塞尔达传说 王国之泪', platform: 'Switch', device_id: 0, edition: '实体版', status: 'done', rating: 5, review: '神作', cover: false, private: false },
     { id: 8, title: 'Hades II', platform: 'PC', device_id: 0, edition: '', status: 'playing', rating: 0, review: '', cover: false, private: false },
   ];
-  if (!signedIn) devices = devices.filter((d) => !d.private);
+  if (!show) devices = devices.filter((d) => !d.private);
   let nextId = 100;
   await page.route('**/api/photo**', async (r) => {
     const req = r.request();
@@ -64,7 +67,7 @@ async function mock(page, signedIn) {
   });
   await page.route('**/api/items**', async (r) => {
     const req = r.request();
-    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite: signedIn, showPrivate: signedIn, devices, games } });
+    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canManage: manage, showPrivate: show, devices, games } });
     const body = req.postDataJSON();
     calls.push(body);
     let id;
@@ -72,20 +75,35 @@ async function mock(page, signedIn) {
     if (body.op === 'device.edit') devices = devices.map((d) => (d.id === body.id ? { ...d, ...body, op: undefined } : d));
     if (body.op === 'device.del') devices = devices.filter((d) => d.id !== body.id);
     if (body.op === 'game.add') { id = nextId++; games.push({ cover: false, ...body, id, op: undefined }); }
-    return r.fulfill({ json: { ok: true, canWrite: true, showPrivate: true, id, devices, games } });
+    return r.fulfill({ json: { ok: true, canManage: true, showPrivate: true, id, devices, games } });
   });
   await page.route('**/api/links**', async (r) => {
     const req = r.request();
-    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite: signedIn, showPrivate: signedIn, cats } });
+    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canManage: manage, showPrivate: show, cats } });
     const body = req.postDataJSON();
     calls.push(body);
     if (body.op === 'link.add') cats[0].links.push({ id: 99, url: body.url, name: body.name, desc: body.desc, icon: '', private: !!body.private });
     if (body.op === 'link.del') cats.forEach((c) => { c.links = c.links.filter((l) => l.id !== body.id); });
     if (body.op === 'cat.add') cats.push({ id: 50, name: body.name, private: false, links: [] });
-    return r.fulfill({ json: { ok: true, canWrite: true, showPrivate: true, cats } });
+    return r.fulfill({ json: { ok: true, canManage: true, showPrivate: true, cats } });
   });
   return calls;
 }
+
+test('组权限 v1.1：只有 curio-use（showPrivate true、canManage false）——看得到私密收藏 / 设备，但不画收藏 / 管理分类 / 导入 / 导出，长按 / E 不开编辑', async ({ page }) => {
+  await mock(page, 'use');
+  await page.goto('/curio/zh/finds/');
+  await expect(page.locator('.cu-cc')).toHaveCount(3);
+  await expect(page.locator('.cu-lock').first()).toBeVisible();
+  for (const id of ['#cu-fab', '#menu-cats', '#menu-import', '#menu-export']) await expect(page.locator(id)).toBeHidden();
+  await expect(page.locator('html')).not.toHaveClass(/cu-can-write/);
+  await page.locator('.cu-cc').first().focus();
+  await page.keyboard.press('e');
+  await expect(page.locator('#edit-title')).toHaveText('');
+  await page.goto('/curio/zh/devices/');
+  await expect(page.getByText('私密平板').first()).toBeVisible();
+  await expect(page.locator('#dv-fab')).toBeHidden();
+});
 
 test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab 藏着）；没有收藏 / 管理分类 / 导入 / 导出命令、只看公开、图标取不到显示首字母；快捷面板导航页同主站', async ({ page }) => {
   await mock(page, false);
@@ -224,7 +242,7 @@ test('分类 chips 筛选并写 hash，刷新还在；grep 行内过滤（Esc �
 test('分页：先显示一页（手机 8 张），分页条滚进视口再加一页，左边「-- 已显示 / 共 --」', async ({ page }) => {
   await mock(page, false);
   const many = [{ id: 1, name: { zh: '很多', en: '' }, private: false, links: Array.from({ length: 11 }, (_, i) => ({ id: 200 + i, url: `https://s${i}.example/`, name: { zh: '站' + i, en: '' }, desc: { zh: '', en: '' }, icon: '', private: false })) }];
-  await page.route('**/api/links**', (r) => r.fulfill({ json: { ok: true, canWrite: false, showPrivate: false, cats: many } }));
+  await page.route('**/api/links**', (r) => r.fulfill({ json: { ok: true, canManage: false, showPrivate: false, cats: many } }));
   await page.goto('/curio/zh/finds/');
   await expect(page.locator('.cu-cc')).toHaveCount(11);
   await expect(page.locator('.cu-cc:visible')).toHaveCount(8);

@@ -4,7 +4,7 @@
 // - 单曲改名 / 改年份也只发一个 track.edit（后端同一个 batch 写单曲记录，Gray 审 1、3）；单曲换封面 → music-upload kind=cover（单曲记录）；单曲选了划进专辑 → 封面栏、年份栏不可用、不传封面、不发年份
 // - 歌词预填读失败（框是空的）→ 保存不带 lrc（不清掉已有歌词，Gray 审 4）
 // - 专辑标题旁「编辑」：名、歌手、年份（album.edit 只带改了的）+ 封面（music-upload kind=cover）
-// - 编辑窗里「删除」、单曲行删除键 → 确认卡片（同一张悬浮卡片）→ track.del（curio-write，Gray 审 2）；单曲唯一一首删了，单曲从列表消失
+// - 编辑窗里「删除」、单曲行删除键 → 确认卡片（同一张悬浮卡片）→ track.del（music-manage，Gray 审 2）；单曲唯一一首删了，单曲从列表消失
 // - 多选 → 批量改：歌手、移专辑（专辑页有「移出变单曲」）；年份只在单曲区出现，跟歌手同一个 track.edit（不发 album.edit，后端写单曲记录）；每条一个请求，失败的列出来
 // - 没有写权限：不画「⋯」「编辑」「多选」
 // - M4 起歌手栏挂联想 <datalist id="mu-artist-list">（歌手页那份 spec 细测）
@@ -23,12 +23,12 @@ const DATA = () => [
 ];
 const LRC = '[00:01.00]I am on a lonely road';
 
-/** opts.canWrite 默认 true；opts.fail(b) 返回错误码就让这条写请求失败 */
+/** opts.canManage 默认 true；opts.fail(b) 返回错误码就让这条写请求失败 */
 async function mockMusic(page, opts = {}) {
-  const canWrite = opts.canWrite !== false;
+  const canManage = opts.canManage !== false;
   await page.route('**/avatar/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>' }));
   await page.route('**/api/lock-session-check', (r) => r.fulfill({ json: { ok: true } }));
-  await page.route('**/api/identity', (r) => { const b = r.request().postData() || ''; return canWrite && b.includes('"whoami"') ? r.fulfill({ json: { ok: true, user: { root: true } } }) : r.fallback(); });
+  await page.route('**/api/identity', (r) => { const b = r.request().postData() || ''; return canManage && b.includes('"whoami"') ? r.fulfill({ json: { ok: true, user: { root: true } } }) : r.fallback(); });
   const calls = [];
   let albums = DATA();
   let nextId = 100;
@@ -37,7 +37,7 @@ async function mockMusic(page, opts = {}) {
   await page.route('**/api/music-cover**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
   await page.route('**/api/music', async (r) => {
     const req = r.request();
-    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite, albums } });
+    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canManage, albums } });
     const b = req.postDataJSON();
     calls.push(b);
     const bad = opts.fail && opts.fail(b);
@@ -60,7 +60,7 @@ async function mockMusic(page, opts = {}) {
     if (b.op === 'album.edit') { const a = albums.find((x) => x.id === b.id); for (const k of ['title', 'artist', 'year']) if (b[k] !== undefined) a[k] = b[k]; }
     if (b.op === 'track.del') { const f = findTrack(b.id); f.a.tracks.splice(f.i, 1); if (f.a.kind === 'single' && !f.a.tracks.length) albums = albums.filter((x) => x !== f.a); }
     if (b.op === 'album.del') albums = albums.filter((x) => x.id !== b.id);
-    return r.fulfill({ json: { ok: true, canWrite: true, id, albums } });
+    return r.fulfill({ json: { ok: true, canManage: true, id, albums } });
   });
   await page.route('**/api/music-upload**', async (r) => {
     const u = new URL(r.request().url());
@@ -244,7 +244,7 @@ test('删曲目：编辑窗「删除」→ 悬浮确认卡片（同删除单曲�
   await page.locator('#mu-del-ok').click();
   expect(writes(calls)[1]).toEqual({ op: 'track.del', id: 42 });
   await expect(page.locator('#mu-singles .mu-single-tx b')).toHaveText(['River']);
-  /* 行上的删除键也走 track.del（Gray 审 2：curio-write 档，不走 album.del 的 root + 票）；文案说明单曲记录和封面一起删 */
+  /* 行上的删除键也走 track.del（Gray 审 2：music-manage 档，不走 album.del 的 root + 票）；文案说明单曲记录和封面一起删 */
   await page.locator('#mu-singles [data-del="31"]').click();
   await expect(page.locator('#mu-del-title')).toHaveText('删除单曲');
   await expect(page.locator('#mu-del-msg')).toHaveText('确定删除单曲「River」（连同音频文件）吗？单曲记录和它的封面也会一起删除。');
@@ -331,10 +331,11 @@ test('批量改（单曲区）：年份只在这里出现；歌手 + 年份每�
   await expect(page.locator('#mu-singles .mu-single-tx i')).toHaveText(['周杰伦', '周杰伦']);
 });
 
-test('没有写权限：不画「⋯」、专辑「编辑」、「多选」', async ({ page }) => {
-  await mockMusic(page, { canWrite: false });
+test('没有管理权限（只有 music-use 或访客：接口回 canManage false，组权限 v1.1 §八）：不画「⋯」、专辑「编辑」、「多选」、上传', async ({ page }) => {
+  await mockMusic(page, { canManage: false });
   await page.goto('/curio/zh/music/');
   await expect(page.locator('#mu-tracks .mu-track')).toHaveCount(3);
+  await expect(page.locator('#mu-upload')).toBeHidden();
   await expect(page.locator('#mu-tracks .mu-more')).toHaveCount(0);
   await expect(page.locator('#mu-album-edit')).toBeHidden();
   await expect(page.locator('#mu-sel-bar')).toBeHidden();

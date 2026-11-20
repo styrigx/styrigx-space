@@ -3,14 +3,14 @@
 // 经网关 SpaceVerifier.admit 问账号 Worker「这个会话能不能走这条路由」（路由表 ROUTE_ACCESS + permits 只在账号 Worker），本文件只认结论：
 //   - 三档守卫（v5 S3，GUARDS；app.js 按 routes.js ROUTE_ACCESS 套用，每个请求只套一次）：
 //     publicRead（不拒绝）· requireEntry · requireMusic（都按路由表的档问 admit）
-//   - 读私密 / canWrite 提示：readAccess（action 'private' 的档）
+//   - 读私密 / canManage 提示：不在这里——公用 visibility()（common/visibility.js，组权限 v1.1 §八），经本文件 v6Of 问 action private / manage
 // 错误码：没有 v6 身份 401 unauthorized；有身份但档不够 403 forbidden；非同源 403 origin（_write.js / 各接口自己查）。
 // 旧的进站 / 账号结论（SpaceVerifier.conclusion）随应用授权删除（定稿 v5.3 §十二）。
 // fail closed：绑定没有 admit / 出错 → 当没有 v6 身份。
 import { err } from './_lib.js';
 
 /**
- * 要求这条路由的档（写接口：本站写组；导入 / 导出：root，见账号 Worker 路由表）：通过 → { response: null }；否则 { response: 错误 }。
+ * 要求这条路由的档（写接口：本产品的 manage 组；导入 / 导出：root，见账号 Worker 路由表）：通过 → { response: null }；否则 { response: 错误 }。
  * 没有 v6 身份 401 unauthorized；有身份但档不够 403 forbidden。
  * @param {any} context
  */
@@ -30,7 +30,7 @@ export async function requireAccount(context) {
 
 /* ---------- 三档守卫（v5 S3；routes.js ROUTE_ACCESS 的 public / entry / music，app.js handle 套用） ---------- */
 
-/** public：谁都能调，不拒绝、不问网关（要私密行 / canWrite 的 handler 自己 readAccess） @returns {Promise<null>} */
+/** public：谁都能调，不拒绝、不问网关（要私密行 / canManage 的 handler 调公用 visibility()） @returns {Promise<null>} */
 export async function publicRead() {
   return null;
 }
@@ -40,7 +40,7 @@ export async function requireEntry(context) {
   return (await requireScope(context)).response;
 }
 
-/** music：写组档（同 requireEntry） @param {any} context */
+/** music：音乐的上传 / 管理（music-manage，同 requireEntry） @param {any} context */
 export async function requireMusic(context) {
   return (await requireScope(context)).response;
 }
@@ -78,10 +78,11 @@ export function normalizeAdmit(r, action) {
  */
 export function v6Of(context, action) {
   const d = context.data || (context.data = {});
-  /* D-3 a′：带 X-Sgx-Sudo 头的请求只按这张一次性票判（每个请求只核销一次；票对不上就拒，不退回会话本身的档） */
+  /* D-3 a′：带 X-Sgx-Sudo 头的请求只按这张一次性票判（每个请求只核销一次；票对不上就拒，不退回会话本身的档）；
+     票对得上 = root：private / manage 两档（公用 visibility）也按这张票的结论 */
   if (context.request && context.request.headers && context.request.headers.has(SUDO_HEADER)) {
     if (!d.sudo) d.sudo = askSudo(context.request, context.env);
-    return d.sudo.then((s) => (!action || action === 'private' || action === s.action ? s.v : s.denied));
+    return d.sudo.then((s) => (!action || action === 'private' || action === 'manage' || action === s.action ? s.v : s.denied));
   }
   const cache = d.v6 || (d.v6 = {});
   const k = action || '-';
@@ -188,14 +189,4 @@ export async function auditRootOp(context, command) {
   } catch (e) {
     return false;
   }
-}
-
-/**
- * 公开读接口的两个布尔（私密行 / canWrite 提示）：v6 会话按 action 'private' 的档（路由表：= 本站写组）判，够就两样都给。
- * @param {any} context
- * @returns {Promise<{canWrite: boolean, showPrivate: boolean}>}
- */
-export async function readAccess(context) {
-  const v = await v6Of(context, 'private');
-  return { canWrite: v.allowed, showPrivate: v.allowed };
 }

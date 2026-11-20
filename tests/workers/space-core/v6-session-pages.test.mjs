@@ -3,7 +3,7 @@
  * - 页面状态（data-sgx-lock-session，gate.js pageStateOf）：只有 v6 / 只有旧（v6 P4 起不认）/ 都没有 / v6 过期 / 救援 / RPC 出错；主站、子站、旧 /en/ 404 页同一套
  * - PAGE_PROBE 在账号路由表里是 user 档、不是救援可用（判断只在 ROUTE_ACCESS + permits）
  * - 云同步 GET /api/prefs：纯 v6 过网关门、转给账号 Worker（数据归谁由账号 Worker dataUid 按 v6 uid 定）
- * - 网关自己的接口：/api/status（status 组）、/api/ai（ai 组）认 v6；有 v6 身份但档不够 403 forbidden；访客 401
+ * - 网关自己的接口：/api/status（status-use 组）、/api/ai（ai-use 组）认 v6；有 v6 身份但档不够 403 forbidden；访客 401
  * 放行判断用 ../_v6admit.mjs（真的 ROUTE_ACCESS + permits）。
  * 运行：node --test tests/workers/space-core/v6-session-pages.test.mjs
  */
@@ -104,7 +104,7 @@ test('云同步 GET /api/prefs：纯 v6 过网关门、转给账号 Worker；访
   assert.deepEqual(rec.forwarded, ['/api/prefs']);
 });
 
-test('/api/status（status 组）：纯 v6 styrigx 200，不在 status 组 403 forbidden，访客 401；关口问过的结论接口复用（只问一次）', async () => {
+test('/api/status（status-use 组）：纯 v6 styrigx 200，不在 status-use 组 403 forbidden，访客 401；关口问过的结论接口复用（只问一次）', async () => {
   const { env, rec } = setup();
   const get = (ck) => worker.fetch(new Request('https://styrigx.com/api/status', { headers: ck ? { Cookie: ck } : {} }), env, ctx);
   const ok = await get('sgx-session=styrigx');
@@ -121,7 +121,7 @@ test('/api/status（status 组）：纯 v6 styrigx 200，不在 status 组 403 f
   assert.equal(d.status, 403);
 });
 
-test('/api/ai（ai 组）：纯 v6 styrigx 能取模型列表；不在 ai 组（alice 只有 listen）403 forbidden；访客 401', async () => {
+test('/api/ai（ai-use 组）：纯 v6 styrigx 能取模型列表；不在 ai-use 组（alice 只有 music-use）403 forbidden；访客 401', async () => {
   const { env } = setup();
   const get = (ck) => worker.fetch(new Request('https://styrigx.com/api/ai', { headers: ck ? { Cookie: ck } : {} }), env, ctx);
   assert.equal((await get('sgx-session=styrigx')).status, 200);
