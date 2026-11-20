@@ -245,9 +245,9 @@ test('歌手页诚实空状态：名下没有专辑 / 单曲、但别的专辑�
   await expect(rel).toBeVisible();
   await expect(rel).toHaveText('还没有自己的专辑或单曲；有曲目收在「Blue」里。');
   await expect(rel.locator('a')).toHaveCount(1);
-  /* 多于三张：链三张，其余说个数 */
+  /* 多于三张：链三张，其余说个数——中英都说「剩下几张」（总数 − 已链），不说总数 */
   await page.goto('/curio/zh/music/?artist=8');
-  await expect(rel).toHaveText('还没有自己的专辑或单曲；有曲目收在「Blue」、「Court and Spark」、「Ammonia Avenue」等 4 张专辑里。');
+  await expect(rel).toHaveText('还没有自己的专辑或单曲；有曲目收在「Blue」、「Court and Spark」、「Ammonia Avenue」和另外 1 张专辑里。');
   await expect(rel.locator('a')).toHaveText(['Blue', 'Court and Spark', 'Ammonia Avenue']);
   await page.goto('/curio/music/?artist=8');
   await expect(rel).toHaveText('No albums or singles of their own yet. Their tracks are on Blue, Court and Spark, Ammonia Avenue and 1 more.');

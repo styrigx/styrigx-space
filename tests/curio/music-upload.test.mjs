@@ -143,3 +143,15 @@ test('上传走 XHR（拿得到进度），右栏不用 innerHTML 拼文件名',
   assert.ok(a > 0 && b > a);
   assert.ok(!/innerHTML/.test(SRC.slice(a, b)), 'upList / upPairUi 只用 DOM + textContent');
 });
+
+test('歌手页空状态「其余几张」（M4 #486 第 22 条）：中英都说剩下的张数（总数 − 已链），只给 {n}、不给 {total}', () => {
+  const a = SRC.indexOf('function relLine('), e = SRC.indexOf('\n}', a);
+  assert.ok(a > 0 && e > a);
+  assert.match(SRC.slice(a, e), /htmlLine\('arRelMore', 'albums', links, \{ n: rel\.length - shown\.length \}\)/);
+  for (const lang of ['zh', 'en']) {
+    const y = readFileSync(new URL(`../../space/web/data/curio/i18n/${lang}.yaml`, import.meta.url), 'utf8');
+    const line = (y.slice(y.indexOf('  curioMusic:')).match(/\n    arRelMore: (.*)/) || [])[1] || '';
+    assert.match(line, /\{albums\}.*\{n\}/, lang + ' arRelMore 有 {albums} 和 {n}');
+    assert.doesNotMatch(line, /\{total\}/, lang + ' arRelMore 不用总数');
+  }
+});

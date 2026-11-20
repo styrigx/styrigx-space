@@ -1632,11 +1632,11 @@ function htmlLine(key, slot, html, vars){
   var parts = tr(key, vars).split('{' + slot + '}');
   return esc(parts[0]) + (parts.length > 1 ? html + esc(parts.slice(1).join('{' + slot + '}')) : '');
 }
-/** 「有曲目收在「A」、「B」、「C」等 n 张专辑里」：最多链三张，多的说个数 */
+/** 「有曲目收在「A」、「B」、「C」和另外 n 张专辑里」：最多链三张，多的说剩下几张（中英都是总数 − 已链） */
 function relLine(rel){
   var shown = rel.slice(0, 3);
   var links = shown.map(function(a){ return htmlLine('arRelItem', 'a', '<a class="mu-ar-rel-a" href="./" data-rel="' + a.id + '">' + esc(a.title) + '</a>'); }).join(esc(T.arSep || ', '));
-  if (rel.length > shown.length) links = htmlLine('arRelMore', 'albums', links, { n: rel.length - shown.length, total: rel.length });
+  if (rel.length > shown.length) links = htmlLine('arRelMore', 'albums', links, { n: rel.length - shown.length });
   return htmlLine('arRelOnly', 'albums', links, { n: rel.length });
 }
 $('#mu-ar-rel').addEventListener('click', function(e){
