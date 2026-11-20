@@ -40,6 +40,37 @@ test('去重提醒：歌名一样 + 歌手一样 + 时长差 ≤ 1 秒，或歌�
   assert.equal(MU.dupOf({ title: '新歌', artist: '周杰伦', duration: 200, size: 1000 }, LIST), null);
 });
 
+test('同一批里的重复（Gray 定 3）：和前面某首一样就记它是第几首；规则同库里的（歌名 + 歌手 + 时长 ±1 秒 / 歌名 + 大小，不分大小写和空白）；第一份不算', () => {
+  const f = (title, artist, duration, size) => ({ title, artist, duration, size });
+  assert.deepEqual(MU.batchDups([f('晴天', '周杰伦', 269, 1), f('别的', '周杰伦', 269, 1), f(' 晴 天 ', 'JAY', 0, 1)]), [null, null, { batch: 1, title: '晴天' }], '歌名 + 大小，不分大小写 / 空白');
+  assert.deepEqual(MU.batchDups([f('晴天', '周杰伦', 269, 1), f('晴天', ' 周杰伦 ', 270, 2)]), [null, { batch: 1, title: '晴天' }], '歌名 + 歌手 + 时长差 1 秒');
+  assert.deepEqual(MU.batchDups([f('晴天', '周杰伦', 269, 1), f('晴天', '周杰伦', 271, 2)]), [null, null], '时长差 2 秒、大小不同：不算');
+  assert.deepEqual(MU.batchDups([f('晴天', '周杰伦', 0, 1), f('晴天', '周杰伦', 0, 2)]), [null, null], '时长不知道、大小不同：不算');
+  assert.deepEqual(MU.batchDups([f('晴天', 'A', 200, 1), f('晴天', 'B', 200, 2)]), [null, null], '歌手不一样、大小不同：不算');
+  assert.deepEqual(MU.batchDups([f('', '', 0, 5), f('', '', 0, 5)]), [null, null], '没有歌名不比');
+  /* 三份一样：后两份都指向第一份 */
+  assert.deepEqual(MU.batchDups([f('a', '', 0, 9), f('a', '', 0, 9), f('A', '', 0, 9)]), [null, { batch: 1, title: 'a' }, { batch: 1, title: 'a' }]);
+  assert.deepEqual(MU.batchDups([]), []);
+  assert.deepEqual(MU.batchDups(null), []);
+  /* 文案 zh / en 都有 */
+  for (const lang of ['zh', 'en']) {
+    const y = readFileSync(new URL(`../../space/web/data/curio/i18n/${lang}.yaml`, import.meta.url), 'utf8');
+    assert.match(y.slice(y.indexOf('  curioMusic:')), /\n    dupBatch: .*\{n\}.*\{title\}/, lang + ' dupBatch');
+  }
+});
+
+test('离开页面先问一下（Gray 定 4）：beforeunload 只在 jobRun 真传的时候挂，传完就摘；upGuard 不重复挂', () => {
+  const a = SRC.indexOf('function upGuard('), r = SRC.indexOf('function jobRun('), e = SRC.indexOf('function jobRetry(');
+  assert.ok(a > 0 && r > a && e > r);
+  assert.match(SRC.slice(a, r), /addEventListener\('beforeunload', upBeforeUnload\)/);
+  assert.match(SRC.slice(a, r), /removeEventListener\('beforeunload', upBeforeUnload\)/);
+  assert.match(SRC.slice(a, r), /if \(!!on === upGuarded\) return;/);
+  const run = SRC.slice(r, e);
+  assert.match(run, /job\.running = true;[^]*?upGuard\(true\)/);
+  assert.match(run, /job\.running = false;\s*upGuard\(false\)/);
+  assert.equal((SRC.match(/addEventListener\('beforeunload'/g) || []).length, 1, '别处不挂');
+});
+
 test('失败原因 → 文案键', () => {
   assert.equal(MU.upReason({ sgxLocked: true }), 'whyLocked');
   assert.equal(MU.upReason({ code: 'network' }), 'whyNetwork');

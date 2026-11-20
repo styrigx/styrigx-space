@@ -440,6 +440,7 @@ js:
     leftAlbum: The new album “{name}” stays (still empty); you can keep uploading to it under existing albums.
     dupSingle: 'Possible duplicate: there''s already a single “{title}” ({artist}).'
     dupAlbum: 'Possible duplicate: “{album}” already has “{title}” ({artist}).'
+    dupBatch: 'Possible duplicate: same as #{n} “{title}” in this batch.'
     skipThis: Skip this one
     pairHead: 'Not matched by file name; pair them by hand (optional):'
     pairLrc: Lyrics

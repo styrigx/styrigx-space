@@ -271,20 +271,35 @@ function dupKey(s){ return artistKey(s); }
  * 曲目没自己的歌手就看专辑的。→ 第一条对上的 {title, artist, album（单曲 ''）} 或 null
  */
 function dupOf(f, list){
-  var tk = dupKey(f && f.title);
-  if (!tk) return null;
+  if (!dupKey(f && f.title)) return null;
   for (var i = 0; list && i < list.length; i++) {
     var a = list[i], ts = a.tracks || [];
     for (var j = 0; j < ts.length; j++) {
-      var t = ts[j];
-      if (dupKey(t.title) !== tk) continue;
-      var who = t.artist || a.artist || '';
-      var meta = dupKey(who) === dupKey(f.artist) && f.duration > 0 && t.duration > 0 && Math.abs(t.duration - f.duration) <= 1;
-      var size = f.size > 0 && t.size === f.size;
-      if (meta || size) return { title: t.title, artist: who, album: CORE.isSingle(a) ? '' : a.title };
+      var t = ts[j], who = t.artist || a.artist || '';
+      if (sameSong(f, { title: t.title, artist: who, duration: t.duration, size: t.size })) return { title: t.title, artist: who, album: CORE.isSingle(a) ? '' : a.title };
     }
   }
   return null;
+}
+/** 两首算不算重复（dupOf / batchDups 共用）：歌名一样（不分大小写、去空白），且 ①歌手一样、时长都知道且差不超过 1 秒，或 ②文件大小一样 */
+function sameSong(f, g){
+  var tk = dupKey(f && f.title);
+  if (!tk || !g || dupKey(g.title) !== tk) return false;
+  var meta = dupKey(g.artist) === dupKey(f.artist) && f.duration > 0 && g.duration > 0 && Math.abs(g.duration - f.duration) <= 1;
+  return meta || (f.size > 0 && g.size === f.size);
+}
+/**
+ * 同一批里的重复（Gray 2026-11-20 定 3）：每首和这批排在它前面的比，规则同 dupOf（sameSong）；只提醒、可勾跳过，不拦。
+ * fs = 这批每首 [{title, artist, duration, size}]（按右栏的顺序）→ 每首 null 或 {batch: 前面那首是这批第几首（从 1 数）, title}；第一份不算重复。
+ */
+function batchDups(fs){
+  var out = [];
+  for (var i = 0; fs && i < fs.length; i++) {
+    var hit = null;
+    for (var j = 0; j < i && !hit; j++) if (sameSong(fs[i], fs[j])) hit = { batch: j + 1, title: fs[j].title };
+    out.push(hit);
+  }
+  return out;
 }
 /** 失败原因 → 文案键（每文件状态「失败：原因」） */
 function upReason(e){
@@ -346,7 +361,7 @@ function makeTr(dict, lang){
   };
 }
 
-var pure = { readDict: readDict, makeTr: makeTr, SPEEDS: SPEEDS, TRACK_MAX: TRACK_MAX, nextSpeed: nextSpeed, fmtTime: fmtTime, parseLrc: parseLrc, lrcIndex: lrcIndex, trackFromName: trackFromName, sortByName: sortByName, audioType: audioType, lrcKey: lrcKey, splitKinds: splitKinds, pickSection: pickSection, albumChoices: albumChoices, lrcChange: lrcChange, trackEditBody: trackEditBody, yearOf: yearOf, batchRequests: batchRequests, artistOf: artistOf, artistWorks: artistWorks, relatedAlbums: relatedAlbums, similarArtist: similarArtist, squareCrop: squareCrop, matchKey: matchKey, uploadPlan: uploadPlan, applyPairs: applyPairs, UP_CONC: UP_CONC, pctOf: pctOf, dupOf: dupOf, upReason: upReason, emptySingle: emptySingle, dropKinds: dropKinds, COVER_MAX: COVER_MAX, COVER_Q: COVER_Q };
+var pure = { readDict: readDict, makeTr: makeTr, SPEEDS: SPEEDS, TRACK_MAX: TRACK_MAX, nextSpeed: nextSpeed, fmtTime: fmtTime, parseLrc: parseLrc, lrcIndex: lrcIndex, trackFromName: trackFromName, sortByName: sortByName, audioType: audioType, lrcKey: lrcKey, splitKinds: splitKinds, pickSection: pickSection, albumChoices: albumChoices, lrcChange: lrcChange, trackEditBody: trackEditBody, yearOf: yearOf, batchRequests: batchRequests, artistOf: artistOf, artistWorks: artistWorks, relatedAlbums: relatedAlbums, similarArtist: similarArtist, squareCrop: squareCrop, matchKey: matchKey, uploadPlan: uploadPlan, applyPairs: applyPairs, UP_CONC: UP_CONC, pctOf: pctOf, dupOf: dupOf, batchDups: batchDups, upReason: upReason, emptySingle: emptySingle, dropKinds: dropKinds, COVER_MAX: COVER_MAX, COVER_Q: COVER_Q };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxCurioMusic = pure;
 
@@ -780,6 +795,8 @@ $('#mu-del-ok').addEventListener('click', function(){
  *     关窗（× / 遮罩 / 返回）不丢任务：再点上传回到这次的状态。
  *   - 拖放：文件拖进上传窗就按类型分到音频 / 封面 / 歌词（dropKinds）；单首拖进多首音频自动切到批量。
  *   - 去重提醒（dupOf）：歌名 + 歌手 + 时长，或歌名 + 文件大小，和已有曲目一样就在那一行提醒；批量可勾「跳过这首」，不勾照传，不拦。
+ *     同一批里的也比（batchDups，Gray 定 3）：和这批前面某首一样就提醒「和这批第 n 首一样」，同样可勾跳过；库里的重复先报。
+ *   - 真在传的时候（job.running）挂 beforeunload，离开 / 刷新先问一下；传完、停在失败、放弃、没任务都摘掉（upGuard，Gray 定 4）。
  *   - 批量没按文件名对上的歌词 / 封面列在右栏，每个一个下拉手动配给某一首（upPairs → uploadPlan pairs）。
  *   - 右栏全用 DOM + textContent 画（文件名、歌名不进 innerHTML）。 */
 var upFiles = { audio: [], cover: [], lrc: [], tags: [], dur: [] };
@@ -859,7 +876,8 @@ function upPlanNow(preview){
 }
 function mk(tag, cls, text){ var e = doc.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 /** 这一首和已有曲目重复吗（PR-b 去重提醒；时长读出来之前只按大小比） */
-function upDup(t){ var f = upFiles.audio[t.file]; return f ? dupOf({ title: t.title, artist: t.artist, duration: upFiles.dur[t.file] || 0, size: f.size }, all) : null; }
+function upSong(t){ var f = upFiles.audio[t.file]; return f ? { title: t.title, artist: t.artist, duration: upFiles.dur[t.file] || 0, size: f.size } : null; }
+function upDup(t){ var s = upSong(t); return s ? dupOf(s, all) : null; }
 /** 每首的状态文字 */
 function stText(r){ return r.st === 'up' ? tr('stUp', { p: r.pct }) : r.st === 'wait' ? T.stWait : r.st === 'done' ? T.stDone : r.st === 'fail' ? T.stFail : r.st === 'skip' ? T.stSkip : ''; }
 /**
@@ -874,7 +892,9 @@ function upList(){
   if (job) { plan = job.plan; rows = job.items; }
   else {
     plan = upFiles.audio.length ? upPlanNow(true) : { error: 'needAudio' };
-    rows = plan.error ? [] : plan.tracks.map(function(t){ return { t: t, st: '', dup: upDup(t) }; });
+    /* 库里的重复先报；没有再看同一批前面的（批量才有） */
+    var bd = plan.error || upMode === 'one' ? [] : batchDups(plan.tracks.map(function(t){ return upSong(t) || { title: '' }; }));
+    rows = plan.error ? [] : plan.tracks.map(function(t, n){ return { t: t, st: '', dup: upDup(t) || bd[n] || null }; });
   }
   var one = job ? job.one : upMode === 'one';
   if (!rows.length || (one && !job && !rows[0].dup)) { box.classList.add('hidden'); return; }
@@ -902,7 +922,7 @@ function upList(){
     if (r.st === 'fail') li.appendChild(mk('p', 'mu-up-why', T[r.why] || T.whyOther));
     if (!job && r.dup) {
       var d = r.dup;
-      li.appendChild(mk('p', 'mu-up-dup', tr(d.album ? 'dupAlbum' : 'dupSingle', { title: d.title, artist: d.artist || T.noArtist, album: d.album })));
+      li.appendChild(mk('p', 'mu-up-dup', d.batch ? tr('dupBatch', { n: d.batch, title: d.title }) : tr(d.album ? 'dupAlbum' : 'dupSingle', { title: d.title, artist: d.artist || T.noArtist, album: d.album })));
       if (!one) {
         var lab = mk('label', 'mu-up-skip'), cb = mk('input');
         cb.type = 'checkbox'; cb.setAttribute('data-skip', String(t.file)); cb.checked = !!upSkip[t.file];
@@ -1243,11 +1263,21 @@ function jobPool(){
     for (var k = 0; k < UP_CONC; k++) next();
   });
 }
+/** 离开 / 刷新页面先问一下（Gray 定 4）：只在真在传的时候挂着，传完 / 停下就摘掉 */
+function upBeforeUnload(e){ e.preventDefault(); e.returnValue = ''; return ''; }
+var upGuarded = false;
+function upGuard(on){
+  if (!!on === upGuarded) return;
+  upGuarded = !!on;
+  if (on) G.addEventListener('beforeunload', upBeforeUnload); else G.removeEventListener('beforeunload', upBeforeUnload);
+}
 function jobRun(){
   job.running = true; job.stop = false;
+  upGuard(true);
   upMsg(''); upFoot(); upList();
   return jobAlbum().then(function(ok){ return ok ? jobPool() : null; }).then(function(){
     job.running = false;
+    upGuard(false);
     return req('GET', '/curio/api/music').catch(function(){ return null; });
   }).then(function(j){
     /* 传上的那部分先在页面上显示出来（有失败也一样） */

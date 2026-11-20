@@ -429,6 +429,7 @@ js:
     leftAlbum: 新专辑「{name}」留着（还是空的），可以在「已有专辑」里接着传。
     dupSingle: 可能重复：已有单曲「{title}」（{artist}）。
     dupAlbum: 可能重复：专辑「{album}」里已有「{title}」（{artist}）。
+    dupBatch: 可能重复：和这批第 {n} 首「{title}」一样。
     skipThis: 跳过这首
     pairHead: 没按文件名对上，手动配一下（可选）：
     pairLrc: 歌词
