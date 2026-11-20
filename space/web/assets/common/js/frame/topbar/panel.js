@@ -989,6 +989,8 @@ export const MUSIC_WIN = 'sgx-music-player';
 export const MUSIC_FEATURES = 'popup,width=420,height=720';
 /** 播放器页路径（英文 /curio/music/player/、中文 /curio/zh/music/player/） */
 export const MUSIC_PATH = /\/music\/player\/?$/;
+/** 主窗口肯跳去的歌手页地址（M4）：只认奇趣音乐页（中英）+ ?artist=<数字>，别的一律不跳 */
+export const ARTIST_URL = /^\/curio\/(?:zh\/)?music\/\?artist=\d{1,10}$/;
 
 /**
  * 顶栏音乐图标点开播放器（音乐分层方案 v1.13 第二步 2c）：图标是链接（href = 播放器页，当前语言），没 JS / 中键 / Ctrl / ⌘ / Shift / Alt 照旧按链接走。
@@ -1001,6 +1003,9 @@ export const MUSIC_PATH = /\/music\/player\/?$/;
  * （on / playing / title / artist），之后播放状态一变它也广播，关窗发 player-bye。播放器答过、而且有一首在播或暂停着（on）→ 普通点击不再开窗，
  * 交给 mountTopbar 接的 #sgx-mu 弹层（歌名、歌手、上一曲、播放/暂停、下一曲、切到播放器）；没答 / 没在播 → 照旧开播放器（只显示入口）。
  * 图标上的小点（.is-playing）= 正在出声，不占宽度。播放器页自己的顶栏不弹遥控，点了只切过去。
+ * 歌手页（M4，音乐 v1.19 十二 M4 第 3 条「弹出播放器经 BroadcastChannel 通知主窗口切过去，播放器不跳走」）：播放器点了歌手名发 artist-ask，
+ * 每个主窗口（本页不是播放器）答 artist-here（带本页最近一次用过的时间 at），播放器挑一个发 artist-go 只给它（to = 本页的 id）；
+ * 挑中的页先发可取消的 sgx-music-artist 事件（奇趣音乐页接住就在页内换视图，歌不断），没人接就整页跳到歌手页（地址只认音乐页 ?artist=<数字>）。
  * @param {Document} [d] @param {{ open?: (url: string, name: string, features: string) => any, navigate?: (url: string) => void, channel?: any, path?: string }} [o] 测试注入
  */
 export function mountMusic(d, o) {
@@ -1055,6 +1060,27 @@ export function mountMusic(d, o) {
   };
   /** @param {any} m */
   const post = function (m) { if (ch) { try { ch.postMessage(m); } catch (e) {} } };
+  /* 歌手页（M4）：本页的 id 和最近一次用过的时间（播放器按它挑主窗口） */
+  const pageId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  let lastActive = Date.now();
+  const touch = function () { lastActive = Date.now(); };
+  if (doc.defaultView) doc.defaultView.addEventListener('focus', touch);
+  if (typeof doc.addEventListener === 'function') {
+    doc.addEventListener('pointerdown', touch, true);
+    doc.addEventListener('visibilitychange', function () { if (doc.visibilityState === 'visible') touch(); });
+  }
+  /** @param {any} m */
+  const onArtist = function (m) {
+    if (onPlayer) return;
+    if (m.type === 'artist-ask' && typeof m.req === 'string') post({ type: 'artist-here', req: m.req, from: pageId, at: lastActive });
+    else if (m.type === 'artist-go' && m.to === pageId && Number.isInteger(m.id) && m.id > 0) {
+      const url = typeof m.url === 'string' && ARTIST_URL.test(m.url) ? m.url : '';
+      let handled = false;
+      try { handled = !doc.dispatchEvent(new CustomEvent('sgx-music-artist', { detail: { id: m.id, url: url }, cancelable: true })); } catch (e) {}
+      if (!handled && url) navigate(url);
+      try { if (doc.defaultView) doc.defaultView.focus(); } catch (e) {}
+    }
+  };
   const prevMsg = ch && ch.onmessage;
   if (ch) ch.onmessage = function (/** @type {any} */ ev) {
     if (typeof prevMsg === 'function') { try { prevMsg.call(ch, ev); } catch (e) {} }
@@ -1062,7 +1088,7 @@ export function mountMusic(d, o) {
     if (!m) return;
     if (m.type === 'player-state') state = { on: !!m.on, playing: !!m.playing, title: String(m.title || ''), artist: String(m.artist || '') };
     else if (m.type === 'player-bye') state = null;
-    else return;
+    else { onArtist(m); return; }
     paint();
   };
   post({ type: 'player-hello' });

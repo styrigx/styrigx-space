@@ -7,6 +7,7 @@
 // - 编辑窗里「删除」、单曲行删除键 → 确认卡片（同一张悬浮卡片）→ track.del（curio-write，Gray 审 2）；单曲唯一一首删了，单曲从列表消失
 // - 多选 → 批量改：歌手、移专辑（专辑页有「移出变单曲」）；年份只在单曲区出现，跟歌手同一个 track.edit（不发 album.edit，后端写单曲记录）；每条一个请求，失败的列出来
 // - 没有写权限：不画「⋯」「编辑」「多选」
+// - M4 起歌手栏挂联想 <datalist id="mu-artist-list">（歌手页那份 spec 细测）
 const { test, expect } = require('@playwright/test');
 
 test.use({ locale: 'zh-CN' });
@@ -99,8 +100,8 @@ test('专辑页曲目「⋯」：编辑窗（歌名 · 歌手 · 所属专辑 ·
   /* 歌词正文经 music-play 读出来填进去 */
   await expect(page.locator('#mu-ed-lrc')).toHaveValue(LRC);
   await expect(page.locator('#mu-ed-lrc')).toBeEnabled();
-  /* 歌手栏只是文本框，不做联想（十二 M3 第 5 条） */
-  expect(await page.locator('#mu-ed-artist').evaluate((i) => i.tagName + ':' + (i.getAttribute('list') || ''))).toBe('INPUT:');
+  /* 歌手栏：M3 只是文本框（十二 M3 第 5 条）；M4 起挂歌手联想 <datalist>（7.5，见 curio-music-artist.spec.js） */
+  expect(await page.locator('#mu-ed-artist').evaluate((i) => i.tagName + ':' + (i.getAttribute('list') || ''))).toBe('INPUT:mu-artist-list');
   await page.locator('#mu-ed-name').fill('All I Want (2021 Remaster)');
   await page.locator('#mu-ed-lrc').fill('[00:02.00]new');
   await page.locator('#mu-ed-save').click();

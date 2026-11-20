@@ -1,6 +1,8 @@
 // workers/atlas-core/src/curio/api/music-upload.js
 // POST /api/music-upload?album=N&kind=track&no=K&title=…&duration=S   body = 音频本身（浏览器直传，不分片）
 // POST /api/music-upload?album=N&kind=cover                           body = 封面图片（浏览器先缩到 1600、转 webp）
+// POST /api/music-upload?artist=N&kind=avatar                         body = 歌手头像（M4，十二 M4 第 2 条：浏览器裁方、≤ 1000、jpeg；只收 jpeg）
+//   R2 key music/artist/<id>/avatar-<时间>.jpg；换头像删旧的（D1 写成功之后）；D1 写失败当场删新的。权限同封面（curio-write，不加新路由）。
 // 权限：music 档（进站 + 账号会话 + curio.write，app.js 守卫）+ 同源（_music.js musicOrigin）。
 // 上限：音频单文件 95 MB（MUSIC_LIMITS.trackBytes；Workers 请求体上限 100 MB），要带 Content-Length（没有 411）；封面 3 MB。
 // 音频类型看 Content-Type（AUDIO_TYPES 白名单，回放原样带回 + nosniff）；封面看头几个字节（webp / jpeg / png）。
@@ -9,7 +11,7 @@
 // → 曲目 {ok:true, id}；封面 {ok:true}。400 参数不对 / 不是音频图片；404 专辑不在；409 曲目满了（专辑 200 首 limit；单曲已有 1 首 single-full）；413 太大
 import { err, json, methodNotAllowed } from './_lib.js';
 import { sniffImage } from './_image.js';
-import { musicOrigin, ensureMusicSchema, MUSIC_LIMITS, AUDIO_TYPES, trackKey } from './_music.js';
+import { musicOrigin, ensureMusicSchema, MUSIC_LIMITS, AUDIO_TYPES, trackKey, avatarKey } from './_music.js';
 
 const IMG_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
 
@@ -31,8 +33,9 @@ export async function onRequestPost(context) {
   const { request, env } = context;
   if (!env || !env.D1_MUSIC || !env.R2_MUSIC) return err('server', 503);
   const sp = new URL(request.url).searchParams;
-  const albumId = intParam(sp, 'album', 1, 2 ** 31 - 1);
   const kind = sp.get('kind');
+  if (kind === 'avatar') return uploadAvatar(request, env, sp);
+  const albumId = intParam(sp, 'album', 1, 2 ** 31 - 1);
   if (!albumId || (kind !== 'track' && kind !== 'cover')) return err('bad-params', 400);
   const lenHdr = request.headers.get('Content-Length');
   const len = lenHdr === null ? NaN : Number(lenHdr);
@@ -89,6 +92,37 @@ export async function onRequestPost(context) {
     throw e;
   }
   return json({ ok: true, id: r.meta && r.meta.last_row_id });
+}
+
+/**
+ * 歌手头像（M4）：?artist=N&kind=avatar，body 是 jpeg（浏览器先裁方、缩到 ≤ 1000、转 jpeg，同一套裁切）。
+ * 400 bad-params（没给歌手 / 同时给了专辑）/ not-image（不是 jpeg）；404 歌手不在；413 超 3 MB；503 storage（R2 写失败）。
+ * @param {Request} request @param {any} env @param {URLSearchParams} sp
+ */
+async function uploadAvatar(request, env, sp) {
+  const artistId = intParam(sp, 'artist', 1, 2 ** 31 - 1);
+  if (!artistId || sp.has('album')) return err('bad-params', 400);
+  const lenHdr = request.headers.get('Content-Length');
+  const len = lenHdr === null ? NaN : Number(lenHdr);
+  if (Number.isFinite(len) && len > MUSIC_LIMITS.coverBytes) return err('too-large', 413);
+  const db = env.D1_MUSIC;
+  await ensureMusicSchema(db);
+  const artist = await db.prepare('SELECT id, avatar FROM music_artists WHERE id = ?1').bind(artistId).first();
+  if (!artist) return err('not-found', 404);
+  const bytes = new Uint8Array(await request.arrayBuffer());
+  if (bytes.length > MUSIC_LIMITS.coverBytes) return err('too-large', 413);
+  if (sniffImage(bytes) !== 'image/jpeg') return err('not-image', 400);
+  const now = Date.now();
+  const key = avatarKey(artistId, now);
+  try { await env.R2_MUSIC.put(key, bytes, { httpMetadata: { contentType: 'image/jpeg' } }); } catch (e) { return err('storage', 503); }
+  try {
+    await db.prepare('UPDATE music_artists SET avatar = ?1, updated_at = ?2 WHERE id = ?3').bind(key, now, artistId).run();
+  } catch (e) {
+    await dropOrphan(env.R2_MUSIC, key);
+    throw e;
+  }
+  if (artist.avatar) { try { await env.R2_MUSIC.delete(artist.avatar); } catch (e) { console.error('[curio-music] old avatar delete failed'); } }
+  return json({ ok: true });
 }
 
 export function onRequest() {

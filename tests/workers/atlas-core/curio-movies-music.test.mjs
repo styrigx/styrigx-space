@@ -186,12 +186,14 @@ test('音乐三层（v5 S3）：歌单 / 封面公开且不带音频地址；听
     const r = await call(e, '/curio/api/music', { who });
     assert.equal(r.status, 200, String(who));
     const text = await r.clone().text();
-    assert.deepEqual(await r.json(), { ok: true, canWrite: false, albums: [{ id, kind: 'album', title: 'Absolution', artist: 'Muse', year: 2003, cover: true, tracks: [{ id: tid, no: 1, title: 'Intro', duration: 22, artist: '' }] }] }, String(who));
+    /* M4：专辑 / 曲目多 artist_id（歌手页链接），回答多一份歌手表（名字、有没有头像、简介、风格；没有 R2 key） */
+    const muse = e.db.raw.prepare('SELECT id FROM music_artists WHERE name = ?').get('Muse').id;
+    assert.deepEqual(await r.json(), { ok: true, canWrite: false, albums: [{ id, kind: 'album', title: 'Absolution', artist: 'Muse', artist_id: muse, year: 2003, cover: true, tracks: [{ id: tid, no: 1, title: 'Intro', duration: 22, artist: '', artist_id: 0 }] }], artists: [{ id: muse, name: 'Muse', avatar: false, bio: '', style: '' }] }, String(who));
     assert.doesNotMatch(text, /music-stream|music\/|"src"|"key"|r2_key|token|"url"/, '歌单里没有音频地址 / R2 key / 令牌');
   }
   const own = await (await call(e, '/curio/api/music', { who: 'owner' })).json();
   assert.equal(own.canWrite, true);
-  assert.deepEqual(Object.keys(own.albums[0].tracks[0]).sort(), ['artist', 'duration', 'id', 'lrc', 'no', 'size', 'title', 'type']);
+  assert.deepEqual(Object.keys(own.albums[0].tracks[0]).sort(), ['artist', 'artist_id', 'duration', 'id', 'lrc', 'no', 'size', 'title', 'type']);
   /* 封面公开（和音频不是同一条路） */
   const cv = await call(e, `/curio/api/music-cover?album=${id}`);
   assert.equal(cv.status, 200);
@@ -266,7 +268,7 @@ test('上传：音频类型白名单、要 Content-Length（411）、单文件�
   await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'track.edit', id: tid, lrc: '[00:01.00]I am on a lonely road' } });
   const list = (await (await call(e, '/curio/api/music', { who: 'owner' })).json()).albums;
   assert.equal(list.length, 1);
-  assert.deepEqual({ ...list[0], tracks: undefined }, { id, kind: 'album', title: 'Blue', artist: 'Joni Mitchell', year: 1971, cover: true, tracks: undefined });
+  assert.deepEqual({ ...list[0], tracks: undefined, artist_id: undefined }, { id, kind: 'album', title: 'Blue', artist: 'Joni Mitchell', artist_id: undefined, year: 1971, cover: true, tracks: undefined });
   assert.deepEqual(list[0].tracks.map((t) => [t.no, t.title, t.duration, t.lrc]), [[1, 'All I Want', 212, true], [2, 'My Old Man', 215, false]]);
 });
 
@@ -989,4 +991,303 @@ test('M3 原子性（失败路径）：单曲改名 + 年份 + 歌手时 D1 写�
   };
   assert.equal((await musicPost(e, { op: 'track.edit', id: t, year: 1971 })).status, 500);
   assert.equal(rowOf(e, 'music_albums', s).year, 1970);
+});
+
+/* ================= M4（音乐 v1.19 7.5 / 十二 M4）：歌手页的后端——改歌手、合并、删、头像 ================= */
+
+const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1]);
+const artistId = (e, name) => (e.db.raw.prepare('SELECT id FROM music_artists WHERE name = ?').get(name) || {}).id;
+const upAvatar = (e, id, body = JPEG, who = 'owner') => call(e, `/curio/api/music-upload?artist=${id}&kind=avatar`, { who, method: 'POST', body, type: 'image/jpeg' });
+const postAs = (e, who, body) => call(e, '/curio/api/music', { who, method: 'POST', body });
+
+test('M4 校验：artist.edit {id, name?, bio?, style?}；artist.merge {id, into}；artist.del {id}', () => {
+  assert.deepEqual(MU.parseMusicOp({ op: 'artist.edit', id: 3, name: '  周杰伦 ', bio: ' 台湾\r\n歌手\u0007 ', style: ' 流行 ' }), { op: 'artist.edit', id: 3, fields: { name: '周杰伦', bio: '台湾\n歌手', style: '流行' } });
+  assert.deepEqual(MU.parseMusicOp({ op: 'artist.edit', id: 3, bio: '' }).fields, { bio: '' });
+  assert.equal(MU.parseMusicOp({ op: 'artist.edit', id: 3, bio: 'x'.repeat(3000) }).fields.bio.length, 2000);
+  for (const [b, code] of [
+    [{ id: 0, name: 'x' }, 'bad-id'], [{ id: 3 }, 'nothing'], [{ id: 3, name: '   ' }, 'bad-name'], [{ id: 3, name: 7 }, 'bad-name'],
+    [{ id: 3, bio: 1 }, 'bad-bio'], [{ id: 3, style: null }, 'bad-style'],
+  ]) assert.deepEqual(MU.parseMusicOp({ op: 'artist.edit', ...b }), { error: code }, JSON.stringify(b));
+  assert.deepEqual(MU.parseMusicOp({ op: 'artist.merge', id: 3, into: '4' }), { op: 'artist.merge', id: 3, into: 4 });
+  assert.deepEqual(MU.parseMusicOp({ op: 'artist.merge', id: 3, into: 3 }), { error: 'same-artist' });
+  assert.deepEqual(MU.parseMusicOp({ op: 'artist.merge', id: 3 }), { error: 'bad-into' });
+  assert.deepEqual(MU.parseMusicOp({ op: 'artist.merge', id: 'x', into: 4 }), { error: 'bad-id' });
+  assert.deepEqual(MU.parseMusicOp({ op: 'artist.del', id: 3 }), { op: 'artist.del', id: 3 });
+  assert.deepEqual(MU.parseMusicOp({ op: 'artist.del' }), { error: 'bad-id' });
+  assert.equal(MU.avatarKey(7, 123), 'music/artist/7/avatar-123.jpg', '十二 M4 第 2 条');
+});
+
+test('M4 歌单：专辑 / 曲目带 artist_id（对不上歌手表 → 0），回答带歌手表（含名下没作品的）；访客也有', async () => {
+  const e = makeEnv();
+  const a = await album(e, { artist: 'Joni Mitchell' });
+  const t = (await (await upTrack(e, a, 'no=1&title=A')).json()).id;
+  await musicPost(e, { op: 'track.edit', id: t, artist: 'Joni Mitchell' });
+  await album(e, { title: 'Lonely', artist: 'Nobody' });
+  const joni = artistId(e, 'Joni Mitchell');
+  e.db.raw.prepare('UPDATE music_albums SET artist_id = 999 WHERE title = ?').run('Lonely');
+  const j = await (await call(e, '/curio/api/music')).json();
+  assert.deepEqual(j.albums.map((x) => [x.title, x.artist, x.artist_id]), [['Blue', 'Joni Mitchell', joni], ['Lonely', 'Nobody', 0]]);
+  assert.deepEqual(j.albums[0].tracks.map((x) => [x.artist, x.artist_id]), [['Joni Mitchell', joni]]);
+  assert.deepEqual(j.artists.map((x) => x.name), ['Joni Mitchell', 'Nobody'], '按名字排；没作品的（脏数据断开的 Nobody）也列出来');
+});
+
+test('M4 artist.edit：改名同一个 batch 改名下专辑 / 单曲记录的显示名（曲目只认 artist_id）；简介 / 风格；重名 409 artist-exists；不在 404；站长（curio-write）能改，没写组 403', async () => {
+  const e = makeEnv();
+  const a = await album(e, { artist: '周杰伦' });
+  const t = (await (await upTrack(e, a, 'no=1&title=晴天')).json()).id;
+  await musicPost(e, { op: 'track.edit', id: t, artist: '周杰伦' });
+  const s = await album(e, { kind: 'single', title: '稻香', artist: '周杰伦' });
+  await album(e, { title: 'Other', artist: 'Jay Chou' });
+  const jay = artistId(e, '周杰伦');
+  assert.equal((await postAs(e, 'noscope', { op: 'artist.edit', id: jay, name: 'Jay' })).status, 403);
+  const orig = e.db.batch;
+  let writes = 0;
+  e.db.batch = async (list) => { if (list.some((st) => /^\s*(INSERT|UPDATE|DELETE)/i.test(st.sql || ''))) writes++; return orig(list); };
+  const r = await postAs(e, 'styrigx', { op: 'artist.edit', id: jay, name: '周杰倫', bio: '华语歌手', style: '流行' });
+  e.db.batch = orig;
+  assert.equal(r.status, 200);
+  assert.equal(writes, 1, '一个 db.batch');
+  const j = await r.json();
+  assert.deepEqual([rowOf(e, 'music_albums', a).artist, rowOf(e, 'music_albums', s).artist], ['周杰倫', '周杰倫']);
+  assert.deepEqual(j.albums.map((x) => [x.title, x.artist, x.artist_id]), [['Blue', '周杰倫', jay], ['稻香', '周杰倫', jay], ['Other', 'Jay Chou', artistId(e, 'Jay Chou')]]);
+  assert.equal(j.albums[0].tracks[0].artist, '周杰倫');
+  assert.deepEqual(j.artists.find((x) => x.id === jay), { id: jay, name: '周杰倫', avatar: false, bio: '华语歌手', style: '流行' });
+  /* 重名：只能合并，这里不悄悄并掉 */
+  const dup = await musicPost(e, { op: 'artist.edit', id: jay, name: 'Jay Chou' });
+  assert.equal(dup.status, 409);
+  assert.equal((await dup.json()).error, 'artist-exists');
+  assert.equal(rowOf(e, 'music_artists', jay).name, '周杰倫');
+  /* 和原来一样 = 没改；不在 404 */
+  assert.equal((await musicPost(e, { op: 'artist.edit', id: jay, name: '周杰倫' })).status, 200);
+  assert.equal((await musicPost(e, { op: 'artist.edit', id: 999, name: 'x' })).status, 404);
+});
+
+test('M4 artist.edit 原子性（失败路径）：改名时 D1 写失败 → 歌手名、专辑显示名都不动', async () => {
+  const e = makeEnv();
+  const a = await album(e, { artist: '周杰伦' });
+  const jay = artistId(e, '周杰伦');
+  const orig = e.db.batch;
+  e.db.batch = async (list) => {
+    if (!list.some((st) => /^UPDATE music_artists/.test(st.sql || ''))) return orig(list);
+    e.db.batch = orig;
+    return orig([...list, e.db.prepare('INSERT INTO no_such_table VALUES (1)')]);
+  };
+  assert.equal((await musicPost(e, { op: 'artist.edit', id: jay, name: 'Jay' })).status, 500);
+  assert.equal(rowOf(e, 'music_artists', jay).name, '周杰伦');
+  assert.equal(rowOf(e, 'music_albums', a).artist, '周杰伦');
+});
+
+test('M4 artist.merge（root）：名下专辑 / 单曲记录（artist_id + 显示名）、曲目都改到目标，原歌手删掉、它的头像等 D1 提交之后删；目标信息不动；站长 403；404 / 400', async () => {
+  const e = makeEnv();
+  const a = await album(e, { artist: 'Jay Chou' });
+  const t = (await (await upTrack(e, a, 'no=1&title=晴天')).json()).id;
+  await musicPost(e, { op: 'track.edit', id: t, artist: 'Jay Chou' });
+  const s = await album(e, { kind: 'single', title: '稻香', artist: 'Jay Chou' });
+  const ts = (await (await upTrack(e, s, 'no=1&title=稻香')).json()).id;
+  await musicPost(e, { op: 'track.edit', id: ts, artist: 'Jay Chou' });
+  await album(e, { title: '叶惠美', artist: '周杰伦' });
+  const from = artistId(e, 'Jay Chou');
+  const into = artistId(e, '周杰伦');
+  await musicPost(e, { op: 'artist.edit', id: into, bio: '目标的简介' });
+  assert.equal((await upAvatar(e, from)).status, 200);
+  const av = rowOf(e, 'music_artists', from).avatar;
+  /* 站长（curio-write）不够：root 档 */
+  const no = await postAs(e, 'styrigx', { op: 'artist.merge', id: from, into });
+  assert.equal(no.status, 403);
+  assert.ok(rowOf(e, 'music_artists', from));
+  const seen = [];
+  const del = e.r2m.delete.bind(e.r2m);
+  e.r2m.delete = async (k) => { seen.push([k, !!rowOf(e, 'music_artists', from)]); return del(k); };
+  const audits = [];
+  const env = { SPACE: whoAuth('owner', { audits }) };
+  const r = await worker.fetch(new Request(ORIGIN + '/curio/api/music', { method: 'POST', headers: { Cookie: 'sgx-session=x', Origin: ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'artist.merge', id: from, into }) }),
+    { ...env, D1_MUSIC: e.db, R2_MUSIC: e.r2m, R2_PHOTOS: e.r2p, KV_SEARCH_INDEX: e.kv, D1_FINDS: e.db, D1_DEVICES: e.db, D1_GAMES: e.db, D1_MOVIES: e.db }, { waitUntil() {} });
+  assert.equal(r.status, 200);
+  assert.deepEqual(seen, [[av, false]], '原歌手头像在 D1 提交之后删');
+  assert.deepEqual(audits.map((x) => x.command), ['merge curio artist ' + from + ' ' + into]);
+  assert.equal(rowOf(e, 'music_artists', from), undefined);
+  assert.deepEqual([rowOf(e, 'music_albums', a).artist_id, rowOf(e, 'music_albums', a).artist, rowOf(e, 'music_albums', s).artist_id, rowOf(e, 'music_albums', s).artist], [into, '周杰伦', into, '周杰伦']);
+  assert.deepEqual([rowOf(e, 'music_tracks', t).artist_id, rowOf(e, 'music_tracks', ts).artist_id], [into, into]);
+  /* 目标没有头像 → 原歌手的头像搬过去（Gray 2026-11-20）：R2 复制成目标的 key、D1 同一个 batch 写上；名字 / 简介 / 风格不动 */
+  const moved = rowOf(e, 'music_artists', into).avatar;
+  assert.match(moved, new RegExp('^music/artist/' + into + '/avatar-\\d+\\.jpg$'));
+  assert.deepEqual([...e.r2m.m.get(moved).bytes], [...JPEG], '副本就是原头像');
+  assert.equal(e.r2m.m.has(av), false, '原头像删了');
+  assert.deepEqual({ ...rowOf(e, 'music_artists', into), avatar: '', created_at: 0, updated_at: 0 }, { id: into, name: '周杰伦', avatar: '', bio: '目标的简介', style: '', created_at: 0, updated_at: 0 });
+  const j = await r.json();
+  assert.deepEqual(j.artists.map((x) => [x.name, x.avatar]), [['周杰伦', true]]);
+  /* 错误 */
+  assert.equal((await (await musicPost(e, { op: 'artist.merge', id: from, into })).json()).error, 'not-found');
+  const nf = await musicPost(e, { op: 'artist.merge', id: into, into: 999 });
+  assert.equal(nf.status, 404);
+  assert.equal((await nf.json()).error, 'into-not-found');
+  assert.equal((await musicPost(e, { op: 'artist.merge', id: into, into })).status, 400);
+});
+
+test('M4 artist.merge 原子性（失败路径）：D1 写失败 → 专辑、曲目、原歌手和它的头像都不动，搬给目标的头像副本删掉', async () => {
+  const e = makeEnv();
+  const a = await album(e, { artist: 'Jay Chou' });
+  const t = (await (await upTrack(e, a, 'no=1&title=晴天')).json()).id;
+  await musicPost(e, { op: 'track.edit', id: t, artist: 'Jay Chou' });
+  await album(e, { title: '叶惠美', artist: '周杰伦' });
+  const from = artistId(e, 'Jay Chou');
+  const into = artistId(e, '周杰伦');
+  await upAvatar(e, from);
+  const keys = [...e.r2m.m.keys()];
+  const orig = e.db.batch;
+  e.db.batch = async (list) => {
+    if (!list.some((st) => /^DELETE FROM music_artists/.test(st.sql || ''))) return orig(list);
+    e.db.batch = orig;
+    return orig([...list, e.db.prepare('INSERT INTO no_such_table VALUES (1)')]);
+  };
+  const puts = [];
+  const put = e.r2m.put.bind(e.r2m);
+  e.r2m.put = async (k, v, opt) => { puts.push(k); return put(k, v, opt); };
+  assert.equal((await musicPost(e, { op: 'artist.merge', id: from, into })).status, 500);
+  assert.ok(rowOf(e, 'music_artists', from));
+  assert.deepEqual([rowOf(e, 'music_albums', a).artist_id, rowOf(e, 'music_albums', a).artist, rowOf(e, 'music_tracks', t).artist_id], [from, 'Jay Chou', from]);
+  /* 头像搬家：D1 之前复制过一份给目标，D1 失败后删掉（不留孤儿）；原头像还在，目标还是没有头像 */
+  assert.equal(puts.length, 1);
+  assert.match(puts[0], new RegExp('^music/artist/' + into + '/avatar-'));
+  assert.deepEqual([...e.r2m.m.keys()], keys);
+  assert.equal(rowOf(e, 'music_artists', into).avatar, '');
+  assert.ok(e.r2m.m.has(rowOf(e, 'music_artists', from).avatar));
+});
+
+test('M4 artist.merge 头像：目标已有头像 → 原歌手的头像丢掉（D1 提交之后删），目标的不动、不复制', async () => {
+  const e = makeEnv();
+  await album(e, { artist: 'Jay Chou' });
+  await album(e, { title: '叶惠美', artist: '周杰伦' });
+  const from = artistId(e, 'Jay Chou');
+  const into = artistId(e, '周杰伦');
+  await upAvatar(e, from);
+  await new Promise((r) => setTimeout(r, 2));
+  await upAvatar(e, into);
+  const avFrom = rowOf(e, 'music_artists', from).avatar;
+  const avInto = rowOf(e, 'music_artists', into).avatar;
+  const puts = [];
+  const put = e.r2m.put.bind(e.r2m);
+  e.r2m.put = async (k, v, opt) => { puts.push(k); return put(k, v, opt); };
+  assert.equal((await musicPost(e, { op: 'artist.merge', id: from, into })).status, 200);
+  assert.deepEqual(puts, []);
+  assert.equal(rowOf(e, 'music_artists', into).avatar, avInto);
+  assert.deepEqual([e.r2m.m.has(avFrom), e.r2m.m.has(avInto)], [false, true]);
+});
+
+test('M4 artist.merge 头像（失败路径）：复制副本失败 → 503 storage，D1 没动、原头像还在；原头像在 R2 里找不到 → 照常合并，目标不挂头像', async () => {
+  const e = makeEnv();
+  const a = await album(e, { artist: 'Jay Chou' });
+  await album(e, { title: '叶惠美', artist: '周杰伦' });
+  const from = artistId(e, 'Jay Chou');
+  const into = artistId(e, '周杰伦');
+  await upAvatar(e, from);
+  const av = rowOf(e, 'music_artists', from).avatar;
+  const put = e.r2m.put.bind(e.r2m);
+  e.r2m.put = async () => { throw new Error('r2 down'); };
+  const r = await musicPost(e, { op: 'artist.merge', id: from, into });
+  assert.equal(r.status, 503);
+  assert.equal((await r.json()).error, 'storage');
+  assert.ok(rowOf(e, 'music_artists', from));
+  assert.equal(rowOf(e, 'music_albums', a).artist_id, from);
+  assert.deepEqual([...e.r2m.m.keys()], [av]);
+  /* 原头像丢了（R2 里没有）：不拦合并 */
+  e.r2m.put = put;
+  e.r2m.m.delete(av);
+  assert.equal((await musicPost(e, { op: 'artist.merge', id: from, into })).status, 200);
+  assert.equal(rowOf(e, 'music_artists', from), undefined);
+  assert.equal(rowOf(e, 'music_albums', a).artist_id, into);
+  assert.equal(rowOf(e, 'music_artists', into).avatar, '');
+  assert.deepEqual([...e.r2m.m.keys()], []);
+});
+
+test('M4 artist.del（root）：名下还有作品（专辑 / 单曲 / 曲目）409 artist-has-works，只能合并；没有作品才删，头像等 D1 提交之后删；站长 403', async () => {
+  const e = makeEnv();
+  const a = await album(e, { title: 'X', artist: '' });
+  const t = (await (await upTrack(e, a, 'no=1&title=A')).json()).id;
+  await musicPost(e, { op: 'track.edit', id: t, artist: 'Only Track' });
+  await album(e, { artist: 'Has Album' });
+  await musicPost(e, { op: 'album.add', title: 'tmp', artist: 'Empty' });
+  const tmp = e.db.raw.prepare("SELECT id FROM music_albums WHERE title = 'tmp'").get().id;
+  await musicPost(e, { op: 'album.edit', id: tmp, artist: '' });
+  const empty = artistId(e, 'Empty');
+  await upAvatar(e, empty);
+  const av = rowOf(e, 'music_artists', empty).avatar;
+  for (const name of ['Only Track', 'Has Album']) {
+    const r = await musicPost(e, { op: 'artist.del', id: artistId(e, name) });
+    assert.equal(r.status, 409, name);
+    assert.equal((await r.json()).error, 'artist-has-works');
+    assert.ok(artistId(e, name));
+  }
+  assert.equal((await postAs(e, 'styrigx', { op: 'artist.del', id: empty })).status, 403);
+  const seen = [];
+  const del = e.r2m.delete.bind(e.r2m);
+  e.r2m.delete = async (k) => { seen.push([k, !!rowOf(e, 'music_artists', empty)]); return del(k); };
+  const r = await musicPost(e, { op: 'artist.del', id: empty });
+  assert.equal(r.status, 200);
+  assert.deepEqual(seen, [[av, false]]);
+  assert.equal(rowOf(e, 'music_artists', empty), undefined);
+  assert.ok(!(await r.json()).artists.some((x) => x.name === 'Empty'));
+  assert.equal((await musicPost(e, { op: 'artist.del', id: empty })).status, 404);
+});
+
+test('M4 artist.del 并发：读完到写之间有人把作品挂上来 → 删除语句自己的 NOT EXISTS 拦住，409，头像不删', async () => {
+  const e = makeEnv();
+  await musicPost(e, { op: 'album.add', title: 'tmp', artist: 'Empty' });
+  const tmp = e.db.raw.prepare("SELECT id FROM music_albums WHERE title = 'tmp'").get().id;
+  await musicPost(e, { op: 'album.edit', id: tmp, artist: '' });
+  const empty = artistId(e, 'Empty');
+  await upAvatar(e, empty);
+  const orig = e.db.batch;
+  e.db.batch = async (list) => {
+    if (list.some((st) => /^DELETE FROM music_artists/.test(st.sql || ''))) e.db.raw.prepare('UPDATE music_albums SET artist_id = ? WHERE id = ?').run(empty, tmp);
+    return orig(list);
+  };
+  const r = await musicPost(e, { op: 'artist.del', id: empty });
+  e.db.batch = orig;
+  assert.equal(r.status, 409);
+  assert.ok(rowOf(e, 'music_artists', empty));
+  assert.equal(e.r2m.m.size, 1);
+});
+
+test('M4 头像：music-upload kind=avatar（curio-write，只收 jpeg、3 MB）→ music/artist/<id>/avatar-<时间>.jpg；换头像删旧的；music-cover?artist= 公开读；D1 写失败不留孤儿', async () => {
+  const e = makeEnv();
+  await album(e, { artist: '周杰伦' });
+  const jay = artistId(e, '周杰伦');
+  assert.equal((await call(e, `/curio/api/music-cover?artist=${jay}`)).status, 404, '没头像 404（前端用默认图标）');
+  assert.equal((await upAvatar(e, jay, JPEG, 'noscope')).status, 403);
+  assert.equal((await upAvatar(e, jay, WEBP)).status, 400, '只收 jpeg（浏览器先裁成 jpeg）');
+  assert.equal((await upAvatar(e, 999)).status, 404);
+  assert.equal((await call(e, `/curio/api/music-upload?artist=${jay}&album=1&kind=avatar`, { who: 'owner', method: 'POST', body: JPEG, type: 'image/jpeg' })).status, 400);
+  assert.equal((await upAvatar(e, jay, new Uint8Array(3 * 1024 * 1024 + 1).fill(0xff))).status, 413);
+  assert.equal((await upAvatar(e, jay, JPEG, 'styrigx')).status, 200, '站长（curio-write）能传');
+  const k1 = rowOf(e, 'music_artists', jay).avatar;
+  assert.match(k1, new RegExp('^music/artist/' + jay + '/avatar-\\d+\\.jpg$'));
+  assert.deepEqual(e.r2m.m.get(k1).bytes, JPEG);
+  const pic = await call(e, `/curio/api/music-cover?artist=${jay}`);
+  assert.equal(pic.status, 200);
+  assert.equal(pic.headers.get('Content-Type'), 'image/jpeg');
+  assert.equal((await (await call(e, '/curio/api/music')).json()).artists[0].avatar, true);
+  assert.doesNotMatch(await (await call(e, '/curio/api/music')).text(), /music\/artist/, '歌单不带 R2 key');
+  assert.equal((await call(e, `/curio/api/music-cover?artist=${jay}&album=1`)).status, 400);
+  await new Promise((r) => setTimeout(r, 2));
+  await upAvatar(e, jay);
+  const k2 = rowOf(e, 'music_artists', jay).avatar;
+  assert.notEqual(k2, k1);
+  assert.deepEqual([...e.r2m.m.keys()], [k2], '换头像删旧的');
+  /* D1 写失败：刚写的新头像当场删，旧头像不动 */
+  const prep = e.db.prepare;
+  e.db.prepare = (sql) => (/^UPDATE music_artists SET avatar/.test(sql) ? { bind: () => ({ run: async () => { throw new Error('d1 down'); } }) } : prep(sql));
+  await new Promise((r) => setTimeout(r, 2));
+  assert.equal((await upAvatar(e, jay)).status, 500);
+  e.db.prepare = prep;
+  assert.deepEqual([...e.r2m.m.keys()], [k2]);
+  assert.equal(rowOf(e, 'music_artists', jay).avatar, k2);
+});
+
+test('M4 权限走真路由表：artist.edit = curio-write；artist.merge / artist.del = root（同 album.del，一次性票的 action 绑 body 里的 op）', async () => {
+  const RA = await import(REPO + '/workers/account/src/core/route-access.js');
+  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.edit' }), 'curio-write');
+  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.merge' }), 'root');
+  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.del' }), 'root');
+  assert.equal(RA.ruleOf('POST', '/curio/api/music').sudoTicket, true);
 });
