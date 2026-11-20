@@ -143,22 +143,25 @@ music:
   play: Play
   pause: Pause
   next: Next
-  uploadAlbum2: Upload album
   close: Close
   album: Album
   artist: Artist
   year: Year
-  chooseTracks: Choose tracks
   coverOptional: Cover (optional)
-  lyricsLrcOptionalMatched: Lyrics .lrc (optional, matched by file name)
   kind: Type
   kindAlbum: Album
   kindSingle: Single
   singles: Singles
   deleteSingle: Delete single
   delete: Delete
-  trackOrderFollowsThe: 'Track order follows the number at the start of each file name (01, 02…). Each audio file can be up to 95 MB: mp3, m4a, aac, flac, ogg, opus, wav. The cover is resized to 1600 px.'
   upload: Upload
+  modeOne: One track
+  modeBatch: Batch
+  uploadOne: Upload a track
+  newAlbumName: New album name
+  chooseOne: Choose audio
+  lyricsLrcOptional: Lyrics .lrc (optional)
+  prefillNote: "Title and artist are filled in from the audio file's tags (or its file name) once you pick it; you can change them before saving. Each audio file can be up to 95 MB. The cover is cropped square and resized to 1000 px."
   edit: Edit
   editAlbum: Edit album
   editTrack: Edit track
@@ -391,13 +394,28 @@ js:
     shuffleOn: 'Shuffle: on'
     shuffleOff: 'Shuffle: off'
     noPermission: Your current user doesn’t have permission for this.
-    albumName: Album
-    songName: Song title
-    uploadAlbum: Upload album
-    uploadSingle: Upload single
     chooseOne: Choose a track
     lrcOne: Lyrics .lrc (optional)
     needSong: Give the song a title.
+    uploadOne: Upload a track
+    uploadBatch: Upload in batch
+    inAlbum: Album
+    inBatch: Put this batch in an album (optional)
+    noAlbumBatch: No album (each becomes a single)
+    newAlbum: New album…
+    albumArtist: Album artist
+    singer: Artist
+    needAlbumName: Name the new album.
+    prefillNote: "Title and artist are filled in from the audio file's tags (or its file name) once you pick it; you can change them before saving. Each audio file can be up to 95 MB. The cover is cropped square and resized to 1000 px."
+    batchNote: "Each track's title and artist come from its tags, or else its file name (\"Artist - Title\"); you can edit each one after upload; a new album's artist defaults to the most common one in the batch. Track order follows the number at the start of each file name (01, 02…). Each audio file can be up to 95 MB: mp3, m4a, aac, flac, ogg, opus, wav, webm. The cover is cropped square and resized to 1000 px."
+    coverEmbedded: Use the cover inside the audio (or pick one)
+    coverAlbumPick: Album cover (optional; defaults to the first track's own cover)
+    coverAlbumEmbedded: Album cover from the first track's own cover (or pick one)
+    coverMatch: Covers (optional, matched by file name; else the cover inside the audio)
+    listHead: 'Will be uploaded as (editable afterwards):'
+    newArtist: new artist
+    noArtist: no artist
+    unmatched: 'Not matched: {names}'
     singleFull: This single already has its track.
     delSingle: Delete the single “{name}” and its file? The single's record and its cover will be deleted too.
     delSingleBtn: Delete single “{name}”

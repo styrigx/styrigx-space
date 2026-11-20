@@ -26,7 +26,7 @@
 |---|---|---|
 | 内容 | `content/curio/`：首页 + 五个子页 `finds`、`devices`、`games`、`movies`、`music`（中文 `<名>.zh.md`） | `content/daymark/`：首页 |
 | 模板 | `layouts/curio/`（每个子页一个模板）+ `layouts/partials/curio/` | `layouts/daymark/` + `layouts/partials/daymark/` |
-| 脚本 | `assets/curio/js/`：`curio-home.js`（首页）、`curio.js`（发现）、`curio-items.js`（设备 / 游戏）、`curio-list.js`、`curio-movies.js`、`curio-music.js` | `assets/daymark/js/daymark.js`（余响 · 拾录 · 百味三栏、记一句、日期条） |
+| 脚本 | `assets/curio/js/`：`curio-home.js`（首页）、`curio.js`（发现）、`curio-items.js`（设备 / 游戏）、`curio-list.js`、`curio-movies.js`、`curio-music.js`（上传预填读标签在 `curio-music-tags.js`） | `assets/daymark/js/daymark.js`（余响 · 拾录 · 百味三栏、记一句、日期条） |
 | 继承主站外观 | `assets/curio/js/sgx/`（`ui-inherit-run.js`、`topbar-host.js`；`shell-accent.js` 随自定义主题色 2026-11-12 删除） | `assets/daymark/js/sgx/` |
 | 字符串表 | `data/curio/i18n/` | `data/daymark/i18n/` |
 

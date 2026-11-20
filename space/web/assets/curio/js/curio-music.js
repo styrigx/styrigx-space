@@ -15,12 +15,12 @@
  *     另一个窗口改了（storage 事件）这边跟着变。随机的队列规则在共用核。
  * 播放短链：POST /curio/api/music-play {album} 签随机令牌（10 分钟），<audio src> = /curio/api/music-stream?t=…&id=…（Range 拖进度）。
  *   签令牌、续签、切曲、倍速、防同时响都在共用核 music-core.js（SgxMusicCore.createPlayer；弹出播放器同一份），本文件只画界面。
- * 上传：「上传专辑」→ album.add → 封面缩到长边 1600、webp → 音频按文件名排序逐个直传（曲序取文件名开头的数字，单个 ≤ 95 MB）→ .lrc 按文件名对上曲目写进去。
+ * 上传（M2 PR-a 起，见「上传」一节）：分段「单首 | 批量」；歌名 / 歌手按音频标签（curio-music-tags.js）、没有再按文件名预填；单首选「不划 / 新建 / 已有专辑」，
+ *   批量选「这批划入哪个专辑」；封面裁方、≤ 1000、jpeg；音频按文件名排序逐个直传（单个 ≤ 95 MB）→ 每首一个 track.edit 写歌手 / 歌词。
  * 单曲 / 专辑分类（音乐 v1.13 ②，Gray 2026-11-14 17:33 定）：
  *   - 列表每条带 kind；页面分段「专辑 · 单曲」（两边都有才显示分段，哪边为空只显示有的那边）。专辑 = 封面横滑照旧；
  *     单曲 = 列表（小封面 · 歌名 · 歌手 · 时长），点一行就播，单曲区当播放列表（共用核 playQueue：按需为下一首签令牌，顺序 / 随机、到尾停同专辑）。
  *   - 播放条副标题：单曲只显示歌手（共用核 nowSub）。
- *   - 上传窗顶部分段「专辑 | 单曲」：单曲 album.add kind=single，「专辑名」改「歌名」，音频 / 歌词单选，不显示曲序说明，曲名 = 歌名。
  * 歌手页（M4，音乐 v1.19 7.5 / 十二 M4）：
  *   - 不加新路由：本页 ?artist=<id> 视图（history.pushState 换视图，不重新加载，正在放的歌不断）；头部头像（没有用默认图标）、名字、
  *     专辑数和单曲数（有简介 / 风格才显示），下面专辑一区、单曲一区。点专辑回到音乐页那张专辑；单曲区点一首 = 这位歌手的单曲当播放列表。
@@ -38,6 +38,8 @@ var G = typeof globalThis !== 'undefined' ? globalThis : this;
 
 /* 播放用的纯函数（倍速、时间、歌词）在共用核 music-core.js，这里转出去（测试照旧从本文件取） */
 var CORE = typeof module !== 'undefined' && module.exports ? require('../../common/js/music/music-core.js') : G.SgxMusicCore;
+/* 上传预填（读标签、清理文件名，M2）在 curio-music-tags.js */
+var TAGS = typeof module !== 'undefined' && module.exports ? require('./curio-music-tags.js') : G.SgxMusicTags;
 var SPEEDS = CORE.SPEEDS, nextSpeed = CORE.nextSpeed, fmtTime = CORE.fmtTime, parseLrc = CORE.parseLrc, lrcIndex = CORE.lrcIndex;
 /** 单个音频上限（同 workers/atlas-core/src/curio/api/_music.js MUSIC_LIMITS.trackBytes） */
 var TRACK_MAX = 95 * 1024 * 1024;
@@ -179,6 +181,71 @@ function squareCrop(w, h, max){
   return { sx: Math.round((w - side) / 2), sy: Math.round((h - side) / 2), side: side, out: Math.max(1, Math.min(m, side)) };
 }
 
+/* ---------- 上传（M2 PR-a，音乐 v1.19 7.3 / 7.4 / 十二 M2）的纯函数 ---------- */
+/** 批量传时歌词 / 封面按文件名对上曲目（7.4）：去格式后缀（和末尾方括号标签）再比，不分大小写；a.mp3 配 a.lrc、a.jpg */
+function matchKey(name){ return TAGS.cleanName(name).toLowerCase(); }
+/** 在 names 里找和音频 fname 对上的那个：先按 matchKey 完全一样，再按原来的 lrcKey（去曲序前缀后比）；used 里的不再用 → 下标或 -1 */
+function matchFile(fname, names, used){
+  var k = matchKey(fname), k2 = lrcKey(fname), i;
+  for (i = 0; i < names.length; i++) if (!used[i] && matchKey(names[i]) === k) return i;
+  for (i = 0; i < names.length; i++) if (!used[i] && lrcKey(names[i]) === k2) return i;
+  return -1;
+}
+/**
+ * 上传计划（不发请求，只算发什么）。o = {
+ *   mode: 'one' 单首 / 'batch' 批量；target: '0' 不划入专辑（= 单曲）/ 'new' 新建专辑 / 已有专辑 id；
+ *   name（单首的歌名）, albumName（新建专辑的名）, artist（单首的歌手 / 新建专辑的歌手）, year（数字，0 = 不填）,
+ *   files: [{name, tags: {title, artist, picture: 有没有内嵌封面}}]（批量已按文件名排好）, covers: [文件名], lrcs: [文件名], preview（只算预览，不查名字） }；list = 歌单（找已有专辑、它的曲序）。
+ * → {error} 或 {album: null（单曲）/ {add: {title, artist, year}} / {id, title, artist}, singleYear, albumCover: null / {pick: k} / {embedded: 第几首},
+ *    tracks: [{file, no, title, artist, lrc: 下标 / -1, cover: 下标 / -1, embedded: 用内嵌封面}], unmatched: {lrc: [名字], cover: [名字]}}
+ * 规则：单首——歌名 = 填的；歌手 = 填的。批量——每首按 TAGS.prefill（标签优先、文件名兜底）；新建专辑 / 已有专辑里，没有歌手的曲目用专辑的歌手。
+ * 曲序：单曲 1；新建专辑单首 1、批量取文件名开头的数字（没有用第几个）；已有专辑接在最后（max(no)+1 起）。
+ * 封面（7.6）：单曲各用自己的（选的，没有用内嵌的）；新建专辑用选的那张，没有用第一首有内嵌封面的；划进已有专辑不传（用专辑封面）。
+ */
+function uploadPlan(o, list){
+  var files = o.files || [], covers = o.covers || [], lrcs = o.lrcs || [], one = o.mode === 'one';
+  var target = String(o.target == null ? '0' : o.target), artist = String(o.artist == null ? '' : o.artist).trim(), year = Number(o.year) || 0;
+  /* preview：只算预览（右栏列表、多数歌手），名字还没填也照算 */
+  if (!o.preview && one && !String(o.name || '').trim()) return { error: 'needSong' };
+  if (!o.preview && target === 'new' && !String(o.albumName || '').trim()) return { error: 'needAlbumName' };
+  if (!files.length) return { error: 'needAudio' };
+  var plan = { album: null, singleYear: 0, albumCover: null, tracks: [], unmatched: { lrc: [], cover: [] } };
+  var base = 0;
+  if (target === 'new') plan.album = { add: { title: String(o.albumName).trim(), artist: artist, year: year } };
+  else if (target !== '0') {
+    var id = Number(target), a = (list || []).filter(function(x){ return x.id === id && !CORE.isSingle(x); })[0];
+    if (!a) return { error: 'albumGone' };
+    plan.album = { id: id, title: a.title, artist: String(a.artist || '').trim() };
+    (a.tracks || []).forEach(function(t){ if (t.no > base) base = t.no; });
+  } else plan.singleYear = year;
+  var albArtist = plan.album ? (plan.album.add ? artist : plan.album.artist) : '';
+  if (one) {
+    var f0 = files[0], emb = !!(f0.tags && f0.tags.picture);
+    var t0 = { file: 0, no: plan.album && plan.album.id ? base + 1 : 1, title: String(o.name).trim(), artist: artist, lrc: lrcs.length ? 0 : -1, cover: -1, embedded: false };
+    if (!plan.album) { t0.cover = covers.length ? 0 : -1; t0.embedded = !covers.length && emb; }
+    else if (plan.album.add) plan.albumCover = covers.length ? { pick: 0 } : emb ? { embedded: 0 } : null;
+    plan.tracks.push(t0);
+    return plan;
+  }
+  var usedL = {}, usedC = {}, useCovers = !plan.album;  /* 单曲：封面按文件名对上；新建专辑只要一张专辑封面；已有专辑不传 */
+  files.forEach(function(f, i){
+    var p = TAGS.prefill(f.name, f.tags, { batch: true, fallback: i + 1 });
+    var li = matchFile(f.name, lrcs, usedL); if (li >= 0) usedL[li] = true;
+    var ci = useCovers ? matchFile(f.name, covers, usedC) : -1; if (ci >= 0) usedC[ci] = true;
+    plan.tracks.push({ file: i, no: plan.album ? (plan.album.add ? p.no : base + 1 + i) : 1, title: p.title || TAGS.cleanName(f.name) || String(f.name || ''),
+      artist: p.artist || albArtist, lrc: li, cover: ci, embedded: !plan.album && ci < 0 && !!(f.tags && f.tags.picture) });
+  });
+  if (plan.album && plan.album.add) {
+    if (covers.length) plan.albumCover = { pick: 0 };
+    else for (var k = 0; k < files.length; k++) if (files[k].tags && files[k].tags.picture) { plan.albumCover = { embedded: k }; break; }
+  }
+  lrcs.forEach(function(n, i){ if (!usedL[i]) plan.unmatched.lrc.push(n); });
+  if (useCovers) covers.forEach(function(n, i){ if (!usedC[i]) plan.unmatched.cover.push(n); });
+  return plan;
+}
+/** 封面 / 头像裁切（十二 M2 第 3 条 / M4 第 2 条，同一套）：取中间正方形、≤ 1000、jpeg；质量从 0.86 起，超 3 MB 再降（同后端 coverBytes） */
+var COVER_MAX = 3 * 1024 * 1024, COVER_Q = [0.86, 0.72, 0.55];
+
 /* ---------- 文案表（语言包化第二部分 2026-11-07；curio / daymark 各脚本同一份小工具） ---------- */
 /** 页面里 #sgx-i18n-<表> 的扁平字典；没有 / 坏了返回 {} */
 function readDict(doc, table){
@@ -209,7 +276,7 @@ function makeTr(dict, lang){
   };
 }
 
-var pure = { readDict: readDict, makeTr: makeTr, SPEEDS: SPEEDS, TRACK_MAX: TRACK_MAX, nextSpeed: nextSpeed, fmtTime: fmtTime, parseLrc: parseLrc, lrcIndex: lrcIndex, trackFromName: trackFromName, sortByName: sortByName, audioType: audioType, lrcKey: lrcKey, splitKinds: splitKinds, pickSection: pickSection, albumChoices: albumChoices, lrcChange: lrcChange, trackEditBody: trackEditBody, yearOf: yearOf, batchRequests: batchRequests, artistOf: artistOf, artistWorks: artistWorks, relatedAlbums: relatedAlbums, similarArtist: similarArtist, squareCrop: squareCrop };
+var pure = { readDict: readDict, makeTr: makeTr, SPEEDS: SPEEDS, TRACK_MAX: TRACK_MAX, nextSpeed: nextSpeed, fmtTime: fmtTime, parseLrc: parseLrc, lrcIndex: lrcIndex, trackFromName: trackFromName, sortByName: sortByName, audioType: audioType, lrcKey: lrcKey, splitKinds: splitKinds, pickSection: pickSection, albumChoices: albumChoices, lrcChange: lrcChange, trackEditBody: trackEditBody, yearOf: yearOf, batchRequests: batchRequests, artistOf: artistOf, artistWorks: artistWorks, relatedAlbums: relatedAlbums, similarArtist: similarArtist, squareCrop: squareCrop, matchKey: matchKey, uploadPlan: uploadPlan, COVER_MAX: COVER_MAX, COVER_Q: COVER_Q };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxCurioMusic = pure;
 
@@ -610,25 +677,137 @@ $('#mu-del-ok').addEventListener('click', function(){
   }).catch(function(e){ ok.disabled = false; delSheet.close(); if (!e.sgxLocked) toast(o.err ? o.err(e) : failMsg(e)); });
 });
 
-/* ---------- 上传 ---------- */
-var upFiles = { audio: [], cover: null, lrc: [] };
-/** 上传窗分段：'album' 专辑（默认）/ 'single' 单曲 */
-var upKind = 'album';
-function setUpKind(k){
-  upKind = k === 'single' ? 'single' : 'album';
-  var one = upKind === 'single';
-  doc.querySelectorAll('#mu-up-kind [data-kind]').forEach(function(b){ b.setAttribute('aria-selected', String(b.dataset.kind === upKind)); });
-  $('#mu-up-title').textContent = one ? T.uploadSingle : T.uploadAlbum;
-  $('#mu-up-name-l').textContent = one ? T.songName : T.albumName;
-  $('#mu-up-note').classList.toggle('hidden', one);
-  $('#mu-up-audio').multiple = !one; $('#mu-up-lrc').multiple = !one;
-  /* 切模式清掉已选的音频 / 歌词（多选的不能带进单选） */
-  $('#mu-up-audio').value = ''; $('#mu-up-lrc').value = ''; upFiles.audio = []; upFiles.lrc = [];
-  $('#mu-up-audio-name').textContent = one ? T.chooseOne : T.choose; $('#mu-up-lrc-name').textContent = one ? T.lrcOne : T.lrcNone;
+/* ---------- 上传（M2 PR-a，音乐 v1.19 7.3 / 7.4 / 7.5 / 十二 M2） ----------
+ * 一个入口两种模式（分段「单首 | 批量」，默认单首）：
+ *   - 单首：选 1 个音频 → 读标签（curio-music-tags.js）预填歌名、歌手（标签优先，没有再按文件名清理 + 拆「 - 」）；只是预填，用户动过的栏不再覆盖。
+ *     「所属专辑」= 不划入（album.add kind=single）/ 新建专辑（album.add kind=album，歌手 = 这首的歌手）/ 已有专辑（接在最后；封面、年份跟专辑走）。
+ *   - 批量：多选音频 → 每首预填，右栏列出「歌名 · 歌手」（新歌手标「新」）；「这批划入哪个专辑」= 不划（每首一条单曲）/ 新建专辑（歌手默认取多数，十二 M2 第 5 条）/ 已有专辑。
+ *     歌词按文件名对上；不划时封面也按文件名对上（7.4），没对上的列出来。
+ *   - 歌手栏挂 M4 的联想（#mu-artist-list）+ 近似名提示；预填的歌手和已有歌手同名就是同一个人（后端按名字对上 artist_id，十一 第 4 条）。
+ *   - 曲目的歌手：上传接口不收歌手，传完一首发一个 track.edit {artist, lrc}（有才发），写曲目的 artist_id。
+ *   - 封面：选的图、音频内嵌的封面都裁方、≤ 1000、jpeg（cropCover，十二 M2 第 3 条；已存的旧封面不动）。内嵌封面读不出来 / 解不开就算了，不算失败。
+ * 逐首顺序传（并发、每首状态、只重试失败、进度、拖放、去重提醒是 PR-b）。 */
+var upFiles = { audio: [], cover: [], lrc: [], tags: [] };
+/** 上传窗模式：'one' 单首（默认）/ 'batch' 批量 */
+var upMode = 'one', upGen = 0;
+/** 用户亲手改过的栏（预填不再覆盖）；预填写进去的值不算 */
+var upDirty = { name: false, artist: false };
+var upPrev = '';
+/* 内嵌封面预览只用固定的几种图片类型（标签里的 MIME 字符串不直接进 Blob） */
+var UP_IMG_MIME = { 'image/jpeg': 'image/jpeg', 'image/jpg': 'image/jpeg', 'image/png': 'image/png', 'image/gif': 'image/gif' };
+function upDropPreview(){ if (upPrev) { try { URL.revokeObjectURL(upPrev); } catch (e) {} upPrev = ''; } }
+function upMsg(m, bad){ var el = $('#mu-up-msg'); el.textContent = m || ''; el.classList.toggle('hidden', !m); el.classList.toggle('text-m-error', !!bad); }
+function upTarget(){ return $('#mu-up-album').value || '0'; }
+/** 「所属专辑」/「这批划入哪个专辑」：不划 · 新建 · 已有专辑（只列 kind=album，同 M3 albumChoices） */
+function upFillAlbums(){
+  /* 每次换模式 / 打开都回到「不划」（批量的划入专辑是可选的，7.3） */
+  fillAlbums($('#mu-up-album'), [{ v: '0', t: upMode === 'one' ? T.stayNoAlbum : T.noAlbumBatch }, { v: 'new', t: T.newAlbum }], '0');
+}
+/** 跟着模式 / 目标专辑换：哪些栏显示、哪些变灰、文件框单选还是多选 */
+function upLayout(){
+  var one = upMode === 'one', t = upTarget(), into = t !== '0' && t !== 'new';
+  $('#mu-up-title').textContent = one ? T.uploadOne : T.uploadBatch;
+  $('#mu-up-name-row').classList.toggle('hidden', !one);
+  $('#mu-up-album-l').textContent = one ? T.inAlbum : T.inBatch;
+  $('#mu-up-aname-row').classList.toggle('hidden', t !== 'new');
+  /* 批量：歌手 / 年份只给新建专辑（= 专辑的歌手、年份）；单首一直有歌手，年份划进已有专辑时跟专辑走 */
+  $('#mu-up-meta').classList.toggle('hidden', !one && t !== 'new');
+  /* 栏的先后（7.4）：单首 = 歌名 → 歌手 · 年份 → 所属专辑；批量 = 划入哪个专辑 → 新专辑名 → 专辑歌手 · 年份 */
+  var meta = $('#mu-up-meta'), hint = doc.querySelector('[data-hint-for="mu-up-artist"]'), alb = $('#mu-up-album').closest('label'), an = $('#mu-up-aname-row');
+  if (one) { alb.parentNode.insertBefore(meta, alb); meta.parentNode.insertBefore(hint, alb); }
+  else { an.parentNode.insertBefore(meta, an.nextSibling); meta.parentNode.insertBefore(hint, meta.nextSibling); }
+  $('#mu-up-artist-l').textContent = !one && t === 'new' ? T.albumArtist : T.singer;
+  $('#mu-up-year').disabled = into;
+  $('#mu-up-note').textContent = one ? T.prefillNote : T.batchNote;
+  $('#mu-up-audio').multiple = !one; $('#mu-up-lrc').multiple = !one; $('#mu-up-cover').multiple = !one && t === '0';
+  $('#mu-up-cover').disabled = into;
+  upCoverName(); upLrcName(); upList();
+}
+function upCoverName(){
+  var one = upMode === 'one', t = upTarget(), into = t !== '0' && t !== 'new', c = upFiles.cover;
+  /* 内嵌封面：单首 = 这首的；批量新建专辑 = 第一首有内嵌封面的（同 uploadPlan）；批量不划时每首各用各的，不预览 */
+  var emb = null;
+  if (one) emb = upFiles.tags[0] && upFiles.tags[0].picture;
+  else if (t === 'new') for (var k = 0; k < upFiles.tags.length && !emb; k++) emb = upFiles.tags[k] && upFiles.tags[k].picture;
+  var txt;
+  if (into) txt = T.coverAlbum;
+  else if (c.length) txt = c.length > 1 ? T.chosen(c.length) : c[0].name;
+  else if (emb) txt = one ? T.coverEmbedded : T.coverAlbumEmbedded;
+  else txt = one ? T.coverNone : t === 'new' ? T.coverAlbumPick : T.coverMatch;
+  $('#mu-up-cover-name').textContent = txt;
+  /* 小图：选的第一张，单首没选就用内嵌的 */
+  var img = $('#mu-up-cover-img'), src = null;
+  upDropPreview();
+  $('#mu-up-cover-row').querySelector('.mu-ed-cover-im').classList.toggle('hidden', !one && t === '0');
+  if (!into && c.length) src = c[0];
+  else if (!into && emb) src = new Blob([emb.bytes], { type: UP_IMG_MIME[emb.mime] || 'image/jpeg' });
+  if (src) { try { upPrev = URL.createObjectURL(src); } catch (e) { upPrev = ''; } }
+  img.classList.toggle('hidden', !upPrev);
+  if (upPrev) img.src = upPrev; else img.removeAttribute('src');
+}
+function upLrcName(){
+  var one = upMode === 'one', l = upFiles.lrc;
+  $('#mu-up-lrc-name').textContent = l.length ? (l.length > 1 ? T.chosen(l.length) : l[0].name) : (one ? T.lrcOne : T.lrcNone);
+}
+function upAudioName(){
+  var one = upMode === 'one', a = upFiles.audio;
+  $('#mu-up-audio-name').textContent = a.length ? (one ? a[0].name : T.chosen(a.length)) : (one ? T.chooseOne : T.choose);
+}
+/** 这次要传的计划（uploadPlan），标签还没读完的那几首先按文件名算 */
+function upPlanNow(preview){
+  var y = Number($('#mu-up-year').value) || 0;
+  return uploadPlan({ preview: !!preview, mode: upMode, target: upTarget(), name: $('#mu-up-name').value, albumName: $('#mu-up-aname').value, artist: $('#mu-up-artist').value, year: y >= 1900 && y <= 2100 ? y : 0,
+    files: upFiles.audio.map(function(f, i){ var g = upFiles.tags[i]; return { name: f.name, tags: g ? { title: g.title, artist: g.artist, picture: !!g.picture } : null }; }),
+    covers: upFiles.cover.map(function(f){ return f.name; }), lrcs: upFiles.lrc.map(function(f){ return f.name; }) }, all);
+}
+/** 批量：右栏列出每首会传成什么（歌名 · 歌手，新歌手标「新」）和没对上的歌词 / 封面 */
+function upList(){
+  var box = $('#mu-up-list');
+  if (upMode === 'one' || !upFiles.audio.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+  var p = upPlanNow(true), rows = p.tracks || [];
+  var known = {}; arts.forEach(function(r){ known[r.name] = true; });
+  var h = '<p class="mu-up-list-h">' + esc(T.listHead) + '</p><ol class="mu-up-rows">' + rows.map(function(t){
+    var who = t.artist ? esc(t.artist) + (known[t.artist] ? '' : ' <span class="mu-up-new">' + esc(T.newArtist) + '</span>') : '<span class="mu-up-none">' + esc(T.noArtist) + '</span>';
+    return '<li><b>' + esc(t.title) + '</b><span>' + who + '</span></li>';
+  }).join('') + '</ol>';
+  var miss = (p.unmatched ? p.unmatched.lrc.concat(p.unmatched.cover) : []);
+  if (miss.length) h += '<p class="mu-up-miss">' + esc(tr('unmatched', { names: miss.join(T.arSep || '、') })) + '</p>';
+  box.innerHTML = h; box.classList.remove('hidden');
+}
+/** 预填（单首）：没被用户改过的栏才写；近似名提示跟着刷新 */
+function upPrefill(){
+  if (upMode !== 'one' || !upFiles.audio.length) return;
+  var p = TAGS.prefill(upFiles.audio[0].name, upFiles.tags[0], {});
+  if (!upDirty.name) $('#mu-up-name').value = p.title;
+  if (!upDirty.artist) { $('#mu-up-artist').value = p.artist; $('#mu-up-artist').dispatchEvent(new Event('input')); }
+}
+/** 批量 + 新建专辑：歌手默认取多数（平票第一首），用户改过就不动 */
+function upMajority(){
+  if (upMode !== 'batch' || upTarget() !== 'new' || upDirty.artist) return;
+  /* 按每首自己的预填歌手算（不掺专辑歌手栏里现有的值） */
+  $('#mu-up-artist').value = TAGS.majorityArtist(upFiles.audio.map(function(f, i){ return TAGS.prefill(f.name, upFiles.tags[i], { batch: true }).artist; }));
+  $('#mu-up-artist').dispatchEvent(new Event('input'));
+}
+function setUpMode(m){
+  upMode = m === 'batch' ? 'batch' : 'one';
+  doc.querySelectorAll('#mu-up-kind [data-kind]').forEach(function(b){ b.setAttribute('aria-selected', String(b.dataset.kind === upMode)); });
+  /* 切模式清掉已选的文件和预填（单选 / 多选不能互相带） */
+  upGen++;
+  $('#mu-up-audio').value = ''; $('#mu-up-lrc').value = ''; $('#mu-up-cover').value = '';
+  upFiles = { audio: [], cover: [], lrc: [], tags: [] };
+  if (!upDirty.name) $('#mu-up-name').value = '';
+  if (!upDirty.artist) { $('#mu-up-artist').value = ''; $('#mu-up-artist').dispatchEvent(new Event('input')); }
+  upFillAlbums(); upAudioName(); upLayout();
   upMsg('');
 }
-$('#mu-up-kind').addEventListener('click', function(e){ var b = e.target.closest('[data-kind]'); if (b && b.dataset.kind !== upKind) setUpKind(b.dataset.kind); });
-function upMsg(m, bad){ var el = $('#mu-up-msg'); el.textContent = m || ''; el.classList.toggle('hidden', !m); el.classList.toggle('text-m-error', !!bad); }
+$('#mu-up-kind').addEventListener('click', function(e){ var b = e.target.closest('[data-kind]'); if (b && b.dataset.kind !== upMode) setUpMode(b.dataset.kind); });
+$('#mu-up-album').addEventListener('change', function(){
+  /* 不划 → 新建再回来：封面单选 / 多选会变，已选的封面先清掉 */
+  $('#mu-up-cover').value = ''; upFiles.cover = [];
+  upLayout(); upMajority();
+});
+$('#mu-up-name').addEventListener('input', function(e){ if (e.isTrusted) upDirty.name = true; });
+$('#mu-up-artist').addEventListener('input', function(e){ if (e.isTrusted) upDirty.artist = true; if (upMode === 'batch') upList(); });
 /* 上传窗 = 非模态 <dialog class="sgx-qp sgx-up">（同 AI 窗口的悬浮卡片）+ 共享 modalSheet（topbar-host.js 挂的 window.SgxModalSheet）：
  * 系统返回 / Esc 只关窗不离页；点遮罩（dialog 本身）关；点顶栏任一按钮先关它（同顶栏窗口互斥）。时长同 CSS .24s。
  * 拿不到状态机（不该发生）就退回裸 show / close。 */
@@ -652,33 +831,48 @@ if (nav) nav.addEventListener('click', function(e){
 }, true);
 $('#mu-up-x').addEventListener('click', function(){ upSheet.close(); });
 $('#mu-upload').addEventListener('click', function(){
-  $('#mu-up-form').reset(); upFiles = { audio: [], cover: null, lrc: [] };
-  $('#mu-up-audio-name').textContent = T.choose; $('#mu-up-cover-name').textContent = T.coverNone; $('#mu-up-lrc-name').textContent = T.lrcNone;
+  $('#mu-up-form').reset();
+  upDirty = { name: false, artist: false };
   upMsg(''); $('#mu-up-go').disabled = false;
-  setUpKind('album');
+  setUpMode('one');
   upSheet.open();
 });
 $('#mu-up-audio').addEventListener('change', function(){
-  var one = upKind === 'single';
+  var one = upMode === 'one', gen = ++upGen;
   upFiles.audio = sortByName(this.files).slice(0, one ? 1 : undefined);
-  $('#mu-up-audio-name').textContent = upFiles.audio.length ? (one ? upFiles.audio[0].name : T.chosen(upFiles.audio.length)) : (one ? T.chooseOne : T.choose);
+  upFiles.tags = upFiles.audio.map(function(){ return null; });
+  upAudioName(); upCoverName(); upPrefill(); upList(); upMajority();
+  /* 读标签（尽力而为，永远 resolve）；读完再预填一次。换了文件 / 模式（gen 变了）就不管旧的 */
+  Promise.all(upFiles.audio.map(function(f, i){
+    return TAGS.readTags(f).then(function(g){ if (gen === upGen) upFiles.tags[i] = g; });
+  })).then(function(){
+    if (gen !== upGen) return;
+    upCoverName(); upPrefill(); upList(); upMajority();
+  });
 });
-$('#mu-up-cover').addEventListener('change', function(){ upFiles.cover = this.files && this.files[0] || null; $('#mu-up-cover-name').textContent = upFiles.cover ? upFiles.cover.name : T.coverNone; });
+$('#mu-up-cover').addEventListener('change', function(){ upFiles.cover = Array.prototype.slice.call(this.files || []); upCoverName(); upList(); });
 $('#mu-up-lrc').addEventListener('change', function(){
-  var one = upKind === 'single';
-  upFiles.lrc = Array.prototype.slice.call(this.files || []).slice(0, one ? 1 : undefined);
-  $('#mu-up-lrc-name').textContent = upFiles.lrc.length ? (one ? upFiles.lrc[0].name : T.chosen(upFiles.lrc.length)) : (one ? T.lrcOne : T.lrcNone);
+  upFiles.lrc = Array.prototype.slice.call(this.files || []).slice(0, upMode === 'one' ? 1 : undefined);
+  upLrcName(); upList();
 });
-/** 封面：长边缩到 1600、webp（不支持就 jpeg） */
-function shrink(file){
+/** 封面（十二 M2 第 3 条，同歌手头像一套）：取中间正方形、缩到 ≤ 1000、jpeg；超 3 MB 降质量再压（还超就报错，不传） */
+function cropCover(file){
   return new Promise(function(resolve, reject){
     var url = URL.createObjectURL(file), img = new Image();
     img.onload = function(){
-      var k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), c = doc.createElement('canvas');
-      c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      var k = squareCrop(img.naturalWidth, img.naturalHeight, 1000), c = doc.createElement('canvas');
+      c.width = k.out; c.height = k.out;
+      c.getContext('2d').drawImage(img, k.sx, k.sy, k.side, k.side, 0, 0, k.out, k.out);
       URL.revokeObjectURL(url);
-      c.toBlob(function(b){ if (b && b.type === 'image/webp') return resolve(b); c.toBlob(function(j){ j ? resolve(j) : reject(new Error('encode')); }, 'image/jpeg', 0.86); }, 'image/webp', 0.86);
+      var qi = 0;
+      (function enc(){
+        c.toBlob(function(b){
+          if (!b) return reject(new Error('encode'));
+          if (b.size <= COVER_MAX) return resolve(b);
+          if (++qi < COVER_Q.length) return enc();
+          reject(new Error('too-large'));
+        }, 'image/jpeg', COVER_Q[qi]);
+      })();
     };
     img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('image')); };
     img.src = url;
@@ -697,56 +891,89 @@ function durationOf(file){
   });
 }
 function readText(f){ return new Promise(function(ok){ var r = new FileReader(); r.onload = function(){ ok(String(r.result || '')); }; r.onerror = function(){ ok(''); }; r.readAsText(f); }); }
+/** 内嵌封面 → Blob（没有 null） */
+function embBlob(i){ var g = upFiles.tags[i]; return g && g.picture ? new Blob([g.picture.bytes], { type: UP_IMG_MIME[g.picture.mime] || 'image/jpeg' }) : null; }
 $('#mu-up-go').addEventListener('click', function(){
-  var name = $('#mu-up-name').value.trim(), one = upKind === 'single';
-  if (!name) return upMsg(one ? T.needSong : T.needName, true);
-  if (!upFiles.audio.length) return upMsg(T.needAudio, true);
-  for (var k = 0; k < upFiles.audio.length; k++) {
-    var f = upFiles.audio[k];
-    if (f.size > TRACK_MAX) return upMsg(T.tooBig(f.name), true);
-    if (!audioType(f)) return upMsg(T.badType(f.name), true);
+  var one = upMode === 'one';
+  /* 标签没读完就点了：等读完（readTags 永远 resolve，不会卡住） */
+  var gen = upGen, btn = this;
+  btn.disabled = true;
+  Promise.all(upFiles.audio.map(function(f, i){ return upFiles.tags[i] ? null : TAGS.readTags(f).then(function(g){ if (gen === upGen) upFiles.tags[i] = g; }); })).then(function(){
+    var plan = upPlanNow();
+    if (plan.error) { btn.disabled = false; return upMsg(plan.error === 'needSong' ? T.needSong : plan.error === 'needAlbumName' ? T.needAlbumName : plan.error === 'needAudio' ? T.needAudio : T.failed, true); }
+    for (var k = 0; k < upFiles.audio.length; k++) {
+      var f = upFiles.audio[k];
+      if (f.size > TRACK_MAX) { btn.disabled = false; return upMsg(T.tooBig(f.name), true); }
+      if (!audioType(f)) { btn.disabled = false; return upMsg(T.badType(f.name), true); }
+    }
+    return runUpload(plan, one);
+  }).then(function(){ btn.disabled = false; }, function(){ btn.disabled = false; });
+});
+/** 按计划逐首传：专辑（新建的）→ 专辑封面 → 每首（单曲先建记录、传封面）音频 → 歌手 / 歌词一个 track.edit → 重新拉歌单 */
+function runUpload(plan, one){
+  var albumId = plan.album && plan.album.id || 0, failed = 0;
+  var files = upFiles.audio, covers = upFiles.cover, lrcs = upFiles.lrc;
+  function cover(id, file, best){
+    /* best = 内嵌封面：解不开就算了（不算失败） */
+    return cropCover(file).then(function(b){ return req('POST', '/curio/api/music-upload?album=' + id + '&kind=cover', b, b.type); })
+      .catch(function(e){ if (e && e.sgxLocked) throw e; if (!best) failed++; });
   }
-  var btn = $('#mu-up-go'); btn.disabled = true;
-  var yr = Number($('#mu-up-year').value) || 0, albumId = 0, failed = 0, made = [];
-  req('POST', '/curio/api/music', { op: 'album.add', kind: upKind, title: name, artist: $('#mu-up-artist').value, year: yr >= 1900 && yr <= 2100 ? yr : 0 }).then(function(j){
+  var start = Promise.resolve();
+  if (plan.album && plan.album.add) start = req('POST', '/curio/api/music', { op: 'album.add', kind: 'album', title: plan.album.add.title, artist: plan.album.add.artist, year: plan.album.add.year }).then(function(j){
     albumId = j.id;
-    if (!upFiles.cover) return null;
+    var ac = plan.albumCover;
+    if (!ac) return null;
+    var file = ac.pick !== undefined ? covers[ac.pick] : embBlob(ac.embedded);
+    if (!file) return null;
     upMsg(T.cover);
-    return shrink(upFiles.cover).then(function(b){ return req('POST', '/curio/api/music-upload?album=' + albumId + '&kind=cover', b, b.type); }).catch(function(e){ if (e.sgxLocked) throw e; failed++; });
-  }).then(function(){
+    return cover(albumId, file, ac.pick === undefined);
+  });
+  return start.then(function(){
     var chain = Promise.resolve();
-    upFiles.audio.forEach(function(f, i){
+    plan.tracks.forEach(function(t, i){
       chain = chain.then(function(){
-        upMsg(T.up(i + 1, upFiles.audio.length, f.name));
-        /* 单曲：曲序 1、曲名 = 歌名；专辑：取自文件名 */
-        var meta = one ? { no: 1, title: name } : trackFromName(f.name, i + 1);
-        return durationOf(f).then(function(d){
-          var q = '?album=' + albumId + '&kind=track&no=' + meta.no + '&title=' + encodeURIComponent(meta.title) + '&duration=' + d;
-          return req('POST', '/curio/api/music-upload' + q, f, audioType(f)).then(function(r){ made.push({ id: r.id, key: lrcKey(f.name) }); });
-        }).catch(function(e){ if (e.sgxLocked) throw e; failed++; });
+        var f = files[t.file];
+        upMsg(T.up(i + 1, plan.tracks.length, f.name));
+        var into = albumId;
+        var made = plan.album ? Promise.resolve(albumId)
+          : req('POST', '/curio/api/music', { op: 'album.add', kind: 'single', title: t.title, artist: t.artist, year: plan.singleYear }).then(function(j){
+            var file = t.cover >= 0 ? covers[t.cover] : t.embedded ? embBlob(t.file) : null;
+            return (file ? cover(j.id, file, t.cover < 0) : Promise.resolve()).then(function(){ return j.id; });
+          });
+        return made.then(function(id){
+          into = id;
+          return durationOf(f);
+        }).then(function(d){
+          var q = '?album=' + into + '&kind=track&no=' + t.no + '&title=' + encodeURIComponent(t.title) + '&duration=' + d;
+          return req('POST', '/curio/api/music-upload' + q, f, audioType(f));
+        }).then(function(r){
+          /* 曲目的歌手（写 artist_id）和歌词：一个 track.edit，有才发 */
+          var body = { op: 'track.edit', id: r.id };
+          if (t.artist) body.artist = t.artist;
+          return (t.lrc >= 0 ? readText(lrcs[t.lrc]) : Promise.resolve(null)).then(function(text){
+            if (text) body.lrc = text;
+            if (Object.keys(body).length <= 2) return null;
+            if (body.lrc) upMsg(T.lyrics);
+            return req('POST', '/curio/api/music', body);
+          });
+        }).catch(function(e){ if (e && e.sgxLocked) throw e; failed++; });
       });
     });
     return chain;
   }).then(function(){
-    if (!upFiles.lrc.length) return null;
-    upMsg(T.lyrics);
-    return Promise.all(upFiles.lrc.map(function(f){
-      var hit = one ? made[0] : made.filter(function(m){ return m.key === lrcKey(f.name); })[0];
-      if (!hit) return null;
-      return readText(f).then(function(text){ return req('POST', '/curio/api/music', { op: 'track.edit', id: hit.id, lrc: text }); }).catch(function(e){ if (e.sgxLocked) throw e; failed++; });
-    }));
-  }).then(function(){
     return req('GET', '/curio/api/music');
   }).then(function(j){
     coverVer = Date.now();
-    setData(j.albums, one ? 'single' : 'album');
+    var toSingles = !plan.album;
+    setData(j.albums, toSingles ? 'single' : 'album');
     var i = albums.map(function(a){ return a.id; }).indexOf(albumId);
     renderCovers();
-    if (one) renderAlbum(); else select(i < 0 ? 0 : i, true);
+    if (toSingles) renderAlbum(); else select(i < 0 ? 0 : i, true);
+    upDropPreview();
     upSheet.close();
     toast(failed ? T.partial(failed) : T.saved);
-  }).catch(function(e){ if (!e.sgxLocked) upMsg(failMsg(e), true); }).then(function(){ btn.disabled = false; });
-});
+  }).catch(function(e){ if (!e || !e.sgxLocked) upMsg(failMsg(e), true); });
+}
 
 /* ---------- 导入后编辑（M3，音乐 v1.18 十二 M3 / 7.4 / 7.6） ----------
  * 曲目行 / 单曲行「⋯」→ #mu-ed-wrap：歌名、歌手（M4 之前只填文本，不联想）、所属专辑（只列 kind=album 按名排序，顶上「移出变单曲」）、歌词；
@@ -786,7 +1013,7 @@ function refresh(list){
   renderCovers(); renderAlbum();
 }
 function upCover(albumId, file){
-  return shrink(file).then(function(b){ return req('POST', '/curio/api/music-upload?album=' + albumId + '&kind=cover', b, b.type); }).then(function(){ coverVer = Date.now(); });
+  return cropCover(file).then(function(b){ return req('POST', '/curio/api/music-upload?album=' + albumId + '&kind=cover', b, b.type); }).then(function(){ coverVer = Date.now(); });
 }
 function coverPreview(img, a){
   img.classList.toggle('hidden', !(a && a.cover));
@@ -1164,21 +1391,8 @@ $('#mu-ar-av').addEventListener('change', function(){
   img.classList.toggle('hidden', !u);
   if (u) img.src = u; else img.removeAttribute('src');
 });
-/** 头像：取中间的正方形、缩到 ≤ 1000、jpeg（十二 M4 第 2 条，同封面一套裁切） */
-function cropAvatar(file){
-  return new Promise(function(resolve, reject){
-    var url = URL.createObjectURL(file), img = new Image();
-    img.onload = function(){
-      var k = squareCrop(img.naturalWidth, img.naturalHeight, 1000), c = doc.createElement('canvas');
-      c.width = k.out; c.height = k.out;
-      c.getContext('2d').drawImage(img, k.sx, k.sy, k.side, k.side, 0, 0, k.out, k.out);
-      URL.revokeObjectURL(url);
-      c.toBlob(function(b){ b ? resolve(b) : reject(new Error('encode')); }, 'image/jpeg', 0.86);
-    };
-    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('image')); };
-    img.src = url;
-  });
-}
+/** 头像：取中间的正方形、缩到 ≤ 1000、jpeg（十二 M4 第 2 条）——M2 起封面也是这一套（十二 M2 第 3 条），直接用 cropCover */
+var cropAvatar = cropCover;
 $('#mu-ar-save').addEventListener('click', function(){
   if (!ar) return;
   var r = ar.r, file = ar.file, btn = this;

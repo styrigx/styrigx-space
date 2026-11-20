@@ -141,22 +141,25 @@ music:
   play: 播放
   pause: 暂停
   next: 下一首
-  uploadAlbum2: 上传专辑
   close: 关闭
   album: 专辑名
   artist: 艺术家
   year: 年份
-  chooseTracks: 选音频（可多选）
   coverOptional: 封面（可选）
-  lyricsLrcOptionalMatched: 歌词 .lrc（可选，按文件名对上曲目）
   kind: 类型
   kindAlbum: 专辑
   kindSingle: 单曲
   singles: 单曲
   deleteSingle: 删除单曲
   delete: 删除
-  trackOrderFollowsThe: 曲序按文件名开头的数字（01、02……）。单个音频文件不超过 95 MB，支持 mp3、m4a、aac、flac、ogg、opus、wav。封面会缩到 1600 像素。
   upload: 上传
+  modeOne: 单首
+  modeBatch: 批量
+  uploadOne: 上传一首
+  newAlbumName: 新专辑名
+  chooseOne: 选音频
+  lyricsLrcOptional: 歌词 .lrc（可选）
+  prefillNote: 选了音频会先填好歌名、歌手（先读音频里的标签，没有再从文件名取），保存前都能改。单个音频文件不超过 95 MB。封面会裁成正方形、缩到 1000 像素。
   edit: 编辑
   editAlbum: 编辑专辑
   editTrack: 编辑曲目
@@ -381,13 +384,28 @@ js:
     shuffleOn: 随机播放：开
     shuffleOff: 随机播放：关
     noPermission: 当前用户没有这个权限。
-    albumName: 专辑名
-    songName: 歌名
-    uploadAlbum: 上传专辑
-    uploadSingle: 上传单曲
     chooseOne: 选音频
     lrcOne: 歌词 .lrc（可选）
     needSong: 填一下歌名。
+    uploadOne: 上传一首
+    uploadBatch: 批量上传
+    inAlbum: 所属专辑
+    inBatch: 这批划入哪个专辑（可选）
+    noAlbumBatch: 不划（每首各成一首单曲）
+    newAlbum: 新建专辑…
+    albumArtist: 专辑歌手
+    singer: 歌手
+    needAlbumName: 填一下新专辑名。
+    prefillNote: 选了音频会先填好歌名、歌手（先读音频里的标签，没有再从文件名取），保存前都能改。单个音频文件不超过 95 MB。封面会裁成正方形、缩到 1000 像素。
+    batchNote: 每首的歌名、歌手先读音频里的标签，没有再从文件名取（「歌手 - 歌名」）；传完还能逐首改；新建专辑的歌手默认取这批里最多的那位。曲序按文件名开头的数字（01、02……）。单个音频文件不超过 95 MB，支持 mp3、m4a、aac、flac、ogg、opus、wav、webm。封面会裁成正方形、缩到 1000 像素。
+    coverEmbedded: 用音频里的封面（可另选）
+    coverAlbumPick: 专辑封面（可选；不选就用第一首里的封面）
+    coverAlbumEmbedded: 专辑封面用第一首里的封面（可另选）
+    coverMatch: 封面（可选，按文件名对上曲目；没有就用音频里的封面）
+    listHead: 将这样上传（传完还能改）：
+    newArtist: 新歌手
+    noArtist: 没有歌手
+    unmatched: '没对上：{names}'
     singleFull: 这首单曲已经有音频了。
     delSingle: 确定删除单曲「{name}」（连同音频文件）吗？单曲记录和它的封面也会一起删除。
     delSingleBtn: 删除单曲「{name}」

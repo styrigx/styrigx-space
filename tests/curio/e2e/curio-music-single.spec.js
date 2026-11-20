@@ -1,5 +1,5 @@
 // 音乐 v1.13 ②：单曲 / 专辑分类（Gray 2026-11-14 17:33 定）。接口用 page.route 假数据，不碰线上。
-// - 上传窗：顶部分段「专辑 | 单曲」（默认专辑）；单曲 =「专辑名」改「歌名」、音频 / 歌词单选、不显示曲序说明，album.add 带 kind=single，曲名 = 歌名；仍是悬浮 <dialog class="sgx-qp sgx-up">
+// - 上传窗（M2 起）：顶部分段「单首 | 批量」（默认单首）；单首不划入专辑 = album.add kind=single，曲名 = 歌名；仍是悬浮 <dialog class="sgx-qp sgx-up">（预填 / 专辑选择细节见 curio-music-upload.spec.js）
 // - 音乐页（方案 A）：两边都有才显示分段「专辑 · 单曲」；单曲 = 列表（小封面 · 歌名 · 歌手 · 时长），点一行就播；单曲区当播放列表，放完接下一首（按需签下一首的令牌），到尾停
 // - 副标题：单曲只显示歌手（奇趣页播放条、弹出播放器）；哪边为空只显示有的那边
 // - 弹出播放器：专辑列表末尾多一项「单曲」；?album=<单曲 id> 落在单曲组
@@ -75,7 +75,7 @@ async function mockMusic(page, list, opts = {}) {
 }
 const plays = (calls) => calls.filter((c) => c.play).map((c) => c.play);
 
-test('上传窗分段：默认专辑；切单曲 =「歌名」、单选、藏曲序说明、标题「上传单曲」；切回专辑复原；仍是悬浮 dialog（sgx-qp sgx-up）', async ({ page }) => {
+test('上传窗分段（M2）：「单首 | 批量」，默认单首；单首 = 歌名栏、音频 / 歌词单选、「所属专辑」；批量 = 多选、没有歌名栏、「这批划入哪个专辑」；重新打开回到单首；仍是悬浮 dialog（sgx-qp sgx-up）', async ({ page }) => {
   await mockMusic(page, [ALBUM]);
   await page.goto('/curio/zh/music/');
   await page.locator('#mu-upload').click();
@@ -83,41 +83,53 @@ test('上传窗分段：默认专辑；切单曲 =「歌名」、单选、藏曲
   await expect(dlg).toHaveJSProperty('open', true);
   await expect(dlg).toHaveClass(/sgx-qp/);
   await expect(dlg).toHaveClass(/sgx-up/);
-  const seg = page.locator('#mu-up-kind [data-kind]');
-  await expect(seg).toHaveText(['专辑', '单曲']);
-  await expect(page.locator('#mu-up-kind [data-kind="album"]')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('#mu-up-name-l')).toHaveText('专辑名');
-  await expect(page.locator('#mu-up-note')).toBeVisible();
-  expect(await page.locator('#mu-up-audio').evaluate((i) => i.multiple)).toBe(true);
-  await page.locator('#mu-up-kind [data-kind="single"]').click();
-  await expect(page.locator('#mu-up-kind [data-kind="single"]')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('#mu-up-title')).toHaveText('上传单曲');
-  await expect(page.locator('#mu-up-name-l')).toHaveText('歌名');
-  await expect(page.locator('#mu-up-note')).toBeHidden();
+  await expect(page.locator('#mu-up-kind [data-kind]')).toHaveText(['单首', '批量']);
+  await expect(page.locator('#mu-up-kind [data-kind="one"]')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#mu-up-title')).toHaveText('上传一首');
+  await expect(page.locator('#mu-up-name')).toBeVisible();
+  await expect(page.locator('#mu-up-album-l')).toHaveText('所属专辑');
+  await expect(page.locator('#mu-up-album option')).toHaveText(['单曲（不划入专辑）', '新建专辑…', 'Blue']);
+  await expect(page.locator('#mu-up-album')).toHaveValue('0');
   await expect(page.locator('#mu-up-audio-name')).toHaveText('选音频');
   await expect(page.locator('#mu-up-lrc-name')).toHaveText('歌词 .lrc（可选）');
   expect(await page.locator('#mu-up-audio').evaluate((i) => i.multiple)).toBe(false);
   expect(await page.locator('#mu-up-lrc').evaluate((i) => i.multiple)).toBe(false);
   await page.locator('#mu-up-go').click();
   await expect(page.locator('#mu-up-msg')).toHaveText('填一下歌名。');
-  await page.locator('#mu-up-kind [data-kind="album"]').click();
-  await expect(page.locator('#mu-up-title')).toHaveText('上传专辑');
-  await expect(page.locator('#mu-up-name-l')).toHaveText('专辑名');
-  await expect(page.locator('#mu-up-note')).toBeVisible();
+  await page.locator('#mu-up-kind [data-kind="batch"]').click();
+  await expect(page.locator('#mu-up-title')).toHaveText('批量上传');
+  await expect(page.locator('#mu-up-name')).toBeHidden();
+  await expect(page.locator('#mu-up-artist')).toBeHidden();
+  await expect(page.locator('#mu-up-album-l')).toHaveText('这批划入哪个专辑（可选）');
+  await expect(page.locator('#mu-up-album option')).toHaveText(['不划（每首各成一首单曲）', '新建专辑…', 'Blue']);
   await expect(page.locator('#mu-up-msg')).toBeHidden();
-  /* 重新打开回到默认专辑 */
-  await page.locator('#mu-up-kind [data-kind="single"]').click();
+  expect(await page.locator('#mu-up-audio').evaluate((i) => i.multiple)).toBe(true);
+  expect(await page.locator('#mu-up-cover').evaluate((i) => i.multiple)).toBe(true);
+  await page.locator('#mu-up-go').click();
+  await expect(page.locator('#mu-up-msg')).toHaveText('至少选一个音频文件。');
+  /* 新建专辑：专辑名、专辑歌手 · 年份出来；封面单选 */
+  await page.locator('#mu-up-album').selectOption('new');
+  await expect(page.locator('#mu-up-aname')).toBeVisible();
+  await expect(page.locator('#mu-up-artist-l')).toHaveText('专辑歌手');
+  expect(await page.locator('#mu-up-cover').evaluate((i) => i.multiple)).toBe(false);
+  await page.locator('#mu-up-go').click();
+  await expect(page.locator('#mu-up-msg')).toHaveText('填一下新专辑名。');
+  /* 已有专辑：封面跟专辑走（变灰） */
+  await page.locator('#mu-up-album').selectOption('1');
+  await expect(page.locator('#mu-up-cover')).toBeDisabled();
+  await expect(page.locator('#mu-up-cover-name')).toHaveText('划进专辑后用专辑封面');
+  /* 重新打开回到单首 */
   await page.locator('#mu-up-x').click();
   await page.locator('#mu-upload').click();
-  await expect(page.locator('#mu-up-kind [data-kind="album"]')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#mu-up-kind [data-kind="one"]')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#mu-up-album')).toHaveValue('0');
 });
 
-test('上传单曲：album.add kind=single、曲序 1、曲名 = 歌名（不取文件名）；歌词对上这一首；传完落在单曲分段', async ({ page }) => {
+test('上传一首（不划入专辑）：album.add kind=single、曲序 1、曲名 = 填的歌名（先填了就不被文件名覆盖）；歌手 + 歌词一个 track.edit；传完落在单曲分段', async ({ page }) => {
   const calls = await mockMusic(page, [ALBUM]);
   await page.goto('/curio/zh/music/');
   await expect(page.locator('#mu-seg')).toBeHidden();
   await page.locator('#mu-upload').click();
-  await page.locator('#mu-up-kind [data-kind="single"]').click();
   await page.locator('#mu-up-name').fill('A Case of You');
   await page.locator('#mu-up-artist').fill('Joni Mitchell');
   await page.locator('#mu-up-audio').setInputFiles([{ name: '07 - case.wav', mimeType: 'audio/wav', buffer: WAV }]);
@@ -127,7 +139,7 @@ test('上传单曲：album.add kind=single、曲序 1、曲名 = 歌名（不取
   await expect(page.locator('#mu-up-wrap')).toHaveJSProperty('open', false, { timeout: 30000 });
   expect(calls.find((c) => c.op === 'album.add')).toMatchObject({ kind: 'single', title: 'A Case of You', artist: 'Joni Mitchell' });
   expect(calls.filter((c) => c.upload === 'track').map((u) => [u.album, u.no, u.title])).toEqual([[90, 1, 'A Case of You']]);
-  expect(calls.find((c) => c.op === 'track.edit')).toMatchObject({ id: 900, lrc: '[00:01.00]Just before our love got lost' });
+  expect(calls.filter((c) => c.op === 'track.edit')).toEqual([{ op: 'track.edit', id: 900, artist: 'Joni Mitchell', lrc: '[00:01.00]Just before our love got lost' }]);
   await expect(page.locator('#mu-seg')).toBeVisible();
   await expect(page.locator('#mu-seg [data-sec="single"]')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#mu-singles .mu-single-tx b')).toHaveText(['A Case of You']);
