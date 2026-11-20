@@ -116,6 +116,10 @@ test('action：源码里出现的 action / op 都在表里；没写 action 用�
   for (const m of music.matchAll(/case '([a-z]+\.[a-z]+)'/g)) assert.ok(RA.levelOf('POST', '/curio/api/music', { action: m[1] }), 'music ' + m[1]);
   assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'album.del' }), 'root');
   assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'track.del' }), 'curio-write');
+  /* M4（音乐 v1.19 十二 M4 第 1 条）：改歌手信息 curio-write；合并、删歌手 root（一次性票） */
+  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.edit' }), 'curio-write');
+  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.merge' }), 'root');
+  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.del' }), 'root');
   /* 定稿 v5.5 §五 / §七：设备列表站长直读（webmaster），踢出属后台控制（root，站长 sudo） */
   assert.equal(RA.levelOf('POST', '/api/account/devices'), 'webmaster');
   assert.equal(RA.levelOf('POST', '/api/account/devices', { action: 'list' }), 'webmaster');

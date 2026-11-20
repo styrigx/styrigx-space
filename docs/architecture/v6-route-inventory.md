@@ -152,12 +152,12 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | GET | `/curio/api/export` | **root** |  |  | 保留 | 导出全部收藏（含私密） | Gray 2026-11-11 定 root：导出全部收藏含私密 |
 | POST | `/curio/api/import` | **root** |  |  | 保留 | 批量导入书签（v5 要账号复验 → v6 sudo 每次重验 = root） |  |
 | GET | `/curio/api/music` | **public** | `private` → curio-write |  | 保留 | 歌单（不含音频地址；canWrite 提示给 curio-write） |  |
-| POST | `/curio/api/music` | **curio-write** | `album.del` → root | 单条 → 写组 | 保留 | album.add / edit、track.edit / del（单条）；album.del 连曲目一起删 = 结构删除 |  |
-| GET | `/curio/api/music-cover` | **public** |  |  | 保留 | 专辑封面 |  |
+| POST | `/curio/api/music` | **curio-write** | `album.del`、`artist.merge`、`artist.del` → root | 单条 → 写组 | 保留 | album.add / edit、track.edit / del（单条）、artist.edit（改歌手信息）；album.del 连曲目一起删、artist.merge / artist.del（合并 / 删歌手）（音乐 v1.19 十二 M4 第 1 条）= 结构删除 |  |
+| GET | `/curio/api/music-cover` | **public** |  |  | 保留 | 专辑封面 / 歌手头像（?artist=，M4） |  |
 | POST | `/curio/api/music-play` | **listen** |  |  | 保留 | 签播放令牌（听歌） |  |
 | GET | `/curio/api/music-stream` | **listen** |  |  | 保留 | 取音频（令牌 + Range） |  |
 | HEAD | `/curio/api/music-stream` | **listen** |  |  | 保留 | 同上 |  |
-| POST | `/curio/api/music-upload` | **curio-write** |  |  | 保留 | 上传音轨 / 封面 |  |
+| POST | `/curio/api/music-upload` | **curio-write** |  |  | 保留 | 上传音轨 / 封面 / 歌手头像（kind=avatar，M4） |  |
 
 ### 日刻接口 styrigx-atlas-core（styrigx.com/daymark/api/*，不经网关）
 
