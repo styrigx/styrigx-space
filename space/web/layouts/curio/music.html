@@ -6,7 +6,7 @@
    上传 / 删除要账号会话 + curio.write（接口回 canWrite 才显示）。公开页，不带 noindex（R-23）；站点地图只列奇趣首页，本页不单列；元数据进全站搜索 / AI 召回（site:curio 索引）。
    播放器交互借 jojo.best/music 的思路（只借交互）：封面横滑切专辑、整张按曲序播放、歌词跟着滚、倍速 0.75 / 1 / 1.25 / 1.5 / 2；随机播放（和弹出播放器共用本地设置）。
    播放走短链：/curio/api/music-play 签一枚随机令牌（10 分钟），<audio> 的地址是 /curio/api/music-stream?t=…&id=…（支持 Range，拖进度）。
-   上传：「上传专辑」弹层，多个音频 + 可选封面 + 可选 .lrc 歌词，浏览器直传（单个音频 ≤ 95 MB）。 */}}
+   上传：「上传专辑」弹层，分段「单首 | 批量」（M2）：歌名 / 歌手按音频标签、没有再按文件名预填；可选封面 + 可选 .lrc 歌词，浏览器直传（单个音频 ≤ 95 MB）。 */}}
 <main id="cu-main" class="cu-wrap mu-wrap" data-cu-page="music">
 {{ partial "curio/page-head.html" (dict "page" . "id" "music" "tr" $tr "lang" $lang "grep" false "cmds" (slice (dict "id" "mu-upload" "k" "cp *.flac curio/music/ +" "d" $tr.cmd.upload))) }}
   <section id="cu-pane-music" class="cu-pane" aria-label="{{ $tr.music.music }}">
@@ -100,34 +100,45 @@
 {{/* ===== 上传专辑：同 AI 窗口的悬浮终端卡片（Gray 2026-11-14 03:37：不要底部升起半遮，要 AI 窗那种）。
    非模态 <dialog class="sgx-qp sgx-up">（共享外壳 .sgx-qp：顶栏下方铺满、dialog 本身是遮罩、顶栏留在上面可点）+ 共享 modalSheet（系统返回 / Esc / bfcache）；
    点遮罩关，点顶栏任一按钮也先关它（顶栏窗口互斥）。外观在 curio input.css .sgx-up。
-   桌面（Gray 03:50–03:51）：只取终端窗那种横版矩形——居中宽窗；内容自己排：表单左右两栏（左：文字 + 说明，右：三个选文件），按钮靠右。
+   桌面（Gray 03:50–03:51）：只取终端窗那种横版矩形——居中宽窗；内容自己排：表单左右两栏（左：音频 + 文字 + 说明，右：封面 / 歌词 + 批量预填列表；M2），按钮靠右。
    这次只换音乐上传；设备 / 游戏 / 电影 / 发现 / 日刻的 bk-overlay 后续跟进。 ===== */}}
 <dialog id="mu-up-wrap" class="sgx-qp sgx-up" aria-labelledby="mu-up-title">
   <div class="sgx-qp-sheet" tabindex="-1">
     <div class="mu-up-head">
-      <h2 id="mu-up-title" class="mu-up-title">{{ $tr.music.uploadAlbum2 }}</h2>
+      <h2 id="mu-up-title" class="mu-up-title">{{ $tr.music.uploadOne }}</h2>
       <button id="mu-up-x" type="button" class="mu-up-x" aria-label="{{ $tr.music.close }}">{{ partial "curio/icon.html" (dict "name" "x-mark" "uid" "muu-x") }}</button>
     </div>
-    {{/* 分段「专辑 | 单曲」（默认专辑；v1.13 ②）：单曲 = 「专辑名」改「歌名」、音频 / 歌词单选、不显示曲序说明，曲名 = 歌名 */}}
+    {{/* 分段「单首 | 批量」（M2，音乐 v1.19 7.3 / 7.4 / 十二 M2 第 2 条）：一个上传入口两种模式，默认单首。
+       单首：选 1 个音频 → 歌名 / 歌手先从标签读、没有再从文件名取（只是预填，保存前能改）；年份、封面、歌词；「所属专辑」= 不划入（单曲）/ 新建一张 / 已有专辑。
+       批量：多选音频（每首按标签 / 文件名预填，列在右栏）；「这批划入哪个专辑」= 不划（每首各成单曲）/ 新建一张（歌手默认取多数）/ 已有专辑。
+       划进已有专辑：封面跟专辑走、年份跟专辑走（7.6，同 M3 编辑窗），两栏变灰。 */}}
     <div id="mu-up-kind" class="sgx-chips cu-chips mu-up-kind" role="tablist" aria-label="{{ $tr.music.kind }}">
-      <button type="button" role="tab" class="sgx-chip" data-kind="album" aria-selected="true">{{ $tr.music.kindAlbum }}</button>
-      <button type="button" role="tab" class="sgx-chip" data-kind="single" aria-selected="false">{{ $tr.music.kindSingle }}</button>
+      <button type="button" role="tab" class="sgx-chip" data-kind="one" aria-selected="true">{{ $tr.music.modeOne }}</button>
+      <button type="button" role="tab" class="sgx-chip" data-kind="batch" aria-selected="false">{{ $tr.music.modeBatch }}</button>
     </div>
     <form id="mu-up-form" class="mu-up-body" novalidate>
       <div class="mu-up-col">
-      <label class="cu-field"><span id="mu-up-name-l">{{ $tr.music.album }}</span><input id="mu-up-name" type="text" maxlength="120" autocomplete="off"></label>
-      <div class="it-two">
-        <label class="cu-field"><span>{{ $tr.music.artist }}</span><input id="mu-up-artist" type="text" maxlength="120" autocomplete="off" list="mu-artist-list"></label>
+      <label class="cu-file"><input id="mu-up-audio" type="file" accept="audio/*,.mp3,.m4a,.flac,.ogg,.opus,.wav,.aac,.webm" class="sr-only"><span id="mu-up-audio-name">{{ $tr.music.chooseOne }}</span></label>
+      <label id="mu-up-name-row" class="cu-field"><span>{{ $tr.music.songName }}</span><input id="mu-up-name" type="text" maxlength="120" autocomplete="off"></label>
+      <label class="cu-field"><span id="mu-up-album-l">{{ $tr.music.inAlbum }}</span><select id="mu-up-album" class="it-select"></select></label>
+      <label id="mu-up-aname-row" class="cu-field hidden"><span>{{ $tr.music.newAlbumName }}</span><input id="mu-up-aname" type="text" maxlength="120" autocomplete="off"></label>
+      <div id="mu-up-meta" class="it-two">
+        <label class="cu-field"><span id="mu-up-artist-l">{{ $tr.music.singer }}</span><input id="mu-up-artist" type="text" maxlength="120" autocomplete="off" list="mu-artist-list"></label>
         <label class="cu-field"><span>{{ $tr.music.year }}</span><input id="mu-up-year" type="number" inputmode="numeric" min="1900" max="2100" step="1"></label>
       </div>
       <button type="button" class="mu-hint hidden" data-hint-for="mu-up-artist"></button>
-      <p id="mu-up-note" class="text-xs text-m-on-surface-variant">{{ $tr.music.trackOrderFollowsThe }}</p>
+      <p id="mu-up-note" class="text-xs text-m-on-surface-variant">{{ $tr.music.prefillNote }}</p>
       <p id="mu-up-msg" class="hidden text-sm"></p>
       </div>
       <div class="mu-up-col">
-      <label class="cu-file"><input id="mu-up-audio" type="file" accept="audio/*,.mp3,.m4a,.flac,.ogg,.opus,.wav,.aac" multiple class="sr-only"><span id="mu-up-audio-name">{{ $tr.music.chooseTracks }}</span></label>
-      <label class="cu-file"><input id="mu-up-cover" type="file" accept="image/*" class="sr-only"><span id="mu-up-cover-name">{{ $tr.music.coverOptional }}</span></label>
-      <label class="cu-file"><input id="mu-up-lrc" type="file" accept=".lrc,text/plain" multiple class="sr-only"><span id="mu-up-lrc-name">{{ $tr.music.lyricsLrcOptionalMatched }}</span></label>
+      {{/* 封面：小图预览选的图或音频内嵌的封面（存的时候都裁方、≤ 1000、jpeg，十二 M2 第 3 条） */}}
+      <div id="mu-up-cover-row" class="mu-ed-cover">
+        <span class="mu-ed-cover-im" aria-hidden="true"><img id="mu-up-cover-img" alt="" class="hidden"></span>
+        <label class="cu-file"><input id="mu-up-cover" type="file" accept="image/*" class="sr-only"><span id="mu-up-cover-name">{{ $tr.music.coverOptional }}</span></label>
+      </div>
+      <label class="cu-file"><input id="mu-up-lrc" type="file" accept=".lrc,text/plain" class="sr-only"><span id="mu-up-lrc-name">{{ $tr.music.lyricsLrcOptional }}</span></label>
+      {{/* 批量：每首预填成什么（歌名 · 歌手；新歌手标「新」）、没对上的歌词 / 封面文件 */}}
+      <div id="mu-up-list" class="mu-up-list hidden" aria-live="polite"></div>
       </div>
     </form>
     <div class="mu-up-foot">
@@ -279,5 +290,7 @@
 <script src="{{ (resources.Get "curio/js/curio.js" | minify | fingerprint).RelPermalink }}"></script>
 {{/* 播放共用核（签令牌 / 续签 / 切曲 / 防同时响；弹出播放器同一份），要在 curio-music.js 之前 */}}
 <script src="{{ (resources.Get "common/js/music/music-core.js" | resources.Copy "js/music/music-core.js" | minify | fingerprint).RelPermalink }}"></script>
+{{/* 上传预填（M2：读 ID3 / Vorbis 标签、清理文件名），要在 curio-music.js 之前 */}}
+<script src="{{ (resources.Get "curio/js/curio-music-tags.js" | minify | fingerprint).RelPermalink }}"></script>
 <script src="{{ (resources.Get "curio/js/curio-music.js" | minify | fingerprint).RelPermalink }}"></script>
 {{ end }}

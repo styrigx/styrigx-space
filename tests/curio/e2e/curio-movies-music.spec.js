@@ -322,16 +322,18 @@ test('音乐（有权限）：首页有 music/ tab；封面横滑切专辑；整
   await expect(page.locator('#mu-toggle')).toHaveAttribute('aria-label', '播放');
 });
 
-test('音乐（有权限）：上传专辑——音频按文件名排序逐个直传（曲序 / 曲名取自文件名），.lrc 按文件名对上；超过 95 MB 的不传', async ({ page }) => {
+test('音乐（有权限）：批量上传到新建专辑（M2）——音频按文件名排序逐个直传（曲序 / 曲名取自文件名），.lrc 按文件名对上；每首一个 track.edit 写歌手（没歌手的用专辑歌手）', async ({ page }) => {
   const calls = await mockMusic(page, 'owner');
   await page.goto('/curio/zh/music/');
   await page.locator('#mu-upload').click();
   await expect(page.locator('#mu-up-wrap')).toHaveJSProperty('open', true);
   await expect(page.locator('#mu-up-wrap')).toHaveAttribute('data-state', 'open');
   await expect(page.locator('#mu-up-form')).toContainText('95 MB');
+  await page.locator('#mu-up-kind [data-kind="batch"]').click();
+  await page.locator('#mu-up-album').selectOption('new');
   await page.locator('#mu-up-go').click();
-  await expect(page.locator('#mu-up-msg')).toHaveText('填一下专辑名。');
-  await page.locator('#mu-up-name').fill('Court and Spark');
+  await expect(page.locator('#mu-up-msg')).toHaveText('填一下新专辑名。');
+  await page.locator('#mu-up-aname').fill('Court and Spark');
   await page.locator('#mu-up-artist').fill('Joni Mitchell');
   await page.locator('#mu-up-year').fill('1974');
   await page.locator('#mu-up-go').click();
@@ -350,7 +352,11 @@ test('音乐（有权限）：上传专辑——音频按文件名排序逐个�
   const ups = calls.filter((c) => c.upload === 'track');
   expect(ups.map((u) => [u.no, u.title])).toEqual([[1, 'Court and Spark'], [2, 'Help Me'], [10, 'Twisted']]);
   expect(ups.every((u) => u.type === 'audio/wav' && u.size === WAV.length)).toBe(true);
-  expect(calls.find((c) => c.op === 'track.edit')).toMatchObject({ id: 901, lrc: '[00:01.00]Help me' });
+  expect(calls.filter((c) => c.op === 'track.edit')).toEqual([
+    { op: 'track.edit', id: 900, artist: 'Joni Mitchell' },
+    { op: 'track.edit', id: 901, artist: 'Joni Mitchell', lrc: '[00:01.00]Help me' },
+    { op: 'track.edit', id: 902, artist: 'Joni Mitchell' },
+  ]);
   /* 新专辑成了当前专辑 */
   await expect(page.locator('#mu-album-title')).toHaveText('Court and Spark');
   await expect(page.locator('#mu-tracks .mu-track-title')).toHaveText(['Court and Spark', 'Help Me', 'Twisted']);

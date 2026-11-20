@@ -164,11 +164,13 @@ test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js �
   const a = movies.indexOf('js/curio.js'), l = movies.indexOf('js/curio-list.js'), b = movies.indexOf('js/curio-items.js'), c = movies.indexOf('js/curio-movies.js');
   assert.ok(a > 0 && a < l && l < b && b < c);
   for (const id of ['cu-pane-music', 'mu-app', 'mu-upload', 'mu-covers', 'mu-tracks', 'mu-play-all', 'mu-player', 'mu-lyrics', 'mu-seek', 'mu-speed', 'mu-shuffle', 'mu-prev', 'mu-toggle', 'mu-next', 'mu-audio',
-    'mu-up-wrap', 'mu-up-name', 'mu-up-artist', 'mu-up-year', 'mu-up-audio', 'mu-up-cover', 'mu-up-lrc', 'mu-up-go']) {
+    'mu-up-wrap', 'mu-up-name', 'mu-up-artist', 'mu-up-year', 'mu-up-audio', 'mu-up-cover', 'mu-up-lrc', 'mu-up-go', 'mu-up-album', 'mu-up-aname', 'mu-up-list', 'mu-up-cover-img']) {
     assert.ok(hasId(music, id), id);
   }
   assert.match(music, /"grep" false "cmds" \(slice \(dict "id" "mu-upload"/);
-  assert.match(music, /id="mu-up-audio"[^>]*multiple/);
+  /* M2：分段「单首 | 批量」，默认单首（音频单选，批量时 JS 改成多选） */
+  assert.match(music, /id="mu-up-kind"[\s\S]*data-kind="one" aria-selected="true"[\s\S]*data-kind="batch" aria-selected="false"/);
+  assert.doesNotMatch(music, /id="mu-up-audio"[^>]*multiple/);
   assert.match(music, /95 MB/);
   assert.ok(!hasId(music, 'mu-denied'), 'v5 S3：没有「仅本人可见」卡');
   assert.equal((music.match(/class="mu-ic-lock"/g) || []).length, 2, '播放整张 / 播放键各带一个锁标（只看模式）');
@@ -177,6 +179,7 @@ test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js �
   assert.match(music, /resources\.Get "common\/js\/music\/music-core\.js" \| resources\.Copy "js\/music\/music-core\.js"/);
   assert.ok(music.indexOf('js/curio.js') < music.indexOf('js/music/music-core.js'), '共用核在 curio.js 之后');
   assert.ok(music.indexOf('js/music/music-core.js') < music.indexOf('js/curio-music.js'), '共用核（第二步 2a）在 curio-music.js 之前');
+  assert.ok(music.indexOf('js/curio-music-tags.js') > 0 && music.indexOf('js/curio-music-tags.js') < music.indexOf('js/curio-music.js"'), '上传预填（M2）在 curio-music.js 之前');
 });
 
 test('弹出播放器页（音乐第二步 2b；2026-11 第 7 步进 Platform）：地址 /curio/music/player/、/curio/zh/music/player/；部件都在；脚本 music-core.js → music-player.js，不再借奇趣的 curio.js；不管上传 / 删除', () => {
