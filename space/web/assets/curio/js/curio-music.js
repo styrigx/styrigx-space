@@ -693,6 +693,8 @@ var upMode = 'one', upGen = 0;
 /** 用户亲手改过的栏（预填不再覆盖）；预填写进去的值不算 */
 var upDirty = { name: false, artist: false };
 var upPrev = '';
+/* 内嵌封面预览只用固定的几种图片类型（标签里的 MIME 字符串不直接进 Blob） */
+var UP_IMG_MIME = { 'image/jpeg': 'image/jpeg', 'image/jpg': 'image/jpeg', 'image/png': 'image/png', 'image/gif': 'image/gif' };
 function upDropPreview(){ if (upPrev) { try { URL.revokeObjectURL(upPrev); } catch (e) {} upPrev = ''; } }
 function upMsg(m, bad){ var el = $('#mu-up-msg'); el.textContent = m || ''; el.classList.toggle('hidden', !m); el.classList.toggle('text-m-error', !!bad); }
 function upTarget(){ return $('#mu-up-album').value || '0'; }
@@ -738,7 +740,7 @@ function upCoverName(){
   upDropPreview();
   $('#mu-up-cover-row').querySelector('.mu-ed-cover-im').classList.toggle('hidden', !one && t === '0');
   if (!into && c.length) src = c[0];
-  else if (!into && emb) src = new Blob([emb.bytes], { type: emb.mime });
+  else if (!into && emb) src = new Blob([emb.bytes], { type: UP_IMG_MIME[emb.mime] || 'image/jpeg' });
   if (src) { try { upPrev = URL.createObjectURL(src); } catch (e) { upPrev = ''; } }
   img.classList.toggle('hidden', !upPrev);
   if (upPrev) img.src = upPrev; else img.removeAttribute('src');
@@ -890,7 +892,7 @@ function durationOf(file){
 }
 function readText(f){ return new Promise(function(ok){ var r = new FileReader(); r.onload = function(){ ok(String(r.result || '')); }; r.onerror = function(){ ok(''); }; r.readAsText(f); }); }
 /** 内嵌封面 → Blob（没有 null） */
-function embBlob(i){ var g = upFiles.tags[i]; return g && g.picture ? new Blob([g.picture.bytes], { type: g.picture.mime }) : null; }
+function embBlob(i){ var g = upFiles.tags[i]; return g && g.picture ? new Blob([g.picture.bytes], { type: UP_IMG_MIME[g.picture.mime] || 'image/jpeg' }) : null; }
 $('#mu-up-go').addEventListener('click', function(){
   var one = upMode === 'one';
   /* 标签没读完就点了：等读完（readTags 永远 resolve，不会卡住） */
