@@ -137,13 +137,17 @@
         <label class="cu-file"><input id="mu-up-cover" type="file" accept="image/*" class="sr-only"><span id="mu-up-cover-name">{{ $tr.music.coverOptional }}</span></label>
       </div>
       <label class="cu-file"><input id="mu-up-lrc" type="file" accept=".lrc,text/plain" class="sr-only"><span id="mu-up-lrc-name">{{ $tr.music.lyricsLrcOptional }}</span></label>
-      {{/* 批量：每首预填成什么（歌名 · 歌手；新歌手标「新」）、没对上的歌词 / 封面文件 */}}
+      {{/* 批量：每首预填成什么（歌名 · 歌手；新歌手标「新」）、重复提醒（可勾跳过）、没对上的歌词 / 封面（下拉手动配）；传的时候每首的状态和进度（PR-b） */}}
       <div id="mu-up-list" class="mu-up-list hidden" aria-live="polite"></div>
       </div>
     </form>
-    <div class="mu-up-foot">
+    {{/* PR-b：传完有失败的 →「放弃剩下的」+「重试失败的（n）」（同一个 #mu-up-go 换字）；没任务时只有「上传」 */}}
+    <div class="mu-up-foot mu-up-foot2">
+      <button id="mu-up-abandon" type="button" class="mu-up-abandon hidden">{{ $tr.music.abandon }}</button>
       <button id="mu-up-go" type="button" class="mu-up-go disabled:opacity-50">{{ $tr.music.upload }}</button>
     </div>
+    {{/* PR-b 拖放：文件拖到上传窗上时盖住卡片的一层（只是提示，事件在 dialog 上收） */}}
+    <div class="mu-up-drop" aria-hidden="true"><span>{{ $tr.music.dropHere }}</span></div>
   </div>
 </dialog>
 

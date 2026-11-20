@@ -16,7 +16,8 @@
  * 播放短链：POST /curio/api/music-play {album} 签随机令牌（10 分钟），<audio src> = /curio/api/music-stream?t=…&id=…（Range 拖进度）。
  *   签令牌、续签、切曲、倍速、防同时响都在共用核 music-core.js（SgxMusicCore.createPlayer；弹出播放器同一份），本文件只画界面。
  * 上传（M2 PR-a 起，见「上传」一节）：分段「单首 | 批量」；歌名 / 歌手按音频标签（curio-music-tags.js）、没有再按文件名预填；单首选「不划 / 新建 / 已有专辑」，
- *   批量选「这批划入哪个专辑」；封面裁方、≤ 1000、jpeg；音频按文件名排序逐个直传（单个 ≤ 95 MB）→ 每首一个 track.edit 写歌手 / 歌词。
+ *   批量选「这批划入哪个专辑」；封面裁方、≤ 1000、jpeg；音频按文件名排序直传（单个 ≤ 95 MB）→ 每首一个 track.edit 写歌手 / 歌词。
+ *   PR-b：一次 2 首、每首状态 + XHR 进度、只重试失败的（不重建记录）、拖放、去重提醒（可跳过）、没对上的歌词 / 封面手动配对。
  * 单曲 / 专辑分类（音乐 v1.13 ②，Gray 2026-11-14 17:33 定）：
  *   - 列表每条带 kind；页面分段「专辑 · 单曲」（两边都有才显示分段，哪边为空只显示有的那边）。专辑 = 封面横滑照旧；
  *     单曲 = 列表（小封面 · 歌名 · 歌手 · 时长），点一行就播，单曲区当播放列表（共用核 playQueue：按需为下一首签令牌，顺序 / 随机、到尾停同专辑）。
@@ -195,7 +196,7 @@ function matchFile(fname, names, used){
  * 上传计划（不发请求，只算发什么）。o = {
  *   mode: 'one' 单首 / 'batch' 批量；target: '0' 不划入专辑（= 单曲）/ 'new' 新建专辑 / 已有专辑 id；
  *   name（单首的歌名）, albumName（新建专辑的名）, artist（单首的歌手 / 新建专辑的歌手）, year（数字，0 = 不填）,
- *   files: [{name, tags: {title, artist, picture: 有没有内嵌封面}}]（批量已按文件名排好）, covers: [文件名], lrcs: [文件名], preview（只算预览，不查名字） }；list = 歌单（找已有专辑、它的曲序）。
+ *   files: [{name, tags: {title, artist, picture: 有没有内嵌封面}}]（批量已按文件名排好）, covers: [文件名], lrcs: [文件名], pairs: {lrc / cover: {文件下标: 第几首}}（手动配对，PR-b）, preview（只算预览，不查名字） }；list = 歌单（找已有专辑、它的曲序）。
  * → {error} 或 {album: null（单曲）/ {add: {title, artist, year}} / {id, title, artist}, singleYear, albumCover: null / {pick: k} / {embedded: 第几首},
  *    tracks: [{file, no, title, artist, lrc: 下标 / -1, cover: 下标 / -1, embedded: 用内嵌封面}], unmatched: {lrc: [名字], cover: [名字]}}
  * 规则：单首——歌名 = 填的；歌手 = 填的。批量——每首按 TAGS.prefill（标签优先、文件名兜底）；新建专辑 / 已有专辑里，没有歌手的曲目用专辑的歌手。
@@ -228,10 +229,13 @@ function uploadPlan(o, list){
     return plan;
   }
   var usedL = {}, usedC = {}, useCovers = !plan.album;  /* 单曲：封面按文件名对上；新建专辑只要一张专辑封面；已有专辑不传 */
+  /* 手动配对（PR-b，7.4「没配上的列出来手动对」）先占位，剩下的再按文件名对 */
+  var manL = applyPairs(o.pairs && o.pairs.lrc, lrcs.length, files.length, usedL);
+  var manC = useCovers ? applyPairs(o.pairs && o.pairs.cover, covers.length, files.length, usedC) : {};
   files.forEach(function(f, i){
     var p = TAGS.prefill(f.name, f.tags, { batch: true, fallback: i + 1 });
-    var li = matchFile(f.name, lrcs, usedL); if (li >= 0) usedL[li] = true;
-    var ci = useCovers ? matchFile(f.name, covers, usedC) : -1; if (ci >= 0) usedC[ci] = true;
+    var li = manL[i] !== undefined ? manL[i] : matchFile(f.name, lrcs, usedL); if (li >= 0) usedL[li] = true;
+    var ci = manC[i] !== undefined ? manC[i] : useCovers ? matchFile(f.name, covers, usedC) : -1; if (ci >= 0) usedC[ci] = true;
     plan.tracks.push({ file: i, no: plan.album ? (plan.album.add ? p.no : base + 1 + i) : 1, title: p.title || TAGS.cleanName(f.name) || String(f.name || ''),
       artist: p.artist || albArtist, lrc: li, cover: ci, embedded: !plan.album && ci < 0 && !!(f.tags && f.tags.picture) });
   });
@@ -242,6 +246,72 @@ function uploadPlan(o, list){
   lrcs.forEach(function(n, i){ if (!usedL[i]) plan.unmatched.lrc.push(n); });
   if (useCovers) covers.forEach(function(n, i){ if (!usedC[i]) plan.unmatched.cover.push(n); });
   return plan;
+}
+/** 手动配对 pairs = {文件下标: 第几首音频}（-1 / 缺 = 不配）→ {第几首: 文件下标}，占掉的文件记进 used；一首只认第一个配给它的 */
+function applyPairs(pairs, nFiles, nTracks, used){
+  var by = {};
+  Object.keys(pairs || {}).forEach(function(k){
+    var f = Number(k), a = Number(pairs[k]);
+    if (!(f >= 0 && f < nFiles) || !(a >= 0 && a < nTracks) || by[a] !== undefined || used[f]) return;
+    by[a] = f; used[f] = true;
+  });
+  return by;
+}
+
+/* ---------- 上传 PR-b（并发 2、每文件状态、只重试失败、XHR 进度、去重提醒；7.4 / 十二 M2 第 1、4 条）的纯函数 ---------- */
+/** 一次同时传几首（7.4「并发建议一次传 2 个」） */
+var UP_CONC = 2;
+/** 进度百分比：服务器回话之前最多 99（字节传完了还要等它写 R2 / D1） */
+function pctOf(loaded, total){ if (!(total > 0)) return 0; return Math.max(0, Math.min(99, Math.floor(loaded * 100 / total))); }
+/** 比歌名 / 歌手用的键：不分大小写、去掉空白（同近似歌手 artistKey） */
+function dupKey(s){ return artistKey(s); }
+/**
+ * 去重提醒（十二 M2 第 4 条：只提醒，可勾选跳过，不拦）。f = {title, artist, duration（秒，0 = 不知道）, size（字节）}；list = 歌单（写的人能拿到 size）。
+ * 算重复：歌名一样，且 ①歌手一样、时长差不超过 1 秒（「歌名 + 歌手 + 时长」）或 ②文件大小一样（「文件名 + 大小」：库里不存文件名，用歌名代替）。
+ * 曲目没自己的歌手就看专辑的。→ 第一条对上的 {title, artist, album（单曲 ''）} 或 null
+ */
+function dupOf(f, list){
+  var tk = dupKey(f && f.title);
+  if (!tk) return null;
+  for (var i = 0; list && i < list.length; i++) {
+    var a = list[i], ts = a.tracks || [];
+    for (var j = 0; j < ts.length; j++) {
+      var t = ts[j];
+      if (dupKey(t.title) !== tk) continue;
+      var who = t.artist || a.artist || '';
+      var meta = dupKey(who) === dupKey(f.artist) && f.duration > 0 && t.duration > 0 && Math.abs(t.duration - f.duration) <= 1;
+      var size = f.size > 0 && t.size === f.size;
+      if (meta || size) return { title: t.title, artist: who, album: CORE.isSingle(a) ? '' : a.title };
+    }
+  }
+  return null;
+}
+/** 失败原因 → 文案键（每文件状态「失败：原因」） */
+function upReason(e){
+  var c = e && (e.sgxLocked ? 'locked' : e.code);
+  return ({ locked: 'whyLocked', network: 'whyNetwork', 'too-large': 'whyTooLarge', 'not-audio': 'whyNotAudio', limit: 'errLimit', 'single-full': 'singleFull',
+    'not-found': 'whyAlbumGone', albumGone: 'whyAlbumGone', storage: 'whyStorage', forbidden: 'noPermission', cover: 'whyCover', edit: 'whyEdit', album: 'whyAlbum' })[c] || 'whyOther';
+}
+/** 能接着用的空单曲记录（上次传到一半留下的：没有曲目，歌名、歌手都一样）；taken = 这次已经占用的记录 id → id 或 0 */
+function emptySingle(list, title, artist, taken){
+  var tt = String(title || '').trim(), aa = String(artist || '').trim();
+  for (var i = 0; list && i < list.length; i++) {
+    var a = list[i];
+    if (CORE.isSingle(a) && !(a.tracks || []).length && String(a.title || '').trim() === tt && String(a.artist || '').trim() === aa && !(taken && taken[a.id])) return a.id;
+  }
+  return 0;
+}
+/** 拖进来的文件分三类：音频（认得的类型）/ 歌词 .lrc / 图片；别的算不认识 */
+function dropKinds(files){
+  var o = { audio: [], lrc: [], cover: [], other: [] };
+  Array.prototype.forEach.call(files || [], function(f){
+    var n = String(f.name || ''), ty = String(f.type || '');
+    if (/\.lrc$/i.test(n)) o.lrc.push(f);
+    else if (/^image\//.test(ty) || /\.(jpe?g|png|webp|gif)$/i.test(n)) o.cover.push(f);
+    else if (audioType(f)) o.audio.push(f);
+    else o.other.push(f);
+  });
+  return o;
 }
 /** 封面 / 头像裁切（十二 M2 第 3 条 / M4 第 2 条，同一套）：取中间正方形、≤ 1000、jpeg；质量从 0.86 起，超 3 MB 再降（同后端 coverBytes） */
 var COVER_MAX = 3 * 1024 * 1024, COVER_Q = [0.86, 0.72, 0.55];
@@ -276,7 +346,7 @@ function makeTr(dict, lang){
   };
 }
 
-var pure = { readDict: readDict, makeTr: makeTr, SPEEDS: SPEEDS, TRACK_MAX: TRACK_MAX, nextSpeed: nextSpeed, fmtTime: fmtTime, parseLrc: parseLrc, lrcIndex: lrcIndex, trackFromName: trackFromName, sortByName: sortByName, audioType: audioType, lrcKey: lrcKey, splitKinds: splitKinds, pickSection: pickSection, albumChoices: albumChoices, lrcChange: lrcChange, trackEditBody: trackEditBody, yearOf: yearOf, batchRequests: batchRequests, artistOf: artistOf, artistWorks: artistWorks, relatedAlbums: relatedAlbums, similarArtist: similarArtist, squareCrop: squareCrop, matchKey: matchKey, uploadPlan: uploadPlan, COVER_MAX: COVER_MAX, COVER_Q: COVER_Q };
+var pure = { readDict: readDict, makeTr: makeTr, SPEEDS: SPEEDS, TRACK_MAX: TRACK_MAX, nextSpeed: nextSpeed, fmtTime: fmtTime, parseLrc: parseLrc, lrcIndex: lrcIndex, trackFromName: trackFromName, sortByName: sortByName, audioType: audioType, lrcKey: lrcKey, splitKinds: splitKinds, pickSection: pickSection, albumChoices: albumChoices, lrcChange: lrcChange, trackEditBody: trackEditBody, yearOf: yearOf, batchRequests: batchRequests, artistOf: artistOf, artistWorks: artistWorks, relatedAlbums: relatedAlbums, similarArtist: similarArtist, squareCrop: squareCrop, matchKey: matchKey, uploadPlan: uploadPlan, applyPairs: applyPairs, UP_CONC: UP_CONC, pctOf: pctOf, dupOf: dupOf, upReason: upReason, emptySingle: emptySingle, dropKinds: dropKinds, COVER_MAX: COVER_MAX, COVER_Q: COVER_Q };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxCurioMusic = pure;
 
@@ -292,8 +362,6 @@ var tr = makeTr(T, lang);
 T.tracks = function(n){ return tr('tracks', { n: n }); };
 T.tooBig = function(name){ return tr('tooBig', { name: name }); };
 T.badType = function(name){ return tr('badType', { name: name }); };
-T.up = function(i, n, name){ return tr('up', { i: i, n: n, name: name }); };
-T.partial = function(n){ return tr('partial', { n: n }); };
 T.chosen = function(n){ return tr('chosen', { n: n }); };
 T.speed = function(s){ return tr('speed', { s: s }); };
 T.selN = function(n){ return tr('selN', { n: n }); };
@@ -357,12 +425,31 @@ function req(method, url, body, type, ticket){
     headers: h,
     body: body === undefined ? undefined : type ? body : JSON.stringify(body),
   }).then(function(r){
-    return r.json().catch(function(){ return {}; }).then(function(j){
-      if (r.status === 401) { setViewOnly(true); askSudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
-      if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error, status: r.status });
-      if (Array.isArray(j.artists)) { arts = j.artists; fillArtistList(); }  /* M4：歌手表跟着每次回答换 */
-      return j;
-    });
+    return r.json().catch(function(){ return {}; }).then(function(j){ return answer(r.status, j); });
+  });
+}
+/** 回答的统一处理（req 和上传音频的 XHR 共用）：401 = 没进站；不 ok 带 code 抛出；歌手表跟着换 */
+function answer(status, j){
+  j = j || {};
+  if (status === 401) { setViewOnly(true); askSudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+  if (!(status >= 200 && status < 300) || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + status)), { code: j.error, status: status });
+  if (Array.isArray(j.artists)) { arts = j.artists; fillArtistList(); }  /* M4：歌手表跟着每次回答换 */
+  return j;
+}
+/** 上传音频（PR-b，7.4「换 XMLHttpRequest，不碰后端」）：同 req 的地址、头和回答处理，多一个真实的上传进度 onPct(0–99)；断网 / 超时 code = network */
+function xhrUpload(url, body, type, onPct){
+  return new Promise(function(resolve, reject){
+    var x = new XMLHttpRequest();
+    x.open('POST', url, true);
+    x.setRequestHeader('Content-Type', type);
+    if (x.upload) x.upload.onprogress = function(e){ if (e.lengthComputable && onPct) onPct(pctOf(e.loaded, e.total)); };
+    x.onload = function(){
+      var j = {};
+      try { j = JSON.parse(x.responseText || '{}') || {}; } catch (e) { j = {}; }
+      try { resolve(answer(x.status, j)); } catch (e) { reject(e); }
+    };
+    x.onerror = x.ontimeout = x.onabort = function(){ reject(Object.assign(new Error('network'), { code: 'network' })); };
+    x.send(body);
   });
 }
 /** 失败提示：403 forbidden（2b：v6 身份不在 listen / curio-write，或 album.del 不是 root）说没权限，其余「出了点问题」 */
@@ -686,13 +773,23 @@ $('#mu-del-ok').addEventListener('click', function(){
  *   - 歌手栏挂 M4 的联想（#mu-artist-list）+ 近似名提示；预填的歌手和已有歌手同名就是同一个人（后端按名字对上 artist_id，十一 第 4 条）。
  *   - 曲目的歌手：上传接口不收歌手，传完一首发一个 track.edit {artist, lrc}（有才发），写曲目的 artist_id。
  *   - 封面：选的图、音频内嵌的封面都裁方、≤ 1000、jpeg（cropCover，十二 M2 第 3 条；已存的旧封面不动）。内嵌封面读不出来 / 解不开就算了，不算失败。
- * 逐首顺序传（并发、每首状态、只重试失败、进度、拖放、去重提醒是 PR-b）。 */
-var upFiles = { audio: [], cover: [], lrc: [], tags: [] };
+ * PR-b（十二 M2 第 1、4 条，7.4「批量传到一半失败」）：
+ *   - 一次同时传 2 首（UP_CONC）；右栏每首一行状态：等待 / 上传中（XHR 真实进度）/ 完成 / 失败：原因 / 跳过。
+ *   - 传完有失败的：窗口留着，底部「重试失败的（n）」只重传失败的那几首，从断的那一步接着来（已建的单曲记录、已传的音频、已写的歌手歌词不再做一遍），
+ *     新建专辑只建一次；「放弃剩下的」关窗，留下的空记录不删（见 jobAbandon），下次传同名同歌手的单曲接着用那条空记录（emptySingle）。
+ *     关窗（× / 遮罩 / 返回）不丢任务：再点上传回到这次的状态。
+ *   - 拖放：文件拖进上传窗就按类型分到音频 / 封面 / 歌词（dropKinds）；单首拖进多首音频自动切到批量。
+ *   - 去重提醒（dupOf）：歌名 + 歌手 + 时长，或歌名 + 文件大小，和已有曲目一样就在那一行提醒；批量可勾「跳过这首」，不勾照传，不拦。
+ *   - 批量没按文件名对上的歌词 / 封面列在右栏，每个一个下拉手动配给某一首（upPairs → uploadPlan pairs）。
+ *   - 右栏全用 DOM + textContent 画（文件名、歌名不进 innerHTML）。 */
+var upFiles = { audio: [], cover: [], lrc: [], tags: [], dur: [] };
 /** 上传窗模式：'one' 单首（默认）/ 'batch' 批量 */
 var upMode = 'one', upGen = 0;
 /** 用户亲手改过的栏（预填不再覆盖）；预填写进去的值不算 */
 var upDirty = { name: false, artist: false };
 var upPrev = '';
+/* PR-b：手动配对 {lrc / cover: {文件下标: 第几首}}、勾了跳过的 {第几首: true}、这次上传任务（null = 还没开始；见 jobNew） */
+var upPairs = { lrc: {}, cover: {} }, upSkip = {}, job = null;
 /* 内嵌封面预览只用固定的几种图片类型（标签里的 MIME 字符串不直接进 Blob） */
 var UP_IMG_MIME = { 'image/jpeg': 'image/jpeg', 'image/jpg': 'image/jpeg', 'image/png': 'image/png', 'image/gif': 'image/gif' };
 function upDropPreview(){ if (upPrev) { try { URL.revokeObjectURL(upPrev); } catch (e) {} upPrev = ''; } }
@@ -758,22 +855,108 @@ function upPlanNow(preview){
   var y = Number($('#mu-up-year').value) || 0;
   return uploadPlan({ preview: !!preview, mode: upMode, target: upTarget(), name: $('#mu-up-name').value, albumName: $('#mu-up-aname').value, artist: $('#mu-up-artist').value, year: y >= 1900 && y <= 2100 ? y : 0,
     files: upFiles.audio.map(function(f, i){ var g = upFiles.tags[i]; return { name: f.name, tags: g ? { title: g.title, artist: g.artist, picture: !!g.picture } : null }; }),
-    covers: upFiles.cover.map(function(f){ return f.name; }), lrcs: upFiles.lrc.map(function(f){ return f.name; }) }, all);
+    covers: upFiles.cover.map(function(f){ return f.name; }), lrcs: upFiles.lrc.map(function(f){ return f.name; }), pairs: upPairs }, all);
 }
-/** 批量：右栏列出每首会传成什么（歌名 · 歌手，新歌手标「新」）和没对上的歌词 / 封面 */
+function mk(tag, cls, text){ var e = doc.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+/** 这一首和已有曲目重复吗（PR-b 去重提醒；时长读出来之前只按大小比） */
+function upDup(t){ var f = upFiles.audio[t.file]; return f ? dupOf({ title: t.title, artist: t.artist, duration: upFiles.dur[t.file] || 0, size: f.size }, all) : null; }
+/** 每首的状态文字 */
+function stText(r){ return r.st === 'up' ? tr('stUp', { p: r.pct }) : r.st === 'wait' ? T.stWait : r.st === 'done' ? T.stDone : r.st === 'fail' ? T.stFail : r.st === 'skip' ? T.stSkip : ''; }
+/**
+ * 右栏列表（全用 DOM + textContent）：
+ *   没开始传：批量列出每首会传成什么（歌名 · 歌手，新歌手标「新」）+ 重复提醒（可勾跳过）+ 没对上的歌词 / 封面（下拉手动配）；单首只在重复时列一行。
+ *   传的时候 / 传完：每首一行状态（等待 / 上传中 + 进度条 / 完成 / 失败 + 原因 / 跳过）。
+ */
 function upList(){
   var box = $('#mu-up-list');
-  if (upMode === 'one' || !upFiles.audio.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
-  var p = upPlanNow(true), rows = p.tracks || [];
+  box.textContent = '';
+  var rows, plan;
+  if (job) { plan = job.plan; rows = job.items; }
+  else {
+    plan = upFiles.audio.length ? upPlanNow(true) : { error: 'needAudio' };
+    rows = plan.error ? [] : plan.tracks.map(function(t){ return { t: t, st: '', dup: upDup(t) }; });
+  }
+  var one = job ? job.one : upMode === 'one';
+  if (!rows.length || (one && !job && !rows[0].dup)) { box.classList.add('hidden'); return; }
   var known = {}; arts.forEach(function(r){ known[r.name] = true; });
-  var h = '<p class="mu-up-list-h">' + esc(T.listHead) + '</p><ol class="mu-up-rows">' + rows.map(function(t){
-    var who = t.artist ? esc(t.artist) + (known[t.artist] ? '' : ' <span class="mu-up-new">' + esc(T.newArtist) + '</span>') : '<span class="mu-up-none">' + esc(T.noArtist) + '</span>';
-    return '<li><b>' + esc(t.title) + '</b><span>' + who + '</span></li>';
-  }).join('') + '</ol>';
-  var miss = (p.unmatched ? p.unmatched.lrc.concat(p.unmatched.cover) : []);
-  if (miss.length) h += '<p class="mu-up-miss">' + esc(tr('unmatched', { names: miss.join(T.arSep || '、') })) + '</p>';
-  box.innerHTML = h; box.classList.remove('hidden');
+  box.appendChild(mk('p', 'mu-up-list-h', job ? T.listJob : T.listHead));
+  var ol = mk('ol', 'mu-up-rows');
+  rows.forEach(function(r){
+    var t = r.t, li = mk('li', 'mu-up-row' + (r.st ? ' is-' + r.st : ''));
+    li.setAttribute('data-i', String(t.file));
+    var top = mk('div', 'mu-up-top');
+    top.appendChild(mk('b', null, t.title));
+    var who = mk('span', 'mu-up-who');
+    if (t.artist) { who.textContent = t.artist; if (!known[t.artist]) who.appendChild(mk('span', 'mu-up-new', T.newArtist)); }
+    else who.appendChild(mk('span', 'mu-up-none', T.noArtist));
+    top.appendChild(who);
+    if (r.st) top.appendChild(mk('span', 'mu-up-st', stText(r)));
+    li.appendChild(top);
+    if (r.st === 'up') {
+      var bar = mk('div', 'mu-up-bar'), fill = mk('i');
+      bar.setAttribute('role', 'progressbar'); bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', '100'); bar.setAttribute('aria-valuenow', String(r.pct));
+      bar.setAttribute('aria-label', t.title);
+      fill.style.width = r.pct + '%';
+      bar.appendChild(fill); li.appendChild(bar);
+    }
+    if (r.st === 'fail') li.appendChild(mk('p', 'mu-up-why', T[r.why] || T.whyOther));
+    if (!job && r.dup) {
+      var d = r.dup;
+      li.appendChild(mk('p', 'mu-up-dup', tr(d.album ? 'dupAlbum' : 'dupSingle', { title: d.title, artist: d.artist || T.noArtist, album: d.album })));
+      if (!one) {
+        var lab = mk('label', 'mu-up-skip'), cb = mk('input');
+        cb.type = 'checkbox'; cb.setAttribute('data-skip', String(t.file)); cb.checked = !!upSkip[t.file];
+        lab.appendChild(cb); lab.appendChild(mk('span', null, T.skipThis));
+        li.appendChild(lab);
+      }
+    }
+    ol.appendChild(li);
+  });
+  box.appendChild(ol);
+  if (!job && !one) upPairUi(box, plan);
+  box.classList.remove('hidden');
 }
+/** 批量没对上的歌词 / 封面：每个文件一个下拉「配给哪首」（7.4「没配上的列出来手动对」）；手动配过的也留在这里，能改回来 */
+function upPairUi(box, plan){
+  var kinds = [['lrc', upFiles.lrc, T.pairLrc]];
+  if (!plan.album) kinds.push(['cover', upFiles.cover, T.pairCover]);  /* 新建 / 已有专辑不按首配封面 */
+  var items = [];
+  kinds.forEach(function(k){
+    var kind = k[0], auto = {};
+    plan.tracks.forEach(function(t){ var v = t[kind]; if (v >= 0 && upPairs[kind][v] === undefined) auto[v] = true; });
+    k[1].forEach(function(f, i){ if (!auto[i]) items.push({ kind: kind, i: i, name: f.name, label: k[2] }); });
+  });
+  if (!items.length) return;
+  var sec = mk('div', 'mu-up-pair');
+  sec.appendChild(mk('p', 'mu-up-pair-h', T.pairHead));
+  items.forEach(function(it){
+    var row = mk('label', 'mu-up-pair-row'), sel = mk('select', 'it-select');
+    var name = mk('span', 'mu-up-pair-name', it.name);
+    name.setAttribute('title', it.name);
+    sel.setAttribute('data-pair', it.kind); sel.setAttribute('data-k', String(it.i)); sel.setAttribute('aria-label', tr('pairFor', { name: it.name }));
+    var o0 = mk('option', null, T.pairNone); o0.value = '-1'; sel.appendChild(o0);
+    plan.tracks.forEach(function(t, n){ var o = mk('option', null, tr('pairTrack', { n: n + 1, title: t.title })); o.value = String(t.file); sel.appendChild(o); });
+    var v = upPairs[it.kind][it.i];
+    sel.value = v === undefined ? '-1' : String(v);
+    row.appendChild(mk('span', 'mu-up-pair-k', it.label)); row.appendChild(name); row.appendChild(sel);
+    sec.appendChild(row);
+  });
+  box.appendChild(sec);
+}
+var upRaf = 0;
+/** 进度事件很密：一帧最多重画一次 */
+function upListSoon(){ if (upRaf) return; var f = G.requestAnimationFrame || function(cb){ return G.setTimeout(cb, 16); }; upRaf = f(function(){ upRaf = 0; upList(); }) || 1; }
+$('#mu-up-list').addEventListener('change', function(e){
+  var x = e.target;
+  if (x.hasAttribute('data-skip')) { var n = Number(x.getAttribute('data-skip')); if (x.checked) upSkip[n] = true; else delete upSkip[n]; return; }
+  var kind = x.getAttribute('data-pair');
+  if (!kind) return;
+  var k = Number(x.getAttribute('data-k')), v = Number(x.value), m = upPairs[kind];
+  /* 一首只配一个：配给它的旧的先撤掉 */
+  Object.keys(m).forEach(function(q){ if (m[q] === v) delete m[q]; });
+  if (v >= 0) m[k] = v; else delete m[k];
+  upList();
+});
 /** 预填（单首）：没被用户改过的栏才写；近似名提示跟着刷新 */
 function upPrefill(){
   if (upMode !== 'one' || !upFiles.audio.length) return;
@@ -794,7 +977,8 @@ function setUpMode(m){
   /* 切模式清掉已选的文件和预填（单选 / 多选不能互相带） */
   upGen++;
   $('#mu-up-audio').value = ''; $('#mu-up-lrc').value = ''; $('#mu-up-cover').value = '';
-  upFiles = { audio: [], cover: [], lrc: [], tags: [] };
+  upFiles = { audio: [], cover: [], lrc: [], tags: [], dur: [] };
+  upPairs = { lrc: {}, cover: {} }; upSkip = {};
   if (!upDirty.name) $('#mu-up-name').value = '';
   if (!upDirty.artist) { $('#mu-up-artist').value = ''; $('#mu-up-artist').dispatchEvent(new Event('input')); }
   upFillAlbums(); upAudioName(); upLayout();
@@ -803,11 +987,11 @@ function setUpMode(m){
 $('#mu-up-kind').addEventListener('click', function(e){ var b = e.target.closest('[data-kind]'); if (b && b.dataset.kind !== upMode) setUpMode(b.dataset.kind); });
 $('#mu-up-album').addEventListener('change', function(){
   /* 不划 → 新建再回来：封面单选 / 多选会变，已选的封面先清掉 */
-  $('#mu-up-cover').value = ''; upFiles.cover = [];
+  $('#mu-up-cover').value = ''; upFiles.cover = []; upPairs.cover = {};
   upLayout(); upMajority();
 });
-$('#mu-up-name').addEventListener('input', function(e){ if (e.isTrusted) upDirty.name = true; });
-$('#mu-up-artist').addEventListener('input', function(e){ if (e.isTrusted) upDirty.artist = true; if (upMode === 'batch') upList(); });
+$('#mu-up-name').addEventListener('input', function(e){ if (e.isTrusted) upDirty.name = true; if (!job) upList(); });
+$('#mu-up-artist').addEventListener('input', function(e){ if (e.isTrusted) upDirty.artist = true; if (!job) upList(); });
 /* 上传窗 = 非模态 <dialog class="sgx-qp sgx-up">（同 AI 窗口的悬浮卡片）+ 共享 modalSheet（topbar-host.js 挂的 window.SgxModalSheet）：
  * 系统返回 / Esc 只关窗不离页；点遮罩（dialog 本身）关；点顶栏任一按钮先关它（同顶栏窗口互斥）。时长同 CSS .24s。
  * 拿不到状态机（不该发生）就退回裸 show / close。 */
@@ -830,17 +1014,26 @@ if (nav) nav.addEventListener('click', function(e){
   sh.close(function(){ G.setTimeout(function(){ t.click(); }, 0); });
 }, true);
 $('#mu-up-x').addEventListener('click', function(){ upSheet.close(); });
-$('#mu-upload').addEventListener('click', function(){
+/** 回到一张空表（打开上传窗、放弃任务时） */
+function upReset(){
   $('#mu-up-form').reset();
   upDirty = { name: false, artist: false };
-  upMsg(''); $('#mu-up-go').disabled = false;
+  upMsg('');
   setUpMode('one');
+  upFormLock(false);
+}
+$('#mu-upload').addEventListener('click', function(){
+  /* 有没传完的任务（关过窗）：回到它的状态，不重置 */
+  if (!job) upReset();
   upSheet.open();
 });
-$('#mu-up-audio').addEventListener('change', function(){
+/** 选 / 拖进来音频（PR-b 拖放和选文件同一条路） */
+function setAudio(list){
   var one = upMode === 'one', gen = ++upGen;
-  upFiles.audio = sortByName(this.files).slice(0, one ? 1 : undefined);
+  upFiles.audio = sortByName(list).slice(0, one ? 1 : undefined);
   upFiles.tags = upFiles.audio.map(function(){ return null; });
+  upFiles.dur = upFiles.audio.map(function(){ return 0; });
+  upPairs = { lrc: {}, cover: {} }; upSkip = {};
   upAudioName(); upCoverName(); upPrefill(); upList(); upMajority();
   /* 读标签（尽力而为，永远 resolve）；读完再预填一次。换了文件 / 模式（gen 变了）就不管旧的 */
   Promise.all(upFiles.audio.map(function(f, i){
@@ -849,12 +1042,40 @@ $('#mu-up-audio').addEventListener('change', function(){
     if (gen !== upGen) return;
     upCoverName(); upPrefill(); upList(); upMajority();
   });
-});
-$('#mu-up-cover').addEventListener('change', function(){ upFiles.cover = Array.prototype.slice.call(this.files || []); upCoverName(); upList(); });
-$('#mu-up-lrc').addEventListener('change', function(){
-  upFiles.lrc = Array.prototype.slice.call(this.files || []).slice(0, upMode === 'one' ? 1 : undefined);
+  /* 时长（去重提醒「歌名 + 歌手 + 时长」用，上传时也带上）；读完再画一次 */
+  Promise.all(upFiles.audio.map(function(f, i){
+    return durationOf(f).then(function(d){ if (gen === upGen) upFiles.dur[i] = d; });
+  })).then(function(){ if (gen === upGen && !job) upList(); });
+}
+function setCover(list){
+  upFiles.cover = Array.prototype.slice.call(list || []).slice(0, $('#mu-up-cover').multiple ? undefined : 1);
+  upPairs.cover = {};
+  upCoverName(); upList();
+}
+function setLrc(list){
+  upFiles.lrc = Array.prototype.slice.call(list || []).slice(0, upMode === 'one' ? 1 : undefined);
+  upPairs.lrc = {};
   upLrcName(); upList();
-});
+}
+$('#mu-up-audio').addEventListener('change', function(){ setAudio(this.files); });
+$('#mu-up-cover').addEventListener('change', function(){ setCover(this.files); });
+$('#mu-up-lrc').addEventListener('change', function(){ setLrc(this.files); });
+/* 拖放（PR-b，九「拖放上传」）：文件拖进上传窗（含遮罩）就收，按类型分；传的时候不收。拖着的时候卡片上盖一层「松手加入」 */
+var upSheetEl = upDlg.querySelector('.sgx-qp-sheet'), dragN = 0;
+function dragHasFiles(e){ var t = e.dataTransfer && e.dataTransfer.types; return !!t && Array.prototype.indexOf.call(t, 'Files') >= 0; }
+function dragOff(){ dragN = 0; upSheetEl.classList.remove('is-drag'); }
+upDlg.addEventListener('dragenter', function(e){ if (!dragHasFiles(e)) return; e.preventDefault(); if (job) return; dragN++; upSheetEl.classList.add('is-drag'); });
+upDlg.addEventListener('dragover', function(e){ if (!dragHasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = job ? 'none' : 'copy'; });
+upDlg.addEventListener('dragleave', function(e){ if (!dragHasFiles(e)) return; dragN = Math.max(0, dragN - 1); if (!dragN) dragOff(); });
+upDlg.addEventListener('drop', function(e){ if (!dragHasFiles(e)) return; e.preventDefault(); dragOff(); if (!job) upDrop(e.dataTransfer.files); });
+function upDrop(files){
+  var k = dropKinds(files);
+  if (upMode === 'one' && k.audio.length > 1) setUpMode('batch');
+  if (k.audio.length) { $('#mu-up-audio').value = ''; setAudio(k.audio); }
+  if (k.cover.length && !$('#mu-up-cover').disabled) { $('#mu-up-cover').value = ''; setCover(k.cover); }
+  if (k.lrc.length) { $('#mu-up-lrc').value = ''; setLrc(k.lrc); }
+  upMsg(k.other.length ? tr('dropOther', { n: k.other.length }) : '', !!k.other.length);
+}
 /** 封面（十二 M2 第 3 条，同歌手头像一套）：取中间正方形、缩到 ≤ 1000、jpeg；超 3 MB 降质量再压（还超就报错，不传） */
 function cropCover(file){
   return new Promise(function(resolve, reject){
@@ -891,88 +1112,177 @@ function durationOf(file){
   });
 }
 function readText(f){ return new Promise(function(ok){ var r = new FileReader(); r.onload = function(){ ok(String(r.result || '')); }; r.onerror = function(){ ok(''); }; r.readAsText(f); }); }
-/** 内嵌封面 → Blob（没有 null） */
-function embBlob(i){ var g = upFiles.tags[i]; return g && g.picture ? new Blob([g.picture.bytes], { type: UP_IMG_MIME[g.picture.mime] || 'image/jpeg' }) : null; }
+/** 传的时候表单锁住（文件、栏、分段都不能动）；解锁时按模式 / 目标专辑恢复变灰的栏 */
+function upFormLock(on){
+  doc.querySelectorAll('#mu-up-form input, #mu-up-form select, #mu-up-form button, #mu-up-kind button').forEach(function(x){ x.disabled = !!on; });
+  if (!on) upLayout();
+}
+var upGoText = $('#mu-up-go').textContent;
+/** 底部按钮：没任务 =「上传」；传的时候 =「上传中…」不能点；传完有失败 =「放弃剩下的」+「重试失败的（n）」 */
+function upFoot(){
+  var go = $('#mu-up-go'), ab = $('#mu-up-abandon');
+  ab.classList.toggle('hidden', !job || job.running);
+  ab.disabled = !!(job && job.running);
+  if (!job) { go.textContent = upGoText; go.disabled = false; return; }
+  go.disabled = job.running;
+  go.textContent = job.running ? T.uploading : tr('retryN', { n: jobLeft() });
+}
 $('#mu-up-go').addEventListener('click', function(){
-  var one = upMode === 'one';
+  if (job) { if (!job.running) jobRetry(); return; }
   /* 标签没读完就点了：等读完（readTags 永远 resolve，不会卡住） */
   var gen = upGen, btn = this;
   btn.disabled = true;
   Promise.all(upFiles.audio.map(function(f, i){ return upFiles.tags[i] ? null : TAGS.readTags(f).then(function(g){ if (gen === upGen) upFiles.tags[i] = g; }); })).then(function(){
+    btn.disabled = false;
     var plan = upPlanNow();
-    if (plan.error) { btn.disabled = false; return upMsg(plan.error === 'needSong' ? T.needSong : plan.error === 'needAlbumName' ? T.needAlbumName : plan.error === 'needAudio' ? T.needAudio : T.failed, true); }
+    if (plan.error) return upMsg(plan.error === 'needSong' ? T.needSong : plan.error === 'needAlbumName' ? T.needAlbumName : plan.error === 'needAudio' ? T.needAudio : T.failed, true);
     for (var k = 0; k < upFiles.audio.length; k++) {
       var f = upFiles.audio[k];
-      if (f.size > TRACK_MAX) { btn.disabled = false; return upMsg(T.tooBig(f.name), true); }
-      if (!audioType(f)) { btn.disabled = false; return upMsg(T.badType(f.name), true); }
+      if (f.size > TRACK_MAX) return upMsg(T.tooBig(f.name), true);
+      if (!audioType(f)) return upMsg(T.badType(f.name), true);
     }
-    return runUpload(plan, one);
-  }).then(function(){ btn.disabled = false; }, function(){ btn.disabled = false; });
+    var j = jobNew(plan);
+    if (!j.items.some(function(it){ return it.st === 'wait'; })) return upMsg(T.allSkipped, true);
+    job = j;
+    upFormLock(true);
+    jobRun();
+  }, function(){ btn.disabled = false; });
 });
-/** 按计划逐首传：专辑（新建的）→ 专辑封面 → 每首（单曲先建记录、传封面）音频 → 歌手 / 歌词一个 track.edit → 重新拉歌单 */
-function runUpload(plan, one){
-  var albumId = plan.album && plan.album.id || 0, failed = 0;
-  var files = upFiles.audio, covers = upFiles.cover, lrcs = upFiles.lrc;
-  function cover(id, file, best){
-    /* best = 内嵌封面：解不开就算了（不算失败） */
-    return cropCover(file).then(function(b){ return req('POST', '/curio/api/music-upload?album=' + id + '&kind=cover', b, b.type); })
-      .catch(function(e){ if (e && e.sgxLocked) throw e; if (!best) failed++; });
-  }
-  var start = Promise.resolve();
-  if (plan.album && plan.album.add) start = req('POST', '/curio/api/music', { op: 'album.add', kind: 'album', title: plan.album.add.title, artist: plan.album.add.artist, year: plan.album.add.year }).then(function(j){
-    albumId = j.id;
-    var ac = plan.albumCover;
-    if (!ac) return null;
-    var file = ac.pick !== undefined ? covers[ac.pick] : embBlob(ac.embedded);
-    if (!file) return null;
+$('#mu-up-abandon').addEventListener('click', function(){ if (job && !job.running) jobAbandon(); });
+
+/* ---------- 上传任务（PR-b） ----------
+ * job = { plan, one, files / covers / lrcs / tags（这次的文件，表单锁着不会变）, albumId（新建专辑建过就记下，重试不再建）, albumCoverOk, albumWhy,
+ *         items: [{ t: 计划里的这一首, st: 'wait' / 'up' / 'done' / 'fail' / 'skip', pct, why（失败原因文案键）,
+ *                   rec（单曲记录 id，建过就记下）, coverOk, trackId（音频传上了）, editOk（歌手 / 歌词写上了）, dur }],
+ *         running, stop（没进站：剩下的先不传）, q（建单曲记录排队，保证单曲区顺序和文件顺序一样） }
+ * 每首按步骤走，做过的步骤记在 item 上；重试只把失败（和没进站时没轮到）的那几首放回等待，从断的那一步接着来。 */
+function jobNew(plan){
+  return { plan: plan, one: upMode === 'one', files: upFiles.audio, covers: upFiles.cover, lrcs: upFiles.lrc, tags: upFiles.tags,
+    albumId: plan.album && plan.album.id || 0, albumCoverOk: !(plan.album && plan.album.add && plan.albumCover), albumWhy: '',
+    items: plan.tracks.map(function(t){ return { t: t, st: upMode !== 'one' && upSkip[t.file] ? 'skip' : 'wait', pct: 0, why: '', rec: 0, coverOk: false, trackId: 0, editOk: false, dur: upFiles.dur[t.file] || 0 }; }),
+    running: false, stop: false, q: Promise.resolve() };
+}
+/** 还要再传的：失败的 + 没轮到的 + 专辑封面没传上（算一个） */
+function jobLeft(){ return job ? job.items.filter(function(it){ return it.st === 'fail' || it.st === 'wait'; }).length + (job.albumWhy ? 1 : 0) : 0; }
+function jobFail(it, e){ it.st = 'fail'; it.why = upReason(e); it.pct = 0; }
+/** 内嵌封面 → Blob（任务里的那份标签） */
+function jobEmb(i){ var g = job.tags[i]; return g && g.picture ? new Blob([g.picture.bytes], { type: UP_IMG_MIME[g.picture.mime] || 'image/jpeg' }) : null; }
+function coverUp(id, file){ return cropCover(file).then(function(b){ return req('POST', '/curio/api/music-upload?album=' + id + '&kind=cover', b, b.type); }); }
+/** 新建专辑：只建一次；专辑封面（选的没传上算失败、重试再传；内嵌的解不开就算了）。建不成 → 等着的每首都失败 */
+function jobAlbum(){
+  var p = job.plan;
+  if (!p.album || !p.album.add) return Promise.resolve(true);
+  var made = job.albumId ? Promise.resolve() : req('POST', '/curio/api/music', { op: 'album.add', kind: 'album', title: p.album.add.title, artist: p.album.add.artist, year: p.album.add.year }).then(function(j){ job.albumId = j.id; });
+  return made.then(function(){
+    if (job.albumCoverOk) return true;
+    var ac = p.albumCover, file = ac.pick !== undefined ? job.covers[ac.pick] : jobEmb(ac.embedded);
+    if (!file) { job.albumCoverOk = true; return true; }
     upMsg(T.cover);
-    return cover(albumId, file, ac.pick === undefined);
+    return coverUp(job.albumId, file).then(function(){ job.albumCoverOk = true; job.albumWhy = ''; }, function(e){
+      if (ac.pick === undefined && !(e && e.sgxLocked)) job.albumCoverOk = true; else job.albumWhy = e && e.sgxLocked ? 'whyLocked' : 'whyAlbumCover';
+    }).then(function(){ upMsg(''); return true; });
+  }, function(e){
+    job.items.forEach(function(it){ if (it.st === 'wait') jobFail(it, e && e.sgxLocked ? e : { code: 'album' }); });
+    if (e && e.sgxLocked) job.stop = true;
+    return false;
   });
-  return start.then(function(){
-    var chain = Promise.resolve();
-    plan.tracks.forEach(function(t, i){
-      chain = chain.then(function(){
-        var f = files[t.file];
-        upMsg(T.up(i + 1, plan.tracks.length, f.name));
-        var into = albumId;
-        var made = plan.album ? Promise.resolve(albumId)
-          : req('POST', '/curio/api/music', { op: 'album.add', kind: 'single', title: t.title, artist: t.artist, year: plan.singleYear }).then(function(j){
-            var file = t.cover >= 0 ? covers[t.cover] : t.embedded ? embBlob(t.file) : null;
-            return (file ? cover(j.id, file, t.cover < 0) : Promise.resolve()).then(function(){ return j.id; });
-          });
-        return made.then(function(id){
-          into = id;
-          return durationOf(f);
-        }).then(function(d){
-          var q = '?album=' + into + '&kind=track&no=' + t.no + '&title=' + encodeURIComponent(t.title) + '&duration=' + d;
-          return req('POST', '/curio/api/music-upload' + q, f, audioType(f));
-        }).then(function(r){
-          /* 曲目的歌手（写 artist_id）和歌词：一个 track.edit，有才发 */
-          var body = { op: 'track.edit', id: r.id };
-          if (t.artist) body.artist = t.artist;
-          return (t.lrc >= 0 ? readText(lrcs[t.lrc]) : Promise.resolve(null)).then(function(text){
-            if (text) body.lrc = text;
-            if (Object.keys(body).length <= 2) return null;
-            if (body.lrc) upMsg(T.lyrics);
-            return req('POST', '/curio/api/music', body);
-          });
-        }).catch(function(e){ if (e && e.sgxLocked) throw e; failed++; });
-      });
-    });
-    return chain;
+}
+/** 这次任务已经占用的单曲记录 */
+function jobTaken(){ var m = {}; job.items.forEach(function(it){ if (it.rec) m[it.rec] = true; }); return m; }
+/** 一首：单曲记录（排队建；有能接着用的空记录就用它）→ 单曲封面 → 音频（XHR 进度）→ track.edit 歌手 / 歌词。做过的步骤跳过 */
+function jobItem(it){
+  var t = it.t, p = job.plan, f = job.files[t.file], q;
+  it.st = 'up'; it.pct = 0; it.why = ''; upListSoon();
+  if (p.album) q = Promise.resolve(job.albumId);
+  else if (it.rec) q = Promise.resolve(it.rec);
+  else {
+    q = job.q.then(function(){
+      var reuse = emptySingle(all, t.title, t.artist, jobTaken());
+      return reuse || req('POST', '/curio/api/music', { op: 'album.add', kind: 'single', title: t.title, artist: t.artist, year: p.singleYear }).then(function(j){ return j.id; });
+    }).then(function(id){ it.rec = id; return id; });
+    job.q = q.catch(function(){});
+  }
+  return q.then(function(id){
+    if (p.album) it.coverOk = true;  /* 专辑里的曲目不设封面（7.6） */
+    if (it.coverOk) return id;
+    var file = t.cover >= 0 ? job.covers[t.cover] : t.embedded ? jobEmb(t.file) : null;
+    if (!file) { it.coverOk = true; return id; }
+    /* 选的封面没传上：先接着传音频，最后算这首失败（重试只补封面）；内嵌的解不开就算了 */
+    return coverUp(id, file).then(function(){ it.coverOk = true; }, function(e){ if (e && e.sgxLocked) throw e; if (t.cover < 0) it.coverOk = true; }).then(function(){ return id; });
+  }).then(function(id){
+    if (it.trackId) return null;
+    return (it.dur ? Promise.resolve(it.dur) : durationOf(f)).then(function(d){
+      it.dur = d;
+      var url = '/curio/api/music-upload?album=' + id + '&kind=track&no=' + t.no + '&title=' + encodeURIComponent(t.title) + '&duration=' + d;
+      return xhrUpload(url, f, audioType(f), function(pc){ if (pc !== it.pct) { it.pct = pc; upListSoon(); } });
+    }).then(function(r){ it.trackId = r.id; it.pct = 100; });
   }).then(function(){
-    return req('GET', '/curio/api/music');
+    if (it.editOk) return null;
+    /* 曲目的歌手（写 artist_id）和歌词：一个 track.edit，有才发 */
+    var body = { op: 'track.edit', id: it.trackId };
+    if (t.artist) body.artist = t.artist;
+    return (t.lrc >= 0 ? readText(job.lrcs[t.lrc]) : Promise.resolve(null)).then(function(text){
+      if (text) body.lrc = text;
+      if (Object.keys(body).length <= 2) { it.editOk = true; return null; }
+      return req('POST', '/curio/api/music', body).then(function(){ it.editOk = true; }, function(e){ throw e && e.sgxLocked ? e : { code: 'edit' }; });
+    });
+  }).then(function(){
+    if (it.coverOk) it.st = 'done'; else jobFail(it, { code: 'cover' });
+  }, function(e){ jobFail(it, e); if (e && e.sgxLocked) job.stop = true; }).then(upListSoon);
+}
+/** 一次同时 UP_CONC 首；没进站就停下（剩下的留在等待，进站后点重试接着传） */
+function jobPool(){
+  return new Promise(function(done){
+    var active = 0;
+    function next(){
+      var it = job.stop ? null : job.items.filter(function(x){ return x.st === 'wait'; })[0];
+      if (!it) { if (!active) done(); return; }
+      active++;
+      jobItem(it).then(function(){ active--; next(); });
+    }
+    for (var k = 0; k < UP_CONC; k++) next();
+  });
+}
+function jobRun(){
+  job.running = true; job.stop = false;
+  upMsg(''); upFoot(); upList();
+  return jobAlbum().then(function(ok){ return ok ? jobPool() : null; }).then(function(){
+    job.running = false;
+    return req('GET', '/curio/api/music').catch(function(){ return null; });
   }).then(function(j){
-    coverVer = Date.now();
-    var toSingles = !plan.album;
-    setData(j.albums, toSingles ? 'single' : 'album');
-    var i = albums.map(function(a){ return a.id; }).indexOf(albumId);
-    renderCovers();
-    if (toSingles) renderAlbum(); else select(i < 0 ? 0 : i, true);
-    upDropPreview();
-    upSheet.close();
-    toast(failed ? T.partial(failed) : T.saved);
-  }).catch(function(e){ if (!e || !e.sgxLocked) upMsg(failMsg(e), true); });
+    /* 传上的那部分先在页面上显示出来（有失败也一样） */
+    if (j) {
+      coverVer = Date.now();
+      var toSingles = !job.plan.album;
+      setData(j.albums, toSingles ? 'single' : 'album');
+      var i = albums.map(function(a){ return a.id; }).indexOf(job.albumId);
+      renderCovers();
+      if (toSingles) renderAlbum(); else select(i < 0 ? 0 : i, true);
+    }
+    var left = jobLeft();
+    if (!left) { job = null; upDropPreview(); upFoot(); upSheet.close(); toast(T.saved); return; }
+    var nf = job.items.filter(function(it){ return it.st === 'fail' || it.st === 'wait'; }).length;
+    upMsg([nf ? tr('partialRetry', { n: nf }) : '', job.albumWhy ? T[job.albumWhy] : ''].filter(Boolean).join(' '), true);
+    upFoot(); upList();
+  });
+}
+/** 只重试失败的（和没进站时没轮到的）：从断的那一步接着来 */
+function jobRetry(){
+  job.items.forEach(function(it){ if (it.st === 'fail') { it.st = 'wait'; it.why = ''; } });
+  jobRun();
+}
+/**
+ * 放弃剩下的：关窗、清掉任务。传了一半留下的空记录不删——删空单曲 / 空专辑只有 album.del（root，要一次性票，一条一张），
+ * 前端不为它多走 sudo；空单曲在单曲区照样显示、能删，下次传同名同歌手的单曲接着用它（emptySingle）；空的新专辑留着，可在「已有专辑」里接着传。
+ */
+function jobAbandon(){
+  var singlesLeft = job.items.filter(function(it){ return it.rec && !it.trackId; }).length;
+  var albumLeft = !!(job.plan.album && job.plan.album.add && job.albumId && !job.items.some(function(it){ return it.trackId; }));
+  var name = albumLeft ? job.plan.album.add.title : '';
+  job = null;
+  upDropPreview(); upFoot(); upReset(); upSheet.close();
+  var m = [singlesLeft ? tr('leftSingles', { n: singlesLeft }) : '', albumLeft ? tr('leftAlbum', { name: name }) : ''].filter(Boolean).join(' ');
+  if (m) toast(m);
 }
 
 /* ---------- 导入后编辑（M3，音乐 v1.18 十二 M3 / 7.4 / 7.6） ----------
