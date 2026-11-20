@@ -224,7 +224,7 @@ man:
 manBody:
   ask:
     desc:
-      - "ask <问题>：开 AI 窗口，把问题发给 Gray AI；Gray AI 只对 ai 组开放。"
+      - "ask <问题>：开 AI 窗口，把问题发给 Gray AI；Gray AI 只对 ai-use 组开放。"
   lock:
     auth: "不用验证"
   exit:
@@ -290,7 +290,7 @@ manBody:
       - "要加入的组，用逗号隔开。"
     auth: "root，或 sudo useradd（sudoers）"
     notes:
-      - "有期限的用户不能进 wheel、sudoers 和写组。"
+      - "有期限的用户不能进 wheel、sudoers 和 manage 组。"
   userdel:
     auth: "root，或 sudo userdel（sudoers）"
     notes:

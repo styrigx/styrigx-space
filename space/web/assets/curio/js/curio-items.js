@@ -6,7 +6,7 @@
  *   使用天数不存，按 购买日期 → 退役日期（没退役就是今天）现算。
  * 游戏：卡片（封面、「games · 平台」、名字、状态 · 评分），筛选 chips 全部 / 想玩 / 在玩 / 通关 / 搁置。条目页有平台、在哪台设备上玩、版本、评分，评价当短评。
  * 条目页底部两卡：‹ cd ../prev（上一个；第一个时 cd .. 回列表）│ 相关文章 ›（博客里标题 / 标签提到它的那篇，relatedPost；没有就 cd ../next）。
- * 能编辑（接口回 canWrite：账号已登录 + curio.write）：页头命令链「touch curio/<分区>/ +」新建；条目页里「vim …」编辑；编辑弹层里删除（要确认）。
+ * 能编辑（接口回 canManage：curio-manage）：页头命令链「touch curio/<分区>/ +」新建；条目页里「vim …」编辑；编辑弹层里删除（要确认）。
  * 照片：选图 → 全屏「移动和缩放」（同主站头像裁剪：单指拖、双指 / 滚轮缩放，照片始终盖满取景框）。
  *   取景框 = 卡片显示的比例（设备 .it-media 4:3、游戏 .it-media--cover 3:4），裁好的图卡片里正好铺满、详情里完整显示。
  *   完成 → 浏览器里裁成长边 ≤1200（电影海报 ≤1600；不放大）、转 webp（不支持就 jpeg），保存时再传；保存前点缩略图可以重新调整。
@@ -233,7 +233,7 @@ var LOCK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="
 function starSvg(n){ return '<svg viewBox="0 0 24 24" width="' + n + '" height="' + n + '" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="currentColor"/></svg>'; }
 var STAR = starSvg(16);
 
-var devices = [], games = [], canWrite = false, showPrivate = false, loaded = false;
+var devices = [], games = [], canManage = false, showPrivate = false, loaded = false;
 var dvFilter = 'all', gmFilter = 'all';
 var ver = {}; /* 照片缓存破坏：换过照片的条目带 ?v= */
 
@@ -315,8 +315,8 @@ function render(){
   var gs = filterGames(games, gmFilter);
   $('#gm-list').innerHTML = gs.map(gameCard).join('');
   var de = $('#dv-empty'), ge = $('#gm-empty');
-  de.textContent = devices.length ? T.noMatch : canWrite ? T.emptyDevAdmin : T.empty;
-  ge.textContent = games.length ? T.noMatch : canWrite ? T.emptyGameAdmin : T.empty;
+  de.textContent = devices.length ? T.noMatch : canManage ? T.emptyDevAdmin : T.empty;
+  ge.textContent = games.length ? T.noMatch : canManage ? T.emptyGameAdmin : T.empty;
   de.classList.toggle('hidden', !loaded || ds.length > 0);
   ge.classList.toggle('hidden', !loaded || gs.length > 0);
   if (loaded && G.SgxCurioList) { G.SgxCurioList.count('devices', devices.length); G.SgxCurioList.count('games', games.length); }
@@ -352,7 +352,7 @@ function viewDevice(d){
   var meta = ['devices', T.kinds[d.kind] || T.kinds.other, d.retired_at ? T.retired : T.active, monthOf(d.bought_at) ? tr('kept', { d: monthOf(d.bought_at) }) : ''].filter(Boolean).join(' · ');
   UI.showItem({ dir: 'devices', name: d.name, meta: meta, spec: spec, prose: d.notes,
     img: d.photo ? '<img src="' + photoUrl('device', d.id) + '" alt="">' : '<span class="it-media-ic">' + icon(d.kind, 56) + '</span>',
-    edit: canWrite ? { k: 'vim curio/devices/' + UI.slug(d.name), d: T.editCmd, fn: function(){ openDevEdit(findDev(d.id)); } } : null,
+    edit: canManage ? { k: 'vim curio/devices/' + UI.slug(d.name), d: T.editCmd, fn: function(){ openDevEdit(findDev(d.id)); } } : null,
     prev: nx.prev, next: nx.next });
 }
 function viewGame(g){
@@ -366,7 +366,7 @@ function viewGame(g){
   var nx = nxCards(list, g, g.title, function(x){ return x.title; });
   UI.showItem({ dir: 'games', name: g.title, meta: ['games', T.status[g.status], g.platform].filter(Boolean).join(' · '), spec: spec, prose: g.review,
     img: g.cover ? '<img src="' + photoUrl('game', g.id) + '" alt="">' : '<span class="it-media-ic">' + icon('game', 56) + '</span>',
-    edit: canWrite ? { k: 'vim curio/games/' + UI.slug(g.title), d: T.editCmd, fn: function(){ openGameEdit(findGame(g.id)); } } : null,
+    edit: canManage ? { k: 'vim curio/games/' + UI.slug(g.title), d: T.editCmd, fn: function(){ openGameEdit(findGame(g.id)); } } : null,
     prev: nx.prev, next: nx.next });
 }
 /** 路由：0 = 列表；数据还没回来先不画（回来后 render 再调）；找不到（删了 / 私密）→ 一句提示 + cd .. */
@@ -669,10 +669,10 @@ $('#gm-del').addEventListener('click', function(){
 
 /* ---------- 启动 ---------- */
 getJSON('/curio/api/items').then(function(j){
-  canWrite = !!j.canWrite; showPrivate = !!j.showPrivate; devices = j.devices || []; games = j.games || []; loaded = true;
-  $('#dv-fab').classList.toggle('hidden', !canWrite);
-  $('#gm-fab').classList.toggle('hidden', !canWrite);
-  if (UI && UI.signin) UI.signin(canWrite);
+  canManage = !!j.canManage; showPrivate = !!j.showPrivate; devices = j.devices || []; games = j.games || []; loaded = true;
+  $('#dv-fab').classList.toggle('hidden', !canManage);
+  $('#gm-fab').classList.toggle('hidden', !canManage);
+  if (UI && UI.signin) UI.signin(canManage);
   doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); });
   render();
 }).catch(function(e){

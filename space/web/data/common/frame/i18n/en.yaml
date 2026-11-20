@@ -228,7 +228,7 @@ man:
 manBody:
   ask:
     desc:
-      - "opens the Gray AI window with your question. Gray AI is for the ai group."
+      - "opens the Gray AI window with your question. Gray AI is for the ai-use group."
   lock:
     auth: "no verification"
   exit:
@@ -294,7 +294,7 @@ manBody:
       - "the groups to join, comma separated."
     auth: "root, or sudo useradd (sudoers)"
     notes:
-      - "A user with an expiry can’t join wheel, sudoers or the write groups."
+      - "A user with an expiry can’t join wheel, sudoers or the manage groups."
   userdel:
     auth: "root, or sudo userdel (sudoers)"
     notes:

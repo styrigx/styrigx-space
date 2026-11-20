@@ -17,7 +17,7 @@ const json = (o, status = 200) => ({ status, contentType: 'application/json', bo
 const V6_USER = (name = 'root') => {
   if (name === 'root') return { uid: 0, name: 'root', groups: [], root: true, rescue: false, via: 'styrigx', path: 'root via styrigx', webmaster: false, wheel: false, sudoers: false, layerExpiresAt: Date.now() + 3600000, idleMs: 0 };
   const webmaster = name === 'styrigx';
-  const groups = webmaster ? ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write'] : [];
+  const groups = webmaster ? ['wheel', 'sudoers', 'music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use', 'music-manage', 'curio-manage', 'daymark-manage'] : [];
   return { uid: webmaster ? 1000 : 1001, name, groups, root: false, rescue: false, via: '', path: name, webmaster, wheel: webmaster, sudoers: webmaster, layerExpiresAt: Date.now() + 30 * 86400000, idleMs: 0 };
 };
 

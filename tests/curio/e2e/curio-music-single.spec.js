@@ -27,19 +27,19 @@ const SINGLES = [
   { id: 33, kind: 'single', title: 'Both Sides Now', artist: 'Joni Mitchell', year: 1969, cover: false, tracks: [t(43, 1, 'Both Sides Now', { duration: 271 })] },
 ];
 
-/** list：初始歌单；opts.canWrite 默认 true（站长） */
+/** list：初始歌单；opts.canManage 默认 true（站长） */
 async function mockMusic(page, list, opts = {}) {
-  const canWrite = opts.canWrite !== false;
+  const canManage = opts.canManage !== false;
   await page.route('**/avatar/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>' }));
   await page.route('**/api/lock-session-check', (r) => r.fulfill({ json: { ok: true } }));
   /* D-3 a′：可写会话按 root 模拟（whoami 回 root），root 档操作不走领票；非 whoami 的身份请求放行给别的路由。 */
-  await page.route('**/api/identity', (r) => { const b = r.request().postData() || ''; return (canWrite) && b.includes('"whoami"') ? r.fulfill({ json: { ok: true, user: { root: true } } }) : r.fallback(); });
+  await page.route('**/api/identity', (r) => { const b = r.request().postData() || ''; return (canManage) && b.includes('"whoami"') ? r.fulfill({ json: { ok: true, user: { root: true } } }) : r.fallback(); });
   const calls = [];
   let albums = JSON.parse(JSON.stringify(list));
   await page.route('**/api/music-cover**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
   await page.route('**/api/music', async (r) => {
     const req = r.request();
-    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite, albums } });
+    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canManage, albums } });
     const b = req.postDataJSON();
     calls.push(b);
     let id;
@@ -50,7 +50,7 @@ async function mockMusic(page, list, opts = {}) {
       for (const a of albums) a.tracks = a.tracks.filter((x) => x.id !== b.id);
       albums = albums.filter((x) => !(x.kind === 'single' && !x.tracks.length));
     }
-    return r.fulfill({ json: { ok: true, canWrite: true, id, albums } });
+    return r.fulfill({ json: { ok: true, canManage: true, id, albums } });
   });
   await page.route('**/api/music-upload**', async (r) => {
     const req = r.request();
@@ -276,8 +276,8 @@ test('删除单曲：每行删除键（仅能写）；先弹悬浮确认卡片�
   expect(calls.filter((c) => c.op === 'album.del')).toEqual([], '不走 album.del（root + 票）');
 });
 
-test('删除单曲：没有写权限（canWrite=false）不画删除键', async ({ page }) => {
-  await mockMusic(page, SINGLES, { canWrite: false });
+test('删除单曲：没有写权限（canManage=false）不画删除键', async ({ page }) => {
+  await mockMusic(page, SINGLES, { canManage: false });
   await page.goto('/curio/zh/music/');
   await expect(page.locator('#mu-singles .mu-single')).toHaveCount(3);
   await expect(page.locator('#mu-singles .mu-single-del')).toHaveCount(0);

@@ -30,19 +30,19 @@ const DATA = () => ({
   ],
 });
 
-/** opts.canWrite 默认 true；opts.fail(b) 返回错误码就让这条写请求失败；opts.edit(db) 改假数据 */
+/** opts.canManage 默认 true；opts.fail(b) 返回错误码就让这条写请求失败；opts.edit(db) 改假数据 */
 async function mockMusic(page, opts = {}) {
-  const canWrite = opts.canWrite !== false;
+  const canManage = opts.canManage !== false;
   await page.route('**/avatar/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>' }));
   await page.route('**/api/lock-session-check', (r) => r.fulfill({ json: { ok: true } }));
-  await page.route('**/api/identity', (r) => { const b = r.request().postData() || ''; return canWrite && b.includes('"whoami"') ? r.fulfill({ json: { ok: true, user: { root: true } } }) : r.fallback(); });
+  await page.route('**/api/identity', (r) => { const b = r.request().postData() || ''; return canManage && b.includes('"whoami"') ? r.fulfill({ json: { ok: true, user: { root: true } } }) : r.fallback(); });
   const calls = [];
   const db = DATA();
   if (opts.edit) opts.edit(db);
   await page.route('**/api/music-cover**', (r) => { calls.push({ cover: new URL(r.request().url()).search }); return r.fulfill({ status: 200, contentType: 'image/png', body: PNG }); });
   await page.route('**/api/music', async (r) => {
     const req = r.request();
-    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite, albums: db.albums, artists: db.artists } });
+    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canManage, albums: db.albums, artists: db.artists } });
     const b = req.postDataJSON();
     calls.push({ ...b, ticket: req.headers()['x-sgx-sudo'] || '' });
     const bad = opts.fail && opts.fail(b);
@@ -58,7 +58,7 @@ async function mockMusic(page, opts = {}) {
       db.artists = db.artists.filter((x) => x.id !== b.id);
     }
     if (b.op === 'artist.del') db.artists = db.artists.filter((x) => x.id !== b.id);
-    return r.fulfill({ json: { ok: true, canWrite: true, albums: db.albums, artists: db.artists } });
+    return r.fulfill({ json: { ok: true, canManage: true, albums: db.albums, artists: db.artists } });
   });
   await page.route('**/api/music-upload**', async (r) => {
     const u = new URL(r.request().url());
@@ -110,7 +110,7 @@ test('入口：专辑标题下的歌手名 → 歌手页（页内换视图，不
 });
 
 test('直接打开 ?artist=：没头像用默认图标、没风格 / 简介不显示；只有单曲的歌手没有专辑区；不在的歌手提示找不到；访客没有「编辑」', async ({ page }) => {
-  await mockMusic(page, { canWrite: false });
+  await mockMusic(page, { canManage: false });
   await page.goto('/curio/zh/music/?artist=5');
   await expect(page.locator('#mu-ar-name')).toHaveText('周杰伦');
   await expect(page.locator('#mu-ar-sub')).toHaveText('0 张专辑 · 1 首单曲');

@@ -3,26 +3,27 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-SPEC-004 |
-| 版本 | 0.5 |
-| 日期 | 2026-11-11 |
-| 状态 | 已定（v6 P1，Gray 2026-11-11 定稿 17 条存疑；P2 改名片 PUT 档、加 /api/identity；割接加 action private、其余 Worker 接 v6；P4 删旧入口 20 条；P4 收尾删应用授权；P4-2 删数字健康两条） |
+| 版本 | 0.6 |
+| 日期 | 2026-11-21 |
+| 状态 | 已定（v6 P1，Gray 2026-11-11 定稿 17 条存疑；P2 改名片 PUT 档、加 /api/identity；割接加 action private、其余 Worker 接 v6；P4 删旧入口 20 条；P4 收尾删应用授权；P4-2 删数字健康两条；2026-11-21 组权限重设计 v1.1：组改名 use / manage、行上写 product 推组名、private / manage 两档分开问） |
 
 
 > 状态：P1 定稿（2026-11-11，Gray 已定 17 条存疑），基线 main 05abe443。机器可读的唯一来源是 `workers/account/src/core/route-access.js` 的 `ROUTE_ACCESS`；
 > 本页由它生成，`tests/workers/account/identity-route-access.test.mjs` 核对两边一致、并核对每个 Worker 的路由表都在表里（漏一条 CI 红）。
-> 相关：ADR-0006（v6 身份统一）、`docs/architecture/v6-identity-migration.md`。
+> 相关：ADR-0006（v6 身份统一）、ADR-0007（组权限重设计 v1.1：use / manage）、`docs/architecture/v6-identity-migration.md`。
 
 ## 规则
 
-1. 档（`core/groups.js` `ACCESS_LEVELS`）：**public**（谁都行）/ **user**（任一已登录身份，含无组的临时用户）/ **组名**（wheel、sudoers、listen、ai、status、curio-write、daymark-write）/ **webmaster**（站长 = styrigx 的 uid，P2）/ **root**。判断全站只有一处：`core/groups.js` `permits()`，顺序固定（P2，定稿 v4 §三）：① 救援会话只放标了「救援可用」的路由 / action，其余一律拒、不往下走；② root 一律放行；③ 按档。
+1. 档（`core/groups.js` `ACCESS_LEVELS`）：**public**（谁都行）/ **user**（任一已登录身份，含无组的临时用户）/ **组名**（组权限 v1.1：特殊组 wheel、sudoers；use 组 music-use、curio-use、daymark-use、status-use、ai-use；manage 组 music-manage、curio-manage、daymark-manage；manage 包含 use，在 permits 一处实现）/ **webmaster**（站长 = styrigx 的 uid，P2）/ **root**。判断全站只有一处：`core/groups.js` `permits()`，顺序固定（P2，定稿 v4 §三）：① 救援会话只放标了「救援可用」的路由 / action，其余一律拒、不往下走；② root 一律放行；③ 按档。
 8. 救援白名单：路由标「救援可用」；一条路由多个 action 的，只放列出的那几个（`rescueActions`，判断用 `rescueOf()`）。
 2. 未列入的接口一律拒绝（fail closed）；页面与静态文件（不在 `/api/`、`/<子站>/api/` 下）一律 public，不进表。
 3. 路径参数只有两种：`/s/:token/:source`（代理主机，两段 = 代理订阅）、`/avatar/:file`。主站 `/s/:code`（一段 = 分享短链）v6 P4 删除，两段的代理订阅不受影响。
 4. 一个接口多个 action 的，「档」是进接口的最低一档，「action 另定」列出更高的档，由接口读完 body 后按同一张表判断。网关 admit 只看路由这一档。
-5. 删除两级：**单条内容删除归写组**；**批量 / 结构删除只属 root**。
+5. 删除两级：**单条内容删除归 manage 组**；**批量 / 结构删除只属 root**。
 6. 原来要再验证（sudo -v、sudo root reauth、账号复验）的操作 → v6 **sudo 每次重验 = root 档**。
 7. 「去向」写着 P3 / P4 的是割接后要删的旧入口：P1–P3 照旧按老规则跑（旧会话判定不变），表里写的是**新会话**的档。
-9. **private**（割接）：公开读接口里的私密行与 canWrite 提示。GET 的档是 public（谁都能读公开部分），「action 另定」里的 `private` 是能看私密行的那一档（= 本站写组）；子站接口 Worker 读完路由后按 action `private` 问 admit，不自己比组。
+9. **private / manage**（割接；组权限 v1.1 §七、§八）：公开读接口里的私密行与 canManage 提示分两档。GET 的档是 public（谁都能读公开部分），「action 另定」里的 `private` 是能看私密行的那一档（= `<产品>-use`，v1.1 §七 方案 A），`manage` 是能管内容的那一档（= `<产品>-manage`，前端据此显示管理入口）；atlas-core 的公用 `visibility(context)`（`workers/atlas-core/src/common/visibility.js`）读完路由后分别按 action `private`、`manage` 问 admit，不自己比组。接口回给前端的字段是 `canManage`（原 `canWrite`，不留别名）。
+10. **product / kind**（组权限 v1.1 §八）：产品组的组名不手写，行上写 `product`（和 `kind`），组名由它推出——`kind: 'read'` → 档 public、`private` = `<产品>-use`、`manage` = `<产品>-manage`；`kind: 'use'` → 档 `<产品>-use`；`kind: 'manage'` → 档 `<产品>-manage`。手写的档 / action 仍可覆盖，覆盖处写 `overrideWhy`（目前只有 `POST /api/ai` 的 `private` = webmaster）。单测断言推出的组都在 `GROUPS` 里。
 
 ## 摘要
 
@@ -30,16 +31,23 @@
 |---|---|
 | public | 24 |
 | user | 5 |
-| ai | 2 |
-| status | 1 |
-| listen | 3 |
-| curio-write | 8 |
-| daymark-write | 6 |
+| ai-use | 2 |
+| status-use | 1 |
+| music-use | 3 |
+| music-manage | 2 |
+| curio-manage | 6 |
+| daymark-manage | 6 |
 | webmaster | 1 |
 | root | 5 |
 | **合计** | **55**（另有 11 个只经服务绑定 / RPC 的入口；P2c 加 AccountJanitor，P4 删 ShareJanitor） |
 
-按 Worker：站点核心 6、账号 11、奇趣 20、日刻 13、代理 6（P4 删旧入口 20 条、应用授权与数字健康之后）。有 action 另定档的接口 11 个（curio music、identity；割接加的 `private`：curio items / links / movies / photo / icon / music、daymark quotes / collections 的 GET；2c 加 `POST /api/ai` 的 `private`）。
+按 Worker：站点核心 6、账号 11、奇趣 20、日刻 13、代理 6（P4 删旧入口 20 条、应用授权与数字健康之后）。有 action 另定档的接口 11 个（curio music、identity；割接加的 `private`：curio items / links / movies / photo / icon / music、daymark quotes / collections 的 GET，组权限 v1.1 起这 8 个 GET 另有 `manage`；2c 加 `POST /api/ai` 的 `private`）。
+
+组权限 v1.1 变更（2026-11-21，《v6 组权限重设计 v1.1》定稿 + 《music 搬家设计稿 v1.0》第 1 步；ADR-0007）：
+- 组改名：`listen` → `music-use`、`ai` → `ai-use`、`status` → `status-use`、`curio-write` → `curio-manage`、`daymark-write` → `daymark-manage`；新增 `curio-use`、`daymark-use`、`music-manage`（音乐的写权限从 `curio-write` 拆出）。路由数不变（55）。
+- 音乐仍在旧路径 `/curio/api/music*`，只换档：GET `music` 的 `private` / `manage` → `music-use` / `music-manage`；POST `music`、`music-upload` → `music-manage`；`music-play`、`music-stream`（GET / HEAD）→ `music-use`；`album.del`、`artist.merge`、`artist.del`（root）与 sudoTicket 不变。`/music/api/*` 是搬家第 2 步。
+- 奇趣 / 日刻公开读的 8 个 GET：`private` 由写组改为 `<产品>-use`，另加 `manage` = `<产品>-manage`；atlas-core 的 `visibility()` 两档分开问。
+- 部署后旧组名在会话读组时被过滤掉（`identity-session.js` 只认 `GROUPS`）；站长 `sudo usermod -aG …` 重新授组并重新登录；旧名的库行用 `usermod -rG` 清理（`-rG` 允许删不在 `GROUPS` 里的名字，不允许加）。
 
 P2 变更（2026-11-11）：`PUT /api/profile` root → **webmaster**（站长 styrigx + root，其余拒）；新增 `POST /api/identity`（v6 身份命令，public 入口，每个 action 一档，救援只放 whoami / exit / lock / passwd / passkey-* / groups）。
 
@@ -97,9 +105,9 @@ P4-2（2026-11-11，定稿 v5.5 §四、§五）：数字健康整套删除—�
 | `GET /api/profile` | public | 资料本身是公开数据（主页名片） |
 | `PUT /api/profile` | **webmaster**（P2 定稿 v4；P1 为 root） | 站长（styrigx）+ root（root 由 permits 放行），其余一律拒；名片只有一份，属于站长 |
 | `GET` / `POST /api/prefs` | user；POST → **webmaster**（P4-3） | P2 加 uid；P4-3 按定稿 v5.5 §五 / §七改为一份配置、写入 webmaster，普通用户只能看 |
-| `GET /curio/api/items` / `links` / `movies` | public | 私密行只给写组 curio-write |
+| `GET /curio/api/items` / `links` / `movies` | public | 私密行只给写组 curio-write（组权限 v1.1 §七起：私密行给 curio-use） |
 | `GET /curio/api/export` | **root**（原拟 curio-write） | 导出全部收藏含私密 |
-| `GET /daymark/api/quotes` | public | 私密句子只给写组 daymark-write |
+| `GET /daymark/api/quotes` | public | 私密句子只给写组 daymark-write（组权限 v1.1 §七起：私密句子给 daymark-use） |
 | `DELETE /daymark/api/collections` | root | 删整个专题 = 结构删除 |
 
 user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只取服务端会话，绝不取客户端参数 / 请求体；P2 每条 user 路由都要有「传他人 uid 被拒 / 被忽略」的测试。
@@ -112,11 +120,11 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 
 | 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
-| POST | `/api/ai` | **ai** | `private` → webmaster |  | 保留 | AI 对话（转 styrigx-ai /ask）；私密召回与切模型只给 webmaster（2c） |  |
-| GET | `/api/ai` | **ai** |  |  | 保留 | AI 可选模型列表（转 styrigx-ai /models） |  |
+| POST | `/api/ai` | **ai-use** | `private` → webmaster |  | 保留 | AI 对话（转 styrigx-ai /ask）；私密召回与切模型只给 webmaster（2c） |  |
+| GET | `/api/ai` | **ai-use** |  |  | 保留 | AI 可选模型列表（转 styrigx-ai /models） |  |
 | GET | `/api/find` | **public** |  |  | 保留 | 关键词搜索，只回公开页面元数据（IP 限流） |  |
 | GET | `/api/geo` | **public** |  |  | 保留 | 只回调用者自己的城市 / 时区 |  |
-| GET | `/api/status` | **status** |  |  | 保留 | 状态页 / 监测页（转 styrigx-status /summary） |  |
+| GET | `/api/status` | **status-use** |  |  | 保留 | 状态页 / 监测页（转 styrigx-status /summary） |  |
 | GET | `/api/space-audit` | **root** |  |  | 保留 | 进站凭证使用审计（含 IP 前缀） |  |
 
 ### 账号 styrigx-account（经网关 FORWARDING 转发）
@@ -127,7 +135,7 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | POST | `/api/account/devices` | **webmaster** | `list` → webmaster；`revoke` / `revoke-all` → root（P4-3） |  | 保留 | 设备会话（全站视图：列出全站会话，2g 按 sgx-device 合并同一台设备） | 定稿 v5.5 §五：列表与踢出属后台控制，root 档（站长 sudo），列表为全站视图；§七：站长打开账号页时设备卡列表直接可读 → list webmaster、revoke / revoke-all root |
 | POST | `/api/account/proxy` | **root** |  |  | 保留 | 代理订阅管理 sub（转 styrigx-proxy ProxyAdmin；含令牌、age 公钥） | Gray 2026-11-11 定 root，不加新组 |
 | PUT | `/api/avatar` | **webmaster** |  |  | 保留 | 换站点头像（全站一份配置，归站长 styrigx） | 定稿 v5.5 §五：avatar、prefs 写入 webmaster（站长 + root）；§七：全站只有一份配置 |
-| DELETE | `/api/avatar` | **webmaster** |  | 单条 → 写组 | 保留 | 删站点头像（回默认） | 定稿 v5.5 §五：同上 |
+| DELETE | `/api/avatar` | **webmaster** |  | 单条 → manage 组 | 保留 | 删站点头像（回默认） | 定稿 v5.5 §五：同上 |
 | GET | `/avatar/:file` | **public** |  |  | 保留 | 头像图片（页面路径） |  |
 | GET | `/api/profile` | **public** |  |  | 保留 | 站点个人资料（公开数据） | Gray 2026-11-11 定 public：资料是公开数据（KV_PROFILE 只放公开数据） |
 | PUT | `/api/profile` | **webmaster** |  |  | 保留 | 改站点个人资料（站长资料，不是每个用户一份） | Gray 2026-11-11 定稿 v4：站长（styrigx）+ root（root 由 permits 放行），其余一律拒；名片只有一份，属于站长 |
@@ -138,26 +146,26 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 
 | 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
-| GET | `/curio/api/items` | **public** | `private` → curio-write |  | 保留 | 设备 / 游戏列表（私密行只给 curio-write，见 decided） | Gray 2026-11-11 定 public：私密行只给 curio-write |
-| POST | `/curio/api/items` | **curio-write** |  | 单条 → 写组 | 保留 | device.* / game.*：add / edit / order；del 是单条 |  |
-| GET | `/curio/api/links` | **public** | `private` → curio-write |  | 保留 | 收藏列表（私密行同上） | Gray 2026-11-11 定 public：私密行只给 curio-write |
-| POST | `/curio/api/links` | **curio-write** |  | 单条 → 写组 | 保留 | cat.* / link.*；link.del 单条；cat.del 只删空分类（非空 409），按单条算 |  |
-| GET | `/curio/api/movies` | **public** | `private` → curio-write |  | 保留 | 电影列表 | Gray 2026-11-11 定 public：私密行只给 curio-write |
-| POST | `/curio/api/movies` | **curio-write** |  | 单条 → 写组 | 保留 | movie.add / edit / del（单条） |  |
-| GET | `/curio/api/photo` | **public** | `private` → curio-write |  | 保留 | 设备照片 / 海报（私密设备的照片只给 curio-write） |  |
-| POST | `/curio/api/photo` | **curio-write** |  |  | 保留 | 上传照片 / 海报 |  |
-| DELETE | `/curio/api/photo` | **curio-write** |  | 单条 → 写组 | 保留 | 删一张照片 |  |
-| GET | `/curio/api/icon` | **public** | `private` → curio-write |  | 保留 | 网站图标缓存（私密收藏的图标只给 curio-write） |  |
-| GET | `/curio/api/preview` | **curio-write** |  |  | 保留 | 添加收藏时抓标题 / 图标（算在写里） |  |
+| GET | `/curio/api/items` | **public** | `private` → curio-use、`manage` → curio-manage |  | 保留 | 设备 / 游戏列表（私密行给 curio-use，管理提示给 curio-manage，见 decided） | Gray 2026-11-11 定 public；组权限 v1.1 §七：私密行给 curio-use |
+| POST | `/curio/api/items` | **curio-manage** |  | 单条 → manage 组 | 保留 | device.* / game.*：add / edit / order；del 是单条 |  |
+| GET | `/curio/api/links` | **public** | `private` → curio-use、`manage` → curio-manage |  | 保留 | 收藏列表（私密行同上） | Gray 2026-11-11 定 public；组权限 v1.1 §七：私密行给 curio-use |
+| POST | `/curio/api/links` | **curio-manage** |  | 单条 → manage 组 | 保留 | cat.* / link.*；link.del 单条；cat.del 只删空分类（非空 409），按单条算 |  |
+| GET | `/curio/api/movies` | **public** | `private` → curio-use、`manage` → curio-manage |  | 保留 | 电影列表 | Gray 2026-11-11 定 public；组权限 v1.1 §七：私密行给 curio-use |
+| POST | `/curio/api/movies` | **curio-manage** |  | 单条 → manage 组 | 保留 | movie.add / edit / del（单条） |  |
+| GET | `/curio/api/photo` | **public** | `private` → curio-use、`manage` → curio-manage |  | 保留 | 设备照片 / 海报（私密设备的照片只给 curio-use，看不到 = 404） |  |
+| POST | `/curio/api/photo` | **curio-manage** |  |  | 保留 | 上传照片 / 海报 |  |
+| DELETE | `/curio/api/photo` | **curio-manage** |  | 单条 → manage 组 | 保留 | 删一张照片 |  |
+| GET | `/curio/api/icon` | **public** | `private` → curio-use、`manage` → curio-manage |  | 保留 | 网站图标缓存（私密收藏的图标只给 curio-use，看不到 = 404） |  |
+| GET | `/curio/api/preview` | **curio-manage** |  |  | 保留 | 添加收藏时抓标题 / 图标（算在管理里） |  |
 | GET | `/curio/api/export` | **root** |  |  | 保留 | 导出全部收藏（含私密） | Gray 2026-11-11 定 root：导出全部收藏含私密 |
 | POST | `/curio/api/import` | **root** |  |  | 保留 | 批量导入书签（v5 要账号复验 → v6 sudo 每次重验 = root） |  |
-| GET | `/curio/api/music` | **public** | `private` → curio-write |  | 保留 | 歌单（不含音频地址；canWrite 提示给 curio-write） |  |
-| POST | `/curio/api/music` | **curio-write** | `album.del`、`artist.merge`、`artist.del` → root | 单条 → 写组 | 保留 | album.add / edit、track.edit / del（单条）、artist.edit（改歌手信息）；album.del 连曲目一起删、artist.merge / artist.del（合并 / 删歌手）（音乐 v1.19 十二 M4 第 1 条）= 结构删除 |  |
+| GET | `/curio/api/music` | **public** | `private` → music-use、`manage` → music-manage |  | 保留 | 歌单（不含音频地址；canManage 提示给 music-manage） |  |
+| POST | `/curio/api/music` | **music-manage** | `album.del`、`artist.merge`、`artist.del` → root | 单条 → manage 组 | 保留 | album.add / edit、track.edit / del（单条）、artist.edit（改歌手信息）；album.del 连曲目一起删、artist.merge / artist.del（合并 / 删歌手）（音乐 v1.19 十二 M4 第 1 条）= 结构删除 |  |
 | GET | `/curio/api/music-cover` | **public** |  |  | 保留 | 专辑封面 / 歌手头像（?artist=，M4） |  |
-| POST | `/curio/api/music-play` | **listen** |  |  | 保留 | 签播放令牌（听歌） |  |
-| GET | `/curio/api/music-stream` | **listen** |  |  | 保留 | 取音频（令牌 + Range） |  |
-| HEAD | `/curio/api/music-stream` | **listen** |  |  | 保留 | 同上 |  |
-| POST | `/curio/api/music-upload` | **curio-write** |  |  | 保留 | 上传音轨 / 封面 / 歌手头像（kind=avatar，M4） |  |
+| POST | `/curio/api/music-play` | **music-use** |  |  | 保留 | 签播放令牌（听歌） |  |
+| GET | `/curio/api/music-stream` | **music-use** |  |  | 保留 | 取音频（令牌 + Range） |  |
+| HEAD | `/curio/api/music-stream` | **music-use** |  |  | 保留 | 同上 |  |
+| POST | `/curio/api/music-upload` | **music-manage** |  |  | 保留 | 上传音轨 / 封面 / 歌手头像（kind=avatar，M4） |  |
 
 ### 日刻接口 styrigx-atlas-core（styrigx.com/daymark/api/*，不经网关）
 
@@ -166,14 +174,14 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | GET | `/daymark/api/today` | **public** |  |  | 保留 | 今日一句（首页 / 锁屏跨站读） |  |
 | HEAD | `/daymark/api/today` | **public** |  |  | 保留 | 同上 |  |
 | OPTIONS | `/daymark/api/today` | **public** |  |  | 保留 | CORS 预检 |  |
-| PUT | `/daymark/api/today` | **daymark-write** |  |  | 保留 | 设为今日 |  |
-| GET | `/daymark/api/quotes` | **public** | `private` → daymark-write |  | 保留 | 句子列表（私密句子只给 daymark-write，见 decided） | Gray 2026-11-11 定 public：私密句子只给 daymark-write |
-| POST | `/daymark/api/quotes` | **daymark-write** |  |  | 保留 | 新增句子 |  |
-| PUT | `/daymark/api/quotes` | **daymark-write** |  |  | 保留 | 改句子 |  |
-| DELETE | `/daymark/api/quotes` | **daymark-write** |  | 单条 → 写组 | 保留 | 删一句（日记条目） |  |
-| GET | `/daymark/api/collections` | **public** | `private` → daymark-write |  | 保留 | 百味专题列表（含私密句子的部分只给 daymark-write） |  |
-| POST | `/daymark/api/collections` | **daymark-write** |  |  | 保留 | 新建专题 |  |
-| PUT | `/daymark/api/collections` | **daymark-write** |  |  | 保留 | 改专题 / 重排专题里的句子 |  |
+| PUT | `/daymark/api/today` | **daymark-manage** |  |  | 保留 | 设为今日 |  |
+| GET | `/daymark/api/quotes` | **public** | `private` → daymark-use、`manage` → daymark-manage |  | 保留 | 句子列表（私密句子给 daymark-use，管理提示给 daymark-manage，见 decided） | Gray 2026-11-11 定 public；组权限 v1.1 §七：私密句子给 daymark-use |
+| POST | `/daymark/api/quotes` | **daymark-manage** |  |  | 保留 | 新增句子 |  |
+| PUT | `/daymark/api/quotes` | **daymark-manage** |  |  | 保留 | 改句子 |  |
+| DELETE | `/daymark/api/quotes` | **daymark-manage** |  | 单条 → manage 组 | 保留 | 删一句（日记条目） |  |
+| GET | `/daymark/api/collections` | **public** | `private` → daymark-use、`manage` → daymark-manage |  | 保留 | 百味专题列表（含私密句子的部分只给 daymark-use） |  |
+| POST | `/daymark/api/collections` | **daymark-manage** |  |  | 保留 | 新建专题 |  |
+| PUT | `/daymark/api/collections` | **daymark-manage** |  |  | 保留 | 改专题 / 重排专题里的句子 |  |
 | DELETE | `/daymark/api/collections` | **root** |  | 结构 → root | 保留 | 删整个专题（句子本身不删）= 结构删除 | Gray 2026-11-11 定 root：删整个专题 = 结构删除 |
 | GET | `/daymark/api/days` | **public** |  |  | 保留 | 按日浏览 |  |
 
@@ -192,11 +200,11 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 
 | Worker | 入口 | 调用方 | 说明 |
 |---|---|---|---|
-| ai | `POST /ask` | space-core POST /api/ai（AI_SERVICE） | 回答本身；门在网关（ai 组） |
+| ai | `POST /ask` | space-core POST /api/ai（AI_SERVICE） | 回答本身；门在网关（ai-use 组） |
 | ai | `GET /find` | space-core GET /api/find | 关键词搜索（公开） |
-| ai | `GET /models` | space-core GET /api/ai | 模型列表（ai 组） |
+| ai | `GET /models` | space-core GET /api/ai | 模型列表（ai-use 组） |
 | ai | `GET /healthz` | styrigx-status 监测 | 健康检查 |
-| status | `GET /summary` | space-core GET /api/status（STATUS） | 监测数据（status 组） |
+| status | `GET /summary` | space-core GET /api/status（STATUS） | 监测数据（status-use 组） |
 | account | `AccountService.fetch` | space-core FORWARDING（ACCOUNT） | 上表 /api/account*、/api/avatar*、/api/profile、/api/prefs、/api/identity、/avatar/* |
 | account | `AccountVerifier.admit / auditRoot` | space-core（ACCOUNT_VERIFIER） | v6 会话判定（只读）/ root 特权操作留痕（v6 P4 起 authorize 删除） |
 | space-core | `SpaceVerifier.admit / auditRoot` | atlas-core（SPACE） | admit / auditRoot 原样转给账号 Worker（v6 P4 起 session、ShareJanitor、conclusion 删除） |

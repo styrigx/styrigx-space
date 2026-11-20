@@ -218,7 +218,7 @@ status:
   lockedHint: visible after su
   lockedSub: "Service status, uptime and usage are only visible once you’re signed in."
   lockedPermHint: "Your user doesn’t have this permission"
-  lockedPermSub: "Service status, uptime and usage need the status group. Run su root first."
+  lockedPermSub: "Service status, uptime and usage need the status-use group. Run su root first."
   loading: Loading…
   noDataYet: No data yet
   resultsShowUpAfter: Results show up after the first round of checks, in about a minute.

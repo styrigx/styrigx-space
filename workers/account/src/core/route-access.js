@@ -8,17 +8,27 @@
  *    （/s/:code 分享短链一段的那条 v6 P4 删除，两段的代理订阅不受影响。）
  * 3. 一条路由下有多个 action / op 的（POST { action }），level 是进这个接口的最低一档；某个 action 要更高的档写在 actions 里，
  *    由接口在读完 body 后按同一张表判断（levelOf(method, path, { action })）。网关 admit 只看路由这一档。
- * 4. 删除两级（定稿 §十一、Muse 复盘 4）：单条内容删除（del: 'item'）归写组；批量 / 结构删除（del: 'bulk'）只属 root。
+ * 4. 删除两级（定稿 §十一、Muse 复盘 4）：单条内容删除（del: 'item'）归 manage 组；批量 / 结构删除（del: 'bulk'）只属 root。
  * 5. 原来要再验证（reauth / sudo -v / sudo root reauth，即 STEPUP 的继任者）的操作，v6 一律改成 sudo 每次重验 = root 档。
  * 6. retire：v6 割接后要删的旧入口（P3 / P4）；它们在 P1–P3 照旧按老规则跑（旧会话判定不变），这里写的是新会话的档。
  * 7. decided：盘点时拿不准、由 Gray 定稿的条目（2026-11-11；docs/architecture/v6-route-inventory.md「已定」汇总）。
  * 8. rescue：救援会话能走的路由（白名单）。一条路由有多个 action 时，rescueActions 列出救援能用的那几个（没列 = 整条都能用）；
  *    判断用 rescueOf(method, path, { action })，结果交给 permits 的 opts.rescue（P2，定稿 v4 §三 / §九）。
  * 9. webmaster：站长档（= styrigx 的 uid；名片属于站长），root 由 permits 第 2 步放行（P2）。
- * 10. private（割接）：公开读接口里的私密行与 canWrite 提示——GET 路由档是 public（谁都能读公开部分），actions.private 是能看私密行的那一档
- *    （= 对应的写组）；子站接口 Worker 读完路由后按 action 'private' 问 admit（同一张表、同一个 permits），不自己比组。
- *    2c：POST /api/ai 也挂 private（= webmaster：站长 styrigx + root）——AI 回答召回私密条目、能切模型（GET /api/ai 的 canChoose 问同一条）；
- *    跨奇趣 / 日刻 / 博客的私密内容，对应旧「账号会话」（= 站长本人），不按某一个写组。
+ * 10. private / manage（组权限 v1.1 §七、§八）：公开读接口里的私密行与 canManage 提示分两档问——GET 路由档是 public（谁都能读公开部分），
+ *    actions.private 是能看私密行的那一档（= `<产品>-use`，v1.1 §七 方案 A），actions.manage 是能管内容的那一档（= `<产品>-manage`，
+ *    前端据此显示管理入口）；atlas-core 的公用 visibility() 读完路由后分别按 action 'private'、'manage' 问 admit（同一张表、同一个 permits），
+ *    不自己比组。
+ *    2c：POST /api/ai 也挂 private（= webmaster：站长 styrigx + root，覆盖产品推导，见 overrideWhy）——AI 回答召回私密条目、能切模型
+ *    （GET /api/ai 的 canChoose 问同一条）；跨奇趣 / 日刻 / 博客的私密内容，对应旧「账号会话」（= 站长本人），不按某一个产品组。
+ *
+ * 12. product / kind（组权限 v1.1 §八「路由表写 product，组名由它推出」）：产品组的组名不再手写——行上写 product（core/groups.js PRODUCTS）
+ *    和 kind，R() 推出组名：
+ *    - kind 'read'（公开读、带私密行）：level = public，actions.private = `<产品>-use`，actions.manage = `<产品>-manage`（产品有 manage 组时）
+ *    - kind 'use'：level = `<产品>-use`
+ *    - kind 'manage'：level = `<产品>-manage`
+ *    手写的 level / actions 仍可覆盖推导，覆盖处必须写 overrideWhy（表自检兜住）；只写 product 不写 kind 的行（public / root 档）不推导，
+ *    只标明归哪个产品。推出来的仍是组名，permits() 看到的东西不变。
  *
  * 11. sudoTicket（D-3 a′，偏离稿 v3.12 第 9 节）：别的 Worker（atlas-core）上 root 档的接口，sudoers 经 POST /api/identity sudo-grant
  *    先在账号 Worker 验自己的凭据、领一次性票，再带 X-Sgx-Sudo 头发真请求（core/sudo-ticket.js）。只有标了的行能发票，
@@ -29,7 +39,7 @@
  *
  * 只 import core/groups.js。
  */
-import { ACCESS_LEVELS } from './groups.js';
+import { ACCESS_LEVELS, PRODUCTS, useGroupOf, manageGroupOf } from './groups.js';
 
 /** 主站主机（网关、账号转发、子站接口 Worker 都在这里） */
 export const MAIN_HOST = 'styrigx.com';
@@ -39,21 +49,63 @@ export const PROXY_HOST = 'proxy.styrigx.com';
 /**
  * @typedef {{ host?: string, method: string, path: string, level: string, worker: string, why: string,
  *   actions?: Readonly<Record<string, string>>, rescue?: boolean, rescueActions?: ReadonlyArray<string>, del?: 'item'|'bulk', retire?: string, decided?: string,
- *   sudoTicket?: boolean }} RouteRule
+ *   sudoTicket?: boolean, product?: string, kind?: 'read'|'use'|'manage', overrideWhy?: string }} RouteRule
  */
 
-/** @param {RouteRule} r */
-const R = (r) => Object.freeze(Object.assign({ host: MAIN_HOST }, r, r.actions ? { actions: Object.freeze(r.actions) } : {},
-  r.rescueActions ? { rescueActions: Object.freeze(r.rescueActions.slice()) } : {}));
+/** 路由行的 kind（第 12 条） */
+export const ROUTE_KINDS = Object.freeze(['read', 'use', 'manage']);
+
+/**
+ * 按 product / kind 推出来的档（第 12 条）：{ level?, actions? }；没有 kind → {}。不认识的产品 / kind → 抛错（表写错 Worker 起不来）。
+ * @param {{product?: string, kind?: string, method?: string, path?: string}} r
+ * @returns {{level?: string, actions?: Record<string, string>}}
+ */
+export function derivedOf(r) {
+  if (r.product === undefined && r.kind === undefined) return {};
+  const where = (r.method || '') + ' ' + (r.path || '');
+  if (typeof r.product !== 'string' || PRODUCTS.indexOf(r.product) === -1) throw new Error('route-access: bad product ' + r.product + ' for ' + where);
+  if (r.kind === undefined) return {};
+  if (ROUTE_KINDS.indexOf(r.kind) === -1) throw new Error('route-access: bad kind ' + r.kind + ' for ' + where);
+  const use = useGroupOf(r.product);
+  const manage = manageGroupOf(r.product);
+  if (r.kind === 'use') return { level: /** @type {string} */ (use) };
+  if (r.kind === 'manage') {
+    if (!manage) throw new Error('route-access: product ' + r.product + ' has no manage group for ' + where);
+    return { level: manage };
+  }
+  /** @type {Record<string, string>} */
+  const actions = { private: /** @type {string} */ (use) };
+  if (manage) actions.manage = manage;
+  return { level: 'public', actions };
+}
+
+/**
+ * 表行：补默认主机，按 product / kind 推组名（手写的 level / actions 覆盖推导），冻结。
+ * 手写的值和推出来的不一样 → 必须有 overrideWhy（第 12 条）。
+ * @param {Partial<RouteRule> & {method: string, path: string, worker: string, why: string}} r
+ */
+const R = (r) => {
+  const d = derivedOf(r);
+  const level = r.level !== undefined ? r.level : d.level;
+  const actions = d.actions || r.actions ? Object.assign({}, d.actions || {}, r.actions || {}) : undefined;
+  const overridden = (r.level !== undefined && d.level !== undefined && r.level !== d.level)
+    || (!!d.actions && !!r.actions && Object.keys(r.actions).some((k) => Object.prototype.hasOwnProperty.call(d.actions || {}, k) && (d.actions || {})[k] !== (r.actions || {})[k]))
+    || (r.kind === 'use' && !!r.actions && Object.prototype.hasOwnProperty.call(r.actions, 'private') && r.actions.private !== useGroupOf(String(r.product)));
+  if (overridden && !(typeof r.overrideWhy === 'string' && r.overrideWhy)) throw new Error('route-access: override without overrideWhy for ' + r.method + ' ' + r.path);
+  if (typeof level !== 'string') throw new Error('route-access: no level for ' + r.method + ' ' + r.path);
+  return Object.freeze(Object.assign({ host: MAIN_HOST }, r, { level }, actions ? { actions: Object.freeze(actions) } : {},
+    r.rescueActions ? { rescueActions: Object.freeze(r.rescueActions.slice()) } : {}));
+};
 
 /** @type {ReadonlyArray<Readonly<RouteRule>>} */
 export const ROUTE_ACCESS = Object.freeze([
   /* ---------- 站点核心 styrigx-space-core 自己的接口（workers/space-core/src/router.js API_ROUTES） ---------- */
-  R({ method: 'POST', path: '/api/ai', level: 'ai', worker: 'space-core', why: 'AI 对话（转 styrigx-ai /ask；私密召回与切模型只给 webmaster，见 actions.private）', actions: { private: 'webmaster' } }),
-  R({ method: 'GET', path: '/api/ai', level: 'ai', worker: 'space-core', why: 'AI 可选模型列表（转 styrigx-ai /models）' }),
+  R({ method: 'POST', path: '/api/ai', product: 'ai', kind: 'use', worker: 'space-core', why: 'AI 对话（转 styrigx-ai /ask；私密召回与切模型只给 webmaster，见 actions.private）', actions: { private: 'webmaster' },
+    overrideWhy: '组权限 v1.1 §六：AI 的私密召回跨奇趣 / 日刻 / 博客，仍只给站长与 root（webmaster），不按 ai-use' }),
+  R({ method: 'GET', path: '/api/ai', product: 'ai', kind: 'use', worker: 'space-core', why: 'AI 可选模型列表（转 styrigx-ai /models）' }),
   R({ method: 'GET', path: '/api/find', level: 'public', worker: 'space-core', why: '关键词搜索，只回公开页面元数据（IP 限流）' }),
   R({ method: 'GET', path: '/api/geo', level: 'public', worker: 'space-core', why: '只回调用者自己的城市 / 时区' }),
-  R({ method: 'GET', path: '/api/status', level: 'status', worker: 'space-core', why: '旷野状态卡 / 监测页（转 styrigx-status /summary）' }),
+  R({ method: 'GET', path: '/api/status', product: 'status', kind: 'use', worker: 'space-core', why: '旷野状态卡 / 监测页（转 styrigx-status /summary）' }),
   R({ method: 'GET', path: '/api/space-audit', level: 'root', worker: 'space-core', why: '进站凭证使用审计（含 IP 前缀）' }),
   /* v6 P4（定稿 v5.2 §十三）：进站接口（lock-* / space-auth）与分享短链（/s/:code、/api/share）删除 */
 
@@ -88,43 +140,44 @@ export const ROUTE_ACCESS = Object.freeze([
   /* v6 P4：数字健康 POST / GET /api/wellbeing 随数字健康整套删除（定稿 v5.5 §四、§五） */
 
   /* ---------- 奇趣接口 styrigx-atlas-core（styrigx.com/curio/api/*，不经网关；workers/atlas-core/src/curio/routes.js；2026-11-14 由 curio-core 合并进 atlas-core） ---------- */
-  R({ method: 'GET', path: '/curio/api/items', level: 'public', worker: 'atlas-core', why: '设备 / 游戏列表（私密行只给 curio-write，见 decided）', actions: { private: 'curio-write' }, decided: 'Gray 2026-11-11 定 public：私密行只给 curio-write' }),
-  R({ method: 'POST', path: '/curio/api/items', level: 'curio-write', worker: 'atlas-core', why: 'device.* / game.*：add / edit / order；del 是单条', del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/links', level: 'public', worker: 'atlas-core', why: '收藏列表（私密行同上）', actions: { private: 'curio-write' }, decided: 'Gray 2026-11-11 定 public：私密行只给 curio-write' }),
-  R({ method: 'POST', path: '/curio/api/links', level: 'curio-write', worker: 'atlas-core', why: 'cat.* / link.*；link.del 单条；cat.del 只删空分类（非空 409），按单条算', del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/movies', level: 'public', worker: 'atlas-core', why: '电影列表', actions: { private: 'curio-write' }, decided: 'Gray 2026-11-11 定 public：私密行只给 curio-write' }),
-  R({ method: 'POST', path: '/curio/api/movies', level: 'curio-write', worker: 'atlas-core', why: 'movie.add / edit / del（单条）', del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/photo', level: 'public', worker: 'atlas-core', why: '设备照片 / 海报（私密设备的照片只给 curio-write）', actions: { private: 'curio-write' } }),
-  R({ method: 'POST', path: '/curio/api/photo', level: 'curio-write', worker: 'atlas-core', why: '上传照片 / 海报' }),
-  R({ method: 'DELETE', path: '/curio/api/photo', level: 'curio-write', worker: 'atlas-core', why: '删一张照片', del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/icon', level: 'public', worker: 'atlas-core', why: '网站图标缓存（私密收藏的图标只给 curio-write）', actions: { private: 'curio-write' } }),
-  R({ method: 'GET', path: '/curio/api/preview', level: 'curio-write', worker: 'atlas-core', why: '添加收藏时抓标题 / 图标（算在写里）' }),
-  R({ method: 'GET', path: '/curio/api/export', level: 'root', worker: 'atlas-core', sudoTicket: true, why: '导出全部收藏（含私密）', decided: 'Gray 2026-11-11 定 root：导出全部收藏含私密' }),
-  R({ method: 'POST', path: '/curio/api/import', level: 'root', worker: 'atlas-core', sudoTicket: true, why: '批量导入书签（v5 要账号复验 → v6 sudo 每次重验 = root）' }),
-  R({ method: 'GET', path: '/curio/api/music', level: 'public', worker: 'atlas-core', why: '歌单（不含音频地址；canWrite 提示给 curio-write）', actions: { private: 'curio-write' } }),
-  R({ method: 'POST', path: '/curio/api/music', level: 'curio-write', worker: 'atlas-core', sudoTicket: true, why: 'album.add / edit、track.edit / del（单条）、artist.edit（改歌手信息）；album.del 连曲目一起删、artist.merge / artist.del（合并 / 删歌手，音乐 v1.19 十二 M4 第 1 条）= 结构删除',
-    actions: { 'album.add': 'curio-write', 'album.edit': 'curio-write', 'track.edit': 'curio-write', 'track.del': 'curio-write', 'album.del': 'root', 'artist.edit': 'curio-write', 'artist.merge': 'root', 'artist.del': 'root' }, del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/music-cover', level: 'public', worker: 'atlas-core', why: '专辑封面 / 歌手头像（?artist=，M4）' }),
-  R({ method: 'POST', path: '/curio/api/music-play', level: 'listen', worker: 'atlas-core', why: '签播放令牌（听歌）' }),
-  R({ method: 'GET', path: '/curio/api/music-stream', level: 'listen', worker: 'atlas-core', why: '取音频（令牌 + Range）' }),
-  R({ method: 'HEAD', path: '/curio/api/music-stream', level: 'listen', worker: 'atlas-core', why: '同上' }),
-  R({ method: 'POST', path: '/curio/api/music-upload', level: 'curio-write', worker: 'atlas-core', why: '上传音轨 / 封面 / 歌手头像（kind=avatar，M4）' }),
+  R({ method: 'GET', path: '/curio/api/items', product: 'curio', kind: 'read', worker: 'atlas-core', why: '设备 / 游戏列表（私密行给 curio-use，管理提示给 curio-manage，见 decided）', decided: 'Gray 2026-11-11 定 public；组权限 v1.1 §七（Gray 2026-11-20 23:33 定 A）：私密行给 curio-use' }),
+  R({ method: 'POST', path: '/curio/api/items', product: 'curio', kind: 'manage', worker: 'atlas-core', why: 'device.* / game.*：add / edit / order；del 是单条', del: 'item' }),
+  R({ method: 'GET', path: '/curio/api/links', product: 'curio', kind: 'read', worker: 'atlas-core', why: '收藏列表（私密行同上）', decided: 'Gray 2026-11-11 定 public；组权限 v1.1 §七：私密行给 curio-use' }),
+  R({ method: 'POST', path: '/curio/api/links', product: 'curio', kind: 'manage', worker: 'atlas-core', why: 'cat.* / link.*；link.del 单条；cat.del 只删空分类（非空 409），按单条算', del: 'item' }),
+  R({ method: 'GET', path: '/curio/api/movies', product: 'curio', kind: 'read', worker: 'atlas-core', why: '电影列表（电影表没有 private 列 = 整表公开；showPrivate 只用来选页底那句话）', decided: 'Gray 2026-11-11 定 public；组权限 v1.1 §七：私密档给 curio-use' }),
+  R({ method: 'POST', path: '/curio/api/movies', product: 'curio', kind: 'manage', worker: 'atlas-core', why: 'movie.add / edit / del（单条）', del: 'item' }),
+  R({ method: 'GET', path: '/curio/api/photo', product: 'curio', kind: 'read', worker: 'atlas-core', why: '设备照片 / 海报（私密设备的照片只给 curio-use，看不到 = 404）' }),
+  R({ method: 'POST', path: '/curio/api/photo', product: 'curio', kind: 'manage', worker: 'atlas-core', why: '上传照片 / 海报' }),
+  R({ method: 'DELETE', path: '/curio/api/photo', product: 'curio', kind: 'manage', worker: 'atlas-core', why: '删一张照片', del: 'item' }),
+  R({ method: 'GET', path: '/curio/api/icon', product: 'curio', kind: 'read', worker: 'atlas-core', why: '网站图标缓存（私密收藏的图标只给 curio-use，看不到 = 404）' }),
+  R({ method: 'GET', path: '/curio/api/preview', product: 'curio', kind: 'manage', worker: 'atlas-core', why: '添加收藏时抓标题 / 图标（算在管理里）' }),
+  R({ method: 'GET', path: '/curio/api/export', product: 'curio', level: 'root', worker: 'atlas-core', sudoTicket: true, why: '导出全部收藏（含私密）', decided: 'Gray 2026-11-11 定 root：导出全部收藏含私密' }),
+  R({ method: 'POST', path: '/curio/api/import', product: 'curio', level: 'root', worker: 'atlas-core', sudoTicket: true, why: '批量导入书签（v5 要账号复验 → v6 sudo 每次重验 = root）' }),
+  /* 音乐（组权限 v1.1 §六、music 搬家设计稿 v1.0 第 1 步）：仍在旧路径 /curio/api/music*，只换档——product 'music'；路径搬到 /music/api/* 是搬家第 2 步 */
+  R({ method: 'GET', path: '/curio/api/music', product: 'music', kind: 'read', worker: 'atlas-core', why: '歌单（不含音频地址；canManage 提示给 music-manage）' }),
+  R({ method: 'POST', path: '/curio/api/music', product: 'music', kind: 'manage', worker: 'atlas-core', sudoTicket: true, why: 'album.add / edit、track.edit / del（单条）、artist.edit（改歌手信息）；album.del 连曲目一起删、artist.merge / artist.del（合并 / 删歌手，音乐 v1.19 十二 M4 第 1 条）= 结构删除',
+    actions: { 'album.add': 'music-manage', 'album.edit': 'music-manage', 'track.edit': 'music-manage', 'track.del': 'music-manage', 'album.del': 'root', 'artist.edit': 'music-manage', 'artist.merge': 'root', 'artist.del': 'root' }, del: 'item' }),
+  R({ method: 'GET', path: '/curio/api/music-cover', product: 'music', level: 'public', worker: 'atlas-core', why: '专辑封面 / 歌手头像（?artist=，M4）' }),
+  R({ method: 'POST', path: '/curio/api/music-play', product: 'music', kind: 'use', worker: 'atlas-core', why: '签播放令牌（听歌）' }),
+  R({ method: 'GET', path: '/curio/api/music-stream', product: 'music', kind: 'use', worker: 'atlas-core', why: '取音频（令牌 + Range）' }),
+  R({ method: 'HEAD', path: '/curio/api/music-stream', product: 'music', kind: 'use', worker: 'atlas-core', why: '同上' }),
+  R({ method: 'POST', path: '/curio/api/music-upload', product: 'music', kind: 'manage', worker: 'atlas-core', why: '上传音轨 / 封面 / 歌手头像（kind=avatar，M4）' }),
 
   /* ---------- 日刻接口 styrigx-atlas-core（styrigx.com/daymark/api/*，不经网关；workers/atlas-core/src/daymark/routes.js；2026-11-14 由 daymark-core 合并进 atlas-core） ---------- */
-  R({ method: 'GET', path: '/daymark/api/today', level: 'public', worker: 'atlas-core', why: '今日一句（首页 / 锁屏跨站读）' }),
-  R({ method: 'HEAD', path: '/daymark/api/today', level: 'public', worker: 'atlas-core', why: '同上' }),
-  R({ method: 'OPTIONS', path: '/daymark/api/today', level: 'public', worker: 'atlas-core', why: 'CORS 预检' }),
-  R({ method: 'PUT', path: '/daymark/api/today', level: 'daymark-write', worker: 'atlas-core', why: '设为今日' }),
-  R({ method: 'GET', path: '/daymark/api/quotes', level: 'public', worker: 'atlas-core', why: '句子列表（私密句子只给 daymark-write，见 decided）', actions: { private: 'daymark-write' }, decided: 'Gray 2026-11-11 定 public：私密句子只给 daymark-write' }),
-  R({ method: 'POST', path: '/daymark/api/quotes', level: 'daymark-write', worker: 'atlas-core', why: '新增句子' }),
-  R({ method: 'PUT', path: '/daymark/api/quotes', level: 'daymark-write', worker: 'atlas-core', why: '改句子' }),
-  R({ method: 'DELETE', path: '/daymark/api/quotes', level: 'daymark-write', worker: 'atlas-core', why: '删一句（日记条目）', del: 'item' }),
-  R({ method: 'GET', path: '/daymark/api/collections', level: 'public', worker: 'atlas-core', why: '百味专题列表（含私密句子的部分只给 daymark-write）', actions: { private: 'daymark-write' } }),
-  R({ method: 'POST', path: '/daymark/api/collections', level: 'daymark-write', worker: 'atlas-core', why: '新建专题' }),
-  R({ method: 'PUT', path: '/daymark/api/collections', level: 'daymark-write', worker: 'atlas-core', why: '改专题 / 重排专题里的句子' }),
-  R({ method: 'DELETE', path: '/daymark/api/collections', level: 'root', worker: 'atlas-core', sudoTicket: true, why: '删整个专题（句子本身不删）= 结构删除', del: 'bulk',
+  R({ method: 'GET', path: '/daymark/api/today', product: 'daymark', level: 'public', worker: 'atlas-core', why: '今日一句（首页 / 锁屏跨站读）' }),
+  R({ method: 'HEAD', path: '/daymark/api/today', product: 'daymark', level: 'public', worker: 'atlas-core', why: '同上' }),
+  R({ method: 'OPTIONS', path: '/daymark/api/today', product: 'daymark', level: 'public', worker: 'atlas-core', why: 'CORS 预检' }),
+  R({ method: 'PUT', path: '/daymark/api/today', product: 'daymark', kind: 'manage', worker: 'atlas-core', why: '设为今日' }),
+  R({ method: 'GET', path: '/daymark/api/quotes', product: 'daymark', kind: 'read', worker: 'atlas-core', why: '句子列表（私密句子给 daymark-use，管理提示给 daymark-manage，见 decided）', decided: 'Gray 2026-11-11 定 public；组权限 v1.1 §七：私密句子给 daymark-use' }),
+  R({ method: 'POST', path: '/daymark/api/quotes', product: 'daymark', kind: 'manage', worker: 'atlas-core', why: '新增句子' }),
+  R({ method: 'PUT', path: '/daymark/api/quotes', product: 'daymark', kind: 'manage', worker: 'atlas-core', why: '改句子' }),
+  R({ method: 'DELETE', path: '/daymark/api/quotes', product: 'daymark', kind: 'manage', worker: 'atlas-core', why: '删一句（日记条目）', del: 'item' }),
+  R({ method: 'GET', path: '/daymark/api/collections', product: 'daymark', kind: 'read', worker: 'atlas-core', why: '百味专题列表（含私密句子的部分只给 daymark-use）' }),
+  R({ method: 'POST', path: '/daymark/api/collections', product: 'daymark', kind: 'manage', worker: 'atlas-core', why: '新建专题' }),
+  R({ method: 'PUT', path: '/daymark/api/collections', product: 'daymark', kind: 'manage', worker: 'atlas-core', why: '改专题 / 重排专题里的句子' }),
+  R({ method: 'DELETE', path: '/daymark/api/collections', product: 'daymark', level: 'root', worker: 'atlas-core', sudoTicket: true, why: '删整个专题（句子本身不删）= 结构删除', del: 'bulk',
     decided: 'Gray 2026-11-11 定 root：删整个专题 = 结构删除' }),
-  R({ method: 'GET', path: '/daymark/api/days', level: 'public', worker: 'atlas-core', why: '按日浏览' }),
+  R({ method: 'GET', path: '/daymark/api/days', product: 'daymark', level: 'public', worker: 'atlas-core', why: '按日浏览' }),
 
   /* ---------- 代理订阅 / 规则集 styrigx-proxy（proxy.styrigx.com，不经网关；workers/proxy/src/router.js） ---------- */
   R({ host: PROXY_HOST, method: 'GET', path: '/s/:token/:source', level: 'public', worker: 'proxy', why: '代理订阅下载：令牌 + age 密文就是凭证（两段，保留）' }),
@@ -140,11 +193,11 @@ export const ROUTE_ACCESS = Object.freeze([
  * @type {ReadonlyArray<Readonly<{worker:string, entry:string, caller:string, why:string}>>}
  */
 export const SERVICE_ONLY = Object.freeze([
-  { worker: 'ai', entry: 'POST /ask', caller: 'space-core POST /api/ai（AI_SERVICE）', why: '回答本身；门在网关（ai 组）' },
+  { worker: 'ai', entry: 'POST /ask', caller: 'space-core POST /api/ai（AI_SERVICE）', why: '回答本身；门在网关（ai-use 组）' },
   { worker: 'ai', entry: 'GET /find', caller: 'space-core GET /api/find', why: '关键词搜索（公开）' },
-  { worker: 'ai', entry: 'GET /models', caller: 'space-core GET /api/ai', why: '模型列表（ai 组）' },
+  { worker: 'ai', entry: 'GET /models', caller: 'space-core GET /api/ai', why: '模型列表（ai-use 组）' },
   { worker: 'ai', entry: 'GET /healthz', caller: 'styrigx-status 监测', why: '健康检查' },
-  { worker: 'status', entry: 'GET /summary', caller: 'space-core GET /api/status（STATUS）', why: '监测数据（status 组）' },
+  { worker: 'status', entry: 'GET /summary', caller: 'space-core GET /api/status（STATUS）', why: '监测数据（status-use 组）' },
   { worker: 'account', entry: 'AccountService.fetch', caller: 'space-core FORWARDING（ACCOUNT）', why: '上表 /api/account*、/api/avatar*、/api/profile、/api/prefs、/avatar/*' },
   { worker: 'account', entry: 'AccountVerifier.admit / auditRoot / sudoAdmit', caller: 'space-core（ACCOUNT_VERIFIER）', why: 'v6 会话判定（只读）/ root 特权操作留痕（v6 P4 起 authorize 删除）/ D-3 a′ 一次性 sudo 票核销' },
   { worker: 'space-core', entry: 'SpaceVerifier.admit / auditRoot / sudoAdmit', caller: 'atlas-core（SPACE）', why: 'admit / auditRoot / sudoAdmit 原样转给账号 Worker（v6 P4 起 session、ShareJanitor、conclusion 删除）' },
@@ -229,3 +282,12 @@ for (const r of ROUTE_ACCESS) {
   if (r.worker === 'account' || roots.length === 0) throw new Error('route-access: bad sudoTicket for ' + r.method + ' ' + r.path);
 }
 if (KEYS.size !== ROUTE_ACCESS.length) throw new Error('route-access: duplicate rule');
+/* 产品组名档只认本行产品的组（第 12 条）：带 product 的行，组名档（不是 public / user / webmaster / root）必须是 `<本产品>-use|manage` */
+for (const r of ROUTE_ACCESS) {
+  if (r.product === undefined) continue;
+  const own = [useGroupOf(r.product), manageGroupOf(r.product)];
+  for (const l of [r.level].concat(r.actions ? Object.values(r.actions) : [])) {
+    if (['public', 'user', 'webmaster', 'root'].indexOf(l) !== -1) continue;
+    if (own.indexOf(l) === -1) throw new Error('route-access: group ' + l + ' is not ' + r.product + "'s for " + r.method + ' ' + r.path);
+  }
+}

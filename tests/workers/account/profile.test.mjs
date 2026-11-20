@@ -36,7 +36,7 @@ function makeKv(init = {}) {
 }
 function env(kv) {
   const db = seedV6(makeAccountD1());
-  seedV6(db, { uid: 1001, name: 'alice', groups: ['listen'], token: V6_TOKEN_ALICE });
+  seedV6(db, { uid: 1001, name: 'alice', groups: ['music-use'], token: V6_TOKEN_ALICE });
   return { KV_PROFILE: kv, D1_ACCOUNT: db };
 }
 /** 旧会话 cookie（v6 P4 起服务端不认）：只用来验「只有旧 cookie = 没有身份」 */

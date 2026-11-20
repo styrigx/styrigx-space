@@ -57,7 +57,7 @@ async function setup(o = {}) {
     raw.prepare('INSERT INTO account_user_password (uid, record, pepper_id, must_change, expires_at) VALUES (?, ?, \'account\', 0, 0)').run(uid, JSON.stringify(rec));
   };
   await addUser(0, 'root', PW.root);
-  await addUser(1000, 'styrigx', PW.styrigx, ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write']);
+  await addUser(1000, 'styrigx', PW.styrigx, ['wheel', 'sudoers', 'music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use', 'music-manage', 'curio-manage', 'daymark-manage']);
   return env;
 }
 
@@ -204,7 +204,7 @@ test('白名单只在 precedence() 一处：救援会话 whoami / groups / passk
   const env = await setup();
   const { tok } = await rescueOk(env);
   for (const action of ['whoami', 'groups', 'passkey-list']) assert.equal((await call(env, { action, as: 0 }, tok)).status, 200, action);
-  for (const body of [{ action: 'useradd', name: 'x1' }, { action: 'userdel', name: 'styrigx' }, { action: 'usermod', op: '-aG', groups: ['ai'], name: 'styrigx' },
+  for (const body of [{ action: 'useradd', name: 'x1' }, { action: 'userdel', name: 'styrigx' }, { action: 'usermod', op: '-aG', groups: ['ai-use'], name: 'styrigx' },
     { action: 'passwd-user', name: 'root' }, { action: 'passwd-user', name: 'alice' }, { action: 'who' }, { action: 'su', user: 'styrigx', password: PW.styrigx }, { action: 'idle' },
     { action: 'sudo', password: PW.root, command: { action: 'who' } }, { action: 'sudo', password: PW.root, command: { method: 'POST', path: '/api/account/proxy', body: { action: 'status' } } }]) {
     const r = await call(env, body, tok);

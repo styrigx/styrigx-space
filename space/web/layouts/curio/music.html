@@ -3,7 +3,7 @@
 {{/* 奇趣 › 音乐（/curio/music/，中文 /curio/zh/music/；P4-3 奇趣拆页新增）：数字专辑，curio-music.js 画。
    三层（v5 S3；接口档在 workers/atlas-core/src/curio/routes.js ROUTE_ACCESS）：歌单 / 封面谁都能看（GET /curio/api/music 不带任何音频地址）；
    听要进站（没进站 = 只看模式：播放键是锁、播放条只显示专辑，点播放发 sgx:sudo，顶栏终端预填 sudo styrigx）；
-   上传 / 删除要账号会话 + curio.write（接口回 canWrite 才显示）。公开页，不带 noindex（R-23）；站点地图只列奇趣首页，本页不单列；元数据进全站搜索 / AI 召回（site:curio 索引）。
+   上传 / 删除要music-manage（接口回 canManage 才显示）。公开页，不带 noindex（R-23）；站点地图只列奇趣首页，本页不单列；元数据进全站搜索 / AI 召回（site:curio 索引）。
    播放器交互借 jojo.best/music 的思路（只借交互）：封面横滑切专辑、整张按曲序播放、歌词跟着滚、倍速 0.75 / 1 / 1.25 / 1.5 / 2；随机播放（和弹出播放器共用本地设置）。
    播放走短链：/curio/api/music-play 签一枚随机令牌（10 分钟），<audio> 的地址是 /curio/api/music-stream?t=…&id=…（支持 Range，拖进度）。
    上传：「上传专辑」弹层，分段「单首 | 批量」（M2）：歌名 / 歌手按音频标签、没有再按文件名预填；可选封面 + 可选 .lrc 歌词，浏览器直传（单个音频 ≤ 95 MB）。 */}}
@@ -25,7 +25,7 @@
           <h2 id="mu-album-title" class="mu-album-title"></h2>
           <p id="mu-album-sub" class="mu-album-sub"></p>
         </div>
-        {{/* 专辑页一个编辑入口（M3，音乐 v1.18 十二 M3 第 1 条 / 7.6）：名、歌手、年份、封面；能写（canWrite）才显示 */}}
+        {{/* 专辑页一个编辑入口（M3，音乐 v1.18 十二 M3 第 1 条 / 7.6）：名、歌手、年份、封面；能写（canManage）才显示 */}}
         <button id="mu-album-edit" type="button" class="cu-btn-text mu-edit-btn hidden">{{ $tr.music.edit }}</button>
         <button id="mu-play-all" type="button" class="mu-play-all" aria-label="{{ $tr.music.playAlbum }}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg><svg class="mu-ic-lock" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
       </div>
@@ -42,7 +42,7 @@
       <p id="mu-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant">{{ $tr.music.noAlbumsYetTap }}</p>
       </div>
       {{/* 歌手页（M4，音乐 v1.19 7.5 / 十二 M4）：不加新路由，本页 ?artist=<id> 视图（curio-music.js 页内换视图，歌不断）。
-         头部头像（没有用默认图标）、名字、专辑数和单曲数；有风格 / 简介才显示；下面专辑一区、单曲一区。能写（canWrite）才有「编辑」。 */}}
+         头部头像（没有用默认图标）、名字、专辑数和单曲数；有风格 / 简介才显示；下面专辑一区、单曲一区。能写（canManage）才有「编辑」。 */}}
       <section id="mu-artist" class="mu-artist hidden" aria-labelledby="mu-ar-name">
         <a id="mu-ar-back" class="mu-ar-back" href="./" data-artist="0"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>{{ $tr.music.backToMusic }}</a>
         <p id="mu-ar-missing" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant">{{ $tr.music.artistMissing }}</p>
@@ -152,7 +152,7 @@
 </dialog>
 
 {{/* ===== 删除单曲确认（v1.13 ②，Gray 2026-11-14 18:40）：同上传窗的悬浮卡片 <dialog class="sgx-qp sgx-up mu-del">，不要底部升起；
-   内容照共用确认框（一句话 + 取消 / 删除，删除用错误色）。只有能写（canWrite）时列表才画删除键；接口复用 album.del（单曲 = kind=single 的专辑记录）。 ===== */}}
+   内容照共用确认框（一句话 + 取消 / 删除，删除用错误色）。只有能写（canManage）时列表才画删除键；接口复用 album.del（单曲 = kind=single 的专辑记录）。 ===== */}}
 <dialog id="mu-del-wrap" class="sgx-qp sgx-up mu-del" role="alertdialog" aria-labelledby="mu-del-title" aria-describedby="mu-del-msg">
   <div class="sgx-qp-sheet" tabindex="-1">
     <div class="mu-up-head">
@@ -252,7 +252,7 @@
   </div>
 </dialog>
 
-{{/* ===== 改歌手（M4，音乐 v1.19 7.5 / 十二 M4）：同上面的悬浮卡片。名字、风格、简介、头像（裁方、≤ 1000、jpeg）走 curio-write；
+{{/* ===== 改歌手（M4，音乐 v1.19 7.5 / 十二 M4）：同上面的悬浮卡片。名字、风格、简介、头像（裁方、≤ 1000、jpeg）走 music-manage；
    「合并到另一个歌手」「删除」是 root 档（确认卡片 → 一次性票，同删专辑）；名下还有作品不能删，只能合并。 ===== */}}
 <dialog id="mu-ar-wrap" class="sgx-qp sgx-up mu-ed" aria-labelledby="mu-ar-title">
   <div class="sgx-qp-sheet" tabindex="-1">

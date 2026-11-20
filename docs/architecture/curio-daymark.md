@@ -53,7 +53,7 @@
 | `days` | GET 公开：往前几天的「今日一句」（只读 `daily_pick`，最多 31 天） |
 | `quotes`、`collections` | GET 公开（未登录账号只有公开句子）；写：进站 + 同源 + 账号会话 + `daymark.write` |
 
-3.2 访问档（v5 S3）：每站的 `src/<站>/routes.js` 有自己的 `ROUTE_ACCESS`（方法 + 路径精确匹配，表里没有的一律要进站，fail closed；单测对整张表快照）。要进站的接口经服务绑定 `SPACE`（`SpaceVerifier.conclusion()`）问站点核心，没有进站会话 401；写操作再看账号结论里的作用域。公开读不拒绝，只在要私密行 / `canWrite` 时问结论。
+3.2 访问档（v5 S3）：每站的 `src/<站>/routes.js` 有自己的 `ROUTE_ACCESS`（方法 + 路径精确匹配，表里没有的一律要进站，fail closed；单测对整张表快照）。要进站的接口经服务绑定 `SPACE`（`SpaceVerifier.conclusion()`）问站点核心，没有进站会话 401；写操作再看账号结论里的作用域。公开读不拒绝，只在要私密行 / `canManage` 时问结论（组权限 v1.1 起经公用 `src/common/visibility.js` 的 `visibility()`，分别问 action `private` = `<产品>-use`、`manage` = `<产品>-manage`；ADR-0007）。
 
 3.3 搜索索引：写接口成功后重建、每小时兜底（2026-11-10 起由 styrigx-status 的 41 分 Cron 经服务绑定 `JOB_ATLAS` 调 atlas-core 的 `HourlyJob`，先奇趣后日刻），写 KV `KV_SEARCH_INDEX` 的 `site:curio` / `site:daymark`（内容没变不写；私密条目标 `private`）。
 

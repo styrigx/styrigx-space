@@ -58,8 +58,8 @@ async function setup() {
     }
   };
   await addUser(0, 'root', PW.root);
-  await addUser(1000, 'styrigx', PW.styrigx, { groups: ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write'] });
-  await addUser(1001, 'alice', PW.alice, { groups: ['listen'] });
+  await addUser(1000, 'styrigx', PW.styrigx, { groups: ['wheel', 'sudoers', 'music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use', 'music-manage', 'curio-manage', 'daymark-manage'] });
+  await addUser(1001, 'alice', PW.alice, { groups: ['music-use'] });
   await addUser(1002, 'temp', PW.temp, { expiresAt: Date.now() + 30 * 86400000 });
   return env;
 }

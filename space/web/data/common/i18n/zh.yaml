@@ -212,9 +212,9 @@ baseof:
 status:
   lockedHint: su 登录后可见
   lockedSub: 服务状态、可用率和用量要登录后才能看。
-  # 403（已登录但不在 status 组，#404 未决项第 5 项）
+  # 403（已登录但不在 status-use 组，#404 未决项第 5 项；组权限 v1.1 起组名 status-use）
   lockedPermHint: 当前用户没有这个权限
-  lockedPermSub: 服务状态、可用率和用量需要 status 组，先 su root。
+  lockedPermSub: 服务状态、可用率和用量需要 status-use 组，先 su root。
   loading: 正在加载…
   noDataYet: 还没有监测数据
   resultsShowUpAfter: 第一轮检查完成后（约 1 分钟）这里会显示结果。

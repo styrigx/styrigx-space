@@ -16,6 +16,7 @@ src/rpc/daymark-reader.js DaymarkReader：给 styrigx-ai 的今日一句（R-35�
 src/rpc/hourly-job.js  HourlyJob：给 styrigx-status（JOB_ATLAS）
 src/curio/             奇趣：app.js、routes.js（访问表）、api/、search-index.js、photo-sweep.js、reader.js；CurioReader 在 curio/rpc/reader.js
 src/daymark/           日刻：index.js、routes.js（访问表）、api/、search-index.js、rpc/hourly-job.js
+src/common/visibility.js 公用（组权限 v1.1，ADR-0007）：visibility(context) → { showPrivate, canManage }（分别问 action private / manage）、filterPrivate、privateNotFound；奇趣、日刻、音乐的公开读都只经它
 ```
 
 访问档、守卫、路由表都在 `src/curio/`、`src/daymark/` 各自目录里，本 Worker 不另加。单测：`tests/workers/atlas-core/`（`core.test.mjs` 分流 / 迁移 / 配置，`curio*.test.mjs`、`daymark*.test.mjs` 两边业务）。

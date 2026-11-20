@@ -21,10 +21,10 @@
       </article>
       <div class="sgx-cmds dm-cmds">
         <button id="dm-draw" type="button" class="sgx-cmd"><span class="sgx-cmd-k" translate="no">shuf -n1 ↻</span><i>{{ $tr.index.drawAnother }}</i></button>
-        {{/* 设为今日：只在 canWrite、只在抽到一句公开的（不是今日那句）之后出现（daymark.js canSetToday）；点了改写今天那句（PUT /api/today） */}}
+        {{/* 设为今日：只在 canManage、只在抽到一句公开的（不是今日那句）之后出现（daymark.js canSetToday）；点了改写今天那句（PUT /api/today） */}}
         <button id="dm-set-today" type="button" class="sgx-cmd hidden"><span class="sgx-cmd-k" translate="no">set today</span><i>{{ $tr.index.setAsToday }}</i></button>
         <button id="dm-back-today" type="button" class="sgx-cmd hidden"><span class="sgx-cmd-k" translate="no">cat today</span><i>{{ $tr.index.backToToday }}</i></button>
-        {{/* 不能编辑（接口回 canWrite=false）：命令链里多一条「su」（2c 起 data-sec-open，打开顶栏终端预填 su ；daymark.js signinHint 按有没有 v6 登录换说明）。
+        {{/* 不能编辑（接口回 canManage=false）：命令链里多一条「su」（2c 起 data-sec-open，打开顶栏终端预填 su ；daymark.js signinHint 按有没有 v6 登录换说明）。
            href 只是没 JS / 中键时的退路：本语言首页 #sec（「未获授权 → #acct&app=daymark」随应用授权删除，v6 P4） */}}
         <a id="dm-signin" data-dm-signin class="sgx-cmd hidden" data-sec-open="" href="{{ partial "common/lang-path.html" (dict "path" "https://styrigx.com/" "lang" ($lang)) }}#sec"><span class="sgx-cmd-k" translate="no">su</span><i data-signin-text>{{ $tr.index.signInToYour }}</i></a>
       </div>
@@ -94,7 +94,7 @@
   </div>
 </main>
 
-{{/* ===== 记一句 / 编辑弹层（canWrite） ===== */}}
+{{/* ===== 记一句 / 编辑弹层（canManage） ===== */}}
 <div id="edit-wrap" class="bk-overlay fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="edit-title">
   <div class="bk-overlay-backdrop absolute inset-0" data-close="edit"></div>
   <div class="bk-panel text-m-on-surface shadow-2xl">

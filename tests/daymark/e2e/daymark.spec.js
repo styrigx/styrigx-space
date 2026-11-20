@@ -25,22 +25,24 @@ const QUOTES = [
 ];
 const COLS = [{ id: 'cccccccccc01', name: '晨读', intro: '早上读一遍', created_at: 1, sort: 0, quote_ids: ['aaaaaaaaaaa3', 'aaaaaaaaaaa1', 'aaaaaaaaaaa2'] }];
 
-/* signedIn = true：接口回 canWrite / showPrivate 都是 true（账号已登录）；false：都是 false（进门了、账号没登录） */
+/* signedIn = true：接口回 canManage / showPrivate 都是 true（有 daymark-manage）；false：都是 false（访客 / 没组）；'use'：只有 daymark-use（showPrivate true、canManage false，组权限 v1.1 §七、§八） */
 async function mock(page, signedIn) {
-  const list = signedIn
+  const show = signedIn === true || signedIn === 'use';
+  const manage = signedIn === true;
+  const list = show
     ? QUOTES.map((q) => ({ ...q, note: '', collections: COLS[0].quote_ids.includes(q.id) ? ['cccccccccc01'] : [] }))
     : QUOTES.filter((q) => q.visibility === 'public');
-  let cols = signedIn ? COLS.map((c) => ({ ...c, quote_ids: c.quote_ids.slice() })) : COLS.map((c) => ({ ...c, quote_ids: c.quote_ids.filter((id) => list.some((q) => q.id === id)) }));
+  let cols = show ? COLS.map((c) => ({ ...c, quote_ids: c.quote_ids.slice() })) : COLS.map((c) => ({ ...c, quote_ids: c.quote_ids.filter((id) => list.some((q) => q.id === id)) }));
   const calls = [];
   await page.route('**/avatar/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>' }));
   await page.route('**/api/lock-session-check', (r) => r.fulfill({ json: { ok: true } }));
   /* D-3 a′：可写会话按 root 模拟（whoami 回 root），root 档操作不走领票；非 whoami 的身份请求放行给别的路由。 */
-  await page.route('**/api/identity', (r) => { const b = r.request().postData() || ''; return (signedIn) && b.includes('"whoami"') ? r.fulfill({ json: { ok: true, user: { root: true } } }) : r.fallback(); });
+  await page.route('**/api/identity', (r) => { const b = r.request().postData() || ''; return (manage) && b.includes('"whoami"') ? r.fulfill({ json: { ok: true, user: { root: true } } }) : r.fallback(); });
   await page.route('**/api/today**', (r) => r.fulfill({ json: { ok: true, day: '2026-10-20', quote: { ...QUOTES[0] } } }));
   await page.route('**/api/collections**', async (r) => {
     const req = r.request();
     calls.push({ method: req.method(), url: req.url(), body: req.postDataJSON ? req.postDataJSON() : null });
-    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite: signedIn, showPrivate: signedIn, collections: cols } });
+    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canManage: manage, showPrivate: show, collections: cols } });
     if (req.method() === 'POST') {
       const c = { id: 'cccccccccc09', name: req.postDataJSON().name, intro: req.postDataJSON().intro || '', created_at: 9, sort: 9, quote_ids: [] };
       cols = cols.concat(c);
@@ -55,7 +57,7 @@ async function mock(page, signedIn) {
   });
   await page.route('**/api/quotes**', async (r) => {
     const req = r.request();
-    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite: signedIn, showPrivate: signedIn, quotes: list } });
+    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canManage: manage, showPrivate: show, quotes: list } });
     const body = req.postDataJSON();
     calls.push({ method: req.method(), url: req.url(), body });
     if (req.method() === 'POST') {
@@ -293,6 +295,19 @@ test('拾录 · 账号没登录：只有公开句子、没有记一句和锁；�
     await expect(page.locator(id)).not.toHaveAttribute('data-acct-app', /./);
   }
   await expect(page.locator('#dm-signin-trove .sgx-cmd-k')).toHaveText('su');
+});
+
+test('拾录 · 只有 daymark-use（组权限 v1.1：showPrivate true、canManage false）：看得到私密句子（带锁），没有记一句；点句子不开编辑；百味没有新建', async ({ page }) => {
+  await mock(page, 'use');
+  await page.goto('/daymark/zh/#trove');
+  await expect(page.locator('#dm-list .dm-card')).toHaveCount(4);
+  await expect(page.locator('#dm-list .dm-lock')).toHaveCount(1);
+  await expect(page.locator('#dm-fab')).toBeHidden();
+  await expect(page.locator('html')).not.toHaveClass(/dm-can-write/);
+  await page.locator('#dm-list .dm-card').first().click();
+  await expect(page.locator('#edit-wrap')).not.toHaveClass(/open/);
+  await page.goto('/daymark/zh/#flavors');
+  await expect(page.locator('#dm-col-new')).toHaveCount(0);
 });
 
 test('拾录 · 账号已登录（可写）：新的在前、私密带锁、右下角记一句；点句子进入编辑，删除要确认', async ({ page }) => {

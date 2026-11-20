@@ -3,8 +3,8 @@
 //
 // 三层（v5 S3；档在 routes.js ROUTE_ACCESS，守卫在 _auth.js，app.js 套用）：
 //   歌单 / 封面 public（GET /api/music 只回元数据：专辑名、艺术家、年份、有没有封面、曲目号 / 名 / 时长；没有任何音频地址、R2 key、令牌）；
-//   听 entry（进站即可，含分享链接进来的 by=link：POST /api/music-play 签令牌、GET /api/music-stream 取音频）；
-//   上传 / 管理 music（进站 + 账号会话 + curio.write，与其他写接口同一套作用域）。写另要同源（403 origin）。
+//   听 entry（music-use：POST /api/music-play 签令牌、GET /api/music-stream 取音频）；
+//   上传 / 管理 music（music-manage，组权限 v1.1 §六；听 = music-use）。写另要同源（403 origin）。
 // 表（D1 styrigx-atlas-core，绑定 D1_MUSIC；迁移 migrations/0001_curio.sql，MUSIC_SCHEMA 只兜底全新的库，两边一致，测试核对）：
 //   music_albums  专辑：名、艺术家、年份、封面（R2_MUSIC 的 key）、排序
 //   music_tracks  曲目：专辑、曲序、名、时长（秒）、音频（R2_MUSIC 的 key、类型、字节数）、可选歌词 LRC
@@ -125,7 +125,7 @@ function cleanBio(v) {
  * 校验写操作：
  *   album.add {title, artist?, year?, kind?} / album.edit {id, title?, artist?, year?, kind?} / album.del {id}
  *   track.edit {id, title?, no?, lrc?, artist?, album_id?, year?} / track.del {id}
- *   artist.edit {id, name?, bio?, style?}（M4，curio-write）：name 同 artistName 清理，空 bad-name；bio / style 不是字符串 bad-bio / bad-style
+ *   artist.edit {id, name?, bio?, style?}（M4，music-manage）：name 同 artistName 清理，空 bad-name；bio / style 不是字符串 bad-bio / bad-style
  *   artist.merge {id, into}（M4，root）：把 id 并进 into；into 不是正整数 bad-into，和 id 相同 same-artist
  *   artist.del {id}（M4，root）：只删名下没有作品的
  * kind：album（缺省）/ single；别的值 bad-kind。
@@ -221,7 +221,7 @@ export function parseMusicOp(b) {
  * 全部记录（专辑和单曲，各带 kind；按添加顺序，新的在后；封面横滑从第一张开始）和各自的曲目（按曲序）。只有元数据，从不带音频地址 / R2 key。
  * 每首曲目带 artist（M1，十一 第 1 条）：按 music_tracks.artist_id 对 music_artists.name；0 或对不上 → ''。
  * 专辑 / 曲目带 artist_id（M4，歌手页 ?artist=<id> 的链接）：对得上歌手表才给，0 或对不上（脏数据）→ 0。
- * full（管理的人：账号 + curio.write）多给 size / type / 有没有歌词；歌词正文在签播放令牌时给。
+ * full（管理的人：music-manage，GET 回的 canManage）多给 size / type / 有没有歌词；歌词正文在签播放令牌时给。
  * @param {any} db @param {boolean} [full]
  */
 export async function listAlbums(db, full = false) {
@@ -470,7 +470,7 @@ export async function applyMusicOp(db, o, now = Date.now(), r2 = null) {
     }
     case 'track.del': {
       /* M3（十二 M3 第 4 条）：删的是单曲唯一一首 → 空单曲记录（和令牌）同一个 batch 删，它的封面 R2 文件也交给调用方删
-         （与 M1 单曲划进专辑同一口径；D1 提交成功之后才删 R2）。权限仍是 track.del 那一档（curio-write），不走 album.del 的 root。
+         （与 M1 单曲划进专辑同一口径；D1 提交成功之后才删 R2）。权限仍是 track.del 那一档（music-manage），不走 album.del 的 root。
          专辑里删到空照样保留专辑（十一 第 3 条）。 */
       const t = await db.prepare("SELECT t.id, t.r2_key, t.album_id, a.kind, a.cover, (SELECT COUNT(*) FROM music_tracks WHERE album_id = t.album_id) AS n FROM music_tracks t LEFT JOIN music_albums a ON a.id = t.album_id WHERE t.id = ?1").bind(o.id).first();
       if (!t) return { error: 'not-found' };

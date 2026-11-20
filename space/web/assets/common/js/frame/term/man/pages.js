@@ -14,7 +14,7 @@ export const PAGES = Object.freeze({
   sudo: { d: 'run one command as root with your own credentials (sudoers only; no ticket kept)', syn: ['sudo useradd | userdel | usermod | passwd <name>', 'sudo groups [<name>]', 'sudo who'], see: ['su', 'useradd', 'userdel', 'usermod'] },
   theme: { d: 'open the palette panel, or switch to a palette', syn: ['theme [<palette>]'] },
   lock: { d: 'sign everything out and go back to visitor', syn: ['lock'], auth: 'no verification', see: ['exit', 'su'] },
-  ask: { d: 'ask Gray AI a question', syn: ['ask <question>'], desc: ['opens the Gray AI window with your question. Gray AI is for the ai group.'] },
+  ask: { d: 'ask Gray AI a question', syn: ['ask <question>'], desc: ['opens the Gray AI window with your question. Gray AI is for the ai-use group.'] },
   find: { d: 'search the four sites’ public pages by keyword', syn: ['find <keyword>'] },
   clear: { d: 'clear the screen', syn: ['clear | cls'] },
   pwd: { d: 'print the current directory', syn: ['pwd'], see: ['cd', 'ls'] },
@@ -80,7 +80,7 @@ export const PAGES = Object.freeze({
     see: ['userdel', 'usermod', 'groups'],
     desc: ['Prints a one-time password once (expires in 24 h); the user must change it at first sign-in.'],
     auth: 'root, or sudo useradd (sudoers)',
-    notes: ['A user with an expiry can’t join wheel, sudoers or the write groups.'],
+    notes: ['A user with an expiry can’t join wheel, sudoers or the manage groups.'],
   },
   userdel: { d: 'delete a user with its sessions, keys and groups', syn: ['userdel <name>'], see: ['useradd', 'usermod'], auth: 'root, or sudo userdel (sudoers)', notes: ['root and styrigx can’t be deleted.'] },
   usermod: {

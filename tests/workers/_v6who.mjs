@@ -6,8 +6,8 @@
  * 子站 _auth.js 没有这个 cookie 不问网关）：
  * - null / ''   没有 v6 身份（访客）
  * - 'owner'     root（全部档；旧测试里「账号已登录、全部作用域、带复验」的继任）
- * - 'styrigx'   站长（默认七组：写组、listen、ai …；root 档的导入 / 导出 / 删整个专题不够）
- * - 'noscope'   alice（只有 listen：写组不够 → 403 forbidden）
+ * - 'styrigx'   站长（默认十组：全部 -use / -manage …；root 档的导入 / 导出 / 删整个专题不够）
+ * - 'noscope'   alice（只有 music-use：manage 组不够 → 403 forbidden；奇趣 / 日刻的私密行也看不到）
  * - 'lock'      temp（有身份、没有组）
  * - 'garbage'   网关回了看不懂的东西（当没有身份）
  *

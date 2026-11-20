@@ -42,7 +42,7 @@ function setup(o = {}) {
 test('AI_PRIVATE：就是账号路由表里 POST /api/ai 的 action private（= webmaster），不是救援可用', () => {
   assert.deepEqual({ ...IA.AI_PRIVATE }, { method: 'POST', path: '/api/ai', action: 'private' });
   assert.equal(RA.levelOf('POST', '/api/ai', { action: 'private' }), 'webmaster');
-  assert.equal(RA.levelOf('POST', '/api/ai'), 'ai', '进接口本身仍是 ai 组');
+  assert.equal(RA.levelOf('POST', '/api/ai'), 'ai-use', '进接口本身是 ai-use 组（组权限 v1.1 §六，原 ai）');
   assert.equal(RA.rescueOf('POST', '/api/ai', { action: 'private' }), false);
 });
 

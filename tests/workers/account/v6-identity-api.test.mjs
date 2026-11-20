@@ -70,8 +70,8 @@ async function setup() {
     }
   };
   await addUser(0, 'root', PW.root);
-  await addUser(1000, 'styrigx', PW.styrigx, { groups: ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write'] });
-  await addUser(1001, 'alice', PW.alice, { groups: ['listen'] });
+  await addUser(1000, 'styrigx', PW.styrigx, { groups: ['wheel', 'sudoers', 'music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use', 'music-manage', 'curio-manage', 'daymark-manage'] });
+  await addUser(1001, 'alice', PW.alice, { groups: ['music-use'] });
   await addUser(1002, 'temp', PW.temp, { expiresAt: Date.now() + 30 * 86400000 });
   return env;
 }
@@ -244,14 +244,14 @@ test('身份栈最多三层：栈表 CHECK depth = 1；root 层过期（1 小时
 
 /* ---------------- useradd / usermod / userdel / passwd <名> ---------------- */
 
-test('useradd：一次性密码只回一次、16 位以上、库里只存哈希、首登强制改（带 newPassword 才签会话）、24 小时；-e 当日 00:00 北京时间起失效；临时用户 -G wheel / sudoers / 写组被拒', async () => {
+test('useradd：一次性密码只回一次、16 位以上、库里只存哈希、首登强制改（带 newPassword 才签会话）、24 小时；-e 当日 00:00 北京时间起失效；临时用户 -G wheel / sudoers / manage 组被拒', async () => {
   const env = await setup();
   const tok = await login(env, 'styrigx');
   const plain = await id(env, { action: 'useradd', name: 'bob' }, tok);
   assert.equal(plain.status, 403, 'styrigx 不是 root（要 su root / sudo）');
   assert.equal(plain.json.need, 'root');
   await suRoot(env, tok);
-  for (const g of ['wheel', 'sudoers', 'curio-write', 'daymark-write']) {
+  for (const g of ['wheel', 'sudoers', 'music-manage', 'curio-manage', 'daymark-manage']) {
     const r = await id(env, { action: 'useradd', name: 'guest1', expire: '2099-12-01', groups: [g] }, tok);
     assert.equal(r.status, 400, g);
     assert.equal(r.json.error, 'temporary', g);
@@ -260,10 +260,10 @@ test('useradd：一次性密码只回一次、16 位以上、库里只存哈希�
   assert.equal((await id(env, { action: 'useradd', name: 'old', expire: '2020-01-01' }, tok)).json.error, 'expiry');
   assert.equal((await id(env, { action: 'useradd', name: 'root' }, tok)).json.error, 'name');
   assert.equal((await id(env, { action: 'useradd', name: 'alice' }, tok)).json.error, 'exists');
-  const r = await id(env, { action: 'useradd', name: 'guest1', expire: '2099-12-01', groups: 'listen,ai' }, tok);
+  const r = await id(env, { action: 'useradd', name: 'guest1', expire: '2099-12-01', groups: 'music-use,ai-use' }, tok);
   assert.equal(r.status, 200);
   assert.equal(r.json.user.uid, 1003);
-  assert.deepEqual(r.json.user.groups, ['ai', 'listen']);
+  assert.deepEqual(r.json.user.groups, ['ai-use', 'music-use']);
   assert.equal(r.json.user.expiresAt, Date.UTC(2099, 11, 1) - 8 * 3600 * 1000, '2099-12-01 00:00 Asia/Shanghai（存 UTC）');
   const otp = r.json.password;
   assert.ok(typeof otp === 'string' && otp.length >= 16);
@@ -291,22 +291,22 @@ test('useradd：一次性密码只回一次、16 位以上、库里只存哈希�
   env.D1_ACCOUNT.raw.prepare('UPDATE account_user_password SET expires_at = ? WHERE uid = ?').run(Date.now() - 1, r2.json.user.uid);
   assert.equal((await id(env, { action: 'su', user: 'late', password: r2.json.password, newPassword: 'late-new-pass' }, undefined, freshIp())).status, 401);
   const audits = rows(env, 'SELECT command FROM account_user_audit').map((x) => x.command);
-  assert.ok(audits.includes('useradd guest1 -e 2099-12-01 -G listen,ai'));
+  assert.ok(audits.includes('useradd guest1 -e 2099-12-01 -G music-use,ai-use'));
 });
 
-test('usermod：临时用户 -aG wheel / sudoers / 写组被拒；加组 epoch +1 作废会话；减最后一个 wheel 成员先 409 警告、force 才执行', async () => {
+test('usermod：临时用户 -aG wheel / sudoers / manage 组被拒；加组 epoch +1 作废会话；减最后一个 wheel 成员先 409 警告、force 才执行', async () => {
   const env = await setup();
   const tt = await login(env, 'temp');
   const tok = await login(env, 'styrigx');
   await suRoot(env, tok);
-  for (const g of ['wheel', 'sudoers', 'curio-write', 'daymark-write']) {
+  for (const g of ['wheel', 'sudoers', 'music-manage', 'curio-manage', 'daymark-manage']) {
     const r = await id(env, { action: 'usermod', op: '-aG', groups: [g], name: 'temp' }, tok);
     assert.equal(r.status, 400, g);
     assert.equal(r.json.error, 'temporary');
   }
   assert.equal(rows(env, 'SELECT * FROM account_user_groups WHERE uid = 1002').length, 0);
   assert.equal((await id(env, { action: 'whoami' }, tt)).json.user.name, 'temp', '被拒不动 epoch');
-  const ok = await id(env, { action: 'usermod', op: '-aG', groups: ['listen'], name: 'temp' }, tok);
+  const ok = await id(env, { action: 'usermod', op: '-aG', groups: ['music-use'], name: 'temp' }, tok);
   assert.equal(ok.json.changed, true);
   assert.equal((await id(env, { action: 'whoami' }, tt)).json.user, null, '组变了 → 会话作废');
   assert.equal((await id(env, { action: 'usermod', op: '-aG', groups: ['wheel'], name: 'root' }, tok)).json.error, 'protected');
@@ -317,6 +317,31 @@ test('usermod：临时用户 -aG wheel / sudoers / 写组被拒；加组 epoch +
   const forced = await id(env, { action: 'usermod', op: '-rG', groups: ['wheel'], name: 'styrigx', force: true }, tok);
   assert.equal(forced.json.warning, 'last-member');
   assert.equal((await id(env, { action: 'whoami' }, tok)).json.user, null, 'styrigx 自己的会话（连同 root 层）作废');
+});
+
+test('组权限 v1.1 §九：usermod -rG 允许删掉不在 GROUPS 里的旧组名（listen 等），-aG 不允许加旧名；割接命令 usermod -aG 十个组后 whoami 只看新组', async () => {
+  const env = await setup();
+  const tok = await login(env, 'styrigx');
+  await suRoot(env, tok);
+  const raw = env.D1_ACCOUNT.raw;
+  for (const g of ['listen', 'ai', 'status', 'curio-write', 'daymark-write']) raw.prepare('INSERT INTO account_user_groups (uid, grp, added_at) VALUES (1000, ?, 1)').run(g);
+  for (const g of ['listen', 'ai', 'status', 'curio-write', 'daymark-write']) {
+    const r = await id(env, { action: 'usermod', op: '-aG', groups: [g], name: 'alice' }, tok);
+    assert.equal(r.status, 400, '-aG ' + g);
+    assert.equal(r.json.error, 'group', '-aG 旧名 = 不认识的组');
+  }
+  assert.equal((await id(env, { action: 'usermod', op: '-rG', groups: ['Bad_Name'], name: 'styrigx' }, tok)).json.error, 'group', '-rG 也要像个组名');
+  const add = await id(env, { action: 'usermod', op: '-aG', groups: 'music-use,music-manage,curio-use,curio-manage,daymark-use,daymark-manage,status-use,ai-use', name: 'styrigx' }, tok);
+  assert.equal(add.status, 200, '割接第 4 步');
+  const st2 = await login(env, 'styrigx');
+  const who = await id(env, { action: 'whoami' }, st2);
+  assert.deepEqual(who.json.user.groups.slice().sort(), ['ai-use', 'curio-manage', 'curio-use', 'daymark-manage', 'daymark-use', 'music-manage', 'music-use', 'status-use', 'sudoers', 'wheel'], '会话只认 GROUPS 里的名字（旧名过滤掉）');
+  await suRoot(env, st2);
+  const rm = await id(env, { action: 'usermod', op: '-rG', groups: 'listen,ai,status,curio-write,daymark-write', name: 'styrigx' }, st2);
+  assert.equal(rm.status, 200, '-rG 旧名');
+  assert.equal(rm.json.changed, true);
+  assert.deepEqual(rows(env, 'SELECT grp FROM account_user_groups WHERE uid = 1000 ORDER BY grp').map((r) => r.grp),
+    ['ai-use', 'curio-manage', 'curio-use', 'daymark-manage', 'daymark-use', 'music-manage', 'music-use', 'status-use', 'sudoers', 'wheel'], '旧名 5 行删干净，新 10 组都在');
 });
 
 test('userdel：拒删 root、styrigx；删别人连同会话、身份栈、密码、通行密钥、组', async () => {
@@ -434,7 +459,7 @@ test('救援会话：白名单 whoami / passwd / passkey / groups / exit / lock 
   assert.equal(w.json.user.path, 'root (rescue)');
   assert.equal((await id(env, { action: 'groups' }, rt)).status, 200);
   assert.equal((await id(env, { action: 'passkey-list', as: 0 }, rt)).status, 200);
-  for (const body of [{ action: 'useradd', name: 'x1' }, { action: 'userdel', name: 'alice' }, { action: 'usermod', op: '-aG', groups: ['ai'], name: 'alice' },
+  for (const body of [{ action: 'useradd', name: 'x1' }, { action: 'userdel', name: 'alice' }, { action: 'usermod', op: '-aG', groups: ['ai-use'], name: 'alice' },
     { action: 'passwd-user', name: 'alice' }, { action: 'who' }, { action: 'su', user: 'alice', password: PW.alice }, { action: 'sudo', password: 'x', command: { action: 'who' } }, { action: 'idle' }]) {
     const r = await id(env, body, rt, freshIp());
     assert.equal(r.status, 403, body.action);
@@ -595,18 +620,18 @@ test('P4-3 2g 设备标记：su 发 sgx-device（HttpOnly / Secure / SameSite=La
   void old;
 });
 
-test('P4-3 权限收紧：永久普通用户（alice）同样进不了 wheel / sudoers / 写组；普通用户不能管通行密钥（passkey-* webmaster）；passwd 照旧', async () => {
+test('P4-3 权限收紧：永久普通用户（alice）同样进不了 wheel / sudoers / manage 组；普通用户不能管通行密钥（passkey-* webmaster）；passwd 照旧', async () => {
   const env = await setup();
   const st = await login(env, 'styrigx');
   await suRoot(env, st);
-  for (const g of ['wheel', 'sudoers', 'curio-write', 'daymark-write']) {
+  for (const g of ['wheel', 'sudoers', 'music-manage', 'curio-manage', 'daymark-manage']) {
     const r = await id(env, { action: 'usermod', op: '-aG', groups: [g], name: 'alice' }, st);
     assert.equal(r.status, 400, g);
     assert.equal(r.json.error, 'action', g + '：报找不到命令（同未知命令，Gray 11-11 22:36）');
   }
-  assert.equal((await id(env, { action: 'usermod', op: '-aG', groups: ['ai', 'status'], name: 'alice' }, st)).status, 200, '只读组照常');
-  const ua = await id(env, { action: 'useradd', name: 'bob', groups: ['curio-write'] }, st);
-  assert.equal(ua.json.error, 'action', 'useradd -G 写组同样拒（没有期限 → 找不到命令）');
+  assert.equal((await id(env, { action: 'usermod', op: '-aG', groups: ['ai-use', 'status-use', 'curio-use', 'daymark-use'], name: 'alice' }, st)).status, 200, 'use 组照常（root 可授给任何人，v1.1 §四）');
+  const ua = await id(env, { action: 'useradd', name: 'bob', groups: ['curio-manage'] }, st);
+  assert.equal(ua.json.error, 'action', 'useradd -G manage 组同样拒（没有期限 → 找不到命令）');
   const at = await login(env, 'alice');
   for (const a of ['passkey-list', 'passkey-add-challenge', 'passkey-delete']) {
     const r = await id(env, { action: a, n: 1 }, at);
@@ -641,13 +666,13 @@ test('groups / who：普通用户只看自己（groups <别人> 403）；root �
   const env = await setup();
   const at = await login(env, 'alice');
   const g = await id(env, { action: 'groups', uid: 1000 }, at);
-  assert.deepEqual(g.json.groups, ['listen'], 'uid 参数不认');
+  assert.deepEqual(g.json.groups, ['music-use'], 'uid 参数不认');
   assert.equal((await id(env, { action: 'groups', user: 'styrigx' }, at)).status, 403);
   const st = await login(env, 'styrigx');
   const w = await id(env, { action: 'who', uid: 1000 }, at);
   assert.ok(w.json.sessions.every((s) => s.user === 'alice'));
   await suRoot(env, st);
-  assert.deepEqual((await id(env, { action: 'groups', user: 'alice' }, st)).json.groups, ['listen']);
+  assert.deepEqual((await id(env, { action: 'groups', user: 'alice' }, st)).json.groups, ['music-use']);
   assert.deepEqual((await id(env, { action: 'groups' }, st)).json.groups, ['root']);
   assert.ok((await id(env, { action: 'who' }, st)).json.sessions.some((s) => s.user === 'alice'));
 });
@@ -815,9 +840,9 @@ test('P2c 到期自动删除：到期满 30 天（一个常量）的用户连同
   const tt = await login(env, 'temp');
   /* temp 到期 31 天；再造一个宽限期内的（到期 29 天） */
   raw.prepare("INSERT INTO account_users (uid, name, avatar, expires_at, epoch, disabled, created_at) VALUES (1003, 'bob', '', ?, 0, 0, 1)").run(now - 29 * 86400000);
-  raw.prepare("INSERT INTO account_user_groups (uid, grp, added_at) VALUES (1003, 'listen', 1)").run();
+  raw.prepare("INSERT INTO account_user_groups (uid, grp, added_at) VALUES (1003, 'music-use', 1)").run();
   raw.prepare('UPDATE account_users SET expires_at = ? WHERE uid = 1002').run(now - 31 * 86400000);
-  raw.prepare("INSERT INTO account_user_groups (uid, grp, added_at) VALUES (1002, 'listen', 1)").run();
+  raw.prepare("INSERT INTO account_user_groups (uid, grp, added_at) VALUES (1002, 'music-use', 1)").run();
   raw.prepare("INSERT INTO account_user_passkey (credential_id, uid, user_handle, legacy_handle, record) VALUES ('ct', 1002, 'h', '', '{}')").run();
   /* root / styrigx 即使库里被写了期限也永不删 */
   raw.prepare('UPDATE account_users SET expires_at = ? WHERE uid IN (0, 1000)').run(now - 365 * 86400000);

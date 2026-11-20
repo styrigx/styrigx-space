@@ -8,7 +8,7 @@
 // 响应头：Cache-Control private, no-cache + ETag + Vary: Cookie（_image.js）：浏览器每次用前都回来验会话，内容没变回 304。
 //   ETag 由 R2 key 算（key 带时间，换照片 = 换 key = 换 ETag），304 不用读 R2。前端 ?v= 照旧用来换地址。
 import { err, json, methodNotAllowed } from './_lib.js';
-import { readAccess } from './_auth.js';
+import { privateNotFound } from '../../common/visibility.js';
 import { guardWrite, idParam } from './_write.js';
 import { ensureItemSchema, KINDS, itemDb } from './_items.js';
 import { ensureMovieSchema, MOVIE_KIND } from './_movies.js';
@@ -47,7 +47,9 @@ export async function onRequestGet(context) {
   await ensureKind(db, t.kind);
   const row = await db.prepare(`SELECT ${t.K.photo} AS photo, ${t.K.hasPrivate === false ? '0' : 'private'} AS private FROM ${t.K.table} WHERE id = ?1`).bind(t.id).first();
   if (!row || !row.photo) return err('not-found', 404);
-  if (row.private && !(await readAccess(context)).showPrivate) return err('not-found', 404);
+  /* 私密条目的图：看不到（没有 curio-use）= 404，同不存在（公用 privateNotFound，组权限 v1.1 §八） */
+  const hidden = await privateNotFound(context, !!row.private);
+  if (hidden) return hidden;
   /* 会话（index.js）和可见性（上一行）都过了才看缓存 */
   const etag = await etagOf(row.photo);
   if (etagMatches(request, etag)) return notModified(etag);

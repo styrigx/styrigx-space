@@ -18,7 +18,7 @@ const { serviceFetch } = await import('../../../workers/account/src/rpc/account-
 
 export const V6_TOKEN = 'v6testtokenv6testtokenv6testtokenv6testtoke';
 export const V6_COOKIE = 'sgx-session=' + V6_TOKEN;
-/** 第二个令牌（普通用户 alice，uid 1001，只有 listen） */
+/** 第二个令牌（普通用户 alice，uid 1001，只有 music-use） */
 export const V6_TOKEN_ALICE = 'v6alicetokenv6alicetokenv6alicetokenv6alice';
 export const V6_COOKIE_ALICE = 'sgx-session=' + V6_TOKEN_ALICE;
 

@@ -3,11 +3,12 @@
  *
  * 护栏（定稿 v4 §八 / §十）：
  * - useradd：名字合法且没人用、不叫 root；uid 从 1001 起递增；-e 日期按 Linux 语义（该日 00:00 Asia/Shanghai 起失效，存 UTC），
- *   必须是将来；-G 每个组先过 canJoinGroup（普通用户（uid 1001 起，含临时用户）进 wheel / sudoers / 写组一律拒绝，整条命令不执行）；
+ *   必须是将来；-G 每个组先过 canJoinGroup（普通用户（uid 1001 起，含临时用户）进 wheel / sudoers / manage 组一律拒绝，整条命令不执行）；
  *   生成一次性密码（只回一次、库里只存哈希），首登强制改，24 小时过期。
  * - userdel：拒删 root、拒删 styrigx（站长，名片属主）；连同会话、身份栈、密码、通行密钥、组一起删（一个 batch，deleteUserRows）。
  * - 到期：到期即禁用、会话作废（admit 判 expires_at）；满宽限期自动删除（core/user-expiry.js，同 deleteUserRows）。useradd 前顺手清一次。
  * - usermod -aG / -rG：加组过 canJoinGroup；减掉最后一个 wheel / sudoers 成员时先回 last-member 警告，调用方带 force 才执行。
+ *   -rG 另允许删掉不在 GROUPS 里的旧组名（组权限 v1.1 §九：只放开删除，不放开添加）。
  * - passwd <名>：发一次性密码（同 useradd），该用户会话全部作废（epoch +1）。不能对 root 用：root 的凭据只能在
  *   su root 或救援会话里用 passwd 自己改（sudo 夺不走 root，定稿 v4 §十）。
  *   R-34（稿 v3.11 第 8 节，Gray 2026-11-15 02:07 / 02:29）：正常 root（su root 或 sudo）对站长 styrigx 一律拒（protected-webmaster）；
@@ -17,10 +18,13 @@
  * 只 import lib/ 和 core/。
  */
 import { onDb } from '../lib/db.js';
-import { ROOT_UID, STYRIGX_UID, FIRST_USER_UID, USER_NAME_RE, GROUPS, PRIVILEGED_GROUPS, canJoinGroup } from './groups.js';
+import { ROOT_UID, STYRIGX_UID, FIRST_USER_UID, USER_NAME_RE, GROUPS, SPECIAL_GROUPS, canJoinGroup } from './groups.js';
 import { expiryFromDate, getUser, getGroups, addToGroup, removeFromGroup, credentialsChanged, deleteUserRows } from './users.js';
 import { oneTimePassword, savePasswordFor, ONE_TIME_TTL_MS } from './identity-auth.js';
 import { purgeExpiredUsers } from './user-expiry.js';
+
+/** -rG 能删的旧组名的写法（不在 GROUPS 里的历史组名，如 listen、curio-write） */
+const STALE_GROUP_RE = /^[a-z][a-z0-9-]{0,31}$/;
 
 /** 用户名 → 用户（没有 → null；root 也查得到）。出错抛错。 @param {any} env @param {string} name */
 export async function userByName(env, name) {
@@ -91,7 +95,13 @@ export async function usermod(env, q, now) {
   const list = Array.isArray(q.groups) ? q.groups : (typeof q.groups === 'string' ? q.groups.split(',') : []);
   const groups = Array.from(new Set(list.map((g) => String(g).trim()).filter(Boolean)));
   if (!groups.length) return { ok: false, error: 'params' };
-  for (const g of groups) if (GROUPS.indexOf(g) === -1) return { ok: false, error: 'group', group: g };
+  /* -aG 只认 GROUPS 里的组；-rG 另允许删掉不在 GROUPS 里的旧名（v1.1 §九：listen 等旧组名割接后的清理；只放开删除，不放开添加），
+     名字仍要像个组名（字母开头，小写字母 / 数字 / 连字符） */
+  for (const g of groups) {
+    if (GROUPS.indexOf(g) !== -1) continue;
+    if (op === 'remove' && STALE_GROUP_RE.test(g)) continue;
+    return { ok: false, error: 'group', group: g };
+  }
   const u = typeof q.name === 'string' ? await userByName(env, q.name) : null;
   if (!u) return { ok: false, error: 'no-user' };
   if (u.uid === ROOT_UID) return { ok: false, error: 'protected-root' };
@@ -110,7 +120,7 @@ export async function usermod(env, q, now) {
     return { ok: true, changed };
   }
   for (const g of groups) {
-    if (PRIVILEGED_GROUPS.indexOf(g) === -1) continue;
+    if (SPECIAL_GROUPS.indexOf(g) === -1) continue;
     const row = await onDb(env, (d) => d.prepare('SELECT COUNT(*) AS n, SUM(CASE WHEN uid = ? THEN 1 ELSE 0 END) AS me FROM account_user_groups WHERE grp = ?').bind(u.uid, g).first());
     if (Number(row && row.me) === 1 && Number(row && row.n) === 1) {
       if (q.force !== true) return { ok: false, error: 'last-member', group: g };

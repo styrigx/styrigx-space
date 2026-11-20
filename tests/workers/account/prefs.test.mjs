@@ -23,7 +23,7 @@ function accountD1For(kv) {
   if (!d) {
     d = makeAccountD1();
     seedV6(d);
-    seedV6(d, { uid: 1001, name: 'alice', groups: ['listen'], token: V6_TOKEN_ALICE });
+    seedV6(d, { uid: 1001, name: 'alice', groups: ['music-use'], token: V6_TOKEN_ALICE });
     accountD1ByKv.set(kv, d);
   }
   return d;

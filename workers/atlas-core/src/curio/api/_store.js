@@ -7,7 +7,9 @@
 //   imports 导入记录：每次导入的原始文件存在 R2（imports/<时间>-<哈希>.html），这里记 key 和结果
 //
 // 中英文：名字 / 简介各两份；一种留空时前端显示另一种，所以只填一种也行。
-// 私密：分类或收藏任一私密，没登录账号就看不到这条（账号已登录全看得到）。从浏览器导入的默认私密。
+// 私密：分类或收藏任一私密，没有 curio-use 就看不到这条（有 curio-use / curio-manage 全看得到）。从浏览器导入的默认私密。
+
+import { filterPrivate } from '../../common/visibility.js';
 
 export const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS cats (id INTEGER PRIMARY KEY AUTOINCREMENT, name_zh TEXT NOT NULL DEFAULT '', name_en TEXT NOT NULL DEFAULT '', private INTEGER NOT NULL DEFAULT 0, pos INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0)",
@@ -177,14 +179,12 @@ export async function listAll(db, showPrivate) {
   /** @type {Map<number, any>} */
   const byId = new Map();
   const out = [];
-  for (const r of cats.results || []) {
-    if (!showPrivate && r.private) continue;
+  for (const r of filterPrivate(cats.results || [], showPrivate)) {
     const c = { id: r.id, name: { zh: r.name_zh, en: r.name_en }, private: !!r.private, links: [] };
     byId.set(r.id, c);
     out.push(c);
   }
-  for (const r of links.results || []) {
-    if (!showPrivate && r.private) continue;
+  for (const r of filterPrivate(links.results || [], showPrivate)) {
     const c = byId.get(r.cat_id);
     if (!c) continue;
     c.links.push({ id: r.id, url: r.url, name: { zh: r.name_zh, en: r.name_en }, desc: { zh: r.desc_zh, en: r.desc_en }, icon: r.icon, private: !!r.private });

@@ -14,7 +14,7 @@
  * 只 import lib/db.js 和 core/groups.js。
  */
 import { onDb } from '../lib/db.js';
-import { canJoinGroup, PRIVILEGED_GROUPS, WRITE_GROUPS, ROOT_UID, STYRIGX_UID } from './groups.js';
+import { canJoinGroup, isGuardedGroup, ROOT_UID, STYRIGX_UID } from './groups.js';
 
 /** Asia/Shanghai 相对 UTC 的偏移（毫秒；中国不实行夏令时） */
 export const SHANGHAI_OFFSET_MS = 8 * 3600 * 1000;
@@ -150,7 +150,7 @@ export async function removeFromGroup(env, uid, group) {
 }
 
 /**
- * 改期限（usermod -e；0 = 永久）。root 不能有期限；要设期限的用户若还在特权组或写组里 → 拒绝（先删组）。
+ * 改期限（usermod -e；0 = 永久）。root 不能有期限；要设期限的用户若还在特殊组或 manage 组里（SPECIAL_GROUPS / MANAGE_GROUPS，v1.1 §五）→ 拒绝（先删组）。
  * 改了 → epoch +1、会话全部作废。
  * @param {any} env @param {number} uid @param {number} expiresAt UTC 毫秒（expiryFromDate 的结果）或 0
  * @returns {Promise<{ok:true, changed:boolean}|{ok:false, reason:string}>}
@@ -163,7 +163,7 @@ export async function setUserExpiry(env, uid, expiresAt) {
   if (user.expiresAt === expiresAt) return { ok: true, changed: false };
   if (expiresAt > 0) {
     const groups = await getGroups(env, uid);
-    if (groups.some((g) => PRIVILEGED_GROUPS.indexOf(g) !== -1 || WRITE_GROUPS.indexOf(g) !== -1)) return { ok: false, reason: 'privileged-groups' };
+    if (groups.some((g) => isGuardedGroup(g))) return { ok: false, reason: 'privileged-groups' };
   }
   return onDb(env, async (d) => {
     await d.batch([d.prepare('UPDATE account_users SET expires_at = ? WHERE uid = ?').bind(expiresAt, uid)].concat(bumpAndRevokeAll(d, uid)));

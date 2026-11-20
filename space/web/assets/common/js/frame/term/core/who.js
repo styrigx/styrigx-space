@@ -95,7 +95,7 @@ export function whoOf(v6) {
 /**
  * 一条命令在这个身份下列不列（man 索引 / 补全；唯一判断点）。定稿 v5.5 §四：各人只看到自己这一层及以下的命令，root 看全部。
  * - 命令的层 = tierOf（audience 里最低的那一层；缺省访客层；空数组不进索引）
- * - group：只给这个组的成员列（ask = ai 组，定稿 v5.5 §四「ai 组成员的 man 都列出 ask」；sudo = sudoers）；root 不看组
+ * - group：只给这个组的成员列（ask = ai-use 组，定稿 v5.5 §四「ai 组成员的 man 都列出 ask」，组权限 v1.1 起组名 ai-use；sudo = sudoers）；root 不看组
  * 只管列不列，不管能不能跑（能不能跑由命令自己 / 服务端回答）。
  * @param {{ audience?: string[], group?: string }} c @param {Who} w @param {any} [u] whoami 的 user（组、webmaster 标记；可省）
  */

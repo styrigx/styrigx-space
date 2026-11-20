@@ -10,7 +10,7 @@
 //      新分类、收藏、imports 记录放在同一个 db.batch（一个事务）里，中途失败不会留下空分类
 //   5. imports 表记一笔
 // 默认导入成私密（浏览器书签里什么都有）；?private=0 导入成公开。新建的分类也跟着这个设置。
-// 返回 {ok:true, found, added, skipped, invalid, cats_added, backup:<R2 key>, canWrite:true, showPrivate:true, cats:[...]}
+// 返回 {ok:true, found, added, skipped, invalid, cats_added, backup:<R2 key>, canManage:true, showPrivate:true, cats:[...]}
 // 400 not-bookmarks（不是书签文件）/ empty（一条网址都没有）；409 limit（超出 5000 条，一条都不写）；413 too-large；503 backup（R2 不可用）
 import { json, err, methodNotAllowed } from './_lib.js';
 import { guardWrite } from './_write.js';
@@ -130,7 +130,7 @@ export async function onRequestPost(context) {
     invalid: parsed.invalid,
     cats_added: newCats.length,
     backup: key,
-    canWrite: true,
+    canManage: true,
     showPrivate: true,
     cats: await listAll(db, true),
   });
