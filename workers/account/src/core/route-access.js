@@ -102,13 +102,13 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'GET', path: '/curio/api/export', level: 'root', worker: 'atlas-core', sudoTicket: true, why: '导出全部收藏（含私密）', decided: 'Gray 2026-11-11 定 root：导出全部收藏含私密' }),
   R({ method: 'POST', path: '/curio/api/import', level: 'root', worker: 'atlas-core', sudoTicket: true, why: '批量导入书签（v5 要账号复验 → v6 sudo 每次重验 = root）' }),
   R({ method: 'GET', path: '/curio/api/music', level: 'public', worker: 'atlas-core', why: '歌单（不含音频地址；canWrite 提示给 curio-write）', actions: { private: 'curio-write' } }),
-  R({ method: 'POST', path: '/curio/api/music', level: 'curio-write', worker: 'atlas-core', sudoTicket: true, why: 'album.add / edit、track.edit / del（单条）；album.del 连曲目一起删 = 结构删除',
-    actions: { 'album.add': 'curio-write', 'album.edit': 'curio-write', 'track.edit': 'curio-write', 'track.del': 'curio-write', 'album.del': 'root' }, del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/music-cover', level: 'public', worker: 'atlas-core', why: '专辑封面' }),
+  R({ method: 'POST', path: '/curio/api/music', level: 'curio-write', worker: 'atlas-core', sudoTicket: true, why: 'album.add / edit、track.edit / del（单条）、artist.edit（改歌手信息）；album.del 连曲目一起删、artist.merge / artist.del（合并 / 删歌手，音乐 v1.19 十二 M4 第 1 条）= 结构删除',
+    actions: { 'album.add': 'curio-write', 'album.edit': 'curio-write', 'track.edit': 'curio-write', 'track.del': 'curio-write', 'album.del': 'root', 'artist.edit': 'curio-write', 'artist.merge': 'root', 'artist.del': 'root' }, del: 'item' }),
+  R({ method: 'GET', path: '/curio/api/music-cover', level: 'public', worker: 'atlas-core', why: '专辑封面 / 歌手头像（?artist=，M4）' }),
   R({ method: 'POST', path: '/curio/api/music-play', level: 'listen', worker: 'atlas-core', why: '签播放令牌（听歌）' }),
   R({ method: 'GET', path: '/curio/api/music-stream', level: 'listen', worker: 'atlas-core', why: '取音频（令牌 + Range）' }),
   R({ method: 'HEAD', path: '/curio/api/music-stream', level: 'listen', worker: 'atlas-core', why: '同上' }),
-  R({ method: 'POST', path: '/curio/api/music-upload', level: 'curio-write', worker: 'atlas-core', why: '上传音轨 / 封面' }),
+  R({ method: 'POST', path: '/curio/api/music-upload', level: 'curio-write', worker: 'atlas-core', why: '上传音轨 / 封面 / 歌手头像（kind=avatar，M4）' }),
 
   /* ---------- 日刻接口 styrigx-atlas-core（styrigx.com/daymark/api/*，不经网关；workers/atlas-core/src/daymark/routes.js；2026-11-14 由 daymark-core 合并进 atlas-core） ---------- */
   R({ method: 'GET', path: '/daymark/api/today', level: 'public', worker: 'atlas-core', why: '今日一句（首页 / 锁屏跨站读）' }),
