@@ -109,21 +109,21 @@ test('导入 POST /curio/api/import = root（v6 的「每次重验」= su root�
 
 test('音乐：album.del = root（结构删除，留痕 rm-bulk）；album.add / track.* = music-manage；听歌 = music-use（alice 有、临时用户没有）', async () => {
   const b = bench();
-  const add = await j(await call(b, '/curio/api/music', { v6: 'styrigx', method: 'POST', body: { op: 'album.add', title: 'A' } }));
+  const add = await j(await call(b, '/music/api/music', { v6: 'styrigx', method: 'POST', body: { op: 'album.add', title: 'A' } }));
   assert.equal(add.status, 200, JSON.stringify(add.json));
   const id = add.json.id;
-  const del = (v6) => call(b, '/curio/api/music', { v6, method: 'POST', body: { op: 'album.del', id } });
+  const del = (v6) => call(b, '/music/api/music', { v6, method: 'POST', body: { op: 'album.del', id } });
   const no = await j(await del('styrigx'));
   assert.equal(no.status, 403, 'styrigx 删整张专辑要 su root');
   assert.equal(no.json.error, 'forbidden');
-  assert.equal((await call(b, '/curio/api/music', { v6: 'alice', method: 'POST', body: { op: 'album.add', title: 'B' } })).status, 403);
+  assert.equal((await call(b, '/music/api/music', { v6: 'alice', method: 'POST', body: { op: 'album.add', title: 'B' } })).status, 403);
   assert.equal((await del('root')).status, 200);
   assert.deepEqual(b.audits.map((a) => a.command), ['rm-bulk curio album ' + id]);
   /* 听歌：music-use */
-  assert.notEqual((await call(b, '/curio/api/music-play', { v6: 'alice', method: 'POST', body: { track: 1 } })).status, 401);
-  assert.notEqual((await call(b, '/curio/api/music-play', { v6: 'alice', method: 'POST', body: { track: 1 } })).status, 403);
-  assert.equal((await call(b, '/curio/api/music-play', { v6: 'temp', method: 'POST', body: { track: 1 } })).status, 403);
-  assert.equal((await call(b, '/curio/api/music-upload', { v6: 'alice', method: 'POST', body: 'x' })).status, 403, '上传归 music-manage');
+  assert.notEqual((await call(b, '/music/api/music-play', { v6: 'alice', method: 'POST', body: { track: 1 } })).status, 401);
+  assert.notEqual((await call(b, '/music/api/music-play', { v6: 'alice', method: 'POST', body: { track: 1 } })).status, 403);
+  assert.equal((await call(b, '/music/api/music-play', { v6: 'temp', method: 'POST', body: { track: 1 } })).status, 403);
+  assert.equal((await call(b, '/music/api/music-upload', { v6: 'alice', method: 'POST', body: 'x' })).status, 403, '上传归 music-manage');
 });
 
 test('公开读：私密行按 action private（= curio-use）、canManage 按 action manage（= curio-manage）——styrigx / root 看得到，alice / 访客只拿公开的', async () => {
@@ -143,7 +143,7 @@ test('公开读：私密行按 action private（= curio-use）、canManage 按 a
     assert.equal(r.showPrivate, false, String(who));
     assert.ok(!r.cats.some((c) => JSON.stringify(c.name).includes('私密')), String(who));
   }
-  for (const p of ['/curio/api/items', '/curio/api/movies', '/curio/api/music']) {
+  for (const p of ['/curio/api/items', '/curio/api/movies', '/music/api/music']) {
     assert.equal((await (await call(b, p, { v6: 'styrigx' })).json()).canManage, true, p);
     assert.equal((await (await call(b, p, { v6: 'alice' })).json()).canManage, false, p);
   }
@@ -220,31 +220,31 @@ test('组权限 v1.1 模板 · 奇趣：访客 / alice 看不到私密行；view
   assert.deepEqual([m.showPrivate, m.canManage, m.canWrite], [true, false, undefined]);
 });
 
-test('组权限 v1.1 模板 · 音乐（搬家第 1 步：仍在 /curio/api/music*）：viewer（music-use）能听、canManage false、上传 / 管理 403；keeper（music-manage）能管；curio-manage 管不了音乐', async () => {
+test('组权限 v1.1 模板 · 音乐（搬家第 1 步换档；第 4 步起只在 /music/api/*）：viewer（music-use）能听、canManage false、上传 / 管理 403；keeper（music-manage）能管；curio-manage 管不了音乐', async () => {
   const b = bench();
-  const add = await j(await call(b, '/curio/api/music', { v6: 'styrigx', method: 'POST', body: { op: 'album.add', title: 'A' } }));
+  const add = await j(await call(b, '/music/api/music', { v6: 'styrigx', method: 'POST', body: { op: 'album.add', title: 'A' } }));
   assert.equal(add.status, 200, JSON.stringify(add.json));
   for (const who of [undefined, 'alice', 'temp', 'viewer']) {
-    const r = (await j(await call(b, '/curio/api/music', { v6: who }))).json;
+    const r = (await j(await call(b, '/music/api/music', { v6: who }))).json;
     assert.equal(r.canManage, false, String(who));
     assert.equal(r.canWrite, undefined, '旧字段 canWrite 不留别名');
   }
-  assert.notEqual((await call(b, '/curio/api/music-play', { v6: 'viewer', method: 'POST', body: { track: 1 } })).status, 403, 'viewer 能签播放令牌（music-use）');
-  assert.equal((await call(b, '/curio/api/music', { v6: 'viewer', method: 'POST', body: { op: 'album.add', title: 'B' } })).status, 403, 'viewer 管不了');
-  assert.equal((await call(b, '/curio/api/music-upload', { v6: 'viewer', method: 'POST', body: 'x' })).status, 403, 'viewer 传不了');
-  const keeper = (await j(await call(b, '/curio/api/music', { v6: 'keeper' }))).json;
+  assert.notEqual((await call(b, '/music/api/music-play', { v6: 'viewer', method: 'POST', body: { track: 1 } })).status, 403, 'viewer 能签播放令牌（music-use）');
+  assert.equal((await call(b, '/music/api/music', { v6: 'viewer', method: 'POST', body: { op: 'album.add', title: 'B' } })).status, 403, 'viewer 管不了');
+  assert.equal((await call(b, '/music/api/music-upload', { v6: 'viewer', method: 'POST', body: 'x' })).status, 403, 'viewer 传不了');
+  const keeper = (await j(await call(b, '/music/api/music', { v6: 'keeper' }))).json;
   assert.equal(keeper.canManage, true, 'keeper（music-manage）');
-  assert.notEqual((await call(b, '/curio/api/music-play', { v6: 'keeper', method: 'POST', body: { track: 1 } })).status, 403, 'music-manage 包含 music-use');
-  const k = await j(await call(b, '/curio/api/music', { v6: 'keeper', method: 'POST', body: { op: 'album.add', title: 'K' } }));
+  assert.notEqual((await call(b, '/music/api/music-play', { v6: 'keeper', method: 'POST', body: { track: 1 } })).status, 403, 'music-manage 包含 music-use');
+  const k = await j(await call(b, '/music/api/music', { v6: 'keeper', method: 'POST', body: { op: 'album.add', title: 'K' } }));
   assert.equal(k.status, 200);
   assert.deepEqual([k.json.canManage, k.json.canWrite], [true, undefined]);
-  assert.equal((await call(b, '/curio/api/music', { v6: 'keeper', method: 'POST', body: { op: 'album.del', id: k.json.id } })).status, 403, 'album.del 仍只属 root');
+  assert.equal((await call(b, '/music/api/music', { v6: 'keeper', method: 'POST', body: { op: 'album.del', id: k.json.id } })).status, 403, 'album.del 仍只属 root');
   /* 只有 curio-manage 的身份：管得了奇趣、管不了音乐（音乐的写权限从 curio-write 拆出，v1.1 §三） */
   const only = { uid: 1000, name: 'styrigx', groups: ['curio-manage'], rescue: false };
   const AD = await import(REPO + '/workers/account/src/core/admit.js');
   const RA = await import(REPO + '/workers/account/src/core/route-access.js');
   assert.equal(AD.admitDecision(only, RA.levelOf('POST', '/curio/api/links'), {}), true);
-  assert.equal(AD.admitDecision(only, RA.levelOf('POST', '/curio/api/music'), {}), false);
-  assert.equal(AD.admitDecision(only, RA.levelOf('POST', '/curio/api/music-upload'), {}), false);
-  assert.equal(AD.admitDecision(only, RA.levelOf('POST', '/curio/api/music-play'), {}), false);
+  assert.equal(AD.admitDecision(only, RA.levelOf('POST', '/music/api/music'), {}), false);
+  assert.equal(AD.admitDecision(only, RA.levelOf('POST', '/music/api/music-upload'), {}), false);
+  assert.equal(AD.admitDecision(only, RA.levelOf('POST', '/music/api/music-play'), {}), false);
 });

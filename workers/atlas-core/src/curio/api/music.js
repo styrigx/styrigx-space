@@ -1,5 +1,5 @@
 // workers/atlas-core/src/curio/api/music.js
-// 私人音乐的歌单（三层权限见 _music.js；档在 routes.js ROUTE_ACCESS）。
+// 私人音乐的歌单（三层权限见 _music.js；档在 src/music/routes.js ROUTE_ACCESS）。
 // GET  /api/music   public：→ {ok, canManage, albums:[{id, kind:'album'|'single', title, artist, year, cover, tracks:[{id, no, title, duration, artist}]}]}——只有元数据，没有音频地址；
 //                   曲目的 artist = music_artists.name（按 artist_id；0 → ''）（音乐 v1.18 十一 第 1 条）；
 //                   canManage（music-manage）时曲目另带 size / type / lrc（有没有歌词），前端据此显示上传 / 删除。

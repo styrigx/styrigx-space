@@ -5,8 +5,8 @@
  * 本文件只按公开地址前缀分流，不碰各自的访问档、守卫、路由表：
  *   /curio/api/*   → src/curio/app.js（X-Curio-Runtime）
  *   /daymark/api/* → src/daymark/index.js（X-Daymark-Runtime）
- *   /music/api/*   → 同样交给 src/curio/app.js（music 搬家设计稿 v1.0 第 2 步：音乐的 handler 还在 curio/api/ 下，只认 product 'music' 的行；
- *                    旧 /curio/api/music* 照常，第 4 步再删）
+ *   /music/api/*   → 同样交给 src/curio/app.js（music 搬家设计稿 v1.0 第 2 步：音乐的 handler 还在 curio/api/ 下，路由表 src/music/routes.js；
+ *                    第 4 步删掉了旧 /curio/api/music*，不留别名）
  *   其他           → 404
  * 所有响应另打 X-Atlas-Runtime: worker（从外部确认接口走了本 Worker；产品头 X-Curio-Runtime / X-Daymark-Runtime 照旧）。
  * 公开路径不变，前端无感。旧 Worker 已下线、旧目录已删，两份代码只在这里改。

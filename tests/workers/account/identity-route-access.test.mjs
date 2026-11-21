@@ -20,6 +20,7 @@ const W = REPO + 'workers/';
 const gw = await import(W + 'space-core/src/router.js');
 const acc = await import(W + 'account/src/router.js');
 const curio = await import(W + 'atlas-core/src/curio/routes.js');
+const music = await import(W + 'atlas-core/src/music/routes.js');
 const daymark = await import(W + 'atlas-core/src/daymark/routes.js');
 const proxy = await import(W + 'proxy/src/router.js');
 const ai = await import(W + 'ai/src/router.js');
@@ -37,8 +38,8 @@ function handled() {
   for (const [p, mod] of acc.API_ROUTES) add(p, mod, 'account/src/api/' + (p.startsWith('/api/account/') ? 'account/' + p.slice(13) : p.slice(5)) + '.js');
   out.push({ host: RA.MAIN_HOST, path: '/avatar/:file', methods: ['GET'], generic: false, file: 'account/src/api/avatar-file.js' });
   for (const [p, mod] of curio.API_ROUTES) add('/curio' + p, mod, 'atlas-core/src/curio/api' + p.slice(4) + '.js');
-  /* music 搬家第 2 步：/music/api/* 只挂音乐的行，handler 同一份（curio/api/music*.js） */
-  for (const [p, mod] of curio.API_ROUTES) if (curio.ROUTE_ACCESS.some((r) => r.path === p && r.product === 'music')) add('/music' + p, mod, 'atlas-core/src/curio/api' + p.slice(4) + '.js');
+  /* 音乐：/music/api/*（atlas-core/src/music/routes.js；handler 仍是 curio/api/music*.js）；music 搬家第 4 步起旧 /curio/api/music* 不再挂 */
+  for (const [p, mod] of music.API_ROUTES) add('/music' + p, mod, 'atlas-core/src/curio/api' + p.slice(4) + '.js');
   for (const [p, mod] of daymark.API_ROUTES) add('/daymark' + p, mod, 'atlas-core/src/daymark/api' + p.slice(4) + '.js');
   return out;
 }
@@ -64,6 +65,7 @@ test('全量：每个处理函数的方法都在表里；表里主站的每一�
 test('奇趣、日刻：旧访问表（v5）里的每一条在 v6 表里都有', () => {
   for (const r of curio.ROUTE_ACCESS) assert.ok(RA.ruleOf(r.method, '/curio' + r.path), 'curio ' + r.method + ' ' + r.path);
   for (const r of daymark.ROUTE_ACCESS) assert.ok(RA.ruleOf(r.method, '/daymark' + r.path), 'daymark ' + r.method + ' ' + r.path);
+  for (const r of music.ROUTE_ACCESS) assert.ok(RA.ruleOf(r.method, '/music' + r.path), 'music ' + r.method + ' ' + r.path);
   assert.equal(RA.levelOf('POST', '/curio/api/import'), 'root', '原来要账号复验的导入 → sudo = root（旧结论的 REAUTH_ROUTES 随 conclusion() 删除）');
 });
 
@@ -114,14 +116,14 @@ test('action：源码里出现的 action / op 都在表里；没写 action 用�
     assert.ok(r && r.actions, p + ' 要列 actions');
     for (const a of pick(f)) assert.ok(Object.prototype.hasOwnProperty.call(r.actions, a), p + ' 漏了 action ' + a);
   }
-  const music = readFileSync(W + 'atlas-core/src/curio/api/_music.js', 'utf8');
-  for (const m of music.matchAll(/case '([a-z]+\.[a-z]+)'/g)) assert.ok(RA.levelOf('POST', '/curio/api/music', { action: m[1] }), 'music ' + m[1]);
-  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'album.del' }), 'root');
-  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'track.del' }), 'music-manage');
+  const musicSrc = readFileSync(W + 'atlas-core/src/curio/api/_music.js', 'utf8');
+  for (const m of musicSrc.matchAll(/case '([a-z]+\.[a-z]+)'/g)) assert.ok(RA.levelOf('POST', '/music/api/music', { action: m[1] }), 'music ' + m[1]);
+  assert.equal(RA.levelOf('POST', '/music/api/music', { action: 'album.del' }), 'root');
+  assert.equal(RA.levelOf('POST', '/music/api/music', { action: 'track.del' }), 'music-manage');
   /* M4（音乐 v1.19 十二 M4 第 1 条）：改歌手信息 music-manage（组权限 v1.1 §六，原 curio-write）；合并、删歌手 root（一次性票） */
-  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.edit' }), 'music-manage');
-  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.merge' }), 'root');
-  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.del' }), 'root');
+  assert.equal(RA.levelOf('POST', '/music/api/music', { action: 'artist.edit' }), 'music-manage');
+  assert.equal(RA.levelOf('POST', '/music/api/music', { action: 'artist.merge' }), 'root');
+  assert.equal(RA.levelOf('POST', '/music/api/music', { action: 'artist.del' }), 'root');
   /* 定稿 v5.5 §五 / §七：设备列表站长直读（webmaster），踢出属后台控制（root，站长 sudo） */
   assert.equal(RA.levelOf('POST', '/api/account/devices'), 'webmaster');
   assert.equal(RA.levelOf('POST', '/api/account/devices', { action: 'list' }), 'webmaster');
@@ -149,9 +151,9 @@ test('档合法；删除两级；sudo 继任；root 不能从访客直接登录'
 test('摘要快照：各档路由数（改表必须改这里）', () => {
   const count = {};
   for (const r of RA.ROUTE_ACCESS) count[r.level] = (count[r.level] || 0) + 1;
-  assert.deepEqual(count, { public: 26, 'ai-use': 2, 'status-use': 1, root: 5, webmaster: 5, user: 1, 'curio-manage': 6, 'music-manage': 4, 'music-use': 6, 'daymark-manage': 6 },
-    'P4-3（定稿 v5.5 §五）：avatar PUT / DELETE、prefs POST、devices 由 user 改 webmaster；组权限 v1.1 §六：音乐的 POST music / music-upload 从 curio-write 拆到 music-manage；music 搬家第 2 步：/music/api/* 7 行（public 2、music-manage 2、music-use 3）');
-  assert.equal(RA.ROUTE_ACCESS.length, 62, 'v6 P4 删旧入口 20 条（78 → 58），应用授权 /api/account/grants 删除（58 → 57），数字健康 POST / GET /api/wellbeing 删除（57 → 55），music 搬家第 2 步加 /music/api/* 7 行（55 → 62）');
+  assert.deepEqual(count, { public: 24, 'ai-use': 2, 'status-use': 1, root: 5, webmaster: 5, user: 1, 'curio-manage': 6, 'music-manage': 2, 'music-use': 3, 'daymark-manage': 6 },
+    'P4-3（定稿 v5.5 §五）：avatar PUT / DELETE、prefs POST、devices 由 user 改 webmaster；组权限 v1.1 §六：音乐的 POST music / music-upload 从 curio-write 拆到 music-manage；music 搬家第 2 步加 /music/api/* 7 行、第 4 步删旧 /curio/api/music* 7 行（音乐：public 2、music-manage 2、music-use 3）');
+  assert.equal(RA.ROUTE_ACCESS.length, 55, 'v6 P4 删旧入口 20 条（78 → 58），应用授权 /api/account/grants 删除（58 → 57），数字健康 POST / GET /api/wellbeing 删除（57 → 55），music 搬家第 2 步加 /music/api/* 7 行（55 → 62），第 4 步删旧 /curio/api/music* 7 行（62 → 55）');
   assert.equal(RA.ROUTE_ACCESS.filter((r) => r.decided).length, 14, 'Gray 2026-11-11 定稿的 17 条，P4 删 lock-all-devices 后 16 条，数字健康两条删除后 14 条');
   assert.equal(RA.ROUTE_ACCESS.filter((r) => 'doubt' in r).length, 0, '不再有存疑');
   assert.equal(RA.levelOf('GET', '/curio/api/export'), 'root', '导出含私密 → root（Gray 2026-11-11）');
@@ -234,35 +236,41 @@ test('组权限 v1.1 §八：带 product 的行组名由 product / kind 推出�
   assert.equal(RA.levelOf('POST', '/api/ai', { action: 'private' }), 'webmaster');
   assert.equal(RA.levelOf('GET', '/api/ai'), 'ai-use');
   assert.equal(RA.levelOf('GET', '/api/status'), 'status-use');
-  /* 音乐（搬家第 1 步：路径不动，只换档） */
-  assert.equal(RA.levelOf('GET', '/curio/api/music'), 'public');
-  assert.equal(RA.levelOf('GET', '/curio/api/music', { action: 'private' }), 'music-use');
-  assert.equal(RA.levelOf('GET', '/curio/api/music', { action: 'manage' }), 'music-manage');
-  assert.equal(RA.levelOf('POST', '/curio/api/music'), 'music-manage');
-  assert.equal(RA.levelOf('POST', '/curio/api/music-upload'), 'music-manage');
-  for (const m of ['POST /curio/api/music-play', 'GET /curio/api/music-stream', 'HEAD /curio/api/music-stream']) assert.equal(RA.levelOf(...m.split(' ')), 'music-use', m);
-  assert.equal(RA.levelOf('GET', '/curio/api/music-cover'), 'public');
-  for (const a of ['album.del', 'artist.merge', 'artist.del']) assert.equal(RA.levelOf('POST', '/curio/api/music', { action: a }), 'root', a + ' 仍是 root');
-  assert.equal(RA.ruleOf('POST', '/curio/api/music').sudoTicket, true, 'sudoTicket 不变');
+  /* 音乐（搬家第 1 步换档；第 4 步起只在 /music/api/*） */
+  assert.equal(RA.levelOf('GET', '/music/api/music'), 'public');
+  assert.equal(RA.levelOf('GET', '/music/api/music', { action: 'private' }), 'music-use');
+  assert.equal(RA.levelOf('GET', '/music/api/music', { action: 'manage' }), 'music-manage');
+  assert.equal(RA.levelOf('POST', '/music/api/music'), 'music-manage');
+  assert.equal(RA.levelOf('POST', '/music/api/music-upload'), 'music-manage');
+  for (const m of ['POST /music/api/music-play', 'GET /music/api/music-stream', 'HEAD /music/api/music-stream']) assert.equal(RA.levelOf(...m.split(' ')), 'music-use', m);
+  assert.equal(RA.levelOf('GET', '/music/api/music-cover'), 'public');
+  for (const a of ['album.del', 'artist.merge', 'artist.del']) assert.equal(RA.levelOf('POST', '/music/api/music', { action: a }), 'root', a + ' 仍是 root');
+  assert.equal(RA.ruleOf('POST', '/music/api/music').sudoTicket, true, 'sudoTicket 不变');
 });
 
-test('music 搬家第 2 步：/music/api/* 7 行与旧 /curio/api/music* 7 行逐条同档（level、actions、kind、product、sudoTicket、del）', () => {
-  const OLD = '/curio/api/music';
+test('music 搬家第 4 步：旧 /curio/api/music* 7 行删掉（不留别名），音乐只剩 /music/api/* 7 行；/music/api/ 下只有音乐', () => {
+  assert.deepEqual(RA.ROUTE_ACCESS.filter((r) => r.path.startsWith('/curio/api/music')), [], '旧 7 行已删');
+  for (const m of ['GET /curio/api/music', 'POST /curio/api/music', 'GET /curio/api/music-cover', 'POST /curio/api/music-play', 'GET /curio/api/music-stream', 'HEAD /curio/api/music-stream', 'POST /curio/api/music-upload']) {
+    const [method, path] = m.split(' ');
+    assert.equal(RA.ruleOf(method, path), null, m);
+    assert.equal(RA.levelOf(method, path), null, m + '（不在表里 = admit 回 not-listed，atlas-core 一律 401）');
+  }
   const NEW = '/music/api/music';
-  const olds = RA.ROUTE_ACCESS.filter((r) => r.path.startsWith(OLD));
   const news = RA.ROUTE_ACCESS.filter((r) => r.path.startsWith(NEW));
-  assert.equal(olds.length, 7, '旧 7 行保留（第 4 步再删）');
-  assert.equal(news.length, 7);
-  const pick = (r) => ({ method: r.method, tail: r.path.slice(r.path.indexOf('/api/')), level: r.level, actions: r.actions || null, kind: r.kind, product: r.product,
-    sudoTicket: !!r.sudoTicket, del: r.del || null, worker: r.worker, rescue: !!r.rescue });
-  assert.deepEqual(news.map(pick), olds.map(pick));
+  assert.deepEqual(news.map((r) => r.method + ' ' + r.path + ' ' + r.level), [
+    'GET /music/api/music public', 'POST /music/api/music music-manage', 'GET /music/api/music-cover public', 'POST /music/api/music-play music-use',
+    'GET /music/api/music-stream music-use', 'HEAD /music/api/music-stream music-use', 'POST /music/api/music-upload music-manage',
+  ]);
   for (const r of news) assert.equal(r.product, 'music', r.path);
-  /* /music/api/ 下只有音乐：别的产品没有新路径 */
+  assert.equal(RA.ruleOf('POST', NEW).sudoTicket, true);
+  /* /music/api/ 下只有音乐：别的产品没有这个前缀的路径 */
   assert.deepEqual(RA.ROUTE_ACCESS.filter((r) => r.path.startsWith('/music/')).map((r) => r.path.split('/api/')[1].split('-')[0]).filter((x, i, a) => a.indexOf(x) === i), ['music']);
-  assert.equal(RA.levelOf('GET', '/music/api/items'), null, '奇趣接口不能从新前缀走');
+  assert.equal(RA.levelOf('GET', '/music/api/items'), null, '奇趣接口不能从 /music 前缀走');
   for (const a of ['album.del', 'artist.merge', 'artist.del']) assert.equal(RA.levelOf('POST', NEW, { action: a }), 'root', a);
   assert.equal(RA.levelOf('GET', NEW, { action: 'private' }), 'music-use');
   assert.equal(RA.levelOf('GET', NEW, { action: 'manage' }), 'music-manage');
+  assert.equal(RA.levelOf('DELETE', '/daymark/api/quotes'), 'daymark-manage');
+  assert.equal(RA.levelOf('DELETE', '/curio/api/photo'), 'curio-manage');
 });
 
 test('product / kind 推导：写错就抛（表写错 Worker 起不来）', () => {

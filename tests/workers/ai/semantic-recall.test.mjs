@@ -313,8 +313,10 @@ test('fixed：调 CURIO.query（只传查询名 + 参数，不传 SQL）；结�
   assert.equal(hits.length, 2);
   assert.equal(hits[0].url, 'https://styrigx.com/curio/zh/movies/');
   assert.match(hits[0].text, /1\. 花样年华（In the Mood for Love） — 2000，王家卫，评分 5\/5，观看 2026-10-01。短评：好/);
-  assert.equal(hits[1].url, 'https://styrigx.com/curio/zh/music/');
+  assert.equal(hits[1].url, 'https://styrigx.com/music/zh/', 'music 搬家第 4 步：音乐页是第四个子站（中文 /music/zh/）');
   assert.match(hits[1].text, /Blue — Joni Mitchell \(1971\)\n {2}1\. All I Want 3:34/);
+  const en = await F.fixedHits(env, 'tracks on the album Blue', 'en');
+  assert.equal(en.find((h) => /album|track/i.test(h.title)).url, 'https://styrigx.com/music/', '英文音乐页 /music/');
   hits = await F.fixedHits(env, 'latest movies', 'en');
   assert.equal(hits[0].url, 'https://styrigx.com/curio/movies/');
   assert.equal(hits[0].title, 'Recently watched movies');

@@ -1,7 +1,8 @@
 // workers/atlas-core/src/curio/api/_music.js
-// 奇趣「音乐」私人子页（/curio/music/）的数据层：表结构、权限、校验、读写、播放令牌、Range。下划线开头：不是接口。
+// 私人音乐（页面 /music/、接口 /music/api/*；music 搬家前是奇趣子页 /curio/music/）的数据层：表结构、权限、校验、读写、播放令牌、Range。下划线开头：不是接口。
+// 接口文件（music*.js）的路由表在 src/music/routes.js（不在 src/curio/routes.js）。
 //
-// 三层（v5 S3；档在 routes.js ROUTE_ACCESS，守卫在 _auth.js，app.js 套用）：
+// 三层（v5 S3；档在 src/music/routes.js ROUTE_ACCESS，守卫在 _auth.js，app.js 套用）：
 //   歌单 / 封面 public（GET /api/music 只回元数据：专辑名、艺术家、年份、有没有封面、曲目号 / 名 / 时长；没有任何音频地址、R2 key、令牌）；
 //   听 entry（music-use：POST /api/music-play 签令牌、GET /api/music-stream 取音频）；
 //   上传 / 管理 music（music-manage，组权限 v1.1 §六；听 = music-use）。写另要同源（403 origin）。
@@ -50,7 +51,7 @@ export const AUDIO_TYPES = Object.freeze({
   'audio/ogg': 'ogg', 'audio/opus': 'opus', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/webm': 'webm',
 });
 
-/** 写（音乐的上传 / 管理 / 签播放令牌）：同源，否则 403 origin；通过返回 null。权限档在 app.js 按 routes.js ROUTE_ACCESS 套过了 */
+/** 写（音乐的上传 / 管理 / 签播放令牌）：同源，否则 403 origin；通过返回 null。权限档在 app.js 按 src/music/routes.js ROUTE_ACCESS 套过了 */
 export function musicOrigin(context) {
   return isSameOrigin(context.request) ? null : err('origin', 403);
 }
