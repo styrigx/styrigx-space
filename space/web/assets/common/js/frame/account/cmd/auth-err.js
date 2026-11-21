@@ -3,7 +3,7 @@
  * 依据：v6-commands「自己的账号」「授权与订阅（root，或 sudo）」；路由表里原来要再验证的，v6 一律 = 路由档本身（route-access.js 规则 6）。
  * - C.authErr(res)：服务端 401（v6 会话没了 / 过期）→「没有登录 · 先 su <用户>」（= 身份层 notSignedIn），
  *   403 forbidden（档不够，如 root 空闲弹回 styrigx）→「当前用户没有这个权限 · 先 su root」（= 终端 needRoot6），
- *   两种都让终端身份重新问一次（提示符跟上）；409 identity（凭据命令带的身份和服务端认定的对不上）→ 切到服务端回的身份、
+ *   401 让终端身份直接同步成 nobody（v1.1 §九），403 让终端身份重新问一次（提示符跟上）；409 identity（凭据命令带的身份和服务端认定的对不上）→ 切到服务端回的身份、
  *  「root 已超时退出，当前是 styrigx，未执行」；别的错误回 false 交给调用方。
  * 纯函数式挂载（不碰 DOM），单测直接用。
  */
@@ -26,9 +26,18 @@ export function mountAuthErr(C, who) {
     }
     const forbidden = !!res && res.s === 403 && !!res.j && res.j.error === 'forbidden';
     if (!res || (res.s !== 401 && !forbidden)) return false;
-    if (forbidden) C.err(C.t('v6.forbidden'), 'su root');
-    else C.err(C.t('v6.notSignedIn'));
-    try { if (who && typeof who.refresh === 'function') who.refresh(); } catch (e) {}
+    if (forbidden) {
+      C.err(C.t('v6.forbidden'), 'su root');
+      try { if (who && typeof who.refresh === 'function') who.refresh(); } catch (e) {}
+      return true;
+    }
+    /* 401 = 服务端没有这个会话了（epoch 变了 / 过期 / 别的设备 lock）：本地身份直接同步成 nobody（提示符、su 的「先 exit」跟上；
+       v1.1 §九 修法 2，Gray 2026-11-21）。只 refresh 的话 whoami 慢一拍，期间终端还以为是旧身份 */
+    C.err(C.t('v6.notSignedIn'));
+    try {
+      if (who && typeof who.setV6 === 'function') { if (!who.v6 || who.v6()) who.setV6(null); }
+      else if (who && typeof who.refresh === 'function') who.refresh();
+    } catch (e) {}
     return true;
   };
 }

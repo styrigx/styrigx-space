@@ -282,7 +282,12 @@ manBody:
     notes:
       - "root never signs in directly from visitor. While signed in as a user, exit first before su to another user."
   groups:
+    desc:
+      - "Without a name, prints your own groups as <name> : <group> <group> …; with a name, that user’s groups."
+      - "Product groups come in pairs: <product>-use (use it) and <product>-manage (also manage it; webmaster only)."
     auth: "signed in; another user’s groups need root"
+    notes:
+      - "A group change takes effect after that user signs in again."
   who:
     desc:
       - "Each session’s identity path (root via styrigx) and when it started; you see only your own unless you are root."
@@ -542,7 +547,6 @@ identity:
   exitFirst: "signed in as {u} · exit first"
   alreadyRoot: "already root"
   notWheel: "su root: you are not in wheel"
-  notSudoers: "{u} is not in the sudoers file"
   notSignedIn: "not signed in · su <user> first"
   permission: "{c}: Permission denied"
   trySudo: "sudoers can run it with {x}"
@@ -577,6 +581,8 @@ identity:
   rescueReset: "change the password at first sign-in; remove lost passkeys with passkey rm after signing in; remember to set a new rescue key in Cloudflare"
   deleted: "✓ user deleted"
   changed: "✓ groups updated · that user signs in again"
+  sessionGone: "{u}’s session has ended · {x} to sign in again"
+  webmasterOnly: "{g} is for the webmaster only"
   noChange: "nothing changed"
   lastMember: "this removes the last member of {g} · continue?"
   lastWarn: "warning: that group has no members now"
