@@ -143,6 +143,8 @@ function batchRequests(items, f, singles){
 /* ---------- 歌手页（M4，音乐 v1.19 7.5 / 十二 M4）的纯函数 ---------- */
 /** 地址里的 ?artist=<编号>；没有 / 不对 0 */
 function artistOf(search){ var m = /[?&]artist=(\d+)(?:&|$)/.exec(String(search || '')); var n = m ? Number(m[1]) : 0; return n > 0 && n < 2147483648 ? n : 0; }
+/** 地址里的 ?album=<专辑记录编号>（主页专辑格子直达，同 artistOf）；没有 / 不对 0 */
+function albumOf(search){ var m = /[?&]album=(\d+)(?:&|$)/.exec(String(search || '')); var n = m ? Number(m[1]) : 0; return n > 0 && n < 2147483648 ? n : 0; }
 /** 某位歌手名下的作品（按专辑 / 单曲记录的 artist_id）：{albums, singles}，各自保持歌单顺序 */
 function artistWorks(list, id){
   var out = { albums: [], singles: [] };
@@ -375,7 +377,7 @@ function makeTr(dict, lang){
   };
 }
 
-var pure = { readDict: readDict, makeTr: makeTr, TRACK_MAX: TRACK_MAX, fmtTime: fmtTime, PLAYER_WIN: PLAYER_WIN, playerPathOf: playerPathOf, playerUrl: playerUrl, playCmd: playCmd, trackFromName: trackFromName, sortByName: sortByName, audioType: audioType, lrcKey: lrcKey, splitKinds: splitKinds, pickSection: pickSection, albumChoices: albumChoices, lrcChange: lrcChange, trackEditBody: trackEditBody, yearOf: yearOf, batchRequests: batchRequests, artistOf: artistOf, artistWorks: artistWorks, relatedAlbums: relatedAlbums, similarArtist: similarArtist, squareCrop: squareCrop, matchKey: matchKey, uploadPlan: uploadPlan, applyPairs: applyPairs, UP_CONC: UP_CONC, pctOf: pctOf, dupOf: dupOf, batchDups: batchDups, upReason: upReason, emptySingle: emptySingle, dropKinds: dropKinds, COVER_MAX: COVER_MAX, COVER_Q: COVER_Q };
+var pure = { readDict: readDict, makeTr: makeTr, TRACK_MAX: TRACK_MAX, fmtTime: fmtTime, PLAYER_WIN: PLAYER_WIN, playerPathOf: playerPathOf, playerUrl: playerUrl, playCmd: playCmd, trackFromName: trackFromName, sortByName: sortByName, audioType: audioType, lrcKey: lrcKey, splitKinds: splitKinds, pickSection: pickSection, albumChoices: albumChoices, lrcChange: lrcChange, trackEditBody: trackEditBody, yearOf: yearOf, batchRequests: batchRequests, artistOf: artistOf, albumOf: albumOf, artistWorks: artistWorks, relatedAlbums: relatedAlbums, similarArtist: similarArtist, squareCrop: squareCrop, matchKey: matchKey, uploadPlan: uploadPlan, applyPairs: applyPairs, UP_CONC: UP_CONC, pctOf: pctOf, dupOf: dupOf, batchDups: batchDups, upReason: upReason, emptySingle: emptySingle, dropKinds: dropKinds, COVER_MAX: COVER_MAX, COVER_Q: COVER_Q };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxMusicPage = pure;
 
@@ -1713,14 +1715,24 @@ $('#mu-ar-del').addEventListener('click', function(){
 
 /* ---------- 启动 ---------- */
 function done(){ doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); }); }
+/* ?album=<id> 直达（主页专辑格子）：只在音乐页本身生效，同时带 ?artist= 时歌手页优先；对不上专辑（没有 / 是单曲 / 编号不对）= 照常默认视图。
+   只在打开时选一次（同点了那张封面，不自动播放），之后点别的专辑不改地址、不加历史（同原来） */
+function deepAlbum(){
+  var id = view ? 0 : albumOf(G.location && G.location.search);
+  var i = id ? albums.map(function(a){ return a.id; }).indexOf(id) : -1;
+  if (i >= 0) { cur = i; sec = 'album'; }
+  return i >= 0;
+}
 req('GET', '/music/api/music').then(function(j){
   setData(j.albums);
+  var deep = deepAlbum();
   canManage = !!j.canManage;
   done();
   $('#mu-app').classList.remove('hidden');
   $('#mu-upload').classList.toggle('hidden', !canManage);
   renderCovers();
   if (viewOnly) setViewOnly(true); else renderAlbum();
+  if (deep) { var c = doc.querySelector('.mu-cover[data-i="' + cur + '"]'); if (c) c.scrollIntoView({ inline: 'center', block: 'nearest' }); }
 }).catch(function(){
   done();
   var p = doc.querySelector('.it-loading'); if (p) { p.textContent = (T.loadFail || T.failed); p.classList.remove('hidden'); }

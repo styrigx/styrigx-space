@@ -46,7 +46,7 @@ test('statusSummary：up / n、有数格子的平均延迟（四舍五入）、�
   assert.deepEqual(statusSummary(/** @type {any} */ (null)), { up: 0, n: 0, avg: null, at: '' });
 });
 
-test('musicLatest：只要专辑（单曲不进）、按 id 从新到旧取前 4 张；有封面才给封面地址；链接 = 歌手页 ?artist=<id>，没歌手 = 音乐页', () => {
+test('musicLatest：只要专辑（单曲不进）、按 id 从新到旧取前 4 张；有封面才给封面地址；链接 = 音乐页直达专辑 ?album=<专辑 id>（有没有歌手都一样）', () => {
   assert.equal(MUSIC_LATEST_N, 4);
   const j = { ok: true, albums: [
     { id: 1, kind: 'album', title: 'Blue', artist: 'Joni Mitchell', artist_id: 2, cover: true },
@@ -59,10 +59,10 @@ test('musicLatest：只要专辑（单曲不进）、按 id 从新到旧取前 4
   ] };
   const r = musicLatest(j, '/music/zh/');
   assert.deepEqual(r.map((x) => x.id), [7, 5, 3, 2], '单曲 41 不进；最旧的 1 挤掉');
-  assert.deepEqual(r[0], { id: 7, title: 'Court and Spark', artist: 'Joni Mitchell', cover: '', href: '/music/zh/?artist=2' });
-  assert.deepEqual(r[1], { id: 5, title: '无名', artist: '', cover: '', href: '/music/zh/' }, '没歌手 = 音乐页');
+  assert.deepEqual(r[0], { id: 7, title: 'Court and Spark', artist: 'Joni Mitchell', cover: '', href: '/music/zh/?album=7' });
+  assert.deepEqual(r[1], { id: 5, title: '无名', artist: '', cover: '', href: '/music/zh/?album=5' }, '没歌手也直达专辑');
   assert.equal(r[2].cover, '/music/api/music-cover?album=3');
-  assert.deepEqual(musicLatest(j, '/music/', 2).map((x) => x.href), ['/music/?artist=2', '/music/']);
+  assert.deepEqual(musicLatest(j, '/music/', 2).map((x) => x.href), ['/music/?album=7', '/music/?album=5']);
 });
 
 test('musicLatest：取不到 / ok:false / 没有列表 → null；空列表 → []', () => {

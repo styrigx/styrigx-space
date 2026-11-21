@@ -423,6 +423,15 @@ test('M4 pickMain：挑最近用过的主窗口（at 最大，一样取先答的
   assert.deepEqual(Object.values(CORE.ARTIST_MSG), ['artist-ask', 'artist-here', 'artist-go']);
 });
 
+test('music-page 纯函数：albumOf 读 ?album=<专辑 id>（主页专辑格子直达；同 artistOf 的范围）', () => {
+  assert.equal(MU.albumOf('?album=12'), 12);
+  assert.equal(MU.albumOf('?x=1&album=3'), 3);
+  assert.equal(MU.albumOf('?album=7&artist=2'), 7, '两个都带时各读各的（页面上歌手页优先）');
+  assert.equal(MU.albumOf('?artist=7'), 0);
+  assert.equal(MU.albumOf('?album=2147483647'), 2147483647);
+  for (const q of ['', '?album=', '?album=0', '?album=-1', '?album=1x', '?album=2147483648', '?album=99999999999', '?xalbum=3']) assert.equal(MU.albumOf(q), 0, q);
+});
+
 test('M4 music-page 纯函数：artistOf 读 ?artist=；artistWorks 按 artist_id 分专辑 / 单曲；similarArtist 只差大小写 / 空格才提示；squareCrop 取中间正方形 ≤ 1000', () => {
   assert.equal(MU.artistOf('?artist=12'), 12);
   assert.equal(MU.artistOf('?x=1&artist=3'), 3);

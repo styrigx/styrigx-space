@@ -114,7 +114,7 @@
   {{/* [03] 音乐 · ls music/（2026-11-21：music 搬家到子站 /music/ 后主页的入口）：最新几张专辑（封面 + 专辑名 + 歌手），
      apps/index.js 运行时取 /music/api/music（只有元数据，同音乐页），按记录 id 从新到旧取前 4 张专辑（不含单曲）。
      首帧 4 个「—」占位（默认音符封面），取到就填上、多的占位删掉；取不到 / 没有专辑保持「—」，都链到音乐页。
-     点一张 = 那位歌手的歌手页（/music/?artist=<id>，音乐页目前唯一的深链；没歌手 = 音乐页）。 */}}
+     点一张 = 音乐页直达这张专辑（/music/?album=<专辑 id>，zh 走 /music/zh/?album=；2026-11-21 起，之前链歌手页 ?artist=）。 */}}
   {{ $muHome := partial "common/lang-path.html" (dict "path" "/music/" "lang" $pageLang) }}
   {{ $note := `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>` }}
   <section class="home-sec" id="music" data-term-dir="music" data-term-label="{{ $h.musicLabel }}" aria-labelledby="home-mu-h">
