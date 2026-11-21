@@ -59,11 +59,24 @@ export function mountIdentityLayer(o) {
   /** 当前 v6 身份（whoami 的 user） */
   function me() { return who.v6 ? who.v6() : null; }
   C.hasSession = function () { return !!me(); };
+  /** 会话的底层用户（栈底）：root via styrigx → styrigx；普通登录 → 自己。它的 epoch 一变，整个会话（含 root 层）都作废 */
+  function baseName() { const u = me(); return u ? String(u.root ? (u.via || '') : (u.name || '')) : ''; }
+  /** 「找不到命令」（term.notFound）：没有这条命令权限的人敲了它 = 当作没开发（v1.1 §九，Gray 2026-11-21 02:23） @param {string} cmd */
+  function notFound(cmd) {
+    C.err(String(frameSection(doc, 'term').notFound || 'command not found: {x} · try man'), String(cmd || '').split(' ')[0]);
+  }
+  /** 服务端说没登录（401）：本地身份同步成 nobody（提示符、su 的「先 exit」都跟上；v1.1 §九 修法 2） */
+  function dropSession() { if (me()) setUser(null); }
 
-  /** 错误码 → 一行红字 @param {{s:number, j:any}} r @param {string} [cmd] */
-  function fail(r, cmd) {
+  /**
+   * 错误码 → 一行红字。走到服务端的命令，执行者都有这条命令（root，或 sudo 中的 sudoers；没权限的在前端就报找不到命令）：
+   * 参数被拒报真实原因（v1.1 §九，Gray 2026-11-21 02:22 / 02:23）。
+   * @param {{s:number, j:any}} r @param {string} [cmd] @param {any} [obj] 发出去的命令对象（usermod / useradd 的组，用来说清是哪个组）
+   */
+  function fail(r, cmd, obj) {
     const j = (r && r.j) || {};
     const e = j.error || '';
+    if (e === 'unauthorized') dropSession();
     if (e === 'identity') {
       /* 提示符上的身份和服务端认定的对不上（root 层失效）：不执行，切到服务端回的真实身份 */
       const was = (me() || {}).name || '';
@@ -78,13 +91,25 @@ export function mountIdentityLayer(o) {
       /* 同一个 403 protected，按命令分开说（R-34，Gray 02:36）：passwd styrigx →「站长凭据只能本人修改或走救援」；userdel 照旧 */
       protected: /^(?:sudo\s+)?passwd\b/.test(String(cmd || '')) ? t('protectedPasswd') : t('protected'),
       permission: j.need === 'wheel' ? t('notWheel') : t('permission', { c: cmd || '' }),
-      /* 未知命令（服务端 action）= 终端现成的「找不到命令」（term.notFound；普通用户进 wheel / sudoers / 写组同样报它，Gray 11-11 22:36） */
-      action: String(frameSection(doc, 'term').notFound || 'command not found: {x} · try man'),
     };
-    C.err(/** @type {any} */ (map)[e] || t('unknown', { c: e || String(r && r.s) }), e === 'action' ? String(cmd || '').split(' ')[0] : undefined);
+    if (e === 'action') {
+      /* 服务端 action：普通用户（uid ≥ 1001）进 wheel / sudoers / manage 组被拒（canJoinGroup）→ 报真实原因「<组> 只给站长」；
+         执行者有这条命令，不再伪装成找不到命令（原 Gray 11-11 22:36 的映射收窄，v1.1 §九）。别的 action（前端发了服务端不认识的命令）仍是找不到命令 */
+      const g = guardedOf(obj);
+      if (g) { C.err(t('webmasterOnly', { g: g })); return; }
+      notFound(cmd || '');
+      return;
+    }
+    C.err(/** @type {any} */ (map)[e] || t('unknown', { c: e || String(r && r.s) }));
     if (e === 'permission' && j.need === 'root' && cmd) C.note(t('trySudo'), 'sudo ' + cmd);
   }
   function net() { C.err(t('network')); C.toCmd(); }
+  /** 命令里第一个只给站长的组（wheel、sudoers、<产品>-manage；同服务端 core/groups.js isGuardedGroup） @param {any} obj @returns {string} */
+  function guardedOf(obj) {
+    const gs = obj && Array.isArray(obj.groups) ? obj.groups : [];
+    for (let i = 0; i < gs.length; i++) if (/^(?:wheel|sudoers|[a-z]+-manage)$/.test(String(gs[i]))) return String(gs[i]);
+    return '';
+  }
 
   /**
    * 选验证方式（密码 / 通行密钥）→ 拿到证明 → next(proof)。prompt = 密码提示符。
@@ -223,8 +248,8 @@ export function mountIdentityLayer(o) {
   };
 
   /* ---------- 用户管理（root 直接跑；sudoers 走 sudo） ---------- */
-  /** 命令的结果 → 输出 @param {string} action @param {any} j */
-  function adminOk(action, j) {
+  /** 命令的结果 → 输出 @param {string} action @param {any} j @param {any} [cmd] 发出去的命令对象 */
+  function adminOk(action, j, cmd) {
     if (action === 'useradd') { C.ok(t('created', { u: j.user.name })); C.out(esc(t('otp', { p: j.password }))); C.note(t('otpNote')); return; }
     if (action === 'passwd-user') {
       C.ok(t('reset')); C.out(esc(t('otp', { p: j.password }))); C.note(t('otpNote'));
@@ -236,7 +261,15 @@ export function mountIdentityLayer(o) {
       return;
     }
     if (action === 'userdel') { C.ok(t('deleted')); return; }
-    if (action === 'usermod') { C.ok(j.changed ? t('changed') : t('noChange')); if (j.warning) C.warn(t('lastWarn')); return; }
+    if (action === 'usermod') {
+      /* 改的是本会话的底层用户（站长 sudo usermod … styrigx；root via styrigx 改 styrigx 同理）：服务端 epoch +1，整个会话已作废 →
+         终端直接降到 nobody，不再要人先 exit（v1.1 §九 修法 1）。root 改别人不动自己的终端 */
+      const self = !!j.changed && !!cmd && cmd.name === baseName();
+      C.ok(j.changed ? t('changed') : t('noChange'));
+      if (j.warning) C.warn(t('lastWarn'));
+      if (self) { const n = baseName(); setUser(null); C.warn(t('sessionGone', { u: n }), 'su ' + n); }
+      return;
+    }
     if (action === 'groups') { C.out(esc((j.name || '') + ' : ' + (j.groups || []).join(' '))); return; }
     if (action === 'who') printWho(j.sessions);
   }
@@ -248,7 +281,7 @@ export function mountIdentityLayer(o) {
     C.setMode('busy');
     const call = proof ? api.post('sudo', Object.assign({ command: cmd }, proof)) : api.post(cmd.action, cmd);
     call.then(function (r) {
-      if (r.j && r.j.ok) { adminOk(cmd.action, r.j); C.toCmd(); return; }
+      if (r.j && r.j.ok) { adminOk(cmd.action, r.j, cmd); C.toCmd(); return; }
       if (r.j && r.j.error === 'last-member') {
         C.warn(t('lastMember', { g: r.j.group || '' }));
         C.opts([['y', t('yes')], ['N', t('no'), true]]);
@@ -258,14 +291,18 @@ export function mountIdentityLayer(o) {
         }, 'N');
         return;
       }
-      fail(r, label); C.toCmd();
+      fail(r, label, cmd); C.toCmd();
     }, net);
   }
   /** root（v6）直接跑；不是 root → 提示用 sudo @param {any} cmd @param {string} label */
   C.cmdAdmin = function (cmd, label) {
     const u = me();
     if (!u) { C.err(t('notSignedIn')); return; }
-    if (!u.root) { C.err(t('permission', { c: label.split(' ')[0] })); if (u.sudoers) C.note(t('trySudo'), 'sudo ' + label); return; }
+    if (!u.root) {
+      /* 没有这条命令（不是 root、也不在 sudoers）→ 找不到命令；sudoers 借 sudo 有这条命令 → 照旧提示 sudo（v1.1 §九） */
+      if (!u.sudoers) { notFound(label); return; }
+      C.err(t('permission', { c: label.split(' ')[0] })); C.note(t('trySudo'), 'sudo ' + label); return;
+    }
     runAdmin(cmd, null, label);
   };
   /** sudo <命令…> @param {string[]} argv */
@@ -278,7 +315,7 @@ export function mountIdentityLayer(o) {
     if (!cmd) { C.out(esc(t('usageSudo'))); return; }
     if (cmd.action === 'passwd') { C.err(t('rootCreds')); return; }
     if (u.root) { runAdmin(cmd, null, argv.join(' ')); return; }
-    if (!u.sudoers) { C.err(t('notSudoers', { u: u.name })); return; }
+    if (!u.sudoers) { notFound('sudo'); return; }
     proofOf(t('pwFor', { u: u.name }), 'sudo-challenge', function (proof) { runAdmin(cmd, proof, argv.join(' ')); });
   };
 
@@ -292,7 +329,7 @@ export function mountIdentityLayer(o) {
     const u = me();
     if (!u) { C.err(t('notSignedIn')); return; }
     if (u.root) { done(''); C.ok(t('sudoGranted')); return; }
-    if (!u.sudoers) { C.err(t('notSudoers', { u: u.name })); return; }
+    if (!u.sudoers) { notFound('sudo'); return; }
     proofOf(t('pwFor', { u: u.name }), 'sudo-challenge', function (proof) {
       C.setMode('busy');
       api.post('sudo-grant', Object.assign({ command: grant }, proof)).then(function (r) {
@@ -312,7 +349,7 @@ export function mountIdentityLayer(o) {
     const u = me();
     if (!u) { C.err(t('notSignedIn')); return; }
     if (u.root) { done(null); return; }
-    if (!u.sudoers) { C.err(t('notSudoers', { u: u.name })); return; }
+    if (!u.sudoers) { notFound('sudo'); return; }
     proofOf(t('pwFor', { u: u.name }), 'sudo-challenge', function (proof) {
       let first = proof;
       done(function () {

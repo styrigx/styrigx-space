@@ -231,3 +231,109 @@ test('接线：头像 = whoami（R-33 起谁点都开账号小展示卡，不再
   assert.doesNotMatch(layer, /fetch\(/);
   assert.match(rd('space/web/assets/common/js/frame/account/identity/api.js'), /export const IDENTITY_API = '\/api\/identity';/);
 });
+
+/* ---------- 终端会话作废后身份同步 + 「无权限命令 = 找不到命令」（组权限 v1.1 §九，Gray 2026-11-21 01:43–02:24） ---------- */
+import { mountIdentityLayer } from '../../../../space/web/assets/common/js/frame/account/identity/layer.js';
+import { mountAuthErr } from '../../../../space/web/assets/common/js/frame/account/cmd/auth-err.js';
+
+const NOT_FOUND = 'command not found: {x} · try man';
+/** 身份层替身：假的输入行（记下每一行输出）、假 document（frame 字符串表只放 term.notFound）、假 fetch（按 action 回） */
+function identRig(user, answer) {
+  const g = /** @type {any} */ (globalThis);
+  const had = { window: g.window, fetch: g.fetch };
+  g.window = { setInterval: () => 1, clearInterval() {} };
+  const sent = [];
+  g.fetch = (url, init) => {
+    const b = JSON.parse(init.body);
+    sent.push(b);
+    const [s, j] = answer(b);
+    return Promise.resolve({ status: s, json: () => Promise.resolve(j) });
+  };
+  const log = [];
+  const line = {
+    out: (h, c) => log.push(['out', h, c]), err: (s, x) => log.push(['err', s, x]), warn: (s, x) => log.push(['warn', s, x]),
+    ok: (s) => log.push(['ok', s]), note: (s, x) => log.push(['note', s, x]), toCmd() {}, setMode() {},
+    ask: (k, f) => f('pw'), opts() {}, pick: (m, d) => m[d](), echoPick() {},
+  };
+  const frame = JSON.stringify({ term: { notFound: NOT_FOUND } });
+  const doc = { addEventListener() {}, visibilityState: 'visible', getElementById: (id) => (id === 'sgx-i18n-frame' ? { textContent: frame } : null) };
+  let v6 = user;
+  const seen = [];
+  const who = { v6: () => v6, setV6: (u) => { seen.push(u); v6 = u; }, on() {} };
+  const S = { sessionGone: '{u} gone · {x}', webmasterOnly: '{g} webmaster only', notSignedIn: 'not signed in', changed: 'changed', permission: '{c}: denied', trySudo: 'try {x}' };
+  const I = mountIdentityLayer({ S, line, who, doc: /** @type {any} */ (doc) });
+  return { I, log, sent, seen, who, restore() { g.window = had.window; g.fetch = had.fetch; } };
+}
+const settle = () => new Promise((r) => setTimeout(r, 0));
+const ROOT6 = { uid: 0, name: 'root', root: true, via: 'styrigx', groups: [] };
+const STY = { uid: 1000, name: 'styrigx', root: false, webmaster: true, wheel: true, sudoers: true, groups: ['wheel', 'sudoers'] };
+const ALICE = { uid: 1003, name: 'test', root: false, sudoers: false, groups: [] };
+
+test('§九 修法 1：站长 sudo usermod … styrigx（改自己，changed）→ 终端降到 nobody、提示 su styrigx；root 改别人自己的终端不动', async () => {
+  const a = identRig(STY, () => [200, { ok: true, changed: true }]);
+  try {
+    a.I.cmdSudo(['usermod', '-aG', 'music-use', 'styrigx']);
+    await settle(); await settle();
+    assert.deepEqual(a.seen, [null], '本地身份清成 nobody');
+    assert.ok(a.log.some((l) => l[0] === 'warn' && l[1] === 'styrigx gone · {x}' && l[2] === 'su styrigx'), '提示 su styrigx 重新登录');
+  } finally { a.restore(); }
+  const b = identRig(ROOT6, () => [200, { ok: true, changed: true }]);
+  try {
+    b.I.cmdAdmin({ action: 'usermod', op: '-aG', groups: ['music-use'], name: 'test' }, 'usermod -aG music-use test');
+    await settle(); await settle();
+    assert.deepEqual(b.seen, [], 'root 改 test：自己的终端不动');
+    assert.ok(b.log.some((l) => l[0] === 'ok' && l[1] === 'changed'));
+  } finally { b.restore(); }
+  const c = identRig(STY, () => [200, { ok: true, changed: false }]);
+  try {
+    c.I.cmdSudo(['usermod', '-aG', 'music-use', 'styrigx']);
+    await settle(); await settle();
+    assert.deepEqual(c.seen, [], '没变化（changed false）→ epoch 没动，不降');
+  } finally { c.restore(); }
+});
+
+test('§九 修法 2：任何 401（groups / who 的 unauthorized、账号层 authErr）→ 本地身份同步成 nobody，su 不再要求先 exit', async () => {
+  const a = identRig(STY, (b) => (b.action === 'groups' ? [401, { ok: false, error: 'unauthorized' }] : [200, { ok: true, user: STY }]));
+  try {
+    a.I.cmdGroups('');
+    await settle(); await settle();
+    assert.deepEqual(a.seen, [null]);
+    assert.ok(a.log.some((l) => l[0] === 'err' && l[1] === 'not signed in'));
+    a.log.length = 0;
+    a.I.cmdSu('styrigx');
+    await settle(); await settle();
+    assert.ok(!a.log.some((l) => l[0] === 'err' && /exit/.test(String(l[1]))), '不再「先 exit」');
+    assert.equal(a.sent.at(-1).action, 'su', '直接走 su');
+  } finally { a.restore(); }
+  const log = [];
+  const C = { t: (k) => k, err: (s, x) => log.push([s, x]) };
+  let cur = STY;
+  const seen = [];
+  mountAuthErr(C, { v6: () => cur, setV6: (u) => { seen.push(u); cur = u; }, refresh: () => seen.push('refresh') });
+  assert.equal(C.authErr({ s: 401, j: { ok: false, error: 'unauthorized' } }), true);
+  assert.deepEqual(seen, [null], '账号层 401：setV6(null)，不只 refresh');
+  assert.equal(C.authErr({ s: 403, j: { ok: false, error: 'forbidden' } }), true);
+  assert.deepEqual(seen, [null, 'refresh'], '403 forbidden 照旧重问');
+});
+
+test('§九 规则（02:23）：root 给普通用户加 manage 组 → 报真实原因「<组> 只给站长」；普通用户敲 usermod / sudo → 找不到命令', async () => {
+  const a = identRig(ROOT6, () => [400, { ok: false, error: 'action' }]);
+  try {
+    a.I.cmdAdmin({ action: 'usermod', op: '-aG', groups: ['music-use', 'music-manage'], name: 'test' }, 'usermod -aG music-use,music-manage test');
+    await settle(); await settle();
+    assert.deepEqual(a.log.filter((l) => l[0] === 'err'), [['err', 'music-manage webmaster only', undefined]]);
+  } finally { a.restore(); }
+  const b = identRig(ALICE, () => [200, { ok: true }]);
+  try {
+    b.I.cmdAdmin({ action: 'usermod', op: '-aG', groups: ['music-use'], name: 'bob' }, 'usermod -aG music-use bob');
+    b.I.cmdSudo(['usermod', '-aG', 'music-use', 'bob']);
+    await settle();
+    assert.deepEqual(b.log.filter((l) => l[0] === 'err'), [['err', NOT_FOUND, 'usermod'], ['err', NOT_FOUND, 'sudo']]);
+    assert.equal(b.sent.length, 0, '不发请求');
+  } finally { b.restore(); }
+  const c = identRig(STY, () => [200, { ok: true }]);
+  try {
+    c.I.cmdAdmin({ action: 'usermod', op: '-aG', groups: ['music-use'], name: 'test' }, 'usermod -aG music-use test');
+    assert.deepEqual(c.log.map((l) => l[0]), ['err', 'note'], 'sudoers 有这条命令（借 sudo）：照旧「权限不够 · 可以用 sudo」');
+  } finally { c.restore(); }
+});
