@@ -88,10 +88,12 @@ test('快捷面板（P5-1，替代抽屉；PR-4b 单页 + 导航面板）：非�
   assert.doesNotMatch(s, /is-fading|is-curtain|--sgx-curtain/);
 });
 
-test('nav.json（顶栏 v3 NAVIGATE / tmux 页脚，2026-11 UI 重设计 PR-1）：01 主页 02 博客 03 奇趣 04 日刻（05 旷野 2026-11-12 删除），没有账号 / 设置项；终端路径提示、页脚外链；顶栏 / AI 图标都在', () => {
+test('nav.json（顶栏 v3 NAVIGATE / tmux 页脚，2026-11 UI 重设计 PR-1）：00 主页 01 博客 02 日刻 03 音乐 04 奇趣（Gray 2026-11-21 加音乐并重排；旧 05 旷野 2026-11-12 删除），没有账号 / 设置项；终端路径提示、页脚外链；顶栏 / AI 图标都在', () => {
   const nav = JSON.parse(files['nav.json']);
-  assert.deepEqual(nav.items.map((i) => i.id), ['home', 'blog', 'curio', 'daymark']);
-  assert.deepEqual(nav.items.map((i) => i.hint), ['~', 'blog/', 'curio/', 'daymark/']);
+  assert.deepEqual(nav.items.map((i) => i.id), ['home', 'blog', 'daymark', 'music', 'curio']);
+  assert.deepEqual(nav.items.map((i) => i.hint), ['~', 'blog/', 'daymark/', 'music/', 'curio/']);
+  const music = nav.items.find((i) => i.id === 'music');
+  assert.deepEqual([music.icon, music.origin, music.path], ['nav-music', 'https://styrigx.com', '/music/'], '音乐项：子站 /music/');
   assert.ok(!nav.items.some((i) => i.id === 'wild' || /wild/.test(i.path)), '没有旷野项');
   // 2026-10-21：书签项换成子站 奇趣 Curio（主站书签功能下线）
   const curio = nav.items.find((i) => i.id === 'curio');
@@ -112,8 +114,9 @@ test('nav.json（顶栏 v3 NAVIGATE / tmux 页脚，2026-11 UI 重设计 PR-1）
   assert.deepEqual(nav.me, { href: 'https://styrigx.com/account/', avatar: 'https://styrigx.com/avatar/192.webp', email: prof.email });
   assert.equal(prof.email, 'styrigx@gmail.com');
   const tr = { en: yaml.load(files['i18n-en.yaml']), zh: yaml.load(files['i18n-zh.yaml']) };
-  assert.deepEqual(nav.items.map((i) => tr.zh.nav[i.id].title), ['主页', '博客', '奇趣', '日刻']);
-  assert.deepEqual(nav.items.map((i) => tr.en.nav[i.id].title), ['Home', 'Blog', 'Curio', 'Daymark']);
+  assert.deepEqual(nav.items.map((i) => tr.zh.nav[i.id].title), ['主页', '博客', '日刻', '音乐', '奇趣']);
+  assert.deepEqual(nav.items.map((i) => tr.en.nav[i.id].title), ['Home', 'Blog', 'Daymark', 'Music', 'Curio']);
+  assert.deepEqual(nav.items.map((i) => tr.en.foot.win[i.id]), ['home', 'blog', 'daymark', 'music', 'curio'], '页脚窗口名');
   for (const i of nav.items) for (const l of ['en', 'zh']) assert.ok(tr[l].foot.win[i.id], i.id + ' 页脚窗口名 ' + l);
   for (const i of [...nav.items, ...nav.footer]) assert.match(nav.icons[i.icon], /^<svg[\s\S]*<\/svg>$/, i.icon);
   for (const k of ['tb-palette', 'tb-shield', 'tb-term', 'tb-chat', 'lock', 'tb-undo', 'tb-send', 'tb-newchat', 'tb-history']) assert.match(nav.icons[k], /^<svg[\s\S]*<\/svg>$/, k);
@@ -231,7 +234,7 @@ test('NAVIGATE / 外观 / 页脚（顶栏 v3）：NAVIGATE 五项 + lang / layou
   assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), '头 → 五项 → lang → layout → STATUS → systemctl status → esc');
   assert.doesNotMatch(navd, /data-sgx-share|data-qp="share"/, 'v6 P4：分享磁贴拿掉');
   assert.doesNotMatch(navd, /data-qp="lock"|data-qp-lock-state/, 'v5 S6：NAVIGATE 没有 lock 按钮（上锁走终端 lock / 已进站点盾牌）');
-  assert.match(navd, /\{\{ printf "%02d\/%02d" \$cur \$n \}\}/, '01/05 计数');
+  assert.match(navd, /\{\{ if ge \$cur 0 \}\}\{\{ printf "%02d" \$cur \}\}\{\{ else \}\}--\{\{ end \}\}\/\{\{ printf "%02d" \$n \}\}/, '00/04 计数（编号从 00 起，Gray 2026-11-21；不在任何项上 --）');
   assert.match(navd, /<a class="sgx-nav-tile" href="\{\{ \$p \}\}" data-nav="\{\{ \.id \}\}"\{\{ if eq \.id \$\.site \}\} aria-current="page"\{\{ end \}\}><em class="sgx-nav-no"/);
   assert.match(navd, /range slice \(dict "v" "phone" "t" \$t\.topbar\.phone\) \(dict "v" "auto" "t" \$t\.topbar\.auto\) \(dict "v" "desktop" "t" \$t\.topbar\.desktop\)/, 'Mobile / Auto / DeX（2026-11-09 Auto 在中间）');
   assert.match(navd, /range slice "space" "atlas" "account" "proxy" "gray-ai"/, 'STATUS 五个单元（P4 R-07）');

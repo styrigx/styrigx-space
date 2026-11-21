@@ -122,11 +122,11 @@ test('账号未登录：余响居中一屏（命令行 · 日期行 · 引句 ·
   await expect(page.locator('footer')).toHaveCount(1);
   await expect(page.locator('footer.sgx-foot .sgx-foot-win a[aria-current="page"]')).toHaveAttribute('data-win', 'daymark');
   await expect(page.getByText('Powered by')).toHaveCount(0);
-  /* NAVIGATE 面板 #sgx-nav（主站共享外壳 nav.json）：01 主页 · 02 博客 · 03 奇趣 · 04 日刻（05 旷野 2026-11-12 删除），日刻是当前项；主站项绝对地址，子站之间同源相对；没有搜索框 */
+  /* NAVIGATE 面板 #sgx-nav（主站共享外壳 nav.json）：00 主页 · 01 博客 · 02 日刻 · 03 音乐 · 04 奇趣（Gray 2026-11-21；旧 05 旷野 2026-11-12 删除），日刻是当前项；主站项绝对地址，子站之间同源相对；没有搜索框 */
   await page.locator('.sgx-tb-grid').click();
   await expect(page.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
-  await expect(page.locator('#sgx-nav .sgx-nav-tile .sgx-nav-name')).toHaveText(['主页', '博客', '奇趣', '日刻']);
-  await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('04/04');
+  await expect(page.locator('#sgx-nav .sgx-nav-tile .sgx-nav-name')).toHaveText(['主页', '博客', '日刻', '音乐', '奇趣']);
+  await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('02/04');
   await expect(page.locator('#sgx-nav [data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/zh/');
   await expect(page.locator('#sgx-nav [data-nav="curio"]')).toHaveAttribute('href', '/curio/zh/');
   await expect(page.locator('#sgx-nav [data-nav="daymark"]')).toHaveAttribute('href', '/daymark/zh/');

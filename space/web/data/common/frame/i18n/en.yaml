@@ -87,6 +87,9 @@ nav:
   blog:
     title: "Blog"
     sub: "Posts and topics"
+  music:
+    title: "Music"
+    sub: "Albums and singles"
   title: "NAVIGATE"
   status: "STATUS"
   statusPending: "not wired yet"
@@ -106,6 +109,7 @@ foot:
     blog: "blog"
     curio: "curio"
     daymark: "daymark"
+    music: "music"
   status: "Service status"
   clock: "Beijing time"
   langs: "Language"

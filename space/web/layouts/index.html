@@ -7,7 +7,8 @@
 {{/* 主页（2026-11 对齐计划 PR-B，设计稿 tb4.html 主页默认 / m=1；Gray 10:43 / 10:45：功能一个不少，形式照稿）：
    首屏 = 居中 hero（状态胶囊 · $ whoami · 名字 · $ 标语打字轮播 + 闪烁光标 · # 签名）+ neofetch about 卡（v5 S7；原嵌入终端，终端挪到顶栏 >_）。
    头像只在顶栏右上；签名 2026-11-09 回到 hero 的 # 行；名字、签名都由 /api/profile 覆盖（data-sgx-profile）。
-   下面三节「[0n] // 名字」：[01] 博客 最新 3 篇 · [02] 奇趣 三个目录卡 · [03] 日刻 今日一句（强调线引言）。[04] 旷野 2026-11-12 删除（状态单独成页 /status/，从 NAVIGATE STATUS 进）。
+   下面四节「[0n] // 名字」（Gray 2026-11-21 重排，同 NAVIGATE / 页脚顺序）：[01] 博客 最新 3 篇 · [02] 日刻 今日一句（强调线引言）· [03] 音乐 最新专辑 · [04] 奇趣 三个目录卡。
+   旧 [04] 旷野 2026-11-12 删除（状态单独成页 /status/，从 NAVIGATE STATUS 进）。
    各节带 data-term-dir（终端 cd 的落点）和 data-term-label（落点提示）。内容宽 = 顶栏内容宽（--sgx-content-w 1080）。 */}}
 {{ $h := $tr.home }}
 <div class="home-wrap home-term-wrap">
@@ -84,11 +85,54 @@
     </ul>
   </section>
 
-  {{/* [02] 奇趣 · ls curio/（设计稿 [02] // CURIO）：finds / devices / games 三个目录卡，点进各分区。
+  {{/* [02] 日刻 · cat daymark/today（设计稿 .qt：左 2px 强调线 + 大字引句 + 一行小字）。数据 lib/daymark-today.js（/daymark/api/today，公开只读），
+     槽位 data-dm=text / trans / by / day / body / empty；拉不到且没缓存 → 整块保持隐藏（同锁屏）。测试构建（SGX_TEST_NO_WEATHER）不输出。 */}}
+  {{ $dmHome := partial "common/lang-path.html" (dict "path" "/daymark/" "lang" $pageLang) }}
+  <section class="home-sec" id="daymark" data-term-dir="daymark" data-term-label="{{ $h.daymarkLabel }}" aria-labelledby="home-dm-h">
+    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[02] // DAYMARK</p><h2 class="home-sec-t" id="home-dm-h">{{ $h.daymark }}</h2></div><a class="home-sec-more" href="{{ $dmHome }}" translate="no">cd daymark/ →</a></div>
+    <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> cat daymark/today</p>
+    {{ if ne (getenv "SGX_TEST_NO_WEATHER") "1" }}
+    {{/* 取今日一句的时候一行输出式的提示「› fetching daymark…」（Gray 2026-11-09 细节 3），有结论（画上 / 没取到）就收起（apps/index.js） */}}
+    <p class="sgx-wait home-wait" data-dm-wait role="status"><span aria-hidden="true">› </span>{{ replace $tr.frame.term.fetching "{x}" "daymark" }}</p>
+    <a id="w-daymark" href="{{ $dmHome }}" class="home-qt hidden">
+      <span class="home-qt-body" data-dm="body">
+        <span class="home-qt-text" data-dm="text"></span>
+        <span class="home-qt-trans hidden" data-dm="trans"></span>
+        {{- /* 小字两行（2026-11-15 偏离收尾 P3 / R-05，Gray 16:20 定）：上「— 作者《出处》」（没有就不占行）；
+           下按设计稿 tb4.html 主页 [03]（现第 2 节）「余响 · YYYY-MM-DD · 拾录 N · 百味 N」，计数前端运行时取（daymark-today.js mountDaymarkCounts），取不到只留「余响 · 日期」 */}}
+        <small class="home-qt-meta" data-dm="by"></small>
+        <small class="home-qt-meta home-qt-stats"><span>{{ $tr.index.dmWindow }}</span><span class="home-qt-sep" aria-hidden="true"> · </span><span data-dm="day"></span><span data-dm="counts" hidden></span></small>
+      </span>
+      <span class="home-qt-body hidden" data-dm="empty">
+        <span class="home-qt-text">{{ $tr.index.noLineForToday }}</span>
+        <small class="home-qt-meta">{{ $tr.index.tapToKeepOne }}</small>
+      </span>
+    </a>
+    {{ end }}{{/* /日刻 */}}
+  </section>
+
+  {{/* [03] 音乐 · ls music/（2026-11-21：music 搬家到子站 /music/ 后主页的入口）：最新几张专辑（封面 + 专辑名 + 歌手），
+     apps/index.js 运行时取 /music/api/music（只有元数据，同音乐页），按记录 id 从新到旧取前 4 张专辑（不含单曲）。
+     首帧 4 个「—」占位（默认音符封面），取到就填上、多的占位删掉；取不到 / 没有专辑保持「—」，都链到音乐页。
+     点一张 = 那位歌手的歌手页（/music/?artist=<id>，音乐页目前唯一的深链；没歌手 = 音乐页）。 */}}
+  {{ $muHome := partial "common/lang-path.html" (dict "path" "/music/" "lang" $pageLang) }}
+  {{ $note := `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>` }}
+  <section class="home-sec" id="music" data-term-dir="music" data-term-label="{{ $h.musicLabel }}" aria-labelledby="home-mu-h">
+    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[03] // MUSIC</p><h2 class="home-sec-t" id="home-mu-h">{{ $h.music }}</h2></div><a class="home-sec-more" href="{{ $muHome }}" translate="no">cd music/ →</a></div>
+    <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> ls music/</p>
+    <p class="sgx-wait home-wait" data-mu-wait role="status"><span aria-hidden="true">› </span>{{ replace $tr.frame.term.fetching "{x}" "music" }}</p>
+    <ul class="home-albs" role="list" data-home-music data-music-href="{{ $muHome }}">
+      {{- range seq 4 }}
+      <li><a class="home-alb" href="{{ $muHome }}" data-mu-slot><span class="home-alb-c">{{ $note | safeHTML }}</span><span class="home-alb-t" data-mu-title>—</span><small class="home-alb-a" data-mu-artist></small></a></li>
+      {{- end }}
+    </ul>
+  </section>
+
+  {{/* [04] 奇趣 · ls curio/（设计稿 [02] // CURIO；Gray 2026-11-21 重排为第 4 节）：finds / devices / games 三个目录卡，点进各分区。
      右上计数和下面一条（最近收藏 / 在用 / 在玩）由 apps/index.js 运行时取 /curio/api/links、/curio/api/items（进门即可读，私密的服务端不给）；取不到保持「—」。 */}}
   {{ $cu := $h.curio }}
   <section class="home-sec" id="curio" data-term-dir="curio" data-term-label="{{ $h.curioLabel }}" aria-labelledby="home-cu-h">
-    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[02] // CURIO</p><h2 class="home-sec-t" id="home-cu-h">{{ $cu.title }}</h2></div><a class="home-sec-more" href="{{ partial "common/lang-path.html" (dict "path" "/curio/" "lang" $pageLang) }}" translate="no">cd curio/ →</a></div>
+    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[04] // CURIO</p><h2 class="home-sec-t" id="home-cu-h">{{ $cu.title }}</h2></div><a class="home-sec-more" href="{{ partial "common/lang-path.html" (dict "path" "/curio/" "lang" $pageLang) }}" translate="no">cd curio/ →</a></div>
     <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> ls curio/</p>
     <ul class="home-dirs" role="list" data-home-curio>
       {{- range $d := slice "finds" "devices" "games" }}
@@ -101,35 +145,9 @@
     </ul>
   </section>
 
-  {{/* [03] 日刻 · cat daymark/today（设计稿 .qt：左 2px 强调线 + 大字引句 + 一行小字）。数据 lib/daymark-today.js（/daymark/api/today，公开只读），
-     槽位 data-dm=text / trans / by / day / body / empty；拉不到且没缓存 → 整块保持隐藏（同锁屏）。测试构建（SGX_TEST_NO_WEATHER）不输出。 */}}
-  {{ $dmHome := partial "common/lang-path.html" (dict "path" "/daymark/" "lang" $pageLang) }}
-  <section class="home-sec" id="daymark" data-term-dir="daymark" data-term-label="{{ $h.daymarkLabel }}" aria-labelledby="home-dm-h">
-    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[03] // DAYMARK</p><h2 class="home-sec-t" id="home-dm-h">{{ $h.daymark }}</h2></div><a class="home-sec-more" href="{{ $dmHome }}" translate="no">cd daymark/ →</a></div>
-    <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> cat daymark/today</p>
-    {{ if ne (getenv "SGX_TEST_NO_WEATHER") "1" }}
-    {{/* 取今日一句的时候一行输出式的提示「› fetching daymark…」（Gray 2026-11-09 细节 3），有结论（画上 / 没取到）就收起（apps/index.js） */}}
-    <p class="sgx-wait home-wait" data-dm-wait role="status"><span aria-hidden="true">› </span>{{ replace $tr.frame.term.fetching "{x}" "daymark" }}</p>
-    <a id="w-daymark" href="{{ $dmHome }}" class="home-qt hidden">
-      <span class="home-qt-body" data-dm="body">
-        <span class="home-qt-text" data-dm="text"></span>
-        <span class="home-qt-trans hidden" data-dm="trans"></span>
-        {{- /* 小字两行（2026-11-15 偏离收尾 P3 / R-05，Gray 16:20 定）：上「— 作者《出处》」（没有就不占行）；
-           下按设计稿 tb4.html 主页 [03]「余响 · YYYY-MM-DD · 拾录 N · 百味 N」，计数前端运行时取（daymark-today.js mountDaymarkCounts），取不到只留「余响 · 日期」 */}}
-        <small class="home-qt-meta" data-dm="by"></small>
-        <small class="home-qt-meta home-qt-stats"><span>{{ $tr.index.dmWindow }}</span><span class="home-qt-sep" aria-hidden="true"> · </span><span data-dm="day"></span><span data-dm="counts" hidden></span></small>
-      </span>
-      <span class="home-qt-body hidden" data-dm="empty">
-        <span class="home-qt-text">{{ $tr.index.noLineForToday }}</span>
-        <small class="home-qt-meta">{{ $tr.index.tapToKeepOne }}</small>
-      </span>
-    </a>
-    {{ end }}{{/* /日刻 */}}
-  </section>
-
 </div>
 
 
-{{/* 脚本入口 entry-space.js（主页：日刻今日一句、奇趣计数、首屏状态胶囊） */}}
+{{/* 脚本入口 entry-space.js（主页：日刻今日一句、最新专辑、奇趣计数、首屏状态胶囊） */}}
 {{ partial "common/space-i18n.html" (dict "tr" $tr) }}
 {{ end }}

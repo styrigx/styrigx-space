@@ -166,7 +166,7 @@ test('未知命令：command not found · 试试 man（出错色）；坏目录 
 test('历史：↑ / ↓ 翻命令，到底回到正在打的字；clear 清屏', async ({ page }) => {
   await go(page, '/zh/', { term: true });
   await run(page, 'ls');
-  await expect(lastLine(home(page))).toHaveText('blog/  curio/  daymark/  account/  proxy/');
+  await expect(lastLine(home(page))).toHaveText('blog/  daymark/  music/  curio/  account/  proxy/');
   await run(page, 'theme lake');
   const i = input(page);
   await i.fill('ma');

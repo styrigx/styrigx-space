@@ -1,7 +1,7 @@
 /**
  * 2026-11 对齐 PR-B（设计稿 tb4.html）：主页的纯函数（[04] 旷野小卡 2026-11-12 删除，statusSummary 只给首屏状态胶囊用）。
  * （lib/wb-view.js 的 fmtShort / charBar / termRows / renderWbTerm 用例 v6 P4 随数字健康整套删除，定稿 v5.5 §四）
- * - apps/index.js：curioSummary（[02] 奇趣三个目录卡的计数和那一条）、statusSummary（外壳六格状态的摘要：up/n、平均延迟、检查时间；首屏胶囊用 up/n）
+ * - apps/index.js：musicLatest（[03] 音乐 最新 4 张专辑，2026-11-21）、curioSummary（[04] 奇趣三个目录卡的计数和那一条；2026-11-21 前是 [02]）、statusSummary（外壳六格状态的摘要：up/n、平均延迟、检查时间；首屏胶囊用 up/n）
  * 运行：node --test tests/space/ui/home/home-summary.test.mjs
  */
 import { test } from 'node:test';
@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { installI18nDom } from '../../../fixtures/i18n-dom.mjs';
 
 installI18nDom('zh');
-const { curioSummary, statusSummary } = await import('../../../../space/web/assets/common/js/frame/apps/index.js');
+const { curioSummary, statusSummary, musicLatest, MUSIC_LATEST_N } = await import('../../../../space/web/assets/common/js/frame/apps/index.js');
 
 test('curioSummary：finds = 全部链接数 + id 最大的那条（按语言取名，缺了回退 / 域名）；devices 在用 = 第一台没退役；games 在玩 = 第一个 playing', () => {
   const links = { ok: true, cats: [
@@ -44,4 +44,31 @@ test('statusSummary：up / n、有数格子的平均延迟（四舍五入）、�
   assert.equal(statusSummary({ t: late, cells: {} }).at, '00:30');
   assert.deepEqual(statusSummary({ t: 0, cells: { a: { up: false, ms: null } } }), { up: 0, n: 1, avg: null, at: '' });
   assert.deepEqual(statusSummary(/** @type {any} */ (null)), { up: 0, n: 0, avg: null, at: '' });
+});
+
+test('musicLatest：只要专辑（单曲不进）、按 id 从新到旧取前 4 张；有封面才给封面地址；链接 = 歌手页 ?artist=<id>，没歌手 = 音乐页', () => {
+  assert.equal(MUSIC_LATEST_N, 4);
+  const j = { ok: true, albums: [
+    { id: 1, kind: 'album', title: 'Blue', artist: 'Joni Mitchell', artist_id: 2, cover: true },
+    { id: 7, kind: 'album', title: 'Court and Spark', artist: 'Joni Mitchell', artist_id: 2, cover: false },
+    { id: 3, kind: 'album', title: 'Ammonia Avenue', artist: 'APP', artist_id: 4, cover: true },
+    { id: 41, kind: 'single', title: 'River', artist: 'Joni Mitchell', artist_id: 2, cover: true },
+    { id: 5, kind: 'album', title: '无名', artist: '', artist_id: 0, cover: false },
+    { id: 2, kind: 'album', title: 'Old', artist: 'X', artist_id: 9, cover: false },
+    null,
+  ] };
+  const r = musicLatest(j, '/music/zh/');
+  assert.deepEqual(r.map((x) => x.id), [7, 5, 3, 2], '单曲 41 不进；最旧的 1 挤掉');
+  assert.deepEqual(r[0], { id: 7, title: 'Court and Spark', artist: 'Joni Mitchell', cover: '', href: '/music/zh/?artist=2' });
+  assert.deepEqual(r[1], { id: 5, title: '无名', artist: '', cover: '', href: '/music/zh/' }, '没歌手 = 音乐页');
+  assert.equal(r[2].cover, '/music/api/music-cover?album=3');
+  assert.deepEqual(musicLatest(j, '/music/', 2).map((x) => x.href), ['/music/?artist=2', '/music/']);
+});
+
+test('musicLatest：取不到 / ok:false / 没有列表 → null；空列表 → []', () => {
+  assert.equal(musicLatest(null, '/music/'), null);
+  assert.equal(musicLatest({ ok: false }, '/music/'), null);
+  assert.equal(musicLatest({ ok: true }, '/music/'), null);
+  assert.deepEqual(musicLatest({ ok: true, albums: [] }, '/music/'), []);
+  assert.deepEqual(musicLatest({ ok: true, albums: [{ id: 1, kind: 'single', title: 'S' }] }, '/music/'), [], '只有单曲 = 空');
 });
