@@ -95,9 +95,9 @@ const grant = (env, tok, command, pw) => id(env, { action: 'sudo-grant', passwor
 const ck = (tok) => 'sgx-session=' + tok;
 const EXPORT = { method: 'GET', path: '/curio/api/export' };
 
-test('路由表：只有 atlas-core 的四条 root 接口（音乐搬家第 2 步起新旧两条路径）标了 sudoTicket；sudo-grant 是 sudoers 档、不在救援白名单', () => {
+test('路由表：只有 atlas-core 的四条 root 接口（音乐搬家第 4 步起只剩 /music/api/music）标了 sudoTicket；sudo-grant 是 sudoers 档、不在救援白名单', () => {
   const marked = RA.ROUTE_ACCESS.filter((r) => r.sudoTicket).map((r) => r.method + ' ' + r.path).sort();
-  assert.deepEqual(marked, ['DELETE /daymark/api/collections', 'GET /curio/api/export', 'POST /curio/api/import', 'POST /curio/api/music', 'POST /music/api/music']);
+  assert.deepEqual(marked, ['DELETE /daymark/api/collections', 'GET /curio/api/export', 'POST /curio/api/import', 'POST /music/api/music']);
   for (const r of RA.ROUTE_ACCESS.filter((x) => x.sudoTicket)) assert.equal(r.worker, 'atlas-core', r.path);
   assert.equal(RA.levelOf('POST', '/api/identity', { action: 'sudo-grant' }), 'sudoers');
   assert.equal(RA.rescueOf('POST', '/api/identity', { action: 'sudo-grant' }), false);
@@ -107,12 +107,11 @@ test('ticketTarget：root 档才发；带 action 的按 action；账号自己的
   assert.equal(T.ticketTarget(EXPORT).ok, true);
   assert.equal(T.ticketTarget({ method: 'post', path: '/curio/api/import/' }).ok, true, '方法大小写、结尾 / 规范化');
   assert.equal(T.ticketTarget({ method: 'DELETE', path: '/daymark/api/collections' }).ok, true);
-  assert.equal(T.ticketTarget({ method: 'POST', path: '/curio/api/music', action: 'album.del' }).ok, true);
-  assert.equal(T.ticketTarget({ method: 'POST', path: '/curio/api/music' }).error, 'action', '音乐路由本身是写组档');
-  assert.equal(T.ticketTarget({ method: 'POST', path: '/curio/api/music', action: 'album.edit' }).error, 'action');
-  assert.equal(T.ticketTarget({ method: 'POST', path: '/curio/api/music', action: 'nope' }).error, 'action');
-  assert.equal(T.ticketTarget({ method: 'POST', path: '/music/api/music', action: 'album.del' }).ok, true, '搬家第 2 步：新路径同一条规则');
+  assert.equal(T.ticketTarget({ method: 'POST', path: '/music/api/music', action: 'album.del' }).ok, true);
+  assert.equal(T.ticketTarget({ method: 'POST', path: '/music/api/music' }).error, 'action', '音乐路由本身是写组档');
   assert.equal(T.ticketTarget({ method: 'POST', path: '/music/api/music', action: 'album.edit' }).error, 'action');
+  assert.equal(T.ticketTarget({ method: 'POST', path: '/music/api/music', action: 'nope' }).error, 'action');
+  assert.equal(T.ticketTarget({ method: 'POST', path: '/curio/api/music', action: 'album.del' }).ok, false, 'music 搬家第 4 步：旧路径删掉，不发票');
   assert.equal(T.ticketTarget({ method: 'POST', path: '/api/account/proxy' }).error, 'not-here', '账号自己的 root 接口走 sudo，不发票');
   assert.equal(T.ticketTarget({ method: 'POST', path: '/curio/api/items' }).error, 'not-here');
   assert.equal(T.ticketTarget({ method: 'GET', path: '/curio/api/export?lang=en' }).ok, false, '票不绑查询串');
@@ -131,10 +130,10 @@ test('sudo-grant：sudoers 验自己的凭据领票；库里只存哈希；审�
   assert.match(t[0].id, /^[0-9a-f]{64}$/);
   assert.equal(t[0].uid, 1000);
   assert.equal(t[0].expires_at - Date.now() <= T.SUDO_TICKET_TTL_MS, true);
-  const r2 = await grant(env, tok, { method: 'POST', path: '/curio/api/music', action: 'album.del' });
+  const r2 = await grant(env, tok, { method: 'POST', path: '/music/api/music', action: 'album.del' });
   assert.equal(r2.status, 200);
   const audits = rows(env, 'SELECT command, ok, uid FROM account_user_audit').filter((a) => a.command.startsWith('sudo'));
-  assert.deepEqual(audits.map((a) => a.command), ['sudo GET /curio/api/export', 'sudo POST /curio/api/music album.del']);
+  assert.deepEqual(audits.map((a) => a.command), ['sudo GET /curio/api/export', 'sudo POST /music/api/music album.del']);
   assert.ok(audits.every((a) => a.uid === 1000));
   const all = JSON.stringify(rows(env, 'SELECT * FROM account_user_audit'));
   assert.ok(!all.includes(r.json.ticket) && !all.includes(r2.json.ticket), '审计里没有票');
@@ -151,7 +150,7 @@ test('sudo-grant：输错 401 + login-fail、不发票；不在 sudoers 403；�
   assert.equal((await grant(env, alice, EXPORT, PW.alice)).status, 403);
   assert.equal((await grant(env, undefined, EXPORT)).status, 401);
   assert.equal((await grant(env, tok, { method: 'POST', path: '/api/account/proxy' })).status, 400);
-  assert.equal((await grant(env, tok, { method: 'POST', path: '/curio/api/music', action: 'track.del' })).status, 400);
+  assert.equal((await grant(env, tok, { method: 'POST', path: '/music/api/music', action: 'track.del' })).status, 400);
   assert.equal(rows(env, 'SELECT * FROM account_sudo_tickets').length, 0, '目标不对不验凭据也不发票');
 });
 
@@ -173,8 +172,8 @@ test('sudoAdmit：方法 / 路径 / action 对不上 → 拒且票作废；别�
   const t1 = (await grant(env, tok, EXPORT)).json.ticket;
   assert.equal((await checkSudoAdmit(env, ck(tok), t1, 'POST', '/curio/api/import', {})).allowed, false, '换路径');
   assert.equal((await checkSudoAdmit(env, ck(tok), t1, 'GET', '/curio/api/export', {})).allowed, false, '对不上的票已作废，不给重试');
-  const t2 = (await grant(env, tok, { method: 'POST', path: '/curio/api/music', action: 'album.del' })).json.ticket;
-  assert.equal((await checkSudoAdmit(env, ck(tok), t2, 'POST', '/curio/api/music', { action: 'track.del' })).allowed, false, '换 action');
+  const t2 = (await grant(env, tok, { method: 'POST', path: '/music/api/music', action: 'album.del' })).json.ticket;
+  assert.equal((await checkSudoAdmit(env, ck(tok), t2, 'POST', '/music/api/music', { action: 'track.del' })).allowed, false, '换 action');
   const t3 = (await grant(env, tok, EXPORT)).json.ticket;
   const other = await login(env, 'styrigx');
   assert.equal((await checkSudoAdmit(env, ck(other), t3, 'GET', '/curio/api/export', {})).allowed, false, '同一个人的另一个会话');

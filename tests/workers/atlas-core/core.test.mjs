@@ -105,7 +105,7 @@ test('分流：前缀定产品；奇趣、日刻读在同一个库上照常工�
     assert.equal(d.headers.get('X-Daymark-Runtime'), 'worker', p);
     assert.equal(d.headers.get('X-Atlas-Runtime'), 'worker', p);
   }
-  const m = await worker.fetch(req('/curio/api/music'), env, CTX);
+  const m = await worker.fetch(req('/music/api/music'), env, CTX);
   assert.equal(m.status, 200);
 });
 

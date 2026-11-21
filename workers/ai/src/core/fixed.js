@@ -13,6 +13,8 @@
 export const FIXED_TIMEOUT_MS = 3000;
 export const CURIO_URL = 'https://styrigx.com/curio';
 export const DAYMARK_URL = 'https://styrigx.com/daymark';
+/** 音乐页（music 搬家第 4 步：音乐是第四个子站，英文 /music/、中文 /music/zh/；之前是奇趣子页 /curio/music/） */
+export const MUSIC_URL = 'https://styrigx.com/music';
 
 const ZH_NUM = { 一: 1, 两: 2, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
 
@@ -58,6 +60,11 @@ export function detectIntents(q) {
 /** 奇趣子页地址：英文（默认语言）无前缀，其他语言 /<语言>/（同 workers/atlas-core/src/curio/search-index.js pageUrl） @param {string} lang @param {string} section */
 function pageUrl(lang, section) {
   return CURIO_URL + (lang && lang !== 'en' ? '/' + lang + '/' : '/') + section + '/';
+}
+
+/** 音乐页地址：英文 /music/，其他语言 /music/<语言>/（同 workers/atlas-core/src/curio/search-index.js musicUrl） @param {string} lang */
+function musicUrl(lang) {
+  return MUSIC_URL + (lang && lang !== 'en' ? '/' + lang + '/' : '/');
 }
 
 /** 秒 → m:ss @param {any} s */
@@ -110,7 +117,7 @@ export function toHit(name, r, lang) {
       const tracks = (a.tracks || []).map((/** @type {any} */ t) => '  ' + (t.no ? t.no + '. ' : '') + t.title + (dur(t.duration) ? ' ' + dur(t.duration) : ''));
       return [head, ...tracks].join('\n');
     });
-    return { site: 'curio', type: 'query', title: T.music, subtitle: T.musicWhere, url: pageUrl(lang, 'music'), text: blocks.join('\n\n').slice(0, 2400), private: false };
+    return { site: 'curio', type: 'query', title: T.music, subtitle: T.musicWhere, url: musicUrl(lang), text: blocks.join('\n\n').slice(0, 2400), private: false };
   }
   return null;
 }

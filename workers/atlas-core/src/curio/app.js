@@ -6,7 +6,8 @@
  * 本 Worker 不持任何钥匙：会话交给主站鉴权网关验（服务绑定 SPACE，见 src/api/_auth.js）。
  *
  * 请求顺序（下面的 /api/* 都是去掉 /curio 前缀后的路径，公开地址是 styrigx.com/curio/api/*；
- * 音乐另有 styrigx.com/music/api/*（music 搬家第 2 步，同一份 handler，只认 product 'music' 的行，旧路径照常）：
+ * 音乐是 styrigx.com/music/api/*（music 搬家第 2 步加；handler 同一份，在 api/music*.js，路由表在 ../music/routes.js；
+ * 第 4 步删掉旧路径 /curio/api/music*，不留别名：旧路径在奇趣表里查不到 = 表外路径）：
  *   1. 访问档（v5 S3）：routes.js ROUTE_ACCESS 按「方法 + 路径」给出 public / entry / music（不在表里 = entry），
  *      在这里套上那一档的守卫（api/_auth.js GUARDS：publicRead / requireEntry / requireMusic），entry / music 档在守卫里经网关 SpaceVerifier.admit 问 v6 会话的档，
  *      public 档要私密行 / canManage 的 handler 调公用 visibility()（common/visibility.js，分别问 action private / manage）；每个请求每个 action 最多问一次。没有 v6 身份 → 401 unauthorized（不 302，fetch 不跟跳转），档不够 → 403 forbidden。
@@ -16,7 +17,8 @@
  *
  * 全站搜索：改内容的写接口成功后 ctx.waitUntil 重建 KV site:curio；每小时兜底（status 的 Cron 经服务绑定调 rpc/hourly-job.js），见 src/search-index.js。
  */
-import { API_ROUTES, accessOf, routeOf } from './routes.js';
+import * as curioRoutes from './routes.js';
+import * as musicRoutes from '../music/routes.js';
 import { GUARDS, v6Of } from './api/_auth.js';
 import { rebuildSearchIndex, isContentMutation } from './search-index.js';
 import { sweepPhotos, isSweepHour } from './photo-sweep.js';
@@ -47,10 +49,15 @@ function json(status, body) {
   });
 }
 
-/** 找处理模块：{ mod, params, functionPath } 或 null */
-export function resolve(pathname) {
+/** 前缀 → 那张路由表（/curio → 奇趣 routes.js，/music → ../music/routes.js） @param {string} base */
+export function tableOf(base) {
+  return base === MUSIC_BASE ? musicRoutes : curioRoutes;
+}
+
+/** 找处理模块：{ mod, params, functionPath } 或 null（base 缺省 = 奇趣） @param {string} pathname @param {string} [base] */
+export function resolve(pathname, base) {
   const key = routeKey(pathname);
-  const mod = API_ROUTES.get(key);
+  const mod = tableOf(base || BASE).API_ROUTES.get(key);
   return mod ? { mod, params: {}, functionPath: key } : null;
 }
 
@@ -84,7 +91,7 @@ function tag(res) {
 
 /** 本站在主域名 styrigx.com 下的前缀：接口公开地址是 {BASE}/api/*，路由表按去掉前缀后的 /api/* 登记 */
 export const BASE = '/curio';
-/** 音乐的新前缀（music 搬家设计稿 v1.0 第 2 步）：/music/api/* 只认路由表里 product 'music' 的行，handler 同一份 */
+/** 音乐的前缀（music 搬家设计稿 v1.0 第 2 步；第 4 步起是音乐唯一的接口地址）：/music/api/* 只查 ../music/routes.js，handler 同一份 */
 export const MUSIC_BASE = '/music';
 
 /** 公开地址 → 路由表里的路径（/curio/api/x、/music/api/x → /api/x）；不是本站接口返回 '' */
@@ -107,17 +114,17 @@ export async function handle(request, env, ctx) {
   if (!path) return json(404, { ok: false, error: 'not-found' });
   const base = baseOf(url.pathname);
 
-  /* /music/api/* 下只有音乐的行：别的产品的路径在这里当「不在表里」（entry 档 + 404），不能从新前缀绕进奇趣接口 */
-  const row = routeOf(request.method, path);
-  const own = base !== MUSIC_BASE || !!(row && row.product === 'music');
-  const hit = own ? resolve(path) : null;
+  /* 两个前缀各查各的表：/music/api/* 只有音乐的行，/curio/api/* 只有奇趣的行（第 4 步起旧 /curio/api/music* 在这里就是表外路径：
+     entry 档 → 账号 Worker 表里也没有 → 一律 401），谁都不能从另一个前缀绕进去 */
+  const table = tableOf(base);
+  const row = table.routeOf(request.method, path);
+  const hit = resolve(path, base);
   const context = makeContext(request, env, ctx, hit ? hit.params : {}, hit ? hit.functionPath : path);
   /* 组权限 v1.1 §八：公用 visibility(context) 从命中的路由行取 product，经本产品的 v6Of 问 private / manage 两档（common/visibility.js） */
-  context.data.route = own ? row : null;
+  context.data.route = row;
   context.data.ask = v6Of;
-  context.data.base = base;
   /* 先过访问档（不在路由表里的路径也是 entry：没有身份 401，有身份才看 404，不让陌生人探路由表） */
-  const denied = await GUARDS[own ? accessOf(request.method, path) : 'entry'](context);
+  const denied = await GUARDS[table.accessOf(request.method, path)](context);
   if (denied) return denied;
   if (!hit) return json(404, { ok: false, error: 'not-found' });
   const handler = pickHandler(hit.mod, request.method);

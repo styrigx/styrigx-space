@@ -19,6 +19,7 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const W = REPO + '/workers/atlas-core/src/curio';
 const worker = (await import(W + '/app.js')).default;
 const { API_ROUTES, ROUTE_ACCESS, accessOf } = await import(W + '/routes.js');
+const MR = await import(REPO + '/workers/atlas-core/src/music/routes.js');
 const { GUARDS } = await import(W + '/api/_auth.js');
 const S = await import(W + '/api/_store.js');
 const N = await import(W + '/api/_netscape.js');
@@ -86,9 +87,11 @@ function call(p, { who = null, db = makeD1(), r2 = makeR2(), method = 'GET', bod
 const op = async (db, body, who = 'owner') => call('/curio/api/links', { who, db, method: 'POST', body });
 const list = async (db, who) => (await call('/curio/api/links', { who, db })).json();
 
-test('路由表与 src/api 接口文件一一对应', () => {
+test('路由表与 src/api 接口文件一一对应（奇趣表 + 音乐表 src/music/routes.js 合起来；两张表不重叠，音乐表只有 music*）', () => {
   const files = readdirSync(W + '/api').filter((n) => n.endsWith('.js') && !n.startsWith('_')).map((n) => '/api/' + n.slice(0, -3)).sort();
-  assert.deepEqual([...API_ROUTES.keys()].sort(), files);
+  assert.deepEqual([...API_ROUTES.keys(), ...MR.API_ROUTES.keys()].sort(), files);
+  for (const k of MR.API_ROUTES.keys()) assert.equal(API_ROUTES.has(k), false, k + ' 不在奇趣表（music 搬家第 4 步删掉旧 /curio/api/music*）');
+  assert.ok([...MR.API_ROUTES.keys()].every((k) => /^\/api\/music(-|$)/.test(k)));
 });
 
 test('访问表（v5 S3）快照：一档一个守卫，方法 + 路径精确匹配；改表必须改这里', () => {
@@ -106,6 +109,9 @@ test('访问表（v5 S3）快照：一档一个守卫，方法 + 路径精确匹
     'GET /api/preview → entry',
     'GET /api/export → entry',
     'POST /api/import → entry',
+  ]);
+  /* 音乐的表（src/music/routes.js，公开地址 /music/api/*） */
+  assert.deepEqual(MR.ROUTE_ACCESS.map((r) => r.method + ' ' + r.path + ' → ' + r.access), [
     'GET /api/music → public',
     'POST /api/music → music',
     'GET /api/music-cover → public',
@@ -115,20 +121,25 @@ test('访问表（v5 S3）快照：一档一个守卫，方法 + 路径精确匹
     'POST /api/music-upload → music',
   ]);
   /* 表里的每条都是路由表里真有的接口；每个接口的每个处理方法都在表里（不会有方法漏成默认档还没人发现） */
-  for (const r of ROUTE_ACCESS) assert.ok(API_ROUTES.has(r.path), r.path);
-  for (const [p, mod] of API_ROUTES) {
-    for (const k of Object.keys(mod)) {
-      const m = /^onRequest(Get|Post|Put|Delete|Head)$/.exec(k);
-      if (m) assert.ok(ROUTE_ACCESS.some((r) => r.path === p && r.method === m[1].toUpperCase()), p + ' ' + m[1]);
+  for (const T of [{ API_ROUTES, ROUTE_ACCESS }, MR]) {
+    for (const r of T.ROUTE_ACCESS) assert.ok(T.API_ROUTES.has(r.path), r.path);
+    for (const [p, mod] of T.API_ROUTES) {
+      for (const k of Object.keys(mod)) {
+        const m = /^onRequest(Get|Post|Put|Delete|Head)$/.exec(k);
+        if (m) assert.ok(T.ROUTE_ACCESS.some((r) => r.path === p && r.method === m[1].toUpperCase()), p + ' ' + m[1]);
+      }
     }
   }
   /* 不在表里 = entry：换方法、多一段、编码绕法都不算 public */
-  assert.equal(accessOf('GET', '/api/music'), 'public');
-  assert.equal(accessOf('GET', '/api/music/'), 'public');
-  assert.equal(accessOf('GET', '/api/music/x'), 'entry');
-  assert.equal(accessOf('PUT', '/api/music'), 'entry');
-  assert.equal(accessOf('GET', '/api/music-streamx'), 'entry');
-  assert.equal(accessOf('GET', '/api/%6dusic'), 'entry');
+  assert.equal(MR.accessOf('GET', '/api/music'), 'public');
+  assert.equal(MR.accessOf('GET', '/api/music/'), 'public');
+  assert.equal(MR.accessOf('GET', '/api/music/x'), 'entry');
+  assert.equal(MR.accessOf('PUT', '/api/music'), 'entry');
+  assert.equal(MR.accessOf('GET', '/api/music-streamx'), 'entry');
+  assert.equal(MR.accessOf('GET', '/api/%6dusic'), 'entry');
+  assert.equal(MR.accessOf('GET', '/api/nope'), 'entry');
+  /* music 搬家第 4 步：奇趣表里没有音乐了（旧 /curio/api/music* = 表外 = entry） */
+  for (const p of ['/api/music', '/api/music-cover', '/api/music-play', '/api/music-stream', '/api/music-upload']) assert.equal(accessOf('GET', p), 'entry', p);
   assert.equal(accessOf('GET', '/api/nope'), 'entry');
   assert.deepEqual(Object.keys(GUARDS).sort(), ['entry', 'music', 'public']);
 });
@@ -139,7 +150,7 @@ test('访客：public 的读 200、其余 401，带运行标记；不存在的�
     assert.ok(r.status < 500 && r.status !== 401 && r.status !== 403, p + ' ' + r.status);
     assert.equal(r.headers.get('X-Curio-Runtime'), 'worker');
   }
-  for (const p of ['/curio/api/export', '/curio/api/preview?url=https://a.com', '/curio/api/music-stream?t=x&id=1', '/curio/api/nope', '/curio/api/access']) {
+  for (const p of ['/curio/api/export', '/curio/api/preview?url=https://a.com', '/music/api/music-stream?t=x&id=1', '/curio/api/nope', '/curio/api/access']) {
     const r = await call(p);
     assert.equal(r.status, 401, p);
     assert.equal(r.headers.get('X-Curio-Runtime'), 'worker');

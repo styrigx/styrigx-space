@@ -28,7 +28,7 @@ function layers() {
   return { v: { acct: {}, ident }, calls };
 }
 const LINE = 'sudo curio music rm 3';
-const GRANT = { method: 'POST', path: '/curio/api/music', action: 'album.del' };
+const GRANT = { method: 'POST', path: '/music/api/music', action: 'album.del' };
 function pend(w, extra) { const done = () => {}; w[SUDO_GRANT_KEY] = Object.assign({ line: LINE, grant: GRANT, done, at: 1000 }, extra || {}); return done; }
 
 test('takeSudoGrant：原样那一行才取走（前后空白不计），取走后键删掉；grant 规范成字符串', () => {

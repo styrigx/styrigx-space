@@ -61,8 +61,9 @@ const SUBSITE_MUST = ['/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?
 export const CORE_WORKERS = [
   { name: 'atlas-core', label: '内容层接口 Worker（styrigx-atlas-core）', dir: 'workers/atlas-core', sites: ['curio', 'daymark', 'music'],
     samples: ['/curio/api/links', '/curio/api/icon?id=1', '/curio/api/import', '/curio/api/export', '/curio/api/preview?url=x', '/curio/api/photo?kind=device&id=1',
-      '/curio/api/movies', '/curio/api/music', '/curio/api/music-upload?album=1&kind=track', '/curio/api/music-play', '/curio/api/music-stream?t=x&id=1', '/curio/api/music-cover?album=1',
+      '/curio/api/movies',
       '/daymark/api/quotes', '/daymark/api/today', '/daymark/api/today?x=1', '/daymark/api/collections', '/daymark/api/days',
+      /* 音乐接口只在 /music/api/*（music 搬家第 4 步删掉旧 /curio/api/music*，那些地址落在 /curio/api/* 上、由 atlas-core 当表外路径回 401） */
       '/music/api/music', '/music/api/music-upload?album=1&kind=track', '/music/api/music-play', '/music/api/music-stream?t=x&id=1', '/music/api/music-cover?album=1'] },
 ];
 
