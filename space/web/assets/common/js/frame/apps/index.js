@@ -55,7 +55,7 @@ export function curioSummary(links, items, lang) {
 export const MUSIC_LATEST_N = 4;
 /**
  * 最新几张专辑（纯函数，单测看它）：/music/api/music 的结果 → 按记录 id 从新到旧的前 n 张专辑（kind 不是 single；单曲不进这一行）。
- * 链接 = 那位歌手的歌手页（音乐页 ?artist=<id>，目前唯一的深链），没歌手 = 音乐页；封面有才给 /music/api/music-cover?album=<id>。
+ * 链接 = 音乐页直达这张专辑（?album=<专辑记录 id>，2026-11-21 起；之前链歌手页 ?artist=）；封面有才给 /music/api/music-cover?album=<id>。
  * @param {any} j GET /music/api/music 的回答（{ok, albums:[{id, kind, title, artist, artist_id, cover}]}）或 null
  * @param {string} musicHref 当前语言的音乐页地址（/music/、/music/zh/）
  * @param {number} [n]
@@ -69,13 +69,12 @@ export function musicLatest(j, musicHref, n) {
     .sort(function (/** @type {any} */ a, /** @type {any} */ b) { return Number(b.id) - Number(a.id); })
     .slice(0, n || MUSIC_LATEST_N)
     .map(function (/** @type {any} */ a) {
-      const aid = Number(a.artist_id) || 0;
       return {
         id: Number(a.id),
         title: String(a.title || ''),
         artist: String(a.artist || ''),
         cover: a.cover ? '/music/api/music-cover?album=' + Number(a.id) : '',
-        href: aid > 0 ? base + '?artist=' + aid : base,
+        href: base + '?album=' + Number(a.id),
       };
     });
 }

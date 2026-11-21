@@ -76,7 +76,7 @@ test('home (mobile, 对齐 PR-B; 2026-11-12 no wild; 2026-11-21 reorder): hero, 
 });
 
 /* [03] 音乐（2026-11-21）：取 /music/api/music（测试构建要先设 window.__sgxMusicApi），最新 4 张专辑（不含单曲，id 从新到旧）填进占位；
-   有封面画 /music/api/music-cover?album=，链接 = 歌手页 ?artist=；只有 2 张时多的占位删掉；接口失败保持「—」 */
+   有封面画 /music/api/music-cover?album=，链接 = 音乐页直达专辑 ?album=<id>；只有 2 张时多的占位删掉；接口失败保持「—」 */
 test('home [03] music: latest albums from /music/api/music fill the row; fewer albums drop slots; API failure keeps —', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await pg.addInitScript(() => { window.__sgxMusicApi = true; });
@@ -97,7 +97,7 @@ test('home [03] music: latest albums from /music/api/music fill the row; fewer a
   const t = pg.locator('#music .home-alb-t');
   await expect(t).toHaveText(['Mingus', 'Hejira', 'Ammonia Avenue', 'Court and Spark']);
   await expect(pg.locator('#music [data-mu-wait]')).toBeHidden();
-  expect(await pg.locator('#music a.home-alb').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/music/zh/', '/music/zh/?artist=2', '/music/zh/?artist=4', '/music/zh/?artist=2']);
+  expect(await pg.locator('#music a.home-alb').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/music/zh/?album=6', '/music/zh/?album=5', '/music/zh/?album=3', '/music/zh/?album=2']);
   await expect(pg.locator('#music .home-alb img')).toHaveCount(1);
   await expect(pg.locator('#music .home-alb').nth(2).locator('img')).toHaveAttribute('src', '/music/api/music-cover?album=3');
   const row = await pg.locator('#music .home-albs').evaluate((ul) => ({ cols: getComputedStyle(ul).gridTemplateColumns.split(' ').length, sw: document.scrollingElement.scrollWidth, vw: innerWidth }));
