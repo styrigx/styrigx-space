@@ -2,7 +2,7 @@
  * D-3 a′「先验后发票」前端（偏离收尾定稿 v4 第 9 节）：
  * - term/core/sudo-grant.js takeSudoGrant：页面登记的待办，终端回车原样那一行才取走；过期作废；改过的行不动它
  * - sudo 命令：预填行 → 身份层 sudoGrant(grant, 去掉 sudo 的标签, done)；改过的行按普通 sudo 解析；没有身份层（AI 窗口）→ notHere
- * - 身份层 C.sudoGrant：root 直接 done('')；非 sudoers 一行红字不发请求；sudoers 先验自己的凭据（sudo-challenge）再 POST sudo-grant，票只交回 done
+ * - 身份层 C.sudoGrant：root 直接 done('')；非 sudoers 报找不到命令（sudo）、不发请求；sudoers 先验自己的凭据（sudo-challenge）再 POST sudo-grant，票只交回 done
  * 后端（发票、验票）见 tests/workers/account/sudo-ticket.test.mjs。
  * 运行：node --test tests/space/ui/shell/sudo-grant.test.mjs
  */
@@ -92,7 +92,7 @@ test('sudo 命令：预填行 → 身份层 sudoGrant（标签去掉 sudo）；�
   }
 });
 
-test('身份层 C.sudoGrant：root 直接 done("")；非 sudoers 红字；sudoers 先 sudo-challenge 验凭据再 POST sudo-grant，票只交 done', () => {
+test('身份层 C.sudoGrant：root 直接 done("")；非 sudoers 找不到命令；sudoers 先 sudo-challenge 验凭据再 POST sudo-grant，票只交 done', () => {
   const src = rd('space/web/assets/common/js/frame/account/identity/layer.js');
   const i = src.indexOf('C.sudoGrant = function (grant, label, done) {');
   assert.ok(i > 0, '有 C.sudoGrant');
@@ -100,7 +100,8 @@ test('身份层 C.sudoGrant：root 直接 done("")；非 sudoers 红字；sudoer
   const at = (re) => { const m = re.exec(body); assert.ok(m, String(re)); return m.index; };
   const signed = at(/if \(!u\) \{ C\.err\(t\('notSignedIn'\)\); return; \}/);
   const root = at(/if \(u\.root\) \{ done\(''\); C\.ok\(t\('sudoGranted'\)\); return; \}/);
-  const sudoers = at(/if \(!u\.sudoers\) \{ C\.err\(t\('notSudoers', \{ u: u\.name \}\)\); return; \}/);
+  /* 不在 sudoers = 没有 sudo 这条命令 → 找不到命令（v1.1 §九，Gray 2026-11-21 02:23） */
+  const sudoers = at(/if \(!u\.sudoers\) \{ notFound\('sudo'\); return; \}/);
   const proof = at(/proofOf\(t\('pwFor', \{ u: u\.name \}\), 'sudo-challenge', function \(proof\) \{/);
   const post = at(/api\.post\('sudo-grant', Object\.assign\(\{ command: grant \}, proof\)\)/);
   assert.ok(signed < root && root < sudoers && sudoers < proof && proof < post, '顺序：未登录 → root → sudoers → 验凭据 → 领票');

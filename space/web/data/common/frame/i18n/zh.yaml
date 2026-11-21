@@ -278,7 +278,12 @@ manBody:
     notes:
       - "root 不能从访客直接登录。已经以某个用户登录时，要先 exit 才能 su 到另一个用户。"
   groups:
+    desc:
+      - "不带名字列出自己的组，格式 <名字> : <组> <组> …；带名字列出那个用户的。"
+      - "产品组成对：<产品>-use（能用）和 <产品>-manage（还能管理；只给站长）。"
     auth: "已登录；看别人的组要 root"
+    notes:
+      - "组改了以后，那个用户重新登录才生效。"
   who:
     desc:
       - "每个会话的身份路径（root via styrigx）和开始时间；不是 root 只看到自己的。"
@@ -538,7 +543,6 @@ identity:
   exitFirst: "已经以 {u} 登录 · 先 exit"
   alreadyRoot: "已经是 root"
   notWheel: "su root：你不在 wheel 组"
-  notSudoers: "{u} 不在 sudoers 里"
   notSignedIn: "没有登录 · 先 su <用户>"
   permission: "{c}：权限不够"
   trySudo: "sudoers 可以用 {x}"
@@ -573,6 +577,8 @@ identity:
   rescueReset: "首次登录须改密码；丢失的通行密钥登录后用 passkey rm 删除；记得去 Cloudflare 换救援钥匙"
   deleted: "✓ 用户已删除"
   changed: "✓ 组已更新 · 该用户要重新登录"
+  sessionGone: "{u} 的会话已作废 · {x} 重新登录"
+  webmasterOnly: "{g} 只给站长"
   noChange: "没有变化"
   lastMember: "这会移除 {g} 的最后一个成员 · 继续？"
   lastWarn: "注意：这个组现在没有成员了"
