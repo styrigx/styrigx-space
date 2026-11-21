@@ -20,7 +20,7 @@ zone_name = "styrigx.com"
 pattern = "styrigx.com/daymark/api/*"
 zone_name = "styrigx.com"
 
-# 音乐新接口（music 搬家设计稿 v1.0 第 2 步）：旧 /curio/api/music* 照常
+# 音乐接口（music 搬家设计稿 v1.0 第 2 步加；第 4 步删掉旧 /curio/api/music*：那些地址仍落在上面 /curio/api/* 这条，由本 Worker 当表外路径回 401）
 [[routes]]
 pattern = "styrigx.com/music/api/*"
 zone_name = "styrigx.com"

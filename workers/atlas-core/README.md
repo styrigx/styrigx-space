@@ -11,15 +11,16 @@ Atlas：内容层的接口 Worker。命名：带 `-core` 的是两层核心，`s
 
 ```
 src/index.js           部署入口：只接线（default、CurioReader、DaymarkReader、HourlyJob）
-src/app.js             按公开地址前缀分流：/curio/api/* → curio/app.js，/daymark/api/* → daymark/index.js，其他 404；runHourly 先奇趣后日刻
+src/app.js             按公开地址前缀分流：/curio/api/*、/music/api/* → curio/app.js，/daymark/api/* → daymark/index.js，其他 404；runHourly 先奇趣后日刻
 src/rpc/daymark-reader.js DaymarkReader：给 styrigx-ai 的今日一句（R-35）
 src/rpc/hourly-job.js  HourlyJob：给 styrigx-status（JOB_ATLAS）
 src/curio/             奇趣：app.js、routes.js（访问表）、api/、search-index.js、photo-sweep.js、reader.js；CurioReader 在 curio/rpc/reader.js
+src/music/routes.js    音乐（/music/api/*，music 搬家第 2 步加、第 4 步起唯一；旧 /curio/api/music* 已删）的路由表与访问表；handler 仍在 src/curio/api/music*.js，由 curio/app.js 按前缀选表
 src/daymark/           日刻：index.js、routes.js（访问表）、api/、search-index.js、rpc/hourly-job.js
 src/common/visibility.js 公用（组权限 v1.1，ADR-0007）：visibility(context) → { showPrivate, canManage }（分别问 action private / manage）、filterPrivate、privateNotFound；奇趣、日刻、音乐的公开读都只经它
 ```
 
-访问档、守卫、路由表都在 `src/curio/`、`src/daymark/` 各自目录里，本 Worker 不另加。单测：`tests/workers/atlas-core/`（`core.test.mjs` 分流 / 迁移 / 配置，`curio*.test.mjs`、`daymark*.test.mjs` 两边业务）。
+访问档、守卫、路由表都在 `src/curio/`、`src/music/`、`src/daymark/` 各自目录里，本 Worker 不另加。单测：`tests/workers/atlas-core/`（`core.test.mjs` 分流 / 迁移 / 配置，`curio*.test.mjs`、`daymark*.test.mjs` 两边业务）。
 
 ## 绑定
 

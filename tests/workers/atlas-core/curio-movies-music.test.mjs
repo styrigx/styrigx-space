@@ -22,6 +22,7 @@ const MV = await import(W + '/api/_movies.js');
 const MU = await import(W + '/api/_music.js');
 const SI = await import(W + '/search-index.js');
 const SW = await import(W + '/photo-sweep.js');
+const all0 = (x) => JSON.stringify(x);
 
 function makeD1(db = new DatabaseSync(':memory:')) {
   const isRead = (sql) => /^\s*SELECT/i.test(sql);
@@ -162,8 +163,8 @@ test('音乐三层（v5 S3）：歌单 / 封面公开且不带音频地址；听
   const e = makeEnv();
   /* 管理：没有身份 401 unauthorized、档不够 403 forbidden、非同源 403 */
   const manage = [
-    ['/curio/api/music', 'POST', { op: 'album.add', title: 'A' }],
-    ['/curio/api/music-upload?album=1&kind=cover', 'POST', WEBP],
+    ['/music/api/music', 'POST', { op: 'album.add', title: 'A' }],
+    ['/music/api/music-upload?album=1&kind=cover', 'POST', WEBP],
   ];
   for (const [p, method, body] of manage) {
     const opt = { method, body, type: body instanceof Uint8Array ? 'image/webp' : undefined };
@@ -178,12 +179,12 @@ test('音乐三层（v5 S3）：歌单 / 封面公开且不带音频地址；听
     assert.equal((await call(e, p, { ...opt, who: 'owner', origin: 'https://evil.com' })).status, 403, p);
   }
   /* 有专辑、有曲目、有歌词、有封面时，访客的歌单只有元数据 */
-  const id = (await (await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Absolution', artist: 'Muse', year: 2003 } })).json()).id;
-  const tid = (await (await call(e, `/curio/api/music-upload?album=${id}&kind=track&no=1&title=Intro&duration=22`, { who: 'owner', method: 'POST', body: AUDIO, type: 'audio/mpeg' })).json()).id;
-  await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'track.edit', id: tid, lrc: '[00:01.00]x' } });
-  assert.equal((await call(e, `/curio/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' })).status, 200);
+  const id = (await (await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Absolution', artist: 'Muse', year: 2003 } })).json()).id;
+  const tid = (await (await call(e, `/music/api/music-upload?album=${id}&kind=track&no=1&title=Intro&duration=22`, { who: 'owner', method: 'POST', body: AUDIO, type: 'audio/mpeg' })).json()).id;
+  await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'track.edit', id: tid, lrc: '[00:01.00]x' } });
+  assert.equal((await call(e, `/music/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' })).status, 200);
   for (const who of [null, 'lock', 'noscope']) {
-    const r = await call(e, '/curio/api/music', { who });
+    const r = await call(e, '/music/api/music', { who });
     assert.equal(r.status, 200, String(who));
     const text = await r.clone().text();
     /* M4：专辑 / 曲目多 artist_id（歌手页链接），回答多一份歌手表（名字、有没有头像、简介、风格；没有 R2 key） */
@@ -191,19 +192,19 @@ test('音乐三层（v5 S3）：歌单 / 封面公开且不带音频地址；听
     assert.deepEqual(await r.json(), { ok: true, canManage: false, albums: [{ id, kind: 'album', title: 'Absolution', artist: 'Muse', artist_id: muse, year: 2003, cover: true, tracks: [{ id: tid, no: 1, title: 'Intro', duration: 22, artist: '', artist_id: 0 }] }], artists: [{ id: muse, name: 'Muse', avatar: false, bio: '', style: '' }] }, String(who));
     assert.doesNotMatch(text, /music-stream|music\/|"src"|"key"|r2_key|token|"url"/, '歌单里没有音频地址 / R2 key / 令牌');
   }
-  const own = await (await call(e, '/curio/api/music', { who: 'owner' })).json();
+  const own = await (await call(e, '/music/api/music', { who: 'owner' })).json();
   assert.equal(own.canManage, true);
   assert.deepEqual(Object.keys(own.albums[0].tracks[0]).sort(), ['artist', 'artist_id', 'duration', 'id', 'lrc', 'no', 'size', 'title', 'type']);
   /* 封面公开（和音频不是同一条路） */
-  const cv = await call(e, `/curio/api/music-cover?album=${id}`);
+  const cv = await call(e, `/music/api/music-cover?album=${id}`);
   assert.equal(cv.status, 200);
   assert.equal(cv.headers.get('Content-Type'), 'image/webp');
   /* 听：访客签不了令牌、取不了音频；没有 music-use 组 403；有 music-use（alice）、站长都能听；非同源 403 */
-  assert.equal((await call(e, '/curio/api/music-play', { method: 'POST', body: { album: id } })).status, 401);
-  assert.equal((await call(e, '/curio/api/music-play', { who: 'lock', method: 'POST', body: { album: id } })).status, 403);
-  assert.equal((await call(e, '/curio/api/music-play', { who: 'noscope', method: 'POST', body: { album: id }, origin: 'https://evil.com' })).status, 403);
+  assert.equal((await call(e, '/music/api/music-play', { method: 'POST', body: { album: id } })).status, 401);
+  assert.equal((await call(e, '/music/api/music-play', { who: 'lock', method: 'POST', body: { album: id } })).status, 403);
+  assert.equal((await call(e, '/music/api/music-play', { who: 'noscope', method: 'POST', body: { album: id }, origin: 'https://evil.com' })).status, 403);
   for (const who of ['noscope', 'styrigx']) {
-    const play = await (await call(e, '/curio/api/music-play', { who, method: 'POST', body: { album: id } })).json();
+    const play = await (await call(e, '/music/api/music-play', { who, method: 'POST', body: { album: id } })).json();
     assert.equal(play.ok, true, who);
     const src = play.tracks[0].src;
     const r = await call(e, src, { who, origin: null });
@@ -217,9 +218,9 @@ test('音乐三层（v5 S3）：歌单 / 封面公开且不带音频地址；听
     assert.equal((await call(e, src, { origin: null, method: 'HEAD' })).status, 401);
   }
   /* 精确匹配：歌单路径后面多一段 / 换方法都不是公开的 */
-  assert.equal((await call(e, '/curio/api/music/x')).status, 401);
-  assert.equal((await call(e, '/curio/api/music-cover/x?album=' + id)).status, 401);
-  assert.equal((await call(e, '/curio/api/music', { method: 'PUT', body: {} })).status, 401);
+  assert.equal((await call(e, '/music/api/music/x')).status, 401);
+  assert.equal((await call(e, '/music/api/music-cover/x?album=' + id)).status, 401);
+  assert.equal((await call(e, '/music/api/music', { method: 'PUT', body: {} })).status, 401);
   assert.equal((await call(e, '/curio/api/access')).status, 401, '/api/access 已删（路由表里没有：一律 401）');
   assert.equal((await call(e, '/curio/api/access', { who: 'owner' })).status, 401);
 });
@@ -227,10 +228,10 @@ test('音乐三层（v5 S3）：歌单 / 封面公开且不带音频地址；听
 /* ================= 音乐：上传 ================= */
 
 async function album(e, extra = {}) {
-  const j = await (await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Blue', artist: 'Joni Mitchell', year: 1971, ...extra } })).json();
+  const j = await (await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Blue', artist: 'Joni Mitchell', year: 1971, ...extra } })).json();
   return j.id;
 }
-const upTrack = (e, id, q, body = AUDIO, type = 'audio/mpeg', more = {}) => call(e, `/curio/api/music-upload?album=${id}&kind=track&${q}`, { who: 'owner', method: 'POST', body, type, ...more });
+const upTrack = (e, id, q, body = AUDIO, type = 'audio/mpeg', more = {}) => call(e, `/music/api/music-upload?album=${id}&kind=track&${q}`, { who: 'owner', method: 'POST', body, type, ...more });
 
 test('上传：音频类型白名单、要 Content-Length（411）、单文件上限 95 MB（413）、专辑不在 404；封面看字节、换封面删旧的', async () => {
   const e = makeEnv();
@@ -253,20 +254,20 @@ test('上传：音频类型白名单、要 Content-Length（411）、单文件�
   assert.equal(e.r2m.m.get(key).httpMetadata.contentType, 'audio/mpeg');
   await upTrack(e, id, 'no=2&title=My%20Old%20Man&duration=215', AUDIO, 'audio/flac');
   /* 封面 */
-  assert.equal((await call(e, `/curio/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: new Uint8Array(20), type: 'image/webp' })).status, 400);
-  assert.equal((await call(e, `/curio/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' })).status, 200);
+  assert.equal((await call(e, `/music/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: new Uint8Array(20), type: 'image/webp' })).status, 400);
+  assert.equal((await call(e, `/music/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' })).status, 200);
   const c1 = [...e.r2m.m.keys()].find((k) => k.includes('cover-'));
   await new Promise((r) => setTimeout(r, 3));
-  await call(e, `/curio/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' });
+  await call(e, `/music/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' });
   const covers = [...e.r2m.m.keys()].filter((k) => k.includes('cover-'));
   assert.equal(covers.length, 1);
   assert.notEqual(covers[0], c1);
-  const cov = await call(e, `/curio/api/music-cover?album=${id}`, { who: 'owner' });
+  const cov = await call(e, `/music/api/music-cover?album=${id}`, { who: 'owner' });
   assert.equal(cov.status, 200);
   assert.equal(cov.headers.get('Cache-Control'), 'private, no-cache');
   /* 列表：按曲序，歌词只给有没有 */
-  await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'track.edit', id: tid, lrc: '[00:01.00]I am on a lonely road' } });
-  const list = (await (await call(e, '/curio/api/music', { who: 'owner' })).json()).albums;
+  await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'track.edit', id: tid, lrc: '[00:01.00]I am on a lonely road' } });
+  const list = (await (await call(e, '/music/api/music', { who: 'owner' })).json()).albums;
   assert.equal(list.length, 1);
   assert.deepEqual({ ...list[0], tracks: undefined, artist_id: undefined }, { id, kind: 'album', title: 'Blue', artist: 'Joni Mitchell', artist_id: undefined, year: 1971, cover: true, tracks: undefined });
   assert.deepEqual(list[0].tracks.map((t) => [t.no, t.title, t.duration, t.lrc]), [[1, 'All I Want', 212, true], [2, 'My Old Man', 215, false]]);
@@ -280,9 +281,9 @@ test('播放短链：随机令牌（43 字符 base64url，存 D1）、整文件 
   const other = await album(e, { title: 'Court and Spark' });
   const t1 = (await (await upTrack(e, id, 'no=1&title=A&duration=10')).json()).id;
   const t2 = (await (await upTrack(e, other, 'no=1&title=B&duration=10')).json()).id;
-  assert.equal((await call(e, '/curio/api/music-play', { who: 'owner', method: 'POST', body: { album: 999 } })).status, 404);
-  await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'track.edit', id: t1, lrc: '[00:00.50]hi' } });
-  const play = await (await call(e, '/curio/api/music-play', { who: 'owner', method: 'POST', body: { album: id } })).json();
+  assert.equal((await call(e, '/music/api/music-play', { who: 'owner', method: 'POST', body: { album: 999 } })).status, 404);
+  await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'track.edit', id: t1, lrc: '[00:00.50]hi' } });
+  const play = await (await call(e, '/music/api/music-play', { who: 'owner', method: 'POST', body: { album: id } })).json();
   assert.equal(play.ok, true);
   assert.equal(play.ttl, 10 * 60 * 1000);
   assert.equal(play.tracks.length, 1);
@@ -292,7 +293,7 @@ test('播放短链：随机令牌（43 字符 base64url，存 D1）、整文件 
   assert.match(tok, MU.TOKEN_RE);
   assert.equal(e.db.raw.prepare('SELECT COUNT(*) AS n FROM music_tokens').get().n, 1);
   /* 两次签发令牌不同（随机） */
-  const play2 = await (await call(e, '/curio/api/music-play', { who: 'owner', method: 'POST', body: { album: id } })).json();
+  const play2 = await (await call(e, '/music/api/music-play', { who: 'owner', method: 'POST', body: { album: id } })).json();
   assert.notEqual(new URL(ORIGIN + play2.tracks[0].src).searchParams.get('t'), tok);
 
   /* 播放要 music-use 组 + 令牌（<audio> 也带 sgx-session）；没有身份 401（守卫在 app.js，令牌之前） */
@@ -321,7 +322,7 @@ test('播放短链：随机令牌（43 字符 base64url，存 D1）、整文件 
   assert.equal(head.headers.get('Content-Length'), '10');
   /* 篡改：改一个字符 / 截短 / 别的专辑的曲目 → 403 token */
   const flip = tok.slice(0, -1) + (tok.endsWith('A') ? 'B' : 'A');
-  for (const p of [src.replace(tok, flip), src.replace(tok, tok.slice(1)), src.replace('id=' + t1, 'id=' + t2), '/curio/api/music-stream?id=' + t1, src.replace('id=' + t1, 'id=abc')]) {
+  for (const p of [src.replace(tok, flip), src.replace(tok, tok.slice(1)), src.replace('id=' + t1, 'id=' + t2), '/music/api/music-stream?id=' + t1, src.replace('id=' + t1, 'id=abc')]) {
     const r = await call(e, p, { who: 'noscope', origin: null });
     assert.equal(r.status, 403, p);
     assert.equal((await r.json()).error, 'token', p);
@@ -330,7 +331,7 @@ test('播放短链：随机令牌（43 字符 base64url，存 D1）、整文件 
   e.db.raw.prepare('UPDATE music_tokens SET expires_at = ?1').run(Date.now() - 1);
   assert.equal((await call(e, src, { who: 'noscope', origin: null })).status, 403);
   assert.equal((await call(e, src, { who: 'noscope', origin: null, headers: { Range: 'bytes=0-1' } })).status, 403);
-  await call(e, '/curio/api/music-play', { who: 'owner', method: 'POST', body: { album: other } });
+  await call(e, '/music/api/music-play', { who: 'owner', method: 'POST', body: { album: other } });
   assert.equal(e.db.raw.prepare('SELECT COUNT(*) AS n FROM music_tokens').get().n, 1);
   /* 纯函数 */
   assert.equal(MU.parseRange(null, 10), null);
@@ -343,17 +344,17 @@ test('删专辑：曲目、令牌、R2 里的音频和封面一起删；删曲�
   const id = await album(e);
   const t1 = (await (await upTrack(e, id, 'no=1&title=A')).json()).id;
   await upTrack(e, id, 'no=2&title=B');
-  await call(e, `/curio/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' });
-  await call(e, '/curio/api/music-play', { who: 'owner', method: 'POST', body: { album: id } });
+  await call(e, `/music/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' });
+  await call(e, '/music/api/music-play', { who: 'owner', method: 'POST', body: { album: id } });
   assert.equal(e.r2m.m.size, 3);
-  await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'track.del', id: t1 } });
+  await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'track.del', id: t1 } });
   assert.equal(e.r2m.m.size, 2);
-  const r = await (await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.del', id } })).json();
+  const r = await (await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'album.del', id } })).json();
   assert.deepEqual(r.albums, []);
   assert.equal(e.r2m.m.size, 0);
   assert.equal(e.db.raw.prepare('SELECT COUNT(*) AS n FROM music_tokens').get().n, 0);
   assert.equal(e.db.raw.prepare('SELECT COUNT(*) AS n FROM music_tracks').get().n, 0);
-  assert.equal((await (await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.del', id } })).json()).error, 'not-found');
+  assert.equal((await (await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'album.del', id } })).json()).error, 'not-found');
 });
 
 /* ================= 索引（2026-11 AI 语义召回：电影、音乐元数据进索引） ================= */
@@ -363,13 +364,13 @@ test('索引：电影、音乐元数据进 site:curio（不标 private，进门�
   const mv = await call(e, '/curio/api/movies', { who: 'owner', method: 'POST', body: { op: 'movie.add', title: '一部电影 moviezz', original_title: 'Orig', year: 2000, director: '王家卫', rating: 4, watched_at: '2026-10-01', review: '好看' } });
   assert.equal(mv.status, 200);
   assert.equal(mv.waits.length, 1, '写电影重建索引');
-  const al = await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: '私人专辑 musiczz', artist: 'Joni Mitchell', year: 1971 } });
+  const al = await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: '私人专辑 musiczz', artist: 'Joni Mitchell', year: 1971 } });
   assert.equal(al.waits.length, 1, '写音乐重建索引');
   const id = (await al.json()).id;
   const up = await upTrack(e, id, 'no=1&title=' + encodeURIComponent('All I Want') + '&duration=212');
   assert.equal(up.status, 200);
   assert.equal(up.waits.length, 1, '上传曲目重建索引');
-  await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'track.edit', id: (await (await call(e, '/curio/api/music', { who: 'owner' })).json()).albums[0].tracks[0].id, lrc: '[00:01.00]lyricszz' } });
+  await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'track.edit', id: (await (await call(e, '/music/api/music', { who: 'owner' })).json()).albums[0].tracks[0].id, lrc: '[00:01.00]lyricszz' } });
   assert.equal(SI.isContentMutation('/api/movies', 'POST', 200), true);
   assert.equal(SI.isContentMutation('/api/music', 'POST', 200), true);
   assert.equal(SI.isContentMutation('/api/music-upload', 'POST', 200), true);
@@ -384,7 +385,9 @@ test('索引：电影、音乐元数据进 site:curio（不标 private，进门�
   assert.equal(album.title, '私人专辑 musiczz');
   assert.equal(album.subtitle, '音乐 · Joni Mitchell · 1971');
   assert.equal(album.text, '歌手: Joni Mitchell\n1. All I Want');
-  assert.equal(album.url, 'https://styrigx.com/curio/zh/music/');
+  assert.equal(album.url, 'https://styrigx.com/music/zh/', 'music 搬家第 4 步：专辑链到音乐子站（中文 /music/zh/）');
+  assert.equal(ix.items.find((it) => it.id === 'album:' + id + ':en').url, 'https://styrigx.com/music/');
+  assert.doesNotMatch(all0(ix), /curio\/(zh\/)?music/, '索引里没有旧的 /curio/music 链接');
   assert.ok(ix.items.filter((it) => /^(movie|album):/.test(it.id)).every((it) => it.private === undefined), '没有私密列，不标 private');
   const all = JSON.stringify(ix);
   assert.doesNotMatch(all, /lyricszz|r2_key|music\/\d|\.mp3/, '歌词 / 音频 key 不进');
@@ -410,11 +413,11 @@ test('reader：recentMovies 按观看日期倒序（没填日期的在后）、n
   assert.equal((await RD.runQuery(env, 'recentMovies', { n: 99 })).movies.length, 4);
   assert.equal((await RD.runQuery(env, 'recentMovies', { n: 'x' })).movies.length, 4, '坏参数用默认 5');
   assert.equal((await RD.runQuery(env, 'recentMovies', { n: 0 })).movies.length, 1);
-  const al = await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Blue', artist: 'Joni Mitchell', year: 1971 } });
+  const al = await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Blue', artist: 'Joni Mitchell', year: 1971 } });
   const id = (await al.json()).id;
   await upTrack(e, id, 'no=2&title=My%20Old%20Man&duration=215');
   await upTrack(e, id, 'no=1&title=All%20I%20Want&duration=212');
-  await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Hejira', artist: 'Joni Mitchell' } });
+  await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Hejira', artist: 'Joni Mitchell' } });
   r = await RD.runQuery(env, 'music', { q: '专辑 blue 有哪些歌' });
   assert.deepEqual(r.albums.map((a) => a.title), ['Blue']);
   assert.deepEqual(r.albums[0].tracks, [{ no: 1, title: 'All I Want', duration: 212 }, { no: 2, title: 'My Old Man', duration: 215 }]);
@@ -454,14 +457,14 @@ test('单曲：album.add 收 kind（缺省 album、别的值 bad-kind）；listA
   assert.deepEqual(MU.parseMusicOp({ op: 'album.add', title: 'A', kind: 'single' }).fields.kind, 'single');
   assert.deepEqual(MU.parseMusicOp({ op: 'album.add', title: 'A', kind: 'ep' }), { error: 'bad-kind' });
   const e = makeEnv();
-  const a = await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Blue', artist: 'Joni Mitchell' } });
+  const a = await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Blue', artist: 'Joni Mitchell' } });
   assert.equal(a.status, 200);
-  const s = await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Both Sides Now', artist: 'Joni Mitchell', kind: 'single' } });
+  const s = await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Both Sides Now', artist: 'Joni Mitchell', kind: 'single' } });
   assert.equal(s.status, 200);
   const sj = await s.json();
   assert.deepEqual(sj.albums.map((x) => [x.title, x.kind]), [['Blue', 'album'], ['Both Sides Now', 'single']]);
-  assert.equal((await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'x', kind: 'ep' } })).status, 400);
-  const list = await (await call(e, '/curio/api/music', { who: null })).json();
+  assert.equal((await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'x', kind: 'ep' } })).status, 400);
+  const list = await (await call(e, '/music/api/music', { who: null })).json();
   assert.deepEqual(list.albums.map((x) => x.kind), ['album', 'single'], '访客的歌单也带 kind');
   assert.equal(e.db.raw.prepare('SELECT kind FROM music_albums WHERE id = ?').get(sj.id).kind, 'single');
   /* 单曲上限 500，专辑 100：各算各的 */
@@ -486,11 +489,11 @@ test('单曲：只能有 1 首，第 2 首 409 single-full（不写 R2）；专�
   assert.equal(r2.status, 409);
   assert.deepEqual(await r2.json(), { ok: false, error: 'single-full' });
   assert.equal(e.r2m.m.size, keys, '被拒的那首没写进 R2');
-  assert.equal((await call(e, `/curio/api/music-upload?album=${sid}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' })).status, 200);
+  assert.equal((await call(e, `/music/api/music-upload?album=${sid}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' })).status, 200);
   const aid = await album(e);
   assert.equal((await upTrack(e, aid, 'no=1&title=a')).status, 200);
   assert.equal((await upTrack(e, aid, 'no=2&title=b')).status, 200);
-  const list = await (await call(e, '/curio/api/music', { who: 'owner' })).json();
+  const list = await (await call(e, '/music/api/music', { who: 'owner' })).json();
   assert.deepEqual(list.albums.map((x) => [x.kind, x.tracks.length]), [['single', 1], ['album', 2]]);
 });
 
@@ -498,7 +501,7 @@ test('album.edit 改 kind：专辑 ≤1 首才能转单曲（否则 409 single-t
   assert.deepEqual(MU.parseMusicOp({ op: 'album.edit', id: 1, kind: 'x' }), { error: 'bad-kind' });
   assert.deepEqual(MU.parseMusicOp({ op: 'album.edit', id: 1, kind: 'single' }), { op: 'album.edit', id: 1, fields: { kind: 'single' } });
   const e = makeEnv();
-  const edit = (body) => call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.edit', ...body } });
+  const edit = (body) => call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'album.edit', ...body } });
   const kindOf = (id) => e.db.raw.prepare('SELECT kind FROM music_albums WHERE id = ?').get(id).kind;
   /* 空专辑、1 首的专辑 → 单曲可以 */
   const a0 = await album(e, { title: 'Empty' });
@@ -555,8 +558,8 @@ test('单曲进索引 / AI 读接口带 kind：索引副标题标「单曲」/ S
 
 /* ================= M1 后端（音乐分层方案 v1.18 十 / 十一 / 7.3 / 7.6） ================= */
 
-const musicPost = (e, body) => call(e, '/curio/api/music', { who: 'owner', method: 'POST', body });
-const upCover = (e, id) => call(e, `/curio/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' });
+const musicPost = (e, body) => call(e, '/music/api/music', { who: 'owner', method: 'POST', body });
+const upCover = (e, id) => call(e, `/music/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' });
 const rowOf = (e, t, id) => e.db.raw.prepare(`SELECT * FROM ${t} WHERE id = ?`).get(id);
 const artists = (e) => e.db.raw.prepare('SELECT id, name FROM music_artists ORDER BY id').all().map((r) => r.name);
 /** 让 D1 下一个写曲目的 batch 在最后多跑一条坏语句：整批真回滚（测原子性和 R2 顺序；搜索索引重建那些只读 batch 不算） */
@@ -581,19 +584,19 @@ test('M1 校验：track.edit 收 artist（字符串）/ album_id（正整数 = �
   assert.deepEqual(MU.parseMusicOp({ op: 'album.add', title: 'A', artist: 1 }), { error: 'bad-artist' });
 });
 
-test('M1 十一 1：GET /curio/api/music 每首曲目带歌手名（按 artist_id 对 music_artists；0 → 空），访客和站长都有', async () => {
+test('M1 十一 1：GET /music/api/music 每首曲目带歌手名（按 artist_id 对 music_artists；0 → 空），访客和站长都有', async () => {
   const e = makeEnv();
   const id = await album(e);
   const t1 = (await (await upTrack(e, id, 'no=1&title=A')).json()).id;
   const t2 = (await (await upTrack(e, id, 'no=2&title=B')).json()).id;
   assert.equal((await musicPost(e, { op: 'track.edit', id: t1, artist: 'Joni Mitchell' })).status, 200);
   for (const who of [null, 'owner']) {
-    const list = (await (await call(e, '/curio/api/music', { who })).json()).albums;
+    const list = (await (await call(e, '/music/api/music', { who })).json()).albums;
     assert.deepEqual(list[0].tracks.map((t) => [t.id, t.artist]), [[t1, 'Joni Mitchell'], [t2, '']], String(who));
   }
   /* artist_id 指向不存在的歌手（脏数据）→ 空，不报错 */
   e.db.raw.prepare('UPDATE music_tracks SET artist_id = 999 WHERE id = ?').run(t2);
-  assert.equal((await (await call(e, '/curio/api/music')).json()).albums[0].tracks[1].artist, '');
+  assert.equal((await (await call(e, '/music/api/music')).json()).albums[0].tracks[1].artist, '');
 });
 
 test('M1 十一 4：歌手按名字匹配——去首尾空格后完全一致才算同一个，不合并繁简 / 大小写；没有就建；空 → artist_id 0 不建（album.add / album.edit / track.edit）', async () => {
@@ -704,7 +707,7 @@ test('M1 7.6 单曲划进专辑：空单曲记录（和令牌）删掉、它的�
   await new Promise((r) => setTimeout(r, 3));
   await upCover(e, s);
   const singleCover = rowOf(e, 'music_albums', s).cover;
-  await call(e, '/curio/api/music-play', { who: 'owner', method: 'POST', body: { album: s } });
+  await call(e, '/music/api/music-play', { who: 'owner', method: 'POST', body: { album: s } });
   /* 记下 R2 删封面那一刻 D1 里单曲记录还在不在：必须已经不在（先提交 D1 再删 R2） */
   const seen = [];
   const del = e.r2m.delete.bind(e.r2m);
@@ -855,12 +858,12 @@ test('M3 删单曲唯一一首（track.del）：空单曲记录、令牌、封�
   await upCover(e, s);
   const cover = rowOf(e, 'music_albums', s).cover;
   const audio = rowOf(e, 'music_tracks', t).r2_key;
-  await call(e, '/curio/api/music-play', { who: 'owner', method: 'POST', body: { album: s } });
+  await call(e, '/music/api/music-play', { who: 'owner', method: 'POST', body: { album: s } });
   const seen = [];
   const del = e.r2m.delete.bind(e.r2m);
   e.r2m.delete = async (k) => { seen.push([k, !!rowOf(e, 'music_albums', s)]); return del(k); };
   /* styrigx = 站长：默认组有 music-manage、没有 root（album.del 不够），track.del 照样能删 */
-  const r = await call(e, '/curio/api/music', { who: 'styrigx', method: 'POST', body: { op: 'track.del', id: t } });
+  const r = await call(e, '/music/api/music', { who: 'styrigx', method: 'POST', body: { op: 'track.del', id: t } });
   assert.equal(r.status, 200);
   assert.deepEqual(seen, [[audio, false], [cover, false]], '音频、封面都在 D1 提交之后删');
   assert.equal(rowOf(e, 'music_albums', s), undefined, '空单曲记录删了');
@@ -869,7 +872,7 @@ test('M3 删单曲唯一一首（track.del）：空单曲记录、令牌、封�
   assert.deepEqual((await r.json()).albums, []);
   /* 对照：同一个站长删单曲记录本身（album.del）不够档 */
   const s2 = await album(e, { kind: 'single', title: 'Lake' });
-  assert.equal((await call(e, '/curio/api/music', { who: 'styrigx', method: 'POST', body: { op: 'album.del', id: s2 } })).status, 403);
+  assert.equal((await call(e, '/music/api/music', { who: 'styrigx', method: 'POST', body: { op: 'album.del', id: s2 } })).status, 403);
 });
 
 test('M3 删专辑里的曲目（track.del）：专辑保留，删到空也保留（十一 3）；封面不动', async () => {
@@ -997,8 +1000,8 @@ test('M3 原子性（失败路径）：单曲改名 + 年份 + 歌手时 D1 写�
 
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1]);
 const artistId = (e, name) => (e.db.raw.prepare('SELECT id FROM music_artists WHERE name = ?').get(name) || {}).id;
-const upAvatar = (e, id, body = JPEG, who = 'owner') => call(e, `/curio/api/music-upload?artist=${id}&kind=avatar`, { who, method: 'POST', body, type: 'image/jpeg' });
-const postAs = (e, who, body) => call(e, '/curio/api/music', { who, method: 'POST', body });
+const upAvatar = (e, id, body = JPEG, who = 'owner') => call(e, `/music/api/music-upload?artist=${id}&kind=avatar`, { who, method: 'POST', body, type: 'image/jpeg' });
+const postAs = (e, who, body) => call(e, '/music/api/music', { who, method: 'POST', body });
 
 test('M4 校验：artist.edit {id, name?, bio?, style?}；artist.merge {id, into}；artist.del {id}', () => {
   assert.deepEqual(MU.parseMusicOp({ op: 'artist.edit', id: 3, name: '  周杰伦 ', bio: ' 台湾\r\n歌手\u0007 ', style: ' 流行 ' }), { op: 'artist.edit', id: 3, fields: { name: '周杰伦', bio: '台湾\n歌手', style: '流行' } });
@@ -1025,7 +1028,7 @@ test('M4 歌单：专辑 / 曲目带 artist_id（对不上歌手表 → 0），�
   await album(e, { title: 'Lonely', artist: 'Nobody' });
   const joni = artistId(e, 'Joni Mitchell');
   e.db.raw.prepare('UPDATE music_albums SET artist_id = 999 WHERE title = ?').run('Lonely');
-  const j = await (await call(e, '/curio/api/music')).json();
+  const j = await (await call(e, '/music/api/music')).json();
   assert.deepEqual(j.albums.map((x) => [x.title, x.artist, x.artist_id]), [['Blue', 'Joni Mitchell', joni], ['Lonely', 'Nobody', 0]]);
   assert.deepEqual(j.albums[0].tracks.map((x) => [x.artist, x.artist_id]), [['Joni Mitchell', joni]]);
   assert.deepEqual(j.artists.map((x) => x.name), ['Joni Mitchell', 'Nobody'], '按名字排；没作品的（脏数据断开的 Nobody）也列出来');
@@ -1100,7 +1103,7 @@ test('M4 artist.merge（root）：名下专辑 / 单曲记录（artist_id + 显�
   e.r2m.delete = async (k) => { seen.push([k, !!rowOf(e, 'music_artists', from)]); return del(k); };
   const audits = [];
   const env = { SPACE: whoAuth('owner', { audits }) };
-  const r = await worker.fetch(new Request(ORIGIN + '/curio/api/music', { method: 'POST', headers: { Cookie: 'sgx-session=x', Origin: ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'artist.merge', id: from, into }) }),
+  const r = await worker.fetch(new Request(ORIGIN + '/music/api/music', { method: 'POST', headers: { Cookie: 'sgx-session=x', Origin: ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'artist.merge', id: from, into }) }),
     { ...env, D1_MUSIC: e.db, R2_MUSIC: e.r2m, R2_PHOTOS: e.r2p, KV_SEARCH_INDEX: e.kv, D1_FINDS: e.db, D1_DEVICES: e.db, D1_GAMES: e.db, D1_MOVIES: e.db }, { waitUntil() {} });
   assert.equal(r.status, 200);
   assert.deepEqual(seen, [[av, false]], '原歌手头像在 D1 提交之后删');
@@ -1253,22 +1256,22 @@ test('M4 头像：music-upload kind=avatar（music-manage，只收 jpeg、3 MB�
   const e = makeEnv();
   await album(e, { artist: '周杰伦' });
   const jay = artistId(e, '周杰伦');
-  assert.equal((await call(e, `/curio/api/music-cover?artist=${jay}`)).status, 404, '没头像 404（前端用默认图标）');
+  assert.equal((await call(e, `/music/api/music-cover?artist=${jay}`)).status, 404, '没头像 404（前端用默认图标）');
   assert.equal((await upAvatar(e, jay, JPEG, 'noscope')).status, 403);
   assert.equal((await upAvatar(e, jay, WEBP)).status, 400, '只收 jpeg（浏览器先裁成 jpeg）');
   assert.equal((await upAvatar(e, 999)).status, 404);
-  assert.equal((await call(e, `/curio/api/music-upload?artist=${jay}&album=1&kind=avatar`, { who: 'owner', method: 'POST', body: JPEG, type: 'image/jpeg' })).status, 400);
+  assert.equal((await call(e, `/music/api/music-upload?artist=${jay}&album=1&kind=avatar`, { who: 'owner', method: 'POST', body: JPEG, type: 'image/jpeg' })).status, 400);
   assert.equal((await upAvatar(e, jay, new Uint8Array(3 * 1024 * 1024 + 1).fill(0xff))).status, 413);
   assert.equal((await upAvatar(e, jay, JPEG, 'styrigx')).status, 200, '站长（music-manage）能传');
   const k1 = rowOf(e, 'music_artists', jay).avatar;
   assert.match(k1, new RegExp('^music/artist/' + jay + '/avatar-\\d+\\.jpg$'));
   assert.deepEqual(e.r2m.m.get(k1).bytes, JPEG);
-  const pic = await call(e, `/curio/api/music-cover?artist=${jay}`);
+  const pic = await call(e, `/music/api/music-cover?artist=${jay}`);
   assert.equal(pic.status, 200);
   assert.equal(pic.headers.get('Content-Type'), 'image/jpeg');
-  assert.equal((await (await call(e, '/curio/api/music')).json()).artists[0].avatar, true);
-  assert.doesNotMatch(await (await call(e, '/curio/api/music')).text(), /music\/artist/, '歌单不带 R2 key');
-  assert.equal((await call(e, `/curio/api/music-cover?artist=${jay}&album=1`)).status, 400);
+  assert.equal((await (await call(e, '/music/api/music')).json()).artists[0].avatar, true);
+  assert.doesNotMatch(await (await call(e, '/music/api/music')).text(), /music\/artist/, '歌单不带 R2 key');
+  assert.equal((await call(e, `/music/api/music-cover?artist=${jay}&album=1`)).status, 400);
   await new Promise((r) => setTimeout(r, 2));
   await upAvatar(e, jay);
   const k2 = rowOf(e, 'music_artists', jay).avatar;
@@ -1286,15 +1289,15 @@ test('M4 头像：music-upload kind=avatar（music-manage，只收 jpeg、3 MB�
 
 test('M4 权限走真路由表：artist.edit = music-manage；artist.merge / artist.del = root（同 album.del，一次性票的 action 绑 body 里的 op）', async () => {
   const RA = await import(REPO + '/workers/account/src/core/route-access.js');
-  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.edit' }), 'music-manage');
-  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.merge' }), 'root');
-  assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.del' }), 'root');
-  assert.equal(RA.ruleOf('POST', '/curio/api/music').sudoTicket, true);
+  assert.equal(RA.levelOf('POST', '/music/api/music', { action: 'artist.edit' }), 'music-manage');
+  assert.equal(RA.levelOf('POST', '/music/api/music', { action: 'artist.merge' }), 'root');
+  assert.equal(RA.levelOf('POST', '/music/api/music', { action: 'artist.del' }), 'root');
+  assert.equal(RA.ruleOf('POST', '/music/api/music').sudoTicket, true);
 });
 
-/* ================= music 搬家第 2 步：/music/api/* ================= */
+/* ================= music 搬家第 2 / 4 步：/music/api/*；旧 /curio/api/music* 删掉 ================= */
 
-test('音乐新路径 /music/api/*（搬家第 2 步）：同一份 handler、同一个库；档同旧路径；播放地址跟着前缀走；旧路径照常；奇趣接口不能从新前缀走', async () => {
+test('音乐路径 /music/api/*（搬家第 2 步加，第 4 步起唯一）：档照旧；播放地址在 /music 下；奇趣接口不能从 /music 前缀走', async () => {
   const e = makeEnv();
   /* 档：访客写 401、alice（只有 music-use）写 403、root 写 200 */
   assert.equal((await call(e, '/music/api/music', { method: 'POST', body: { op: 'album.add', title: 'A' } })).status, 401);
@@ -1305,32 +1308,50 @@ test('音乐新路径 /music/api/*（搬家第 2 步）：同一份 handler、�
   const up = await call(e, `/music/api/music-upload?album=${id}&kind=track&no=1&title=New%20Born&duration=60`, { who: 'owner', method: 'POST', body: AUDIO, type: 'audio/mpeg' });
   assert.equal(up.status, 200);
   assert.equal((await call(e, `/music/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' })).status, 200);
-  /* 新旧两条路径读到同一份歌单（公开，不带音频地址） */
   const neu = await (await call(e, '/music/api/music')).json();
-  const old = await (await call(e, '/curio/api/music')).json();
-  assert.deepEqual(neu, old);
   assert.equal(neu.albums.length, 1);
   assert.equal(neu.canManage, false);
-  assert.equal((await (await call(e, '/music/api/music', { who: 'styrigx' })).json()).canManage, true, 'manage 提示同样按 music-manage 问');
+  assert.equal((await (await call(e, '/music/api/music', { who: 'styrigx' })).json()).canManage, true, 'manage 提示按 music-manage 问');
   assert.equal((await call(e, `/music/api/music-cover?album=${id}`)).status, 200);
-  /* 听：访客 401、没组 403；有 music-use 的签到的地址在新前缀下，旧前缀签的仍在旧前缀下，两边都能取 */
+  /* 听：访客 401、没组 403；有 music-use 的签到的地址在 /music 前缀下 */
   assert.equal((await call(e, '/music/api/music-play', { method: 'POST', body: { album: id } })).status, 401);
   assert.equal((await call(e, '/music/api/music-play', { who: 'lock', method: 'POST', body: { album: id } })).status, 403);
   const pn = await (await call(e, '/music/api/music-play', { who: 'noscope', method: 'POST', body: { album: id } })).json();
   assert.match(pn.tracks[0].src, /^\/music\/api\/music-stream\?t=/);
-  const po = await (await call(e, '/curio/api/music-play', { who: 'noscope', method: 'POST', body: { album: id } })).json();
-  assert.match(po.tracks[0].src, /^\/curio\/api\/music-stream\?t=/);
-  for (const src of [pn.tracks[0].src, po.tracks[0].src]) {
-    const r = await call(e, src, { who: 'noscope', origin: null });
-    assert.equal(r.status, 200, src);
-    assert.equal((await call(e, src, { origin: null })).status, 401, '没有身份不给音频 ' + src);
-  }
-  /* 奇趣接口不能从新前缀走：账号路由表里没有这些路径 → 谁来都 401（同旧路径下不在表里的 /curio/api/access） */
+  const r = await call(e, pn.tracks[0].src, { who: 'noscope', origin: null });
+  assert.equal(r.status, 200);
+  assert.equal((await call(e, pn.tracks[0].src, { origin: null })).status, 401, '没有身份不给音频');
+  /* 奇趣接口不能从 /music 前缀走：账号路由表里没有这些路径 → 谁来都 401（同 /curio/api/access 这类表外路径） */
   for (const p of ['/music/api/items', '/music/api/links', '/music/api/export', '/music/api/nope']) {
     assert.equal((await call(e, p)).status, 401, p);
     assert.equal((await call(e, p, { who: 'owner' })).status, 401, p);
   }
-  assert.equal((await call(e, '/curio/api/items', { who: 'owner' })).status, 200, '旧前缀的奇趣接口不受影响');
+  assert.equal((await call(e, '/curio/api/items', { who: 'owner' })).status, 200, '奇趣接口在 /curio 前缀下不受影响');
   assert.equal((await call(e, '/music/api/music/x')).status, 401, '精确匹配：多一段不是公开的');
   assert.equal((await call(e, '/music/api/music', { method: 'PUT', body: {} })).status, 401);
+});
+
+test('music 搬家第 4 步：旧 /curio/api/music* 删掉、不留别名——7 个旧「方法 + 路径」谁来都是表外路径（401，不进 handler、不碰库）', async () => {
+  const e = makeEnv();
+  const add = await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Absolution', artist: 'Muse' } });
+  const id = (await add.json()).id;
+  const OLD = [
+    ['GET', '/curio/api/music'], ['POST', '/curio/api/music', { op: 'album.add', title: 'X' }], ['GET', `/curio/api/music-cover?album=${id}`],
+    ['POST', '/curio/api/music-play', { album: id }], ['GET', '/curio/api/music-stream?t=' + 'A'.repeat(43) + '&id=1'], ['HEAD', '/curio/api/music-stream?t=x&id=1'],
+    ['POST', `/curio/api/music-upload?album=${id}&kind=cover`],
+  ];
+  for (const [method, p, body] of OLD) {
+    for (const who of [null, 'noscope', 'owner', 'root']) {
+      const r = await call(e, p, { who, method, body });
+      assert.equal(r.status, 401, method + ' ' + p + ' ' + who);
+      assert.equal(r.headers.get('X-Curio-Runtime'), 'worker', '仍由本 Worker 回答（/curio/api/* 这条路由还在）');
+    }
+  }
+  /* 没写进去：旧 POST 一条都没生效 */
+  assert.equal((await (await call(e, '/music/api/music', { who: 'owner' })).json()).albums.length, 1);
+  /* 奇趣路由表、账号路由表里都没有旧路径了 */
+  const CR = await import(W + '/routes.js');
+  const RA = await import(REPO + '/workers/account/src/core/route-access.js');
+  for (const r of CR.ROUTE_ACCESS) assert.doesNotMatch(r.path, /^\/api\/music/, r.path);
+  assert.equal(RA.ROUTE_ACCESS.filter((r) => r.path.startsWith('/curio/api/music')).length, 0);
 });

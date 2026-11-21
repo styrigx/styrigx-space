@@ -1497,7 +1497,7 @@ jobs:
   deploy-atlas-core:
     # 内容层接口 Worker styrigx-atlas-core（workers/atlas-core；2026-11-14 Atlas 后端合并：原 deploy-curio-core / deploy-daymark-core 两个 job 合成本 job）。
     # 奇趣 + 日刻 + 音乐一个 Worker、一个 D1、一个 R2；路由见 workers/atlas-core/wrangler.toml：styrigx.com/curio/api/*、styrigx.com/daymark/api/*、
-    # styrigx.com/music/api/*（music 搬家第 2 步；旧 /curio/api/music* 照常），
+    # styrigx.com/music/api/*（music 搬家第 2 步加；第 4 步删掉旧 /curio/api/music*，旧地址落在 /curio/api/* 上回 401），
     # 比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：v6 会话经站点核心 SpaceVerifier.admit() 问账号 Worker（服务绑定 SPACE）。
     # 排在 styrigx-space-core 之后（needs）：服务绑定 SPACE 指向的 Worker / 入口 SpaceVerifier 要先在。status（JOB_ATLAS）、ai（CURIO）绑本 Worker 的入口，
     # 本 Worker 已在线上（2026-11-14 不挂路由先部署过），所以它们排在前面也部署得了。
@@ -1573,10 +1573,10 @@ jobs:
             echo "::error::$1 expected $2 with X-Atlas-Runtime: worker"; return 1
           }
           ok=0
-          # 访问表（workers/atlas-core/src/curio/routes.js、src/daymark/routes.js ROUTE_ACCESS）：读公开；听 / 导出 / 表外路径要进站
+          # 访问表（workers/atlas-core/src/curio/routes.js、src/music/routes.js、src/daymark/routes.js ROUTE_ACCESS）：读公开；听 / 导出 / 表外路径要进站
           check "https://styrigx.com/curio/api/links" 200 || ok=1
-          check "https://styrigx.com/curio/api/music" 200 || ok=1
-          check "https://styrigx.com/curio/api/music-stream?t=smoke&id=1" 401 || ok=1
+          # music 搬家第 4 步：旧 /curio/api/music* 删掉、不留别名——仍由本 Worker 回答，但是表外路径（401）
+          check "https://styrigx.com/curio/api/music" 401 || ok=1
           check "https://styrigx.com/curio/api/export" 401 || ok=1
           check "https://styrigx.com/daymark/api/quotes" 200 || ok=1
           check "https://styrigx.com/daymark/api/today" 200 || ok=1

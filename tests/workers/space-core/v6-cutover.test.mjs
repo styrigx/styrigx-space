@@ -58,9 +58,9 @@ test('GET /api/space-audit（root）：v6 root 200；styrigx 403 forbidden（2b�
 test('SpaceVerifier.admit / auditRoot：原样转给账号 Worker（带 action）；没 sgx-session 不问；出错 → allowed:false；回答只留白名单字段', async () => {
   const { env, rec } = setup();
   const v = new SpaceVerifier({}, env);
-  let r = await v.admit('a=1; sgx-session=styrigx', 'post', '/curio/api/music', { action: 'album.del' });
+  let r = await v.admit('a=1; sgx-session=styrigx', 'post', '/music/api/music', { action: 'album.del' });
   assert.deepEqual(r, { allowed: false, reason: 'need-root', uid: 1000, root: false, rescue: false, action: 'album.del' });
-  assert.deepEqual(rec.calls.at(-1), ['a=1; sgx-session=styrigx', 'POST', '/curio/api/music', { action: 'album.del' }]);
+  assert.deepEqual(rec.calls.at(-1), ['a=1; sgx-session=styrigx', 'POST', '/music/api/music', { action: 'album.del' }]);
   r = await v.admit('sgx-session=root', 'GET', '/curio/api/export');
   assert.equal(r.allowed, true); assert.equal(r.root, true); assert.equal(r.action, '');
   assert.equal(rec.calls.at(-1).length, 3, '不带 action 时不传第 4 个参数（旧版本账号 Worker 兼容）');

@@ -108,12 +108,12 @@ test('AccountVerifier.admit 带 action：按 action 的档、回答带回 action
   const rt = 'sgx-session=' + (await rootToken(env));
   const a = (ck, m, p, act) => checkAdmit(env, ck, m, p, act === undefined ? undefined : { action: act });
   /* album.del = root */
-  let r = await a(sty, 'POST', '/curio/api/music', 'album.del');
+  let r = await a(sty, 'POST', '/music/api/music', 'album.del');
   assert.equal(r.allowed, false); assert.equal(r.reason, 'need-root'); assert.equal(r.action, 'album.del'); assert.equal(r.uid, 1000);
-  r = await a(rt, 'POST', '/curio/api/music', 'album.del');
+  r = await a(rt, 'POST', '/music/api/music', 'album.del');
   assert.equal(r.allowed, true); assert.equal(r.root, true); assert.equal(r.action, 'album.del');
-  assert.equal((await a(sty, 'POST', '/curio/api/music', 'album.add')).allowed, true);
-  assert.equal((await a(ali, 'POST', '/curio/api/music', 'album.add')).allowed, false);
+  assert.equal((await a(sty, 'POST', '/music/api/music', 'album.add')).allowed, true);
+  assert.equal((await a(ali, 'POST', '/music/api/music', 'album.add')).allowed, false);
   /* 私密行：action private = 写组 */
   assert.equal((await a(sty, 'GET', '/curio/api/items', 'private')).allowed, true);
   assert.equal((await a(ali, 'GET', '/curio/api/items', 'private')).allowed, false);
@@ -135,14 +135,14 @@ test('AccountVerifier.admit 带 action：按 action 的档、回答带回 action
   assert.equal((await a(rt, 'POST', '/api/share')).reason, 'not-listed', '分享短链 v6 P4 删除：表里没有这条');
   assert.equal((await a(sty, 'GET', '/api/space-audit')).allowed, false);
   assert.equal((await a(rt, 'GET', '/api/space-audit')).allowed, true);
-  assert.equal((await a(ali, 'POST', '/curio/api/music-play')).allowed, true, 'music-use');
+  assert.equal((await a(ali, 'POST', '/music/api/music-play')).allowed, true, 'music-use');
   assert.equal(r.sessionId, undefined, '会话行 id 不出账号 Worker');
 });
 
 test('路由表：action private 挂在奇趣 / 日刻 / 音乐公开 GET 上（= <产品>-use，另有 manage = <产品>-manage，组权限 v1.1 §七、§八）和 POST /api/ai 上（2c：= webmaster）', () => {
   const withPrivate = RA.ROUTE_ACCESS.filter((r) => r.actions && Object.prototype.hasOwnProperty.call(r.actions, 'private'));
   assert.deepEqual(withPrivate.map((r) => r.method + ' ' + r.path).sort(), [
-    'GET /curio/api/icon', 'GET /curio/api/items', 'GET /curio/api/links', 'GET /curio/api/movies', 'GET /curio/api/music', 'GET /curio/api/photo',
+    'GET /curio/api/icon', 'GET /curio/api/items', 'GET /curio/api/links', 'GET /curio/api/movies', 'GET /curio/api/photo',
     'GET /daymark/api/collections', 'GET /daymark/api/quotes', 'GET /music/api/music', 'POST /api/ai',
   ]);
   for (const r of withPrivate) {
@@ -156,7 +156,7 @@ test('路由表：action private 挂在奇趣 / 日刻 / 音乐公开 GET 上（
     }
     assert.deepEqual(Object.keys(r.actions).sort(), ['manage', 'private'], r.path);
     assert.equal(r.level, 'public', r.path);
-    const product = r.path.startsWith('/curio/api/music') || r.path.startsWith('/music/') ? 'music' : r.path.startsWith('/curio/') ? 'curio' : 'daymark';
+    const product = r.path.startsWith('/music/') ? 'music' : r.path.startsWith('/curio/') ? 'curio' : 'daymark';
     assert.equal(r.product, product, r.path);
     assert.equal(r.actions.private, product + '-use', r.path);
     assert.equal(r.actions.manage, product + '-manage', r.path);

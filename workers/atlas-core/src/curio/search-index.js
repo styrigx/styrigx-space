@@ -13,7 +13,7 @@
  *   - 游戏（games）：title = 名字；subtitle =「游戏 · 平台 · 状态」；text = 版本、评价；url = 游戏子页 games/
  *   - 电影（movies）：title = 片名；subtitle =「电影 · 年份 · 导演」；text = 原名、导演、年份、评分、观看日期、短评；url = 电影子页 movies/
  *   - 音乐（music_albums + music_tracks，元数据）：一张专辑 / 一首单曲一条，title = 专辑名 / 歌名；subtitle =「音乐 · 歌手 · 年份」（单曲「音乐 · 单曲 · 歌手 · 年份」）；text = 歌手 + 曲目表（曲序. 曲名）；
- *     url = 音乐子页 music/。音频 / 封面 / 歌词不进。2026-11 AI 语义召回起电影、音乐都进（Gray 2026-11-07：除账号数据外全部放开，
+ *     url = 音乐页 /music/（中文 /music/zh/，music 搬家第 4 步起；之前是奇趣子页 /curio/music/，见 musicUrl）。音频 / 封面 / 歌词不进。2026-11 AI 语义召回起电影、音乐都进（Gray 2026-11-07：除账号数据外全部放开，
  *     站有门锁、音乐已付费，不按版权敏感处理）；两者都没有私密列，不标 private（进门即可问）
  *   - text 最多 2000 字，只参与匹配，搜索 Worker 不回给前端
  *   - private：账号未登录看不到的标 private:true，只给账号已登录的人搜到。规则同 _store.js 的 listAll、_items.js 的 listItems：
@@ -92,6 +92,14 @@ function pick(zh, en, lang) {
  */
 export function pageUrl(lang, section, hash) {
   return SITE_URL + (lang && lang !== DEFAULT_LANG ? '/' + lang + '/' : '/') + (section ? section + '/' : '') + (hash || '');
+}
+
+/** 音乐页地址（music 搬家设计稿 v1.1 3.1：音乐是第四个子站，/<站>/zh/ 规矩——英文 /music/，中文 /music/zh/；第 4 步起专辑链到这里） */
+export const MUSIC_URL = 'https://styrigx.com/music';
+
+/** @param {'zh'|'en'} lang */
+export function musicUrl(lang) {
+  return MUSIC_URL + (lang && lang !== DEFAULT_LANG ? '/' + lang + '/' : '/');
 }
 
 /** @param {Record<string, any>} it @param {string} subtitle @param {string[]} parts @param {boolean} priv */
@@ -179,7 +187,7 @@ export function albumItems(a, tracks) {
     const title = clip(a.title, TITLE_MAX);
     if (!title) continue;
     const T = labels(lang);
-    const it = { id: 'album:' + a.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: pageUrl(lang, 'music') };
+    const it = { id: 'album:' + a.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: musicUrl(lang) };
     /* 单曲（kind=single，v1.13 ②）：副标题标「单曲」——「音乐 · 单曲 · 歌手 · 年份」；专辑照旧「音乐 · 歌手 · 年份」 */
     const sub = [T.music, a.kind === 'single' ? T.single : '', a.artist, a.year ? String(a.year) : ''].filter(Boolean).join(' · ');
     out.push(finish(it, sub, [a.artist ? T.artist + ': ' + a.artist : '', list], false));

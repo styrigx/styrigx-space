@@ -35,7 +35,7 @@ test('styrigx：组档放行、root 档 need-root；su root 后 root 档放行�
   seedBase(env);
   const s = await seedSession(env, { uid: 1000 });
   const req = reqWithToken(s.token);
-  for (const [m, p] of [['GET', '/api/status'], ['POST', '/api/ai'], ['POST', '/curio/api/music-play'], ['DELETE', '/daymark/api/quotes'], ['PUT', '/api/avatar']]) {
+  for (const [m, p] of [['GET', '/api/status'], ['POST', '/api/ai'], ['POST', '/music/api/music-play'], ['DELETE', '/daymark/api/quotes'], ['PUT', '/api/avatar']]) {
     const r = await A.admitRoute(env, req, m, p, NOW);
     assert.equal(r.allowed, true, m + ' ' + p);
     assert.equal(r.uid, 1000);
@@ -53,7 +53,7 @@ test('临时用户：只有给的组；救援会话只走 rescue 路由', async 
   seedBase(env);
   seedUser(env, { uid: 1001, name: 'guest', expiresAt: NOW + 86400000, groups: ['music-use'] });
   const t = await seedSession(env, { uid: 1001 });
-  assert.equal((await A.admitRoute(env, reqWithToken(t.token), 'POST', '/curio/api/music-play', NOW)).allowed, true);
+  assert.equal((await A.admitRoute(env, reqWithToken(t.token), 'POST', '/music/api/music-play', NOW)).allowed, true);
   const ai = await A.admitRoute(env, reqWithToken(t.token), 'POST', '/api/ai', NOW);
   assert.deepEqual([ai.allowed, ai.reason], [false, 'need-ai-use']);
   const r = await seedSession(env, { uid: 0, rescue: true, expiresAt: NOW + 600000 });

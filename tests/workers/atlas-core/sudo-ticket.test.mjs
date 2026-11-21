@@ -1,7 +1,7 @@
 // D-3 a′「先验后发票」（偏离稿 v3.12 第 9 节）：atlas-core 与 space-core 这一侧。
 // - 带 X-Sgx-Sudo 的请求只按票判：经 SPACE.sudoAdmit 核销（每个请求只一次），对得上 → root（sudo），对不上 → 403（有会话）/ 401（没会话），
 //   不退回会话本身的档
-// - POST /curio/api/music：票绑 body 里的 op（先卡大小再解析）；别的 action 拿不到票的结论
+// - POST /music/api/music：票绑 body 里的 op（先卡大小再解析）；别的 action 拿不到票的结论
 // - 本 Worker、space-core 都不把票打进日志
 // - space-core SpaceVerifier.sudoAdmit 原样转账号 Worker，只认 allowed + root + sudo + uid 0 + 同一个 action
 // 运行：node --test tests/workers/atlas-core/sudo-ticket.test.mjs
@@ -64,13 +64,13 @@ test('票对不上 → 403（有会话）/ 401（没会话）；不退回会话�
 
 test('音乐：票绑 body 里的 op（album.del）；别的 action 拿不到票的结论；超大 body 不解析', async () => {
   const S = space(true);
-  const c = ctx('POST', '/curio/api/music', { SPACE: S }, { body: JSON.stringify({ op: 'album.del', id: 3 }) });
+  const c = ctx('POST', '/music/api/music', { SPACE: S }, { body: JSON.stringify({ op: 'album.del', id: 3 }) });
   assert.equal((await CA.requireMusic(c)), null);
   assert.equal((await CA.v6Of(c, 'album.del')).allowed, true);
   assert.equal((await CA.v6Of(c, 'album.add')).allowed, false);
-  assert.deepEqual(S.calls, [['sudoAdmit', TICKET, 'POST', '/curio/api/music', 'album.del']]);
+  assert.deepEqual(S.calls, [['sudoAdmit', TICKET, 'POST', '/music/api/music', 'album.del']]);
   assert.equal((await c.request.json()).op, 'album.del', '处理函数照样能读 body');
-  const big = ctx('POST', '/curio/api/music', { SPACE: space(true) }, { body: JSON.stringify({ op: 'album.del', pad: 'x'.repeat(70000) }) });
+  const big = ctx('POST', '/music/api/music', { SPACE: space(true) }, { body: JSON.stringify({ op: 'album.del', pad: 'x'.repeat(70000) }) });
   assert.equal((await CA.requireMusic(big)).status, 403);
 });
 
@@ -107,10 +107,10 @@ test('space-core：SpaceVerifier.sudoAdmit 原样转账号 Worker，只认 root 
   const acct = (r, throws) => ({ async sudoAdmit(...a) { seen.push(a); if (throws) throw new Error('x ' + a[1]); return r; } });
   const sv = (A) => Object.assign(Object.create(SpaceVerifier.prototype), { env: { ACCOUNT_VERIFIER: A } });
   const good = { allowed: true, uid: 0, root: true, sudo: true, sudoBy: 1000, action: 'album.del' };
-  const r = await sv(acct(good)).sudoAdmit(COOKIE, TICKET, 'post', '/curio/api/music', { action: 'album.del' });
+  const r = await sv(acct(good)).sudoAdmit(COOKIE, TICKET, 'post', '/music/api/music', { action: 'album.del' });
   assert.deepEqual({ a: r.allowed, root: r.root, sudo: r.sudo, by: r.sudoBy }, { a: true, root: true, sudo: true, by: 1000 });
-  assert.deepEqual(seen[0].slice(1), [TICKET, 'POST', '/curio/api/music', { action: 'album.del' }]);
-  assert.equal((await sv(acct(Object.assign({}, good, { action: '' }))).sudoAdmit(COOKIE, TICKET, 'POST', '/curio/api/music', { action: 'album.del' })).allowed, false, 'action 对不上');
+  assert.deepEqual(seen[0].slice(1), [TICKET, 'POST', '/music/api/music', { action: 'album.del' }]);
+  assert.equal((await sv(acct(Object.assign({}, good, { action: '' }))).sudoAdmit(COOKIE, TICKET, 'POST', '/music/api/music', { action: 'album.del' })).allowed, false, 'action 对不上');
   assert.equal((await sv(acct(Object.assign({}, good, { uid: 1000 }))).sudoAdmit(COOKIE, TICKET, 'GET', '/curio/api/export')).allowed, false, '不是 uid 0');
   assert.equal((await sv(acct(good)).sudoAdmit('', TICKET, 'GET', '/curio/api/export')).allowed, false, '没会话不转');
   assert.equal(await IA.askSudoAdmit({ ACCOUNT_VERIFIER: acct(good) }, COOKIE, 'bad', 'GET', '/curio/api/export'), null, '票格式不对不转');
