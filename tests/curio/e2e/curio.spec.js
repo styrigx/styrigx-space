@@ -1,5 +1,5 @@
 // 奇趣（手机）：接口用 page.route 假数据，不碰线上。2026-11 对齐 PR-C2（设计稿 pg=curio / citem）：首页 /curio/ 就是「发现」，
-//   分区 /curio/finds/、/devices/、/games/、/movies/、/music/（中文 /curio/zh/…）是页头的下划线 tab（#cu-tabs）。电影、音乐的用例在 curio-movies-music.spec.js。
+//   分区 /curio/finds/、/devices/、/games/、/movies/（中文 /curio/zh/…）和音乐（music 搬家第 3 步起是第四个子站 /music/，tab 照旧在）是页头的下划线 tab（#cu-tabs）。电影、音乐的用例在 curio-movies-music.spec.js。
 // - 顶栏：字标 · 页名胶囊（首页 = 奇趣，子页 = 子页名）· 外观 · 盾牌 · >_ · 头像；页头 tab 带计数，音乐 tab 仅本人可见
 // - 账号没登录（canManage=false）：命令链里没有「收藏 / 管理分类 / 导入 / 导出」，只有「su · su 登录后可编辑」打开顶栏终端预填 su （2c，v6 割接）；封面卡点开新标签页；图标取不到显示首字母
 // - 分类 chips 筛选 + hash；grep 行内过滤；排序；分页条；旧 hash 地址（#devices、#games）在首页转到子页（#c/<分类> 就地生效）；左右滑切分区已删
@@ -113,7 +113,7 @@ test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab �
   await expect(page.locator('#cu-tabs .sgx-ctab-a')).toHaveCount(5);
   await expect(page.locator('#cu-tabs .sgx-ctab-a:visible')).toHaveText([/^finds\/\s*2$/, /^devices\/\s*2$/, /^games\/\s*2$/, /^movies\//, /^music\//]);
   await expect(page.locator('#cu-tabs [data-ctab="finds"]')).toHaveAttribute('aria-current', 'page');
-  for (const [id, href] of [['finds', '/curio/zh/finds/'], ['devices', '/curio/zh/devices/'], ['games', '/curio/zh/games/'], ['movies', '/curio/zh/movies/'], ['music', '/curio/zh/music/']]) {
+  for (const [id, href] of [['finds', '/curio/zh/finds/'], ['devices', '/curio/zh/devices/'], ['games', '/curio/zh/games/'], ['movies', '/curio/zh/movies/'], ['music', '/music/zh/'] /* music 搬家第 3 步：第四个子站 */]) {
     await expect(page.locator(`#cu-tabs [data-ctab="${id}"]`)).toHaveAttribute('href', href);
   }
   await expect(page.locator('#cu-entries, #cu-segs, .sgx-ents, .sgx-segs, #cu-menu-btn')).toHaveCount(0);

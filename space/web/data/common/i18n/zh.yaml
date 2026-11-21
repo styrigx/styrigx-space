@@ -41,7 +41,7 @@ player:
   signIn: 登录
   loading: 加载中…
 js:
-  # 共用播放器（/curio/music/player/，music-player.js 读 #sgx-i18n-curioPlayer；2026-11 第 7 步从 data/curio/i18n 搬来，表名不改）
+  # 共用播放器（/music/player/，music 搬家第 3 步前 /curio/music/player/；music-player.js 读 #sgx-i18n-curioPlayer；2026-11 第 7 步从 data/curio/i18n 搬来，表名不改）
   curioPlayer:
     tracks: '{n} 首'
     failed: 出了点问题，请再试一次。

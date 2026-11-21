@@ -80,7 +80,7 @@ test('精确匹配：多一段、换方法、编码 / 大小写都不是 public�
   assert.equal(accessOf('GET', '/api/find/'), 'public');
   for (const [m, p] of [['GET', '/api/geo/x'], ['GET', '/api/geo//'], ['POST', '/api/geo'], ['GET', '/api/geox'], ['GET', '/API/geo'], ['GET', '/api/%67eo'],
     ['GET', '/api/wellbeing'], ['GET', '/api/wellbeing/x'], ['POST', '/api/wellbeing'], ['POST', '/api/find'], ['HEAD', '/api/find'], ['GET', '/api/find/x'], ['GET', '/api/search'], ['GET', '/api/lock-entry/x'], ['POST', '/api/lock-entry'], ['GET', '/api/lock-password'],
-    ['GET', '/api/lock-session-check/../ai'], ['GET', '/api/unknown'], ['GET', '/curio/api/music'], ['GET', '/daymark/api/today']]) {
+    ['GET', '/api/lock-session-check/../ai'], ['GET', '/api/unknown'], ['GET', '/curio/api/music'], ['GET', '/daymark/api/today'], ['GET', '/music/api/music'], ['POST', '/music/api/music-play']]) {
     assert.equal(accessOf(m, p), 'entry', m + ' ' + p);
   }
   /* v6 P4：/s/<码> 是普通页面路径（public，Pages 回 404），不再是分享短链 */
@@ -88,15 +88,17 @@ test('精确匹配：多一段、换方法、编码 / 大小写都不是 public�
   assert.equal(accessOf('POST', '/s/abc'), 'public');
   assert.equal(isApiPath('/s/abc'), false);
   /* 页面路径一律 public */
-  for (const p of ['/', '/zh/', '/status/', '/blog/post/x/', '/curio/music/', '/daymark/', '/files-index.json', '/index.xml', '/blog/rss.xml', '/avatar/96.webp']) {
+  for (const p of ['/', '/zh/', '/status/', '/blog/post/x/', '/curio/music/', '/music/', '/music/zh/', '/music/player/', '/daymark/', '/files-index.json', '/index.xml', '/blog/rss.xml', '/avatar/96.webp']) {
     assert.equal(accessOf('GET', p), 'public', p);
     assert.equal(isApiPath(p), false, p);
   }
-  for (const p of ['/api/x', '/blog/api/x', '/CURIO/api/x', '/%63urio/api/x', '//daymark//api']) assert.equal(isApiPath(p), true, p);
+  for (const p of ['/api/x', '/blog/api/x', '/CURIO/api/x', '/%63urio/api/x', '//daymark//api', '/music/api/music', '/MUSIC/api/music-stream', '/music/api']) assert.equal(isApiPath(p), true, p);
+  /* music 搬家第 3 步：music 进了 SUBSITES 才认 /music/api/*；/zh/music/api 不是（第一段 zh 不是子站） */
+  assert.equal(isApiPath('/zh/music/api/x'), false);
 });
 
-test('访客：/status/、/blog/、/curio/、/daymark/ 页面 200 HTML（标 locked、no-store，不 302）', async () => {
-  for (const p of ['/', '/zh/', '/status/', '/zh/status/', '/blog/', '/blog/post/hello/', '/curio/', '/curio/music/', '/curio/zh/music/', '/daymark/', '/daymark/zh/']) {
+test('访客：/status/、/blog/、/curio/、/daymark/、/music/ 页面 200 HTML（标 locked、no-store，不 302）', async () => {
+  for (const p of ['/', '/zh/', '/status/', '/zh/status/', '/blog/', '/blog/post/hello/', '/curio/', '/curio/music/', '/curio/zh/music/', '/daymark/', '/daymark/zh/', '/music/', '/music/zh/', '/music/player/?album=1&t=0']) {
     const e = env();
     const r = await get(e, p);
     assert.equal(r.status, 200, p);

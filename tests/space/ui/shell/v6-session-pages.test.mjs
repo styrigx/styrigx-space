@@ -75,14 +75,16 @@ test('403 forbidden 文案：AI 窗口有自己的一句，不再落到「会话
   assert.match(status, /perm \? 'auditErrPerm'/);
 });
 
-test('奇趣 / 日刻：403 forbidden → noPermission（四处错误文案 + 两种语言）', () => {
+test('奇趣 / 日刻 / 音乐：403 forbidden → noPermission（四处错误文案 + 两种语言）', () => {
   assert.match(rd('space/web/assets/curio/js/curio.js'), /c === 'forbidden' \? \(T\.noPermission/);
   assert.match(rd('space/web/assets/curio/js/curio-items.js'), /c === 'forbidden'\) return T\.noPermission/);
-  assert.match(rd('space/web/assets/curio/js/curio-music.js'), /e\.code === 'forbidden' && T\.noPermission/);
+  assert.match(rd('space/web/assets/music/js/music-page.js'), /e\.code === 'forbidden' && T\.noPermission/);
   assert.match(rd('space/web/assets/daymark/js/daymark.js'), /c === 'forbidden' && T\.noPermission/);
   for (const lang of ['en', 'zh']) {
     const c = yaml.load(rd('space/web/data/curio/i18n/' + lang + '.yaml')).js;
-    for (const s of ['curio', 'curioItems', 'curioMusic']) assert.ok(c[s].noPermission, lang + ' curio.' + s);
+    for (const s of ['curio', 'curioItems']) assert.ok(c[s].noPermission, lang + ' curio.' + s);
+    /* music 搬家第 3 步：音乐页文案表 curioMusic → data/music/i18n 的 js.musicPage */
+    assert.ok(yaml.load(rd('space/web/data/music/i18n/' + lang + '.yaml')).js.musicPage.noPermission, lang + ' music.musicPage');
     assert.ok(yaml.load(rd('space/web/data/daymark/i18n/' + lang + '.yaml')).js.daymark.noPermission, lang + ' daymark');
   }
 });

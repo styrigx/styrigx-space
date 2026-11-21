@@ -1,4 +1,5 @@
-/* assets/curio/js/curio-music-tags.js —— 音乐上传预填（M2 PR-a，音乐分层方案 v1.19 7.4 / 十二 M2 第 1 条；浏览器 IIFE，node 测试时导出）。
+/* assets/music/js/music-tags.js —— 音乐上传预填（M2 PR-a，音乐分层方案 v1.19 7.4 / 十二 M2 第 1 条；浏览器 IIFE，node 测试时导出）。
+ * music 搬家第 3 步（2026-11-21）从 assets/curio/js/curio-music-tags.js 改名搬来，内容不变。
  *
  * 只在浏览器里读，不碰后端，不加依赖（自己写的轻量读标签）：
  *   - mp3：ID3v2.3 / 2.4 的 TIT2（歌名）、TPE1（歌手）、APIC（内嵌封面）；文字编码 0–3（0 = ISO-8859-1，实际常见 GBK / UTF-8 冒充，见 guessText）；

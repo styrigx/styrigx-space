@@ -1,17 +1,18 @@
 /* assets/common/js/music/music-core.js —— 音乐播放共用核（音乐分层方案 v1.13 第二步 2a；浏览器 IIFE → window.SgxMusicCore；node 测试时 module.exports）。
  *
- * 奇趣音乐页（curio-music.js）和弹出播放器（2b）各自引用这一份，免得两份签令牌 / 续签逻辑：
- *   - 签令牌：POST /curio/api/music-play {album} 由调用方传 sign(albumId) 发（各页自己的 req 管 401 / 只看模式），
+ * music 搬家第 3 步（搬家设计稿 v1.1 3.3，2026-11-21）起只有播放器（唯一发声的页，/music/player/、music-player.js）createPlayer；
+ * 音乐页（/music/，music/js/music-page.js）不再出声，只借这里的纯函数（isSingle / coverOf / fmtTime / artistHref / CHANNEL）。逻辑没改，只是少了一个调用方：
+ *   - 签令牌：POST /music/api/music-play {album} 由调用方传 sign(albumId) 发（调用方自己的 req 管 401 / 只看模式），
  *     这里只记 album / list / expires；同一张专辑、离过期还有 30 秒以上不重签。
  *   - 切曲：start / playFrom / step（上一首 / 下一首）/ ended 接下一首、放完停。
  *   - 续签：放到一半令牌过期（<audio> 报错）续签一次，接着原来的位置放。
  *   - 倍速：换曲目也保持。
- *   - 防同时响：同源各页共用 BroadcastChannel「sgx-music」，一边开播就广播 playing，别的页（奇趣页 / 播放器）收到就暂停。
+ *   - 防同时响：同源各页共用 BroadcastChannel「sgx-music」，一边开播就广播 playing，别的页收到就暂停（现在只有播放器出声；多开的播放器之间照旧防）。
  *   - 播放模式（2b，方案 v1.13 §7.1 / §7.2）：顺序 / 随机。随机 = 专辑内把曲序打乱成一个队列（不重复、当前这首排第一），
  *     放完一轮重新打乱、新一轮第一首避开刚放完的那首；切回顺序从正在播的这首按曲序往下。默认顺序；调用方按本地设置 setShuffle。
- *     模式记在 localStorage「sgx-music-mode」（readMode / saveMode），奇趣页和弹出播放器共用这一个设置。
+ *     模式记在 localStorage「sgx-music-mode」（readMode / saveMode），弹出播放器读写（搬家前奇趣音乐页也读写这一个）。
  *   - 单曲区当播放列表（音乐 v1.13 ②，Gray 2026-11-14 17:33）：playQueue(专辑 id 列表, i)——每首单曲是一条 kind=single 的记录，令牌仍按记录签；
- *     列表里每一首各记各的令牌和过期时间，切到哪首才按需签哪首（同一个 sign / POST /curio/api/music-play）。顺序 / 随机、到尾停、续签都和专辑同一套。
+ *     列表里每一首各记各的令牌和过期时间，切到哪首才按需签哪首（同一个 sign / POST /music/api/music-play）。顺序 / 随机、到尾停、续签都和专辑同一套。
  *     state.album 始终是正在放的那条记录（单曲时 = 这首单曲的记录 id），state.queue 不为空 = 单曲列表模式。
  * 只管声音和状态，不画界面：画什么由调用方的 onTrack / onChange / onStop 决定。
  * 歌手页（M4，音乐 v1.19 7.5 / 十二 M4）的两个共用小件：
@@ -25,7 +26,8 @@
 var G = typeof globalThis !== 'undefined' ? globalThis : this;
 
 var SPEEDS = [0.75, 1, 1.25, 1.5, 2];
-/** 弹出播放器的倍速档（方案 v1.13 §7.1：1×、1.25×、1.5×、2× 循环；奇趣页仍用 SPEEDS，两边各自记，不共用） */
+/** 弹出播放器的倍速档（方案 v1.13 §7.1：1×、1.25×、1.5×、2× 循环）。上面的 SPEEDS（0.75–2）原是奇趣音乐页的档，第 3 步音乐页去掉倍速后没有调用方了，
+ * 留作 nextSpeed 不传 list 时的默认（逻辑不改，搬家设计稿 v1.1 3.3「共用核只是少了一个调用方」） */
 var PLAYER_SPEEDS = [1, 1.25, 1.5, 2];
 /** 播放模式存在本地的键（'seq' 顺序 / 'shuffle' 随机） */
 var MODE_KEY = 'sgx-music-mode';
@@ -34,7 +36,7 @@ var CHANNEL = 'sgx-music';
 /** 令牌离过期不到这么久就先续签再换曲目 */
 var RENEW_MS = 30000;
 
-/** 下一档倍速（list 不给 = 奇趣页的 SPEEDS） */
+/** 下一档倍速（list 不给 = SPEEDS） */
 function nextSpeed(cur, list){
   var L = Array.isArray(list) ? list : SPEEDS, i = L.indexOf(cur);
   return L[(i < 0 ? 0 : i + 1) % L.length];
@@ -54,24 +56,24 @@ function shuffleOrder(n, first, avoid, rand){
   else if (avoid >= 0 && n > 1 && a[0] === avoid) { var k = 1 + Math.floor(r() * (n - 1)); a[0] = a[k]; a[k] = avoid; }
   return a;
 }
-/** 记录是不是单曲（GET /curio/api/music 每条带 kind，v1.13 ②） */
+/** 记录是不是单曲（GET /music/api/music 每条带 kind，v1.13 ②） */
 function isSingle(a){ return !!a && a.kind === 'single'; }
 /**
- * 正在播的副标题（奇趣音乐页播放条、弹出播放器、顶栏遥控一个规矩；Gray 2026-11-14 17:33）：
+ * 正在播的副标题（弹出播放器、顶栏遥控一个规矩；Gray 2026-11-14 17:33）：
  * 专辑「专辑名 · 歌手」；单曲只显示歌手，不显示专辑名（单曲的记录标题就是歌名，已经在标题里）。
  */
 function nowSub(a){ if (!a) return ''; return isSingle(a) ? String(a.artist || '') : [a.title, a.artist].filter(Boolean).join(' · '); }
 /**
  * 封面地址（M4，十二 M4 第 4 条）：有封面 → 专辑 / 单曲自己的封面；单曲没封面、它的歌手有头像 → 歌手头像；都没有 ''（调用方画默认图）。
- * arts = 歌手表（GET /curio/api/music 的 artists，[{id, avatar}]）；v 给了就加 &v= 防缓存。
+ * arts = 歌手表（GET /music/api/music 的 artists，[{id, avatar}]）；v 给了就加 &v= 防缓存。
  * @param {any} a @param {any[]} arts @param {number} [v]
  */
 function coverOf(a, arts, v){
   if (!a) return '';
   var q = v ? '&v=' + v : '';
-  if (a.cover) return '/curio/api/music-cover?album=' + a.id + q;
+  if (a.cover) return '/music/api/music-cover?album=' + a.id + q;
   if (!isSingle(a) || !(a.artist_id > 0)) return '';
-  for (var k = 0; arts && k < arts.length; k++) if (arts[k].id === a.artist_id) return arts[k].avatar ? '/curio/api/music-cover?artist=' + a.artist_id + q : '';
+  for (var k = 0; arts && k < arts.length; k++) if (arts[k].id === a.artist_id) return arts[k].avatar ? '/music/api/music-cover?artist=' + a.artist_id + q : '';
   return '';
 }
 /** 主窗口打开歌手页的三步消息名（同一个频道 sgx-music） */
@@ -87,8 +89,8 @@ function pickMain(replies){
   (replies || []).forEach(function(r){ if (r && r.from && (!best || (Number(r.at) || 0) > (Number(best.at) || 0))) best = r; });
   return best;
 }
-/** 歌手页地址：音乐页路径（英文 /curio/music/、中文 /curio/zh/music/）+ ?artist=<id> @param {string} musicPath @param {number} id */
-function artistHref(musicPath, id){ return String(musicPath || '/curio/music/') + '?artist=' + id; }
+/** 歌手页地址：音乐页路径（英文 /music/、中文 /music/zh/）+ ?artist=<id> @param {string} musicPath @param {number} id */
+function artistHref(musicPath, id){ return String(musicPath || '/music/') + '?artist=' + id; }
 
 /** 秒 → m:ss（≥ 1 小时 h:mm:ss） */
 function fmtTime(s){

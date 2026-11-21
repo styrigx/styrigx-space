@@ -1,8 +1,9 @@
-// 奇趣拆页（P4-3）新增的两个子页（手机）：电影 /curio/movies/、私人音乐 /curio/music/。接口用 page.route 假数据，不碰线上。
+// 奇趣拆页（P4-3）新增的两个子页（手机）：电影 /curio/movies/、私人音乐（music 搬家第 3 步起是第四个子站 /music/，中文 /music/zh/）。接口用 page.route 假数据，不碰线上。
 // - 电影：无权限（canManage=false）只读，没有「电影」按钮、详情没有编辑；有权限：添加（海报「移动和缩放」→ 2:3、长边 ≤1600、webp 上传 kind=movie）、编辑、删除要确认
-// - 音乐（v5 S3 三层）：歌单谁都能看（tab 一直在）；访客（没进站）= 只看模式：播放键是锁、播放条只显示专辑，点播放打开终端预填 su ；
-//   进站了能听，没账号 + curio.write 看不到上传 / 删除；有权限：封面横滑切专辑；整张按曲序播放（POST music-play 拿短链，<audio> 走 music-stream）；歌词跟着亮；倍速循环；下一首；
-//   上传专辑（album.add → 音频按文件名排序逐个直传、曲序 / 曲名取自文件名 → .lrc 按文件名对上 track.edit）
+// - 音乐（v5 S3 三层；接口 /music/api/*）：歌单谁都能看（奇趣的 tab 一直在，链到 /music/）；访客（没进站）= 只看模式：「播放整张」是锁，点播放 / 曲目打开终端预填 su 、不开播放器；
+//   进站了能听，没账号 + music-manage 看不到上传 / 删除；有权限：封面横滑切专辑；上传专辑（album.add → 音频按文件名排序逐个直传、曲序 / 曲名取自文件名 → .lrc 按文件名对上 track.edit）。
+//   第 3 步起音乐页不出声：点播放 = 交给弹出播放器（没开就开 /music/zh/player/?album=<id>&t=<i>，开着发 remote-cmd play），见 curio-music-handoff.spec.js；
+//   本文件下半是播放器本身（/music/zh/player/）。
 const { test, expect } = require('@playwright/test');
 
 /* 语言清理（2026-11-07）起奇趣 / 日刻也「跟随系统」每页都跳（四站同一份首帧跳转 lang-boot.js），Playwright 默认 en-US 会把 /<站>/zh/… 换到英文页。
@@ -29,7 +30,7 @@ async function base(page, can) {
 }
 /** 访客（没进站）：页面过网关时带的标记 <html data-sgx-lock-session="locked">（本地静态服务器没有网关，这里改写 HTML） @param {import('@playwright/test').Page} page */
 async function asVisitor(page) {
-  await page.route((u) => /^\/curio\/(zh\/)?music\/$/.test(u.pathname), async (route) => {
+  await page.route((u) => /^\/music\/(zh\/)?$/.test(u.pathname), async (route) => {
     const res = await route.fetch();
     const html = (await res.text()).replace(/<html(\s|>)/, '<html data-sgx-lock-session="locked"$1');
     await route.fulfill({ response: res, body: html, headers: { ...res.headers(), 'content-type': 'text/html; charset=utf-8' } });
@@ -169,15 +170,15 @@ const ALBUMS = [
   ] },
 ];
 
-/** who：owner（进站 + 账号 + curio.write）· entered（进站，没写权限）· visitor（没进站：签令牌 401） */
+/** page 也可以传 context（弹出的播放器窗口也要吃到假后端时）。who：owner（进站 + 账号 + music-manage）· entered（进站，没写权限）· visitor（没进站：签令牌 401）。路由只认新接口 /music/api/*（旧 /curio/api/music* 不接，页面还在调旧地址就会挂） */
 async function mockMusic(page, who) {
   const can = who === 'owner';
   await base(page, can);
   const calls = [];
   let albums = JSON.parse(JSON.stringify(ALBUMS));
   const deny = (r) => r.fulfill({ status: 403, json: { ok: false, error: 'forbidden' } });
-  await page.route('**/api/music-cover**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
-  await page.route('**/api/music', async (r) => {
+  await page.route('**/music/api/music-cover**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
+  await page.route('**/music/api/music', async (r) => {
     const req = r.request();
     /* 歌单公开：只有元数据（访客也一样）；canManage 才多给 size / type / lrc */
     if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canManage: can, albums: can ? albums : albums.map((a) => ({ ...a, tracks: a.tracks.map(({ id, no, title, duration }) => ({ id, no, title, duration })) })) } });
@@ -189,7 +190,7 @@ async function mockMusic(page, who) {
     if (b.op === 'album.del') albums = albums.filter((a) => a.id !== b.id);
     return r.fulfill({ json: { ok: true, canManage: true, id, albums } });
   });
-  await page.route('**/api/music-upload**', async (r) => {
+  await page.route('**/music/api/music-upload**', async (r) => {
     if (!can) return deny(r);
     const req = r.request();
     const u = new URL(req.url());
@@ -202,14 +203,14 @@ async function mockMusic(page, who) {
     }
     return r.fulfill({ json: { ok: true } });
   });
-  await page.route('**/api/music-play', async (r) => {
+  await page.route('**/music/api/music-play', async (r) => {
     if (who === 'visitor') { calls.push({ play401: true }); return r.fulfill({ status: 401, json: { ok: false, error: 'unauthorized' } }); }
     const b = r.request().postDataJSON();
     calls.push({ play: b.album });
     const a = albums.find((x) => x.id === b.album);
-    return r.fulfill({ json: { ok: true, ttl: 600000, expires: Date.now() + 600000, tracks: a.tracks.map((t) => ({ ...t, src: '/curio/api/music-stream?t=' + 'A'.repeat(43) + '&id=' + t.id, lrc: t.id === 11 ? '[00:00.00]第一句\n[00:01.00]第二句\n[00:02.00]第三句' : '' })) } });
+    return r.fulfill({ json: { ok: true, ttl: 600000, expires: Date.now() + 600000, tracks: a.tracks.map((t) => ({ ...t, src: '/music/api/music-stream?t=' + 'A'.repeat(43) + '&id=' + t.id, lrc: t.id === 11 ? '[00:00.00]第一句\n[00:01.00]第二句\n[00:02.00]第三句' : '' })) } });
   });
-  await page.route('**/api/music-stream**', async (r) => {
+  await page.route('**/music/api/music-stream**', async (r) => {
     const range = r.request().headers().range;
     const m = /bytes=(\d+)-(\d*)/.exec(range || '');
     if (!m) return r.fulfill({ status: 200, headers: { 'Content-Type': 'audio/wav', 'Accept-Ranges': 'bytes', 'Content-Length': String(WAV.length) }, body: WAV });
@@ -219,69 +220,65 @@ async function mockMusic(page, who) {
   return calls;
 }
 
-test('音乐（访客，没进站）：tab 在；歌单 / 封面照常；只看模式——播放键是锁、播放条只显示专辑；点播放 / 曲目不签令牌，打开终端预填 su ；没有上传 / 删除', async ({ page }) => {
+test('音乐（访客，没进站）：奇趣 tab 在、链到 /music/zh/；歌单 / 封面照常；只看模式——播放键是锁；点播放 / 曲目不签令牌、不开播放器，打开终端预填 su ；没有上传 / 删除；页面没有播放条', async ({ page }) => {
   const calls = await mockMusic(page, 'visitor');
   await asVisitor(page);
   await page.goto('/curio/zh/');
   await expect(page.locator('#cu-tabs .sgx-ctab-a')).toHaveText([/^finds\//, /^devices\//, /^games\//, /^movies\//, /^music\//]);
-  await page.goto('/curio/zh/music/');
+  await expect(page.locator('#cu-tabs [data-ctab="music"]')).toHaveAttribute('href', '/music/zh/');
+  await page.goto('/music/zh/');
   await expect(page.locator('html')).toHaveClass(/mu-view-only/);
   await expect(page.locator('.mu-cover')).toHaveCount(2);
   await expect(page.locator('#mu-tracks .mu-track-title')).toHaveText(['All I Want', 'My Old Man']);
   await expect(page.locator('#mu-upload')).toBeHidden();
   await expect(page.locator('.mu-album-acts')).toBeHidden();
-  await expect(page.locator('#mu-player')).toBeVisible();
-  await expect(page.locator('#mu-now-title')).toHaveText('Blue');
-  await expect(page.locator('#mu-now-sub')).toHaveText('Joni Mitchell · 未登录，仅可浏览');
-  await expect(page.locator('#mu-dur')).toHaveText('--:--');
+  await expect(page.locator('#mu-player, #mu-audio, #mu-lyrics, audio')).toHaveCount(0);
   await expect(page.locator('#mu-play-all .mu-ic-lock')).toBeVisible();
-  await expect(page.locator('#mu-toggle .mu-ic-lock')).toBeVisible();
   await expect(page.locator('#mu-play-all')).toHaveAttribute('aria-label', '登录后可听');
-  for (const id of ['#mu-prev', '#mu-next', '#mu-speed', '#mu-seek']) await expect(page.locator(id)).toBeDisabled();
+  let popups = 0;
+  page.context().on('page', () => { popups++; });
   await page.locator('#mu-tracks .mu-track').first().click();
   await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
   await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
-  expect(calls.filter((c) => c.play401).length).toBe(0);
-  expect(await page.locator('#mu-audio').evaluate((a) => a.getAttribute('src'))).toBeNull();
+  /* 关掉终端再点「播放整张」：同样只开终端，不开播放器 */
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#sgx-term')).not.toHaveAttribute('open', '');
+  /* aria-disabled="true"：Playwright 当它不可点，直接派发点击（真人点得到，页面接住发 sgx:sudo） */
+  await page.locator('#mu-play-all').dispatchEvent('click');
+  await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
+  await page.waitForTimeout(300);
+  expect(popups).toBe(0);
+  expect(new URL(page.url()).pathname).toBe('/music/zh/');
+  expect(calls.filter((c) => c.play401 || c.play).length).toBe(0);
 });
 
-test('音乐（页面没带标记、签令牌 401）：切到只看模式并打开终端预填 su ；不报错', async ({ page }) => {
-  const calls = await mockMusic(page, 'visitor');
-  await page.goto('/curio/zh/music/');
-  await expect(page.locator('.mu-cover')).toHaveCount(2);
-  await expect(page.locator('html')).not.toHaveClass(/mu-view-only/);
-  await page.locator('#mu-play-all').click();
-  await expect.poll(() => calls.filter((c) => c.play401).length).toBe(1);
-  await expect(page.locator('html')).toHaveClass(/mu-view-only/);
-  await expect(page.locator('#mu-now-sub')).toHaveText('Joni Mitchell · 未登录，仅可浏览');
-  await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
-  await expect(page.locator('#bk-toast')).not.toHaveText('出了点问题，请再试一次。');
-});
-
-test('音乐（进站了，没账号写权限）：能听（签令牌、放第 1 首）；没有上传 / 删除专辑', async ({ page }) => {
-  const calls = await mockMusic(page, 'entered');
-  await page.goto('/curio/zh/music/');
+test('音乐（进站了，没账号写权限）：没有上传 / 删除专辑；本页不签令牌，点「播放整张」开播放器、播放器从第 1 首放', async ({ page }) => {
+  /* 假后端装在 context 上：弹出的播放器窗口也吃得到 */
+  const calls = await mockMusic(page.context(), 'entered');
+  await page.goto('/music/zh/');
   await expect(page.locator('.mu-cover')).toHaveCount(2);
   await expect(page.locator('#mu-upload')).toBeHidden();
   await expect(page.locator('.mu-album-acts')).toBeHidden();
-  await expect(page.locator('#mu-player')).toBeHidden();
-  await page.locator('#mu-play-all').click();
+  const [pl] = await Promise.all([page.context().waitForEvent('page'), page.locator('#mu-play-all').click()]);
+  await pl.waitForURL(/\/music\/zh\/player\/\?album=1&t=0$/);
+  await expect(pl.locator('#mp-title')).toHaveText('All I Want');
+  /* 令牌是播放器签的（一次，album 1），音乐页自己没签 */
   await expect.poll(() => calls.filter((c) => c.play === 1).length).toBe(1);
-  await expect(page.locator('#mu-now-title')).toHaveText('All I Want');
 });
 
-test('音乐（有权限）：首页有 music/ tab；封面横滑切专辑；整张按曲序播放走短链；歌词跟着亮；倍速 1 → 1.25 → … 循环；下一首；胶囊 = 音乐', async ({ page }) => {
-  const calls = await mockMusic(page, 'owner');
+test('音乐（有权限）：奇趣首页有 music/ tab、点了到 /music/zh/；封面横滑切专辑；胶囊 = 音乐；上传 / 删除专辑都在', async ({ page }) => {
+  await mockMusic(page, 'owner');
   await page.goto('/curio/zh/');
   await expect(page.locator('#cu-tabs [data-ctab="music"]')).toBeVisible();
   await page.locator('#cu-tabs [data-ctab="music"]').click();
-  await expect(page).toHaveURL(/\/curio\/zh\/music\/$/);
+  await expect(page).toHaveURL(/\/music\/zh\/$/);
   await expect(page.locator('.sgx-tb-title')).toHaveText('音乐');
   await expect(page.locator('.mu-cover')).toHaveCount(2);
   await expect(page.locator('#mu-album-title')).toHaveText('Blue');
   await expect(page.locator('#mu-album-sub')).toHaveText('Joni Mitchell · 1971 · 2 首');
   await expect(page.locator('#mu-tracks .mu-track-title')).toHaveText(['All I Want', 'My Old Man']);
   await expect(page.locator('#mu-upload')).toBeVisible();
+  await expect(page.locator('.mu-album-acts')).toBeVisible();
   /* 横滑到第二张 → 当前专辑换成范特西 */
   await page.locator('#mu-covers').evaluate((el) => { el.scrollLeft = el.scrollWidth; });
   await expect(page.locator('#mu-album-title')).toHaveText('范特西');
@@ -289,42 +286,12 @@ test('音乐（有权限）：首页有 music/ tab；封面横滑切专辑；整
   /* 点第一张封面回去 */
   await page.locator('.mu-cover[data-i="0"]').click();
   await expect(page.locator('#mu-album-title')).toHaveText('Blue');
-  /* 播放整张：先签短链，再从第 1 首放 */
-  await page.locator('#mu-play-all').click();
-  await expect.poll(() => calls.filter((c) => c.play === 1).length).toBe(1);
-  await expect(page.locator('#mu-player')).toBeVisible();
-  await expect(page.locator('#mu-now-title')).toHaveText('All I Want');
-  await expect(page.locator('#mu-now-sub')).toHaveText('Blue · Joni Mitchell');
-  expect(await page.locator('#mu-audio').evaluate((a) => a.src)).toMatch(/\/curio\/api\/music-stream\?t=A{43}&id=11$/);
-  await expect(page.locator('#mu-toggle')).toHaveClass(/is-playing/);
-  await expect(page.locator('#mu-tracks .mu-track.on .mu-track-title')).toHaveText('All I Want');
-  /* 歌词：有 LRC 就显示，当前行高亮，随时间往下走 */
-  await expect(page.locator('#mu-lyrics')).toBeVisible();
-  await expect(page.locator('#mu-lyrics-in p')).toHaveText(['第一句', '第二句', '第三句']);
-  await expect(page.locator('#mu-lyrics-in p.on')).toHaveText(/第[一二三]句/);
-  await expect.poll(() => page.locator('#mu-lyrics-in p.on').textContent(), { timeout: 8000 }).not.toBe('第一句');
-  /* 倍速循环 */
-  await expect(page.locator('#mu-speed')).toHaveText('1×');
-  const seen = [];
-  for (let i = 0; i < 5; i++) { await page.locator('#mu-speed').click(); seen.push(await page.locator('#mu-speed').textContent()); }
-  expect(seen).toEqual(['1.25×', '1.5×', '2×', '0.75×', '1×']);
-  await page.locator('#mu-speed').click();
-  expect(await page.locator('#mu-audio').evaluate((a) => a.playbackRate)).toBe(1.25);
-  /* 下一首：同一张专辑、令牌还新，不重签；倍速保持；没歌词就收起歌词 */
-  await page.locator('#mu-next').click();
-  await expect(page.locator('#mu-now-title')).toHaveText('My Old Man');
-  expect(calls.filter((c) => c.play === 1).length).toBe(1);
-  expect(await page.locator('#mu-audio').evaluate((a) => a.playbackRate)).toBe(1.25);
-  await expect(page.locator('#mu-lyrics')).toBeHidden();
-  /* 暂停 */
-  await page.locator('#mu-toggle').click();
-  await expect(page.locator('#mu-toggle')).not.toHaveClass(/is-playing/);
-  await expect(page.locator('#mu-toggle')).toHaveAttribute('aria-label', '播放');
+  await expect(page.locator('#mu-player, #mu-audio')).toHaveCount(0);
 });
 
 test('音乐（有权限）：批量上传到新建专辑（M2）——音频按文件名排序逐个直传（曲序 / 曲名取自文件名），.lrc 按文件名对上；每首一个 track.edit 写歌手（没歌手的用专辑歌手）', async ({ page }) => {
   const calls = await mockMusic(page, 'owner');
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await page.locator('#mu-upload').click();
   await expect(page.locator('#mu-up-wrap')).toHaveJSProperty('open', true);
   await expect(page.locator('#mu-up-wrap')).toHaveAttribute('data-state', 'open');
@@ -364,7 +331,7 @@ test('音乐（有权限）：批量上传到新建专辑（M2）——音频按
 
 test('音乐（有权限）：上传窗是 AI 窗口那种悬浮卡片（非模态 <dialog class=sgx-qp>）——关闭按钮 / Esc / 系统返回 / 点遮罩都只关窗、留在本页；开着时页面不能滚；点顶栏按钮先关它再开顶栏窗口', async ({ page }) => {
   await mockMusic(page, 'owner');
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   const dlg = page.locator('#mu-up-wrap');
   const openIt = async () => {
     await page.locator('#mu-upload').click();
@@ -387,13 +354,13 @@ test('音乐（有权限）：上传窗是 AI 窗口那种悬浮卡片（非模�
   await openIt();
   await page.goBack();
   await expect(dlg).toHaveJSProperty('open', false);
-  expect(new URL(page.url()).pathname).toBe('/curio/zh/music/');
+  expect(new URL(page.url()).pathname).toBe('/music/zh/');
   /* 点遮罩（卡片下方的空白处） */
   await openIt();
   const vp = page.viewportSize();
   await page.mouse.click(vp.width / 2, vp.height - 4);
   await expect(dlg).toHaveJSProperty('open', false);
-  expect(new URL(page.url()).pathname).toBe('/curio/zh/music/');
+  expect(new URL(page.url()).pathname).toBe('/music/zh/');
   /* 顶栏仍可点、和顶栏窗口互斥：点导航按钮 → 上传窗关、导航面板开且停住（不被迟到的返回事件关掉） */
   await openIt();
   await page.locator('#site-nav [aria-controls="sgx-nav"]').click();
@@ -403,11 +370,11 @@ test('音乐（有权限）：上传窗是 AI 窗口那种悬浮卡片（非模�
   await expect(page.locator('#sgx-nav')).toHaveJSProperty('open', true);
 });
 
-/* ================= 弹出播放器（音乐第二步 2b，/curio/music/player/） ================= */
+/* ================= 弹出播放器（音乐第二步 2b；music 搬家第 3 步起 /music/player/，中文 /music/zh/player/） ================= */
 
 test('播放器（有权限）：点曲目开播走短链；随机按钮记到本地；倍速 1 → 1.25 → 1.5 → 2 → 1；歌词点开全部；专辑列表收起 / 换专辑；静音', async ({ page }) => {
   const calls = await mockMusic(page, 'owner');
-  await page.goto('/curio/zh/music/player/');
+  await page.goto('/music/zh/player/');
   await expect(page.locator('#mp-app')).toBeVisible();
   await expect(page.locator('#mp-title')).toHaveText('Blue');
   await expect(page.locator('#mp-tracks .mu-track-title')).toHaveText(['All I Want', 'My Old Man']);
@@ -418,7 +385,7 @@ test('播放器（有权限）：点曲目开播走短链；随机按钮记到�
   await expect(page.locator('#mp-title')).toHaveText('All I Want');
   await expect(page.locator('#mp-artist')).toHaveText('Joni Mitchell');
   await expect(page.locator('#mp-album')).toHaveText('Blue');
-  expect(await page.locator('#mp-audio').evaluate((a) => a.src)).toMatch(/\/curio\/api\/music-stream\?t=A{43}&id=11$/);
+  expect(await page.locator('#mp-audio').evaluate((a) => a.src)).toMatch(/\/music\/api\/music-stream\?t=A{43}&id=11$/);
   await expect(page.locator('#mp-tracks .mu-track.on .mu-track-title')).toHaveText('All I Want');
   await expect(page).toHaveTitle(/^All I Want \| /);
   /* 随机：按下、记到本地 */
@@ -454,7 +421,7 @@ test('播放器（有权限）：点曲目开播走短链；随机按钮记到�
 test('播放器：随机模式下次打开还在；?album= 先显示那张', async ({ page }) => {
   await mockMusic(page, 'owner');
   await page.addInitScript(() => localStorage.setItem('sgx-music-mode', 'shuffle'));
-  await page.goto('/curio/zh/music/player/?album=2');
+  await page.goto('/music/zh/player/?album=2');
   await expect(page.locator('#mp-app')).toBeVisible();
   await expect(page.locator('#mp-shuffle')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#mp-tracks .mu-track-title')).toHaveText(['爱在西元前']);
@@ -462,7 +429,7 @@ test('播放器：随机模式下次打开还在；?album= 先显示那张', asy
 
 test('播放器（登录过期 / 没进站，签令牌 401）：给一句提示和「登录」，不静默卡住；点「登录」打开终端预填 su ', async ({ page }) => {
   const calls = await mockMusic(page, 'visitor');
-  await page.goto('/curio/zh/music/player/');
+  await page.goto('/music/zh/player/');
   await expect(page.locator('#mp-app')).toBeVisible();
   await page.locator('#mp-tracks [data-t="0"]').click();
   await expect.poll(() => calls.filter((c) => c.play401).length).toBe(1);
@@ -474,57 +441,39 @@ test('播放器（登录过期 / 没进站，签令牌 401）：给一句提示�
   await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
 });
 
-test('播放器和奇趣页不同时响：播放器开播，奇趣页那边自动暂停', async ({ browser }) => {
-  const ctx = await browser.newContext({ locale: 'zh-CN' });
-  const a = await ctx.newPage(), b = await ctx.newPage();
-  await mockMusic(a, 'owner'); await mockMusic(b, 'owner');
-  await a.goto('/curio/zh/music/');
-  await a.locator('#mu-play-all').click();
-  await expect(a.locator('#mu-toggle')).toHaveClass(/is-playing/);
-  await b.goto('/curio/zh/music/player/');
-  await b.locator('#mp-tracks [data-t="1"]').click();
-  await expect(b.locator('#mp-toggle')).toHaveClass(/is-playing/);
-  await expect(a.locator('#mu-toggle')).not.toHaveClass(/is-playing/);
-  await ctx.close();
+test('播放器 ?album=<id>&t=<i>（第 3 步）：打开就从那张的第 i 首放；t 越界 = 只显示那张、不放；没有 t = 照旧只显示', async ({ page }) => {
+  const calls = await mockMusic(page, 'owner');
+  await page.goto('/music/zh/player/?album=1&t=1');
+  await expect(page.locator('#mp-title')).toHaveText('My Old Man');
+  await expect.poll(() => calls.filter((c) => c.play === 1).length).toBe(1);
+  expect(await page.locator('#mp-audio').evaluate((a) => a.src)).toMatch(/&id=12$/);
+  await page.goto('/music/zh/player/?album=1&t=9');
+  await expect(page.locator('#mp-app')).toBeVisible();
+  await expect(page.locator('#mp-title')).toHaveText('Blue');
+  await page.goto('/music/zh/player/?album=2');
+  await expect(page.locator('#mp-title')).toHaveText('范特西');
+  await expect(page.locator('#mp-toggle')).not.toHaveClass(/is-playing/);
 });
 
-test('随机播放：奇趣页有随机按钮，和播放器共用一个本地设置（sgx-music-mode）；一边切了另一边跟着变；奇趣页随机时下一首按打乱的队列', async ({ browser }) => {
+test('随机播放：播放器的随机按钮记到本地（sgx-music-mode），两个播放器窗口之间同步；音乐页没有随机按钮（第 3 步删了）', async ({ browser }) => {
   const ctx = await browser.newContext({ locale: 'zh-CN' });
   const a = await ctx.newPage(), b = await ctx.newPage();
   await mockMusic(a, 'owner'); await mockMusic(b, 'owner');
-  await a.goto('/curio/zh/music/');
-  await b.goto('/curio/zh/music/player/');
+  await a.goto('/music/zh/');
+  await expect(a.locator('.mu-cover')).toHaveCount(2);
+  await expect(a.locator('#mu-shuffle')).toHaveCount(0);
+  await b.goto('/music/zh/player/');
   await expect(b.locator('#mp-app')).toBeVisible();
-  const sa = a.locator('#mu-shuffle'), sb = b.locator('#mp-shuffle');
-  await expect(sa).toHaveAttribute('aria-pressed', 'false');
+  const sb = b.locator('#mp-shuffle');
   await expect(sb).toHaveAttribute('aria-pressed', 'false');
-  /* 奇趣页的随机按钮在播放条里（播放条开播才出现）。两页同时开着，后台那页不跑动画帧，等不到「稳定」，点击用 dispatchEvent */
-  await a.locator('#mu-play-all').dispatchEvent('click');
-  await expect(a.locator('#mu-player')).toBeVisible();
-  await sa.dispatchEvent('click');
-  await expect(sa).toHaveAttribute('aria-pressed', 'true');
-  expect(await a.evaluate(() => localStorage.getItem('sgx-music-mode'))).toBe('shuffle');
+  await sb.dispatchEvent('click');
   await expect(sb).toHaveAttribute('aria-pressed', 'true');
+  expect(await b.evaluate(() => localStorage.getItem('sgx-music-mode'))).toBe('shuffle');
+  const c = await ctx.newPage();
+  await mockMusic(c, 'owner');
+  await c.goto('/music/zh/player/');
+  await expect(c.locator('#mp-shuffle')).toHaveAttribute('aria-pressed', 'true');
   await sb.dispatchEvent('click');
-  await expect(sb).toHaveAttribute('aria-pressed', 'false');
-  await expect(sa).toHaveAttribute('aria-pressed', 'false');
-  /* 重新打开奇趣页：还是上次的模式 */
-  await sb.dispatchEvent('click');
-  await a.reload();
-  await expect(a.locator('#mu-shuffle')).toHaveAttribute('aria-pressed', 'true');
-  /* 奇趣页随机：从第 2 首开播，下一首是另一首（两首的专辑 = 第 1 首），不停 */
-  await a.locator('#mu-tracks [data-t="1"]').dispatchEvent('click');
-  await expect(a.locator('#mu-now-title')).toHaveText('My Old Man');
-  await a.locator('#mu-next').dispatchEvent('click');
-  await expect(a.locator('#mu-now-title')).toHaveText('All I Want');
+  await expect(c.locator('#mp-shuffle')).toHaveAttribute('aria-pressed', 'false');
   await ctx.close();
-});
-
-test('随机播放（访客，没进站）：奇趣页随机按钮不可用', async ({ page }) => {
-  await mockMusic(page, 'visitor');
-  await asVisitor(page);
-  await page.goto('/curio/zh/music/');
-  await expect(page.locator('html')).toHaveClass(/mu-view-only/);
-  await expect(page.locator('#mu-shuffle')).toBeVisible();
-  await expect(page.locator('#mu-shuffle')).toBeDisabled();
 });

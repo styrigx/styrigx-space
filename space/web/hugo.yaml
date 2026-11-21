@@ -1,6 +1,7 @@
 title: 'Styrigx'
 baseURL: 'https://styrigx.com/'
-# 一个 Hugo 站（2026-11 合站）：主站（/、/zh/）和三个子站（/blog/、/curio/、/daymark/，中文 /<站>/zh/）同一次构建、同一棵 public/。
+# 一个 Hugo 站（2026-11 合站）：主站（/、/zh/）和四个子站（/blog/、/curio/、/daymark/、/music/，中文 /<站>/zh/）同一次构建、同一棵 public/。
+#   /music/ 是 music 搬家第 3 步（2026-11-21，搬家设计稿 v1.1 3.1）从奇趣搬出来的第四个子站（原 /curio/music/）。
 #   子站内容是 content/<站>/ 分区，模板在 layouts/<站>/（分区模板）+ layouts/partials/<站>/，资源在 assets/<站>/、static/<站>/（发布路径 = /<站>/…，
 #   和合站前各站 baseURL 为 https://styrigx.com/<站>/ 时一样），字符串表在 data/<站>/i18n/（博客用 i18n/）。共享外壳直接用主站的 partial 和 JS，没有副本。
 #   子站中文页的地址 /<站>/zh/… 不能由 Hugo 的语言前缀给（那会是 /zh/<站>/…），所以中文页一律在 front matter 写 url（模板里 errorf 守着）。
@@ -83,7 +84,7 @@ outputFormats:
     isPlainText: true
     notAlternative: true
     root: true
-  # 子站分区页（content/<站>/_index.md 的 outputs）的附带输出：/blog/rss.xml（中文 /blog/zh/rss.xml）、/blog/sitemap-index.xml、/blog/sitemap-0.xml、/curio/sitemap.xml、/daymark/sitemap.xml
+  # 子站分区页（content/<站>/_index.md 的 outputs）的附带输出：/blog/rss.xml（中文 /blog/zh/rss.xml）、/blog/sitemap-index.xml、/blog/sitemap-0.xml、/curio/sitemap.xml、/daymark/sitemap.xml、/music/sitemap.xml
   blogrss:
     mediaType: application/rss+xml
     baseName: rss
@@ -105,6 +106,11 @@ outputFormats:
     isPlainText: true
     notAlternative: true
   daymarksitemap:
+    mediaType: application/xml
+    baseName: sitemap
+    isPlainText: true
+    notAlternative: true
+  musicsitemap:
     mediaType: application/xml
     baseName: sitemap
     isPlainText: true

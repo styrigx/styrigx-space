@@ -74,7 +74,7 @@ async function mockMusic(page, opts = {}) {
     calls.push({ play: b.album });
     if (opts.playFail) return r.fulfill({ status: 500, json: { ok: false, error: 'server' } });
     const a = albums.find((x) => x.id === b.album);
-    return r.fulfill({ json: { ok: true, ttl: 600000, tracks: a.tracks.map((x) => ({ ...x, src: '/curio/api/music-stream?t=' + 'A'.repeat(43) + '&id=' + x.id, lrc: lrcs[x.id] || '' })) } });
+    return r.fulfill({ json: { ok: true, ttl: 600000, tracks: a.tracks.map((x) => ({ ...x, src: '/music/api/music-stream?t=' + 'A'.repeat(43) + '&id=' + x.id, lrc: lrcs[x.id] || '' })) } });
   });
   return calls;
 }
@@ -82,7 +82,7 @@ const writes = (calls) => calls.filter((c) => c.op && c.op !== 'album.add');
 
 test('专辑页曲目「⋯」：编辑窗（歌名 · 歌手 · 所属专辑 · 歌词；没有封面栏）；下拉只列专辑、按名排序、顶上「移出变单曲」；歌词读出来；只发改了的字段、一个 track.edit', async ({ page }) => {
   const calls = await mockMusic(page);
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await expect(page.locator('#mu-tracks .mu-more')).toHaveCount(3);
   await expect(page.locator('#mu-tracks .mu-more').first()).toHaveAttribute('aria-label', '编辑「All I Want」');
   await page.locator('#mu-tracks [data-ed="0"]').click();
@@ -119,7 +119,7 @@ test('专辑页曲目「⋯」：编辑窗（歌名 · 歌手 · 所属专辑 ·
 
 test('移专辑：选别的专辑 → album_id:N（曲目跟过去）；选「移出变单曲」→ album_id:0（单曲区多一首）；歌名不能空', async ({ page }) => {
   const calls = await mockMusic(page);
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await page.locator('#mu-tracks [data-ed="1"]').click();
   await page.locator('#mu-ed-name').fill('');
   await page.locator('#mu-ed-save').click();
@@ -142,7 +142,7 @@ test('移专辑：选别的专辑 → album_id:N（曲目跟过去）；选「�
 
 test('单曲「⋯」：多一个封面栏、一个年份栏；改名 / 改年份 = 一个 track.edit（后端连单曲记录一起改）；换封面 = music-upload kind=cover（单曲记录）；选了划进专辑 → 封面栏不可用、不传封面', async ({ page }) => {
   const calls = await mockMusic(page);
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await page.locator('#mu-seg [data-sec="single"]').click();
   await expect(page.locator('#mu-singles .mu-more')).toHaveCount(2);
   await page.locator('#mu-singles [data-ed="1"]').click();
@@ -190,7 +190,7 @@ test('单曲「⋯」：多一个封面栏、一个年份栏；改名 / 改年�
 
 test('专辑页「编辑」（标题旁）：名、歌手、年份、封面；album.edit 只带改了的；封面走 music-upload kind=cover；年份校验', async ({ page }) => {
   const calls = await mockMusic(page);
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await expect(page.locator('#mu-album-edit')).toBeVisible();
   await expect(page.locator('#mu-album-edit')).toHaveText('编辑');
   await page.locator('#mu-album-edit').click();
@@ -217,7 +217,7 @@ test('专辑页「编辑」（标题旁）：名、歌手、年份、封面；al
 
 test('删曲目：编辑窗「删除」→ 悬浮确认卡片（同删除单曲那张）→ track.del；取消不删；单曲唯一一首删了 → 单曲从列表消失', async ({ page }) => {
   const calls = await mockMusic(page);
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await page.locator('#mu-tracks [data-ed="2"]').click();
   await page.locator('#mu-ed-del').click();
   const del = page.locator('#mu-del-wrap');
@@ -256,7 +256,7 @@ test('删曲目：编辑窗「删除」→ 悬浮确认卡片（同删除单曲�
 
 test('歌词预填读失败（框是空的）：保存不带 lrc，已有歌词不被清掉；只发改了的歌名（Gray 审 4）', async ({ page }) => {
   const calls = await mockMusic(page, { playFail: true });
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await page.locator('#mu-tracks [data-ed="0"]').click();
   await expect(page.locator('#mu-ed-lrc-note')).toHaveText('已有歌词没读出来；不动这一栏就不改。');
   await expect(page.locator('#mu-ed-lrc')).toBeEnabled();
@@ -277,7 +277,7 @@ test('歌词预填读失败（框是空的）：保存不带 lrc，已有歌词�
 
 test('批量改（专辑页）：多选 → 点行选中（不播放、不画「⋯」）→ 批量改：歌手 + 移专辑（有「移出变单曲」，没有年份）；逐条一个 track.edit；失败的列出来', async ({ page }) => {
   const calls = await mockMusic(page, { fail: (b) => (b.op === 'track.edit' && b.id === 12 ? 'limit' : '') });
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await expect(page.locator('#mu-sel')).toHaveText('多选');
   await page.locator('#mu-sel').click();
   await expect(page.locator('#mu-sel-n')).toHaveText('点曲目选中');
@@ -308,7 +308,7 @@ test('批量改（专辑页）：多选 → 点行选中（不播放、不画「
 
 test('批量改（单曲区）：年份只在这里出现；歌手 + 年份每首一个 track.edit（不发 album.edit）；没有「移出变单曲」；全成功 → 关窗、退出多选、提示', async ({ page }) => {
   const calls = await mockMusic(page);
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await page.locator('#mu-seg [data-sec="single"]').click();
   await page.locator('#mu-sel').click();
   await page.locator('#mu-singles [data-s="0"]').click();
@@ -333,7 +333,7 @@ test('批量改（单曲区）：年份只在这里出现；歌手 + 年份每�
 
 test('没有管理权限（只有 music-use 或访客：接口回 canManage false，组权限 v1.1 §八）：不画「⋯」、专辑「编辑」、「多选」、上传', async ({ page }) => {
   await mockMusic(page, { canManage: false });
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await expect(page.locator('#mu-tracks .mu-track')).toHaveCount(3);
   await expect(page.locator('#mu-upload')).toBeHidden();
   await expect(page.locator('#mu-tracks .mu-more')).toHaveCount(0);

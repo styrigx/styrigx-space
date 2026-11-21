@@ -1,4 +1,4 @@
-/* 音乐上传 PR-b（音乐分层方案 v1.19 7.4「批量传到一半失败」/ 十二 M2 第 1、4 条）的纯函数（space/web/assets/curio/js/curio-music.js）：
+/* 音乐上传 PR-b（音乐分层方案 v1.19 7.4「批量传到一半失败」/ 十二 M2 第 1、4 条）的纯函数（space/web/assets/music/js/music-page.js）：
    并发 2、进度百分比、去重提醒（歌名 + 歌手 + 时长 / 歌名 + 大小）、失败原因、能接着用的空单曲记录、拖放分类、没对上的歌词 / 封面手动配对。
    上传任务本身（每首状态、只重试失败、XHR 进度、拖放）在 e2e tests/curio/e2e/curio-music-upload.spec.js。 */
 import { test } from 'node:test';
@@ -7,8 +7,8 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
-const MU = require('../../space/web/assets/curio/js/curio-music.js');
-const SRC = readFileSync(new URL('../../space/web/assets/curio/js/curio-music.js', import.meta.url), 'utf8');
+const MU = require('../../space/web/assets/music/js/music-page.js');
+const SRC = readFileSync(new URL('../../space/web/assets/music/js/music-page.js', import.meta.url), 'utf8');
 
 const t = (id, no, title, extra = {}) => ({ id, no, title, duration: 200, size: 1000, type: 'audio/mpeg', lrc: false, artist: '', artist_id: 0, ...extra });
 const LIST = [
@@ -54,8 +54,8 @@ test('同一批里的重复（Gray 定 3）：和前面某首一样就记它是�
   assert.deepEqual(MU.batchDups(null), []);
   /* 文案 zh / en 都有 */
   for (const lang of ['zh', 'en']) {
-    const y = readFileSync(new URL(`../../space/web/data/curio/i18n/${lang}.yaml`, import.meta.url), 'utf8');
-    assert.match(y.slice(y.indexOf('  curioMusic:')), /\n    dupBatch: .*\{n\}.*\{title\}/, lang + ' dupBatch');
+    const y = readFileSync(new URL(`../../space/web/data/music/i18n/${lang}.yaml`, import.meta.url), 'utf8');
+    assert.match(y.slice(y.indexOf('  musicPage:')), /\n    dupBatch: .*\{n\}.*\{title\}/, lang + ' dupBatch');
   }
 });
 
@@ -85,8 +85,8 @@ test('失败原因 → 文案键', () => {
   assert.equal(MU.upReason(null), 'whyOther');
   /* 每个键 zh / en 都有 */
   for (const lang of ['zh', 'en']) {
-    const y = readFileSync(new URL(`../../space/web/data/curio/i18n/${lang}.yaml`, import.meta.url), 'utf8');
-    const sec = y.slice(y.indexOf('  curioMusic:'));
+    const y = readFileSync(new URL(`../../space/web/data/music/i18n/${lang}.yaml`, import.meta.url), 'utf8');
+    const sec = y.slice(y.indexOf('  musicPage:'));
     for (const k of ['whyLocked', 'whyNetwork', 'whyTooLarge', 'whyNotAudio', 'errLimit', 'singleFull', 'whyAlbumGone', 'whyStorage', 'noPermission', 'whyCover', 'whyEdit', 'whyAlbum', 'whyAlbumCover', 'whyOther'])
       assert.match(sec, new RegExp('\\n    ' + k + ': '), lang + ' ' + k);
   }
@@ -149,8 +149,8 @@ test('歌手页空状态「其余几张」（M4 #486 第 22 条）：中英都�
   assert.ok(a > 0 && e > a);
   assert.match(SRC.slice(a, e), /htmlLine\('arRelMore', 'albums', links, \{ n: rel\.length - shown\.length \}\)/);
   for (const lang of ['zh', 'en']) {
-    const y = readFileSync(new URL(`../../space/web/data/curio/i18n/${lang}.yaml`, import.meta.url), 'utf8');
-    const line = (y.slice(y.indexOf('  curioMusic:')).match(/\n    arRelMore: (.*)/) || [])[1] || '';
+    const y = readFileSync(new URL(`../../space/web/data/music/i18n/${lang}.yaml`, import.meta.url), 'utf8');
+    const line = (y.slice(y.indexOf('  musicPage:')).match(/\n    arRelMore: (.*)/) || [])[1] || '';
     assert.match(line, /\{albums\}.*\{n\}/, lang + ' arRelMore 有 {albums} 和 {n}');
     assert.doesNotMatch(line, /\{total\}/, lang + ' arRelMore 不用总数');
   }

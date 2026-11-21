@@ -16,7 +16,9 @@ const index = read('space/web/layouts/curio/section.html');
 const page = (n) => read('space/web/layouts/curio/' + n + '.html');
 const part = (n) => read('space/web/layouts/partials/curio/' + n + '.html');
 const findsMain = part('finds-main');
-const finds = page('finds') + '\n' + findsMain, devices = page('devices'), games = page('games'), movies = page('movies'), music = page('music');
+const finds = page('finds') + '\n' + findsMain, devices = page('devices'), games = page('games'), movies = page('movies');
+/* music 搬家第 3 步：音乐页搬到第四个子站 layouts/music/（页头 / 弹层 / curio.js 照旧借奇趣的） */
+const music = read('space/web/layouts/music/section.html'), musicBase = read('space/web/layouts/music/baseof.html');
 const parts = ['common', 'item-page', 'signin', 'page-head', 'list'].map(part).join('\n');
 /** 部件 id 在模板源码里：直接写的 id="…"，或 page-head 命令链 / list 的 dict "id" "…"、id 前缀 pre "…" */
 const hasId = (src, id) => new RegExp('id="' + id + '"|"id" "' + id + '"').test(src) || (/^(cu|dv|gm|mv)-(chips|list|empty)$/.test(id) && new RegExp('"pre" "' + id.split('-')[0] + '"').test(src));
@@ -96,12 +98,13 @@ test('首页（2026-11 对齐 PR-C2，设计稿 pg=curio）：就是「发现」
   const head = part('page-head');
   assert.match(head, /cond \(\.home \| default false\) "ls curio\/" \(printf "ls curio\/%s\/" \$cur\)/, '首页命令 ls curio/，子页 ls curio/<分区>/');
   assert.match(head, /range \(slice "finds" "devices" "games" "movies" "music"\)/, '五个 tab，音乐最后');
-  assert.match(head, /href="\{\{ partial "common\/lang-path\.html" \(dict "path" \(printf "\/curio\/%s\/" \.\) "lang" \$lang\) \}\}"/, 'tab 地址走 sgx-lang-path');
+  /* music 搬家第 3 步：music/ tab 链到第四个子站 /music/（中文 /music/zh/），其余 /curio/<分区>/ */
+  assert.match(head, /href="\{\{ partial "common\/lang-path\.html" \(dict "path" \(cond \(eq \. "music"\) "\/music\/" \(printf "\/curio\/%s\/" \.\)\) "lang" \$lang\) \}\}"/, 'tab 地址走 sgx-lang-path');
   const css = read('space/web/assets/curio/css/input.css');
   assert.doesNotMatch(css, /cu-music-ok|mu-denied/, 'v5 S3：音乐歌单公开，tab 不按权限藏，没有「仅本人可见」卡');
   assert.doesNotMatch(css, /\.cu-fab|\.it-view|\.cu-tile|\.it-card|\.sgx-ent|#cu-segs/, '旧浮动按钮 / 详情弹层 / 格子 / 旧卡片 / 入口 / 段式标签样式删除');
   /* 子页内容：中英各一份，layout 指到 _default/<分区>.html */
-  for (const id of ['finds', 'devices', 'games', 'movies', 'music']) {
+  for (const id of ['finds', 'devices', 'games', 'movies']) {
     assert.match(read(`space/web/content/curio/${id}.md`), new RegExp('^layout: ' + id + '$', 'm'));
     assert.match(read(`space/web/content/curio/${id}.zh.md`), new RegExp('^layout: ' + id + '$', 'm'));
   }
@@ -156,40 +159,48 @@ test('设备 / 游戏子页：各自只有自己的面板和编辑弹层；条�
   }
 });
 
-test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js → curio-list.js → curio-items.js（借裁剪 / 条目文案）→ curio-movies.js；音乐 curio.js → music-core.js → curio-music.js，只看模式的锁标、上传上限说明，上传是页头命令', () => {
+test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js → curio-list.js → curio-items.js（借裁剪 / 条目文案）→ curio-movies.js；音乐 curio.js → music-core.js → music-tags.js → music-page.js，只看模式的锁标、上传上限说明，上传是页头命令；音乐页不出声', () => {
   for (const id of ['mv-list', 'mv-empty', 'mv-fab', 'mv-edit-wrap', 'mv-photo', 'mv-photo-prev', 'mv-title', 'mv-original', 'mv-year', 'mv-director', 'mv-watched', 'mv-rating', 'mv-review', 'mv-del', 'mv-save']) {
     assert.ok(hasId(movies, id), id);
   }
   assert.match(movies, /partial "curio\/item-page\.html"/);
   const a = movies.indexOf('js/curio.js'), l = movies.indexOf('js/curio-list.js'), b = movies.indexOf('js/curio-items.js'), c = movies.indexOf('js/curio-movies.js');
   assert.ok(a > 0 && a < l && l < b && b < c);
-  for (const id of ['cu-pane-music', 'mu-app', 'mu-upload', 'mu-covers', 'mu-tracks', 'mu-play-all', 'mu-player', 'mu-lyrics', 'mu-seek', 'mu-speed', 'mu-shuffle', 'mu-prev', 'mu-toggle', 'mu-next', 'mu-audio',
+  assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/curio/music.html')), '奇趣下没有音乐页模板了');
+  for (const id of ['cu-pane-music', 'mu-app', 'mu-upload', 'mu-covers', 'mu-tracks', 'mu-play-all',
     'mu-up-wrap', 'mu-up-name', 'mu-up-artist', 'mu-up-year', 'mu-up-audio', 'mu-up-cover', 'mu-up-lrc', 'mu-up-go', 'mu-up-album', 'mu-up-aname', 'mu-up-list', 'mu-up-cover-img']) {
     assert.ok(hasId(music, id), id);
   }
-  assert.match(music, /"grep" false "cmds" \(slice \(dict "id" "mu-upload"/);
+  /* 搬家设计稿 v1.1 3.3：播放条、<audio>、同步歌词条删了 */
+  for (const id of ['mu-player', 'mu-lyrics', 'mu-seek', 'mu-speed', 'mu-shuffle', 'mu-prev', 'mu-toggle', 'mu-next', 'mu-audio']) assert.ok(!hasId(music, id), '没有 ' + id);
+  assert.doesNotMatch(music.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, ''), /<audio\b/);
+  assert.match(music, /"grep" false "cmds" \(slice \(dict "id" "mu-upload" "k" "cp \*\.flac music\/ \+"/);
   /* M2：分段「单首 | 批量」，默认单首（音频单选，批量时 JS 改成多选） */
   assert.match(music, /id="mu-up-kind"[\s\S]*data-kind="one" aria-selected="true"[\s\S]*data-kind="batch" aria-selected="false"/);
   assert.doesNotMatch(music, /id="mu-up-audio"[^>]*multiple/);
   assert.match(music, /95 MB/);
   assert.ok(!hasId(music, 'mu-denied'), 'v5 S3：没有「仅本人可见」卡');
-  assert.equal((music.match(/class="mu-ic-lock"/g) || []).length, 2, '播放整张 / 播放键各带一个锁标（只看模式）');
+  assert.equal((music.match(/class="mu-ic-lock"/g) || []).length, 1, '「播放整张」带锁标（只看模式）；播放条随页内播放删了');
   assert.match(music, /id="mu-app" class="hidden"/);
   // 2026-11 第 7 步：共用核进 Platform（assets/common/js/music/，对外 /js/music/）
   assert.match(music, /resources\.Get "common\/js\/music\/music-core\.js" \| resources\.Copy "js\/music\/music-core\.js"/);
-  assert.ok(music.indexOf('js/curio.js') < music.indexOf('js/music/music-core.js'), '共用核在 curio.js 之后');
-  assert.ok(music.indexOf('js/music/music-core.js') < music.indexOf('js/curio-music.js'), '共用核（第二步 2a）在 curio-music.js 之前');
-  assert.ok(music.indexOf('js/curio-music-tags.js') > 0 && music.indexOf('js/curio-music-tags.js') < music.indexOf('js/curio-music.js"'), '上传预填（M2）在 curio-music.js 之前');
+  assert.ok(music.indexOf('js/curio.js') > 0 && music.indexOf('js/curio.js') < music.indexOf('js/music/music-core.js'), '共用核在 curio.js 之后（curio.js 照旧借，技术债）');
+  assert.ok(music.indexOf('js/music/music-core.js') < music.indexOf('music/js/music-page.js'), '共用核在 music-page.js 之前');
+  assert.ok(music.indexOf('music/js/music-tags.js') > 0 && music.indexOf('music/js/music-tags.js') < music.indexOf('music/js/music-page.js'), '上传预填（M2）在 music-page.js 之前');
+  assert.match(read('space/web/content/music/_index.md'), /^outputs: \[HTML, musicsitemap\]$/m);
+  assert.match(read('space/web/content/music/_index.zh.md'), /^url: \/music\/zh\/$/m);
+  assert.match(musicBase, /errorf "合站：中文页 %s 的地址 %s 不在 \/music\/zh\/ 下/);
 });
 
-test('弹出播放器页（音乐第二步 2b；2026-11 第 7 步进 Platform）：地址 /curio/music/player/、/curio/zh/music/player/；部件都在；脚本 music-core.js → music-player.js，不再借奇趣的 curio.js；不管上传 / 删除', () => {
+test('弹出播放器页（音乐第二步 2b；2026-11 第 7 步进 Platform；music 搬家第 3 步起 /music/player/、/music/zh/player/）：部件都在；脚本 music-core.js → music-player.js，不再借奇趣的 curio.js；不管上传 / 删除', () => {
   const player = read('space/web/layouts/common/player.html');
   assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/curio/player.html')), '奇趣下没有播放器模板了');
-  assert.match(read('space/web/content/curio/music-player.md'), /^url: \/curio\/music\/player\/$/m);
-  assert.match(read('space/web/content/curio/music-player.zh.md'), /^url: \/curio\/zh\/music\/player\/$/m);
-  for (const f of ['music-player.md', 'music-player.zh.md']) {
-    const c = read('space/web/content/curio/' + f);
-    assert.match(c, /^type: common$/m); assert.match(c, /^layout: player$/m); assert.match(c, /^navSite: curio$/m);
+  for (const f of ['music-player.md', 'music-player.zh.md']) assert.ok(!existsSync(path.join(REPO, 'space/web/content/curio', f)), '奇趣下没有 ' + f);
+  assert.match(read('space/web/content/music/player.md'), /^url: \/music\/player\/$/m);
+  assert.match(read('space/web/content/music/player.zh.md'), /^url: \/music\/zh\/player\/$/m);
+  for (const f of ['player.md', 'player.zh.md']) {
+    const c = read('space/web/content/music/' + f);
+    assert.match(c, /^type: common$/m); assert.match(c, /^layout: player$/m); assert.match(c, /^navSite: music$/m);
   }
   for (const id of ['mp-app', 'mp-cover', 'mp-title', 'mp-artist', 'mp-album', 'mp-note', 'mp-signin', 'mp-lyrics', 'mp-seek', 'mp-time', 'mp-dur',
     'mp-shuffle', 'mp-prev', 'mp-toggle', 'mp-next', 'mp-speed', 'mp-mute', 'mp-volume', 'mp-tracks', 'mp-albums-btn', 'mp-albums', 'mp-audio']) {
@@ -221,6 +232,8 @@ test('robots.txt 只在图志根（root/robots.txt；R-23 起放开收录，挡 
   assert.equal(existsSync(path.join(REPO, 'space/web/static/curio/robots.txt')), false);
   const robots = read('space/web/static/robots.txt');
   assert.match(robots, /^Disallow: \/curio\/api\/$/m);
+  assert.match(robots, /^Disallow: \/music\/api\/$/m, 'music 搬家第 3 步：音乐接口也挡');
+  assert.match(robots, /^Sitemap: https:\/\/styrigx\.com\/music\/sitemap\.xml$/m);
   assert.match(robots, /^Sitemap: https:\/\/styrigx\.com\/curio\/sitemap\.xml$/m);
 });
 

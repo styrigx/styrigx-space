@@ -1,0 +1,184 @@
+# 音乐子站字符串表（music 搬家第 3 步，2026-11-21：从 data/curio/i18n 的 music / cmd.upload / js.curioMusic 搬来，表名 curioMusic → musicPage；
+# 页面不再出声，播放条那几条（player / position / playbackSpeed / shuffle / previous / play / pause / next、js 的 viewOnly / play / pause / speed / shuffleOn / shuffleOff）删了）。
+# 英文是源文本；其他语言的表缺键时回退英文（partials/common/tr.html）。页头、确认框、su 那一条照旧读奇趣的表（layouts/music/section.html 的 $cu）。
+music:
+  music: Music
+  albums: Albums
+  playAlbum: Play album
+  tracks: Tracks
+  deleteAlbum: Delete album
+  noAlbumsYetTap: No albums yet. Tap "Upload album" to add one.
+  loading: Loading…
+  close: Close
+  album: Album
+  year: Year
+  coverOptional: Cover (optional)
+  kind: Type
+  kindAlbum: Album
+  kindSingle: Single
+  singles: Singles
+  deleteSingle: Delete single
+  delete: Delete
+  upload: Upload
+  modeOne: One track
+  modeBatch: Batch
+  dropHere: 'Drop to add: audio, cover images, .lrc lyrics'
+  abandon: Give up the rest
+  uploadOne: Upload a track
+  newAlbumName: New album name
+  chooseOne: Choose audio
+  lyricsLrcOptional: Lyrics .lrc (optional)
+  prefillNote: "Title and artist are filled in from the audio file's tags (or its file name) once you pick it; you can change them before saving. Each audio file can be up to 95 MB. The cover is cropped square and resized to 1000 px."
+  edit: Edit
+  editAlbum: Edit album
+  editTrack: Edit track
+  songName: Title
+  singer: Artist
+  inAlbum: Album
+  lyrics: Lyrics
+  lyricsPh: 'Paste LRC lyrics ([00:12.00]a line…)'
+  save: Save
+  select: Select
+  batchEdit: Edit selected
+  batchTitle: Edit selected
+  keepPh: Unchanged
+  backToMusic: Music
+  artistMissing: This artist isn't here.
+  artistNoWorks: No albums or singles yet.
+  editArtist: Edit artist
+  artistName: Name
+  style: Style
+  bio: About
+  mergeInto: Merge into another artist
+  merge: Merge…
+  hasWorksNote: This artist still has albums or tracks, so it can't be deleted. Merge it into another artist instead.
+  cancel: Cancel
+cmd:
+  upload: upload an album
+js:
+  musicPage:
+    locked: Sign in to listen
+    tracks: '{n} tracks'
+    tracks_one: '{n} track'
+    failed: Something went wrong. Please try again.
+    loadFail: "error: couldn't load the list  # refresh to retry"
+    saved: Uploaded.
+    deleted: Deleted.
+    needName: Give the album a name.
+    needAudio: Choose at least one audio file.
+    tooBig: '{name} is over 95 MB.'
+    badType: '{name} isn''t an audio file we take.'
+    cover: Uploading the cover…
+    delAlbum: Delete this album and its files?
+    del: Delete
+    choose: Choose tracks
+    chosen: '{n} files'
+    chosen_one: '{n} file'
+    coverNone: Cover (optional)
+    lrcNone: Lyrics .lrc (optional, matched by file name)
+    noPermission: Your current user doesn’t have permission for this.
+    chooseOne: Choose a track
+    lrcOne: Lyrics .lrc (optional)
+    needSong: Give the song a title.
+    uploadOne: Upload a track
+    uploadBatch: Upload in batch
+    inAlbum: Album
+    inBatch: Put this batch in an album (optional)
+    noAlbumBatch: No album (each becomes a single)
+    newAlbum: New album…
+    albumArtist: Album artist
+    singer: Artist
+    needAlbumName: Name the new album.
+    prefillNote: "Title and artist are filled in from the audio file's tags (or its file name) once you pick it; you can change them before saving. Each audio file can be up to 95 MB. The cover is cropped square and resized to 1000 px."
+    batchNote: "Each track's title and artist come from its tags, or else its file name (\"Artist - Title\"); you can edit each one after upload; a new album's artist defaults to the most common one in the batch. Track order follows the number at the start of each file name (01, 02…). Each audio file can be up to 95 MB: mp3, m4a, aac, flac, ogg, opus, wav, webm. The cover is cropped square and resized to 1000 px."
+    coverEmbedded: Use the cover inside the audio (or pick one)
+    coverAlbumPick: Album cover (optional; defaults to the first track's own cover)
+    coverAlbumEmbedded: Album cover from the first track's own cover (or pick one)
+    coverMatch: Covers (optional, matched by file name; else the cover inside the audio)
+    listHead: 'Will be uploaded as (editable afterwards):'
+    newArtist: new artist
+    noArtist: no artist
+    listJob: 'Status of each track:'
+    stWait: Waiting
+    stUp: Uploading {p}%
+    stDone: Done
+    stFail: Failed
+    stSkip: Skipped
+    whyLocked: 'Not signed in: sign in, then tap “Retry failed” to continue.'
+    whyNetwork: The connection dropped.
+    whyTooLarge: The file is too large.
+    whyNotAudio: Not an audio file we take.
+    whyAlbumGone: The album is gone.
+    whyStorage: Storage error.
+    whyCover: The audio is up, but the cover didn't upload.
+    whyEdit: The audio is up, but the artist / lyrics weren't saved.
+    whyAlbum: The new album couldn't be created.
+    whyAlbumCover: The album cover didn't upload.
+    whyOther: Something went wrong.
+    uploading: Uploading…
+    retryN: Retry failed ({n})
+    partialRetry: '{n} tracks didn''t upload; you can retry just the failed ones.'
+    partialRetry_one: '{n} track didn''t upload; you can retry just that one.'
+    allSkipped: Every track is marked to skip; nothing to upload.
+    leftSingles: '{n} single records have no audio yet: uploading a single with the same title and artist reuses one, or delete them in Singles.'
+    leftSingles_one: '{n} single record has no audio yet: uploading a single with the same title and artist reuses it, or delete it in Singles.'
+    leftAlbum: The new album “{name}” stays (still empty); you can keep uploading to it under existing albums.
+    dupSingle: 'Possible duplicate: there''s already a single “{title}” ({artist}).'
+    dupAlbum: 'Possible duplicate: “{album}” already has “{title}” ({artist}).'
+    dupBatch: 'Possible duplicate: same as #{n} “{title}” in this batch.'
+    skipThis: Skip this one
+    pairHead: 'Not matched by file name; pair them by hand (optional):'
+    pairLrc: Lyrics
+    pairCover: Cover
+    pairNone: Don't use
+    pairTrack: '{n}. {title}'
+    pairFor: Which track gets {name}
+    dropOther: '{n} files aren''t audio, images or .lrc and weren''t added.'
+    dropOther_one: '{n} file isn''t audio, an image or .lrc and wasn''t added.'
+    singleFull: This single already has its track.
+    delSingle: Delete the single “{name}” and its file? The single's record and its cover will be deleted too.
+    delSingleBtn: Delete single “{name}”
+    editSingle: Edit single
+    editTrack: Edit track
+    badYear: Year must be between 1900 and 2100.
+    editBtn: Edit “{name}”
+    moveOut: Move out as a single
+    stayNoAlbum: Single (no album)
+    keep: Unchanged
+    coverPick: Change cover (optional)
+    coverHas: Has a cover; pick an image to replace it (optional)
+    coverAlbum: Uses the album cover once moved into an album
+    lrcLoading: Loading lyrics…
+    lrcUnread: Couldn't read the existing lyrics; leave this blank to keep them.
+    delTrack: Delete the track “{name}” and its file?
+    delTrackTitle: Delete track
+    delSingleTitle: Delete single
+    selN: '{n} selected'
+    selNone: Tap tracks to select
+    batchFail: "{n} didn't change:"
+    batchDone: '{n} changed'
+    savedEdit: Saved
+    errLimit: Limit reached.
+    errStorage: Couldn't copy the cover; nothing changed.
+    arAlbums: '{n} albums'
+    arAlbums_one: '{n} album'
+    arSingles: '{n} singles'
+    arSingles_one: '{n} single'
+    arRelOnly: 'No albums or singles of their own yet. Their tracks are on {albums}.'
+    arRelMore: '{albums} and {n} more'
+    arRelItem: '{a}'
+    arSep: ', '
+    similar: 'There''s already “{name}”. Tap to use it.'
+    avatarPick: Change photo (optional)
+    avatarHas: Has a photo; pick an image to replace it (optional)
+    avatarUp: Uploading the photo…
+    needArtist: Give the artist a name.
+    mergePick: Choose an artist
+    mergeTitle: Merge artist
+    mergeMsg: Merge “{from}” into “{to}”? Everything under “{from}” moves to “{to}”, and “{from}” is deleted.
+    mergeOk: Merge
+    merged: Merged
+    delArtistTitle: Delete artist
+    delArtist: Delete the artist “{name}”? It has no albums or tracks.
+    errArtistExists: There's already an artist with that name. Use Merge to combine them.
+    errHasWorks: This artist still has albums or tracks; merge it instead.

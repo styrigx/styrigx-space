@@ -201,7 +201,7 @@ test('奇趣、日刻的源文件（content / layouts / assets / static / data �
       else if (IMG.test(e.name)) bad.push(rel + e.name);
     }
   };
-  for (const site of ['curio', 'daymark']) {
+  for (const site of ['curio', 'daymark', 'music']) {
     for (const d of ['content', 'layouts', 'layouts/partials', 'assets', 'static', 'data']) {
       const dir = path.join(REPO, 'space/web', d, site);
       if (existsSync(dir)) walk(dir, `space/web/${d}/${site}/`);
@@ -228,7 +228,9 @@ test('真实构建：根文件归主站、三站各在前缀下（中文 /<站>/
     /* 合并 PR3：导航（2026-11-04 P5-1 起在快捷面板导航页）里另两个子站是同源相对地址 /<站>/（中文 /<站>/zh/，P4-3 PR-4c），主站项 / 账号 / 头像是 https://styrigx.com 绝对地址，其余站内地址都带本站前缀；
        2026-11-12：顶栏 logo 四站统一回主站首页，子站英文页 logo 是 /（只此一处） */
     const others = SITES.filter((x) => x !== s).map((x) => '/' + x + '/');
-    assert.deepEqual(refs.filter((r) => !r.startsWith('/' + s + '/') && !others.includes(r) && r !== '/'), [], s + '：站内地址都带 /' + s + '/（另两站的导航项、logo 除外）');
+    /* music 搬家第 3 步：奇趣首页的「音乐」入口指向第四个子站 /music/（中文 /music/zh/），不是本站前缀 */
+    const music = s === 'curio' ? ['/music/', '/music/zh/'] : [];
+    assert.deepEqual(refs.filter((r) => !r.startsWith('/' + s + '/') && !others.includes(r) && !music.includes(r) && r !== '/'), [], s + '：站内地址都带 /' + s + '/（另两站的导航项、logo、奇趣的音乐入口除外）');
     assert.equal([...html.matchAll(/class="?sgx-tb-logo"? href="?([^"\s>]+)/g)].map((m) => m[1]).join(), '/', s + '：logo 回主站首页 /');
     assert.deepEqual(others.filter((o) => !refs.includes(o)), [], s + '：导航页里另两站是相对地址');
     assert.doesNotMatch(html, /atlas\.styrigx\.com/, s + '：不再有旧图志域名');
@@ -242,6 +244,17 @@ test('真实构建：根文件归主站、三站各在前缀下（中文 /<站>/
       else if (IMG.test(e.name)) imgs.push(rel + e.name);
     }
   };
-  for (const s of ['curio', 'daymark']) walk(path.join(out, s), s + '/');
+  for (const s of ['curio', 'daymark', 'music']) walk(path.join(out, s), s + '/');
   assert.deepEqual(imgs, []);
+});
+
+test('真实构建：音乐（music 搬家第 3 步，第四个子站）在 /music/、/music/zh/，播放器 /music/player/、/music/zh/player/；旧 /curio/music/、/zh/music/ 不再生成；没有 /music/en/、根文件', (t) => {
+  if (!existsSync(path.join(PUB, 'music', 'index.html'))) { t.skip('还没构建（先 npm run build）'); return; }
+  for (const f of ['index.html', 'zh/index.html', 'player/index.html', 'zh/player/index.html', 'sitemap.xml']) assert.ok(existsSync(path.join(PUB, 'music', f)), 'music/' + f);
+  for (const d of ['curio/music', 'curio/zh/music', 'zh/music', 'music/en']) assert.equal(existsSync(path.join(PUB, d)), false, d + ' 不该存在');
+  for (const n of ROOT_ONLY) assert.equal(existsSync(path.join(PUB, 'music', n)), false, 'music/' + n);
+  const html = readFileSync(path.join(PUB, 'music', 'index.html'), 'utf8');
+  const canon = html.match(/<link rel="?canonical"? href="?([^"\s>]+)/);
+  assert.equal(canon && canon[1], 'https://styrigx.com/music/');
+  assert.match(readFileSync(path.join(PUB, 'music', 'zh', 'index.html'), 'utf8'), /<link rel="?canonical"? href="?https:\/\/styrigx\.com\/music\/zh\/"?/);
 });

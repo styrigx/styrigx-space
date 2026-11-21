@@ -1,0 +1,175 @@
+# 音乐子站字符串表（中文；英文表 en.yaml 是源文本，缺键回退英文）。music 搬家第 3 步从 data/curio/i18n/zh.yaml 搬来。
+music:
+  music: 音乐
+  albums: 专辑
+  playAlbum: 播放整张
+  tracks: 曲目
+  deleteAlbum: 删除专辑
+  noAlbumsYetTap: 还没有专辑。点「上传专辑」添加第一张。
+  loading: 加载中…
+  close: 关闭
+  album: 专辑名
+  year: 年份
+  coverOptional: 封面（可选）
+  kind: 类型
+  kindAlbum: 专辑
+  kindSingle: 单曲
+  singles: 单曲
+  deleteSingle: 删除单曲
+  delete: 删除
+  upload: 上传
+  modeOne: 单首
+  modeBatch: 批量
+  dropHere: 松手加入：音频、封面图、.lrc 歌词
+  abandon: 放弃剩下的
+  uploadOne: 上传一首
+  newAlbumName: 新专辑名
+  chooseOne: 选音频
+  lyricsLrcOptional: 歌词 .lrc（可选）
+  prefillNote: 选了音频会先填好歌名、歌手（先读音频里的标签，没有再从文件名取），保存前都能改。单个音频文件不超过 95 MB。封面会裁成正方形、缩到 1000 像素。
+  edit: 编辑
+  editAlbum: 编辑专辑
+  editTrack: 编辑曲目
+  songName: 歌名
+  singer: 歌手
+  inAlbum: 所属专辑
+  lyrics: 歌词
+  lyricsPh: 贴 LRC 歌词（[00:12.00]一句……）
+  save: 保存
+  select: 多选
+  batchEdit: 批量改
+  batchTitle: 批量改
+  keepPh: 不改
+  backToMusic: 音乐
+  artistMissing: 找不到这位歌手。
+  artistNoWorks: 还没有专辑或单曲。
+  editArtist: 编辑歌手
+  artistName: 名字
+  style: 风格
+  bio: 简介
+  mergeInto: 合并到另一个歌手
+  merge: 合并…
+  hasWorksNote: 名下还有专辑或曲目，不能删除，只能合并到另一个歌手。
+  cancel: 取消
+cmd:
+  upload: 上传专辑
+js:
+  musicPage:
+    locked: 登录后可听
+    tracks: '{n} 首'
+    failed: 出了点问题，请再试一次。
+    loadFail: "error: 列表没能加载  # 刷新重试"
+    saved: 已上传
+    deleted: 已删除
+    needName: 填一下专辑名。
+    needAudio: 至少选一个音频文件。
+    tooBig: '{name} 超过 95 MB 了。'
+    badType: '{name} 不是能用的音频。'
+    cover: 正在上传封面…
+    delAlbum: 确定删除这张专辑（连同音频文件）吗？
+    del: 删除
+    choose: 选音频（可多选）
+    chosen: 已选 {n} 个
+    coverNone: 封面（可选）
+    lrcNone: 歌词 .lrc（可选，按文件名对上曲目）
+    noPermission: 当前用户没有这个权限。
+    chooseOne: 选音频
+    lrcOne: 歌词 .lrc（可选）
+    needSong: 填一下歌名。
+    uploadOne: 上传一首
+    uploadBatch: 批量上传
+    inAlbum: 所属专辑
+    inBatch: 这批划入哪个专辑（可选）
+    noAlbumBatch: 不划（每首各成一首单曲）
+    newAlbum: 新建专辑…
+    albumArtist: 专辑歌手
+    singer: 歌手
+    needAlbumName: 填一下新专辑名。
+    prefillNote: 选了音频会先填好歌名、歌手（先读音频里的标签，没有再从文件名取），保存前都能改。单个音频文件不超过 95 MB。封面会裁成正方形、缩到 1000 像素。
+    batchNote: 每首的歌名、歌手先读音频里的标签，没有再从文件名取（「歌手 - 歌名」）；传完还能逐首改；新建专辑的歌手默认取这批里最多的那位。曲序按文件名开头的数字（01、02……）。单个音频文件不超过 95 MB，支持 mp3、m4a、aac、flac、ogg、opus、wav、webm。封面会裁成正方形、缩到 1000 像素。
+    coverEmbedded: 用音频里的封面（可另选）
+    coverAlbumPick: 专辑封面（可选；不选就用第一首里的封面）
+    coverAlbumEmbedded: 专辑封面用第一首里的封面（可另选）
+    coverMatch: 封面（可选，按文件名对上曲目；没有就用音频里的封面）
+    listHead: 将这样上传（传完还能改）：
+    newArtist: 新歌手
+    noArtist: 没有歌手
+    listJob: 每首的状态：
+    stWait: 等待
+    stUp: 上传中 {p}%
+    stDone: 完成
+    stFail: 失败
+    stSkip: 跳过
+    whyLocked: 没进站：进站后点「重试失败的」接着传。
+    whyNetwork: 网络断了。
+    whyTooLarge: 文件太大了。
+    whyNotAudio: 不是能用的音频。
+    whyAlbumGone: 专辑不在了。
+    whyStorage: 存储出错了。
+    whyCover: 音频传上了，封面没传上。
+    whyEdit: 音频传上了，歌手 / 歌词没写上。
+    whyAlbum: 新专辑没建成。
+    whyAlbumCover: 专辑封面没传上。
+    whyOther: 出了点问题。
+    uploading: 上传中…
+    retryN: 重试失败的（{n}）
+    partialRetry: 有 {n} 首没传上，可以只重试失败的。
+    allSkipped: 都勾了跳过，没有要传的。
+    leftSingles: 留下 {n} 条还没有音频的单曲记录：再传同名同歌手的单曲会接着用它，也可以在单曲区删掉。
+    leftAlbum: 新专辑「{name}」留着（还是空的），可以在「已有专辑」里接着传。
+    dupSingle: 可能重复：已有单曲「{title}」（{artist}）。
+    dupAlbum: 可能重复：专辑「{album}」里已有「{title}」（{artist}）。
+    dupBatch: 可能重复：和这批第 {n} 首「{title}」一样。
+    skipThis: 跳过这首
+    pairHead: 没按文件名对上，手动配一下（可选）：
+    pairLrc: 歌词
+    pairCover: 封面
+    pairNone: 不用
+    pairTrack: '{n}. {title}'
+    pairFor: '{name} 配给哪首'
+    dropOther: 有 {n} 个文件不是音频、图片或 .lrc，没加进来。
+    singleFull: 这首单曲已经有音频了。
+    delSingle: 确定删除单曲「{name}」（连同音频文件）吗？单曲记录和它的封面也会一起删除。
+    delSingleBtn: 删除单曲「{name}」
+    editSingle: 编辑单曲
+    editTrack: 编辑曲目
+    badYear: 年份要在 1900–2100 之间。
+    editBtn: 编辑「{name}」
+    moveOut: 移出变单曲
+    stayNoAlbum: 单曲（不划入专辑）
+    keep: 不改
+    coverPick: 换封面（可选）
+    coverHas: 已有封面，选图换掉（可选）
+    coverAlbum: 划进专辑后用专辑封面
+    lrcLoading: 正在读取歌词…
+    lrcUnread: 已有歌词没读出来；不动这一栏就不改。
+    delTrack: 确定删除曲目「{name}」（连同音频文件）吗？
+    delTrackTitle: 删除曲目
+    delSingleTitle: 删除单曲
+    selN: 已选 {n} 首
+    selNone: 点曲目选中
+    batchFail: '{n} 条没改成：'
+    batchDone: 已改 {n} 条
+    savedEdit: 已保存
+    errLimit: 到上限了。
+    errStorage: 封面没复制成，没改。
+    arAlbums: '{n} 张专辑'
+    arSingles: '{n} 首单曲'
+    arRelOnly: '还没有自己的专辑或单曲；有曲目收在{albums}里。'
+    arRelMore: '{albums}和另外 {n} 张专辑'
+    arRelItem: '「{a}」'
+    arSep: '、'
+    similar: 已有歌手「{name}」，点一下换成它
+    avatarPick: 换头像（可选）
+    avatarHas: 已有头像，选一张图替换（可选）
+    avatarUp: 正在传头像……
+    needArtist: 给歌手起个名字。
+    mergePick: 选一位歌手
+    mergeTitle: 合并歌手
+    mergeMsg: 把「{from}」合并到「{to}」吗？「{from}」名下的专辑、单曲和曲目都改到「{to}」名下，「{from}」删除。
+    mergeOk: 合并
+    merged: 已合并
+    delArtistTitle: 删除歌手
+    delArtist: 确定删除歌手「{name}」吗？名下没有专辑或曲目。
+    errArtistExists: 已有同名歌手，用「合并」把两位并到一起。
+    errHasWorks: 名下还有专辑或曲目，只能合并。

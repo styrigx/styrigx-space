@@ -1,15 +1,15 @@
-/* 音乐上传预填（space/web/assets/curio/js/curio-music-tags.js；音乐分层方案 v1.19 7.4 / 十二 M2 第 1 条，M2 PR-a）：
+/* 音乐上传预填（space/web/assets/music/js/music-tags.js；音乐分层方案 v1.19 7.4 / 十二 M2 第 1 条，M2 PR-a）：
    文件名清理 + 拆歌手 / 歌名；自己写的读标签（ID3v2.3 / 2.4 / 2.2、ID3v1、FLAC Vorbis 注释 + 内嵌封面）；读不出来不抛错；
    预填（标签优先、文件名兜底）；新建专辑歌手取多数。真文件在 fixtures/music-tags（ffmpeg 生成，gen.sh），边角情况用手拼的字节。
-   上传计划（curio-music.js uploadPlan）也在这里。 */
+   上传计划（music-page.js uploadPlan）也在这里。 */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
-const TG = require('../../space/web/assets/curio/js/curio-music-tags.js');
-const MU = require('../../space/web/assets/curio/js/curio-music.js');
+const TG = require('../../space/web/assets/music/js/music-tags.js');
+const MU = require('../../space/web/assets/music/js/music-page.js');
 const fx = (n) => readFileSync(new URL('./fixtures/music-tags/' + n, import.meta.url));
 const COVER = fx('cover.jpg');
 
@@ -165,7 +165,7 @@ test('预填：每一栏标签优先，没有再用文件名；新建专辑歌�
   assert.equal(TG.majorityArtist(['', '']), '');
 });
 
-/* ---------- 上传计划（curio-music.js uploadPlan） ---------- */
+/* ---------- 上传计划（music-page.js uploadPlan） ---------- */
 const LIST = [
   { id: 1, kind: 'album', title: '叶惠美', artist: '周杰伦', tracks: [{ id: 11, no: 1 }, { id: 12, no: 7 }] },
   { id: 41, kind: 'single', title: '稻香', artist: '周杰伦', tracks: [{ id: 51, no: 1 }] },
@@ -221,7 +221,7 @@ test('封面裁切常量（十二 M2 第 3 条）：≤ 1000 的正方形 jpeg�
   assert.deepEqual(MU.squareCrop(3000, 4000, 1000), { sx: 0, sy: 500, side: 3000, out: 1000 });
   assert.equal(MU.COVER_MAX, 3 * 1024 * 1024);
   assert.ok(MU.COVER_Q[0] === 0.86 && MU.COVER_Q.every((q, i, a) => i === 0 || q < a[i - 1]));
-  const src = readFileSync(new URL('../../space/web/assets/curio/js/curio-music.js', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../../space/web/assets/music/js/music-page.js', import.meta.url), 'utf8');
   assert.ok(!/1600/.test(src) && !/image\/webp/.test(src), '不再缩到 1600 / 转 webp');
   assert.match(src, /var cropAvatar = cropCover;/, '头像和封面同一套裁切');
 });

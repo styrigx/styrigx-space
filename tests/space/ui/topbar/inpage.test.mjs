@@ -87,12 +87,15 @@ test('共享外壳：frame/page-head.html 只有主站一份（2026-11 合站后
 });
 
 test('子站接入（对齐 PR-C2）：奇趣五个分区页同一个页头（页头 + 下划线 tab + grep + 命令链），日刻拾录 / 百味各一个页头 + cd ..；博客首页 / 目录页 / 标签页用 sgx-ph；都不用段式标签 / 平铺入口', () => {
-  for (const id of ['devices', 'games', 'movies', 'music']) {
+  for (const id of ['devices', 'games', 'movies']) {
     assert.match(rd(`space/web/layouts/curio/${id}.html`), new RegExp(`partial "curio/page-head\\.html" \\(dict "page" \\. "id" "${id}"`), id);
   }
+  /* music 搬家第 3 步：音乐页搬到第四个子站 layouts/music/section.html，页头照旧借奇趣的（tab 里 music/ 是当前项，外观不变） */
+  assert.match(rd('space/web/layouts/music/section.html'), /partial "curio\/page-head\.html" \(dict "page" \. "id" "music"/);
   assert.match(rd('space/web/layouts/partials/curio/finds-main.html'), /partial "curio\/page-head\.html" \(dict "page" \$p "id" "finds"/);
   for (const f of ['finds.html', 'section.html']) assert.match(rd('space/web/layouts/curio/' + f), /partial "curio\/finds-main\.html"/, f);
-  for (const id of ['finds', 'devices', 'games', 'movies', 'music']) for (const f of [`${id}.md`, `${id}.zh.md`]) assert.match(rd(`space/web/content/curio/${f}`), /^description: '.+'$/m, f);
+  for (const id of ['finds', 'devices', 'games', 'movies']) for (const f of [`${id}.md`, `${id}.zh.md`]) assert.match(rd(`space/web/content/curio/${f}`), /^description: '.+'$/m, f);
+  for (const f of ['_index.md', '_index.zh.md']) assert.match(rd(`space/web/content/music/${f}`), /^description: '.+'$/m, 'music/' + f);
   const head = rd('space/web/layouts/partials/curio/page-head.html');
   assert.match(head, /partial "common\/frame\/page-head\.html"/);
   assert.match(head, /<div class="sgx-ctab" id="cu-tabs">/);

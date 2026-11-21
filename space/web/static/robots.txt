@@ -3,8 +3,10 @@ Allow: /
 Disallow: /api/
 Disallow: /curio/api/
 Disallow: /daymark/api/
+Disallow: /music/api/
 
 Sitemap: https://styrigx.com/sitemap.xml
 Sitemap: https://styrigx.com/blog/sitemap-index.xml
 Sitemap: https://styrigx.com/curio/sitemap.xml
 Sitemap: https://styrigx.com/daymark/sitemap.xml
+Sitemap: https://styrigx.com/music/sitemap.xml

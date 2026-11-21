@@ -41,20 +41,22 @@ const PUBLIC_DIR = path.join(REPO, 'space/web/public');
 const EXEMPT = new Set(['/404.html']);
 /* 必须过网关的非页面路径（含锁屏入口本身，带查询串；v5 S3 起访客 sudo styrigx 落到 /?entry=sudo&return=原页） */
 const MUST_ROUTE = ['/api/geo',
-  '/?entry=1', '/?entry=sudo&return=%2Fcurio%2Fmusic%2F', '/?lock=1', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
+  '/?entry=1', '/?entry=sudo&return=%2Fmusic%2F', '/?lock=1', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
   '/zh/?entry=1', '/files-index.json'];
 /* 账号路径：必须归网关、在转发表里转给 ACCOUNT（账号 Worker styrigx-account 没有路由） */
 const ACCOUNT_MUST = ['/api/account/devices', '/api/account/devices?x=1', '/api/avatar', '/api/prefs', '/api/prefs/', '/api/profile', '/api/profile/',
   '/avatar/32.webp', '/avatar/96.webp', '/avatar/192.webp?v=abc', '/avatar/512.webp'];
 /* 转发表允许的绑定 */
 const FORWARD_BINDINGS = new Set(['ACCOUNT']);
-/* 子站（合并 PR3）：主域名下的前缀，三站产物都按 /<站>/ 登记 */
-export const SUBSITES = ['blog', 'curio', 'daymark'];
+/* 子站（合并 PR3）：主域名下的前缀，各站产物都按 /<站>/ 登记（music 搬家第 3 步加 music） */
+export const SUBSITES = ['blog', 'curio', 'daymark', 'music'];
 /* 子站在主域名上必须归网关的路径（页面、RSS、站点地图；v5 S3 起都公开，但要经网关注入会话标记） */
 const SUBSITE_MUST = ['/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?a', '/blog/tags/x/', '/blog/zh/', '/blog/zh/?a', '/blog/zh/post/x/', '/blog/rss.xml', '/blog/rss.xml?a',
   '/curio/', '/curio/?x=1', '/curio/zh/', '/curio/sitemap.xml', '/curio/sitemap.xml?a',
-  '/curio/finds/', '/curio/zh/devices/', '/curio/games/', '/curio/movies/', '/curio/zh/music/',
-  '/daymark/', '/daymark/?x=1', '/daymark/zh/', '/daymark/sitemap.xml', '/daymark/sitemap.xml?a'];
+  '/curio/finds/', '/curio/zh/devices/', '/curio/games/', '/curio/movies/', '/curio/zh/music/', '/curio/music/?artist=1',
+  '/daymark/', '/daymark/?x=1', '/daymark/zh/', '/daymark/sitemap.xml', '/daymark/sitemap.xml?a',
+  /* music 搬家第 3 步：新页面地址；旧 /curio/music/… 留在上面（301 由 Pages _redirects 回，也要过网关） */
+  '/music/', '/music/?artist=1', '/music/zh/', '/music/player/', '/music/player/?album=1&t=0', '/music/zh/player/', '/music/sitemap.xml', '/music/sitemap.xml?a'];
 /* 子站接口 Worker：必须登记的路由（每个站一条 /<站>/api/*）和归它的样例路径（主域名） */
 export const CORE_WORKERS = [
   { name: 'atlas-core', label: '内容层接口 Worker（styrigx-atlas-core）', dir: 'workers/atlas-core', sites: ['curio', 'daymark', 'music'],

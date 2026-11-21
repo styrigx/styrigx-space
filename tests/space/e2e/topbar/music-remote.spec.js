@@ -1,6 +1,6 @@
 /**
  * 音乐分层方案 v1.13 §九：顶栏音乐图标的小遥控层（topbar/panel.js mountMusic + #sgx-mu）。
- * 播放器用同源另一页的 BroadcastChannel 冒充（静态测试站没有 /curio/api/music），只验遥控这一侧：
+ * 播放器用同源另一页的 BroadcastChannel 冒充（静态测试站没有 /music/api/music），只验遥控这一侧：
  * - 加载先问 player-hello；没人答 → 点图标开播放器（music-open.spec.js 管）；
  * - 答了在播 → 点图标弹遥控层（歌名、歌手、上一曲 / 暂停 / 下一曲），图标亮小点；按钮发 remote-cmd；「播放器」切到播放器窗；
  * - 播放器关窗（player-bye）→ 遥控层收起、小点灭。
@@ -61,6 +61,6 @@ test('没在播（on=false）：点图标照旧开播放器，不弹遥控层', 
   await fakePlayer(context, { type: 'player-state', on: false, playing: false, title: '', artist: '' });
   await open(page);
   const [pop] = await Promise.all([context.waitForEvent('page'), page.locator('.sgx-tb-music').click()]);
-  await pop.waitForURL(/\/curio\/zh\/music\/player\/$/);
+  await pop.waitForURL(/\/music\/zh\/player\/$/);
   await expect(page.locator('#sgx-mu')).not.toHaveClass(/is-open/);
 });

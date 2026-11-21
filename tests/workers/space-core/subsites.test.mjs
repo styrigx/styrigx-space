@@ -50,12 +50,12 @@ function req(url, cookieHeader) {
   return new Request(url, { headers: cookieHeader ? { Cookie: cookieHeader } : {} });
 }
 
-test('子站判断：只认主域名 styrigx.com + 第一段 blog / curio / daymark；旧子域名、书库、别的主机都不算子站', () => {
-  for (const u of ['https://styrigx.com/blog/', 'https://styrigx.com/curio/x', 'https://styrigx.com/daymark', 'https://styrigx.com/%62log/rss.xml', 'https://styrigx.com//blog/rss.xml', 'https://styrigx.com/BLOG/']) {
+test('子站判断：只认主域名 styrigx.com + 第一段 blog / curio / daymark / music（music 搬家第 3 步起）；旧子域名、书库、别的主机都不算子站', () => {
+  for (const u of ['https://styrigx.com/blog/', 'https://styrigx.com/curio/x', 'https://styrigx.com/daymark', 'https://styrigx.com/music/', 'https://styrigx.com/music/zh/player/?album=1&t=0', 'https://styrigx.com/%62log/rss.xml', 'https://styrigx.com//blog/rss.xml', 'https://styrigx.com/BLOG/']) {
     assert.ok(subsiteOf(new URL(u)), u);
   }
   for (const u of ['https://blog.styrigx.com/', 'https://curio.styrigx.com/curio/', 'https://book.styrigx.com/blog/',
-    'https://evil.styrigx.com/blog/', 'https://styrigx.com/', 'https://styrigx.com/blogx/', 'https://styrigx.com/__proto__/', 'https://styrigx.com/zh/blog/']) {
+    'https://evil.styrigx.com/blog/', 'https://styrigx.com/', 'https://styrigx.com/blogx/', 'https://styrigx.com/__proto__/', 'https://styrigx.com/zh/blog/', 'https://styrigx.com/zh/music/', 'https://styrigx.com/musicx/', 'https://music.styrigx.com/music/']) {
     assert.equal(subsiteOf(new URL(u)), null, u);
   }
 });
@@ -72,10 +72,13 @@ test('路径归一：解码一次、反斜杠、小写、多斜杠、. / .. 段'
   assert.equal(normPath('/%zz/x'), '/%zz/x', '解不开就按原样');
 });
 
-test('路径归哪个站：第一段是 blog / curio / daymark 才算', () => {
+test('路径归哪个站：第一段是 blog / curio / daymark / music 才算', () => {
   assert.equal(siteOf('/blog/post/x/'), 'blog');
   assert.equal(siteOf('/curio/'), 'curio');
   assert.equal(siteOf('/daymark/zh/'), 'daymark');
+  assert.equal(siteOf('/music/player/'), 'music');
+  assert.equal(siteOf('/MUSIC/zh/'), 'music');
+  assert.equal(siteOf('/zh/music/'), null, '旧 /zh/music/ 只是 301（_redirects），不是子站');
   assert.equal(siteOf('/'), null);
   assert.equal(siteOf('/robots.txt'), null);
   assert.equal(siteOf('/__proto__/'), null);
@@ -104,7 +107,7 @@ test('静态资源后缀判断（xml / json / txt 都不算，只有博客 manif
   assert.equal(isStaticAsset('/blog/'), false);
 });
 
-for (const site of ['blog', 'daymark', 'curio']) {
+for (const site of ['blog', 'daymark', 'curio', 'music']) {
   const host = 'styrigx.com';
   const base = 'https://' + host + '/' + site;
   test(site + '：访客（没会话）页面 200 回源，<html> 标 locked，private, no-store，不 302', async () => {
@@ -170,7 +173,7 @@ for (const site of ['blog', 'daymark', 'curio']) {
 }
 
 test('绕法：编码 / 大小写 / 多斜杠 / .. 拼出来的子站接口路径，没有会话一律 401（不回源）；页面路径照常公开', async () => {
-  for (const p of ['/%62log/api/x', '/BLOG/api/x', '//curio//api/links', '/css/..%2Fcurio/api/music-stream?t=x', '/%63urio/API/music', '/daymark%2Fapi/quotes']) {
+  for (const p of ['/%62log/api/x', '/BLOG/api/x', '//curio//api/links', '/css/..%2Fcurio/api/music-stream?t=x', '/%63urio/API/music', '/daymark%2Fapi/quotes', '/music/api/music-play', '/%6Dusic/API/music', '//music//api/music-stream?t=x']) {
     const e = env();
     const res = await worker.fetch(req('https://styrigx.com' + p), e, CTX);
     assert.equal(res.status, 401, p);
@@ -216,7 +219,7 @@ test('子站页面：页面源码里混进的旧会话标记（等级 / 升级�
   assert.match(out, /<a class="sgx-drawer-me" href="https:\/\/styrigx.com\/account\/" aria-label="账号">/);
 });
 
-for (const site of ['blog', 'daymark', 'curio']) {
+for (const site of ['blog', 'daymark', 'curio', 'music']) {
   const host = 'styrigx.com/' + site;
   test(site + '：站长、root 拿到的页面一样，头像都可点、没有旧会话标记', async () => {
     const page = (e) => { e.ASSETS.fetch = async () => new Response(DRAWER, { headers: { 'Content-Type': 'text/html; charset=utf-8' } }); return e; };

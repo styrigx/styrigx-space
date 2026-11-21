@@ -1,47 +1,47 @@
-/* assets/js/curio-music.js —— 奇趣「音乐」私人子页（P4-3 奇趣拆页：/curio/music/；浏览器 IIFE；node 测试时导出纯函数）。
+/* assets/music/js/music-page.js —— 音乐页（/music/，中文 /music/zh/；浏览器 IIFE；node 测试时导出纯函数）。
+ * music 搬家第 3 步（搬家设计稿 v1.1 3.1–3.3，2026-11-21）：原 assets/curio/js/curio-music.js（奇趣「音乐」子页 /curio/music/），音乐升为第四个子站，
+ * 接口改走 /music/api/*；本页不再出声——播放条、<audio>、同步歌词、倍速都删了，发声只归弹出播放器 /music/player/（Gray 2026-11-21 02:02–02:09）。
  *
- * 三层（v5 S3；接口档在 workers/atlas-core/src/curio/routes.js ROUTE_ACCESS）：
- *   - 看：GET /curio/api/music 谁都能调（只有专辑 / 曲目元数据，没有音频地址）；回 canManage（music-manage）才显示上传 / 删除专辑。
- *   - 听：要进站。没进站（网关标记 <html data-sgx-lock-session="locked">，或签令牌回 401）= 只看模式（html.mu-view-only）：
- *     播放整张 / 播放键是锁，播放条显示当前专辑和「未进站，仅可浏览」，上一首 / 下一首 / 倍速 / 进度不可用；
- *     点播放、点曲目都发 sgx:sudo（经 curio.js SgxCurioUI.sudo；= common/js/auth/sudo.js SUDO_EVENT），顶栏终端预填 su 。
+ * 三层（v5 S3；接口档在账号 Worker core/route-access.js 与 workers/atlas-core/src/curio/routes.js ROUTE_ACCESS）：
+ *   - 看：GET /music/api/music 谁都能调（只有专辑 / 曲目元数据，没有音频地址）；回 canManage（music-manage）才显示上传 / 删除专辑。
+ *   - 听：要进站。没进站（网关标记 <html data-sgx-lock-session="locked">，或接口回 401）= 只看模式（html.mu-view-only）：
+ *     「播放整张」是锁；点播放、点曲目都发 sgx:sudo（经 curio.js SgxCurioUI.sudo；= common/js/auth/sudo.js SUDO_EVENT），顶栏终端预填 su ，不开播放器。
  *   - 写的接口 401 同样按没进站处理。
- * 播放器（交互借 jojo.best/music 的思路，只借交互）：
+ * 播放 = 交给弹出播放器（3.3）：
  *   - 封面横滑切专辑（scroll-snap，停下来的那张是当前专辑；点封面也能切），下面是这张的曲目（按曲序）。
- *   - 「播放整张」从第 1 首按曲序放到最后一首；点某一首从那首开始，放完接下一首。
- *   - 歌词：有 LRC 就在播放条里滚动，当前行高亮（parseLrc / lrcIndex）。
- *   - 倍速：0.75 → 1 → 1.25 → 1.5 → 2 → 0.75 循环（SPEEDS），换曲目也保持。
- *   - 随机播放（第二步 2b）：顺序 / 随机，模式记在 localStorage「sgx-music-mode」，和弹出播放器共用一个设置（方案 v1.13 §7.1）；
- *     另一个窗口改了（storage 事件）这边跟着变。随机的队列规则在共用核。
- * 播放短链：POST /curio/api/music-play {album} 签随机令牌（10 分钟），<audio src> = /curio/api/music-stream?t=…&id=…（Range 拖进度）。
- *   签令牌、续签、切曲、倍速、防同时响都在共用核 music-core.js（SgxMusicCore.createPlayer；弹出播放器同一份），本文件只画界面。
- * 上传（M2 PR-a 起，见「上传」一节）：分段「单首 | 批量」；歌名 / 歌手按音频标签（curio-music-tags.js）、没有再按文件名预填；单首选「不划 / 新建 / 已有专辑」，
+ *   - 「播放整张」= 从第 1 首；点某一首 = 从那首。单曲区 / 歌手页单曲区 = 那一列单曲当播放列表（queue）。
+ *   - 播放器开着：BroadcastChannel「sgx-music」发 remote-cmd {cmd:'play', album, i}（单曲 {cmd:'play', queue:[单曲记录 id…], i}），播放器换到那张、从第 i 首放。
+ *     本页不等 player-hello 的回答，点一下总是发（没开就没人收；刚加载就点也不会漏，见 handOff）。
+ *   - 然后发可取消的 sgx-music-open {url}，顶栏 mountMusic（common/js/frame/topbar/panel.js）用开顶栏音乐图标同一套 go()：
+ *     同名单窗口 sgx-music-player，已开就只切过去（不重新加载），没开就开 /music/player/?album=<id>&t=<i>（手机新标签页，被拦整页跳）。
+ *     没有顶栏接（不该发生）就本页直接跳过去。新开的播放器没有用户手势、自动播放被拦时停在那首、播放键亮着（不另想绕法）。
+ *   - 不在本页标出正在播的曲目（Gray 2026-11-21 14:17）。
+ * 上传（M2 PR-a 起，见「上传」一节）：分段「单首 | 批量」；歌名 / 歌手按音频标签（music-tags.js）、没有再按文件名预填；单首选「不划 / 新建 / 已有专辑」，
  *   批量选「这批划入哪个专辑」；封面裁方、≤ 1000、jpeg；音频按文件名排序直传（单个 ≤ 95 MB）→ 每首一个 track.edit 写歌手 / 歌词。
  *   PR-b：一次 2 首、每首状态 + XHR 进度、只重试失败的（不重建记录）、拖放、去重提醒（可跳过）、没对上的歌词 / 封面手动配对。
  * 单曲 / 专辑分类（音乐 v1.13 ②，Gray 2026-11-14 17:33 定）：
  *   - 列表每条带 kind；页面分段「专辑 · 单曲」（两边都有才显示分段，哪边为空只显示有的那边）。专辑 = 封面横滑照旧；
- *     单曲 = 列表（小封面 · 歌名 · 歌手 · 时长），点一行就播，单曲区当播放列表（共用核 playQueue：按需为下一首签令牌，顺序 / 随机、到尾停同专辑）。
- *   - 播放条副标题：单曲只显示歌手（共用核 nowSub）。
+ *     单曲 = 列表（小封面 · 歌名 · 歌手 · 时长），点一行 = 交给播放器，单曲区当播放列表。
  * 歌手页（M4，音乐 v1.19 7.5 / 十二 M4）：
- *   - 不加新路由：本页 ?artist=<id> 视图（history.pushState 换视图，不重新加载，正在放的歌不断）；头部头像（没有用默认图标）、名字、
- *     专辑数和单曲数（有简介 / 风格才显示），下面专辑一区、单曲一区。点专辑回到音乐页那张专辑；单曲区点一首 = 这位歌手的单曲当播放列表。
- *   - 入口：专辑标题下的歌手名、单曲行的歌手名、播放条里的歌手名（链接 / data-artist）；弹出播放器里的歌手名经 BroadcastChannel 让主窗口切过来
+ *   - 不加新路由：本页 ?artist=<id> 视图（history.pushState 换视图，不重新加载）；头部头像（没有用默认图标）、名字、
+ *     专辑数和单曲数（有简介 / 风格才显示），下面专辑一区、单曲一区。点专辑回到音乐页那张专辑；单曲区点一首 = 这位歌手的单曲当播放列表交给播放器。
+ *   - 入口：专辑标题下的歌手名、单曲行的歌手名（链接 / data-artist）；弹出播放器里的歌手名经 BroadcastChannel 让主窗口切过来
  *     （顶栏 mountMusic 收 artist-go 发 sgx-music-artist 事件，本页接住就在页内换视图，不接就整页跳过来）。
  *   - 改歌手（能写才有「编辑」）：名字、风格、简介（artist.edit，music-manage）+ 头像（浏览器裁方、≤ 1000、jpeg，music-upload kind=avatar）；
  *     合并到另一个歌手（artist.merge）、删歌手（artist.del，名下没作品才能删）都是 root 档：先确认，再领一次性票（同删专辑）。
  *   - 单曲没封面：封面空 → 歌手头像 → 默认图（共用核 coverOf）。
  *   - 歌手栏联想（7.5「输入带联想」）：上传 / 编辑 / 批量改的歌手栏挂同一个 <datalist>（已有歌手）；输入和已有歌手只差大小写 / 空格时提示一句，可点一下换成已有的。
- * 确认框、提示条、弹层开关借 curio.js 的（window.SgxCurioUI）。
+ * 确认框、提示条、弹层开关、sudo / sudoTicket 借 curio.js 的（window.SgxCurioUI）——技术债（3.1 第 3 条）：搬家做完再挪进 common。
  */
 (function(){
 "use strict";
 var G = typeof globalThis !== 'undefined' ? globalThis : this;
 
-/* 播放用的纯函数（倍速、时间、歌词）在共用核 music-core.js，这里转出去（测试照旧从本文件取） */
+/* 共用核 music-core.js 的纯函数（单曲判断、封面、时长、歌手页地址、频道名）；本页不再 createPlayer（3.3） */
 var CORE = typeof module !== 'undefined' && module.exports ? require('../../common/js/music/music-core.js') : G.SgxMusicCore;
-/* 上传预填（读标签、清理文件名，M2）在 curio-music-tags.js */
-var TAGS = typeof module !== 'undefined' && module.exports ? require('./curio-music-tags.js') : G.SgxMusicTags;
-var SPEEDS = CORE.SPEEDS, nextSpeed = CORE.nextSpeed, fmtTime = CORE.fmtTime, parseLrc = CORE.parseLrc, lrcIndex = CORE.lrcIndex;
+/* 上传预填（读标签、清理文件名，M2）在 music-tags.js */
+var TAGS = typeof module !== 'undefined' && module.exports ? require('./music-tags.js') : G.SgxMusicTags;
+var fmtTime = CORE.fmtTime;
 /** 单个音频上限（同 workers/atlas-core/src/curio/api/_music.js MUSIC_LIMITS.trackBytes） */
 var TRACK_MAX = 95 * 1024 * 1024;
 var EXT_TYPES = { mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', flac: 'audio/flac', ogg: 'audio/ogg', opus: 'audio/opus', wav: 'audio/wav', webm: 'audio/webm' };
@@ -331,6 +331,20 @@ function dropKinds(files){
 /** 封面 / 头像裁切（十二 M2 第 3 条 / M4 第 2 条，同一套）：取中间正方形、≤ 1000、jpeg；质量从 0.86 起，超 3 MB 再降（同后端 coverBytes） */
 var COVER_MAX = 3 * 1024 * 1024, COVER_Q = [0.86, 0.72, 0.55];
 
+/* ---------- 播放交给弹出播放器（music 搬家第 3 步 3.3）的纯函数 ---------- */
+/** 弹出播放器的窗口名、小窗尺寸（同 common/js/frame/topbar/panel.js MUSIC_WIN / MUSIC_FEATURES；播放器页自己也把 window.name 设成它） */
+var PLAYER_WIN = 'sgx-music-player';
+/** 音乐页路径 → 播放器页路径：/music/ → /music/player/，/music/zh/ → /music/zh/player/ @param {string} pathname */
+function playerPathOf(pathname){ return String(pathname || '/music/').replace(/[^/]*$/, '') + 'player/'; }
+/** 没开播放器时开的地址：播放器页 ?album=<记录 id>&t=<第几首（从 0 起）>；单曲 album = 那条单曲记录、t = 0（播放器从单曲组里它那一首开始） */
+function playerUrl(pathname, albumId, i){ return playerPathOf(pathname) + '?album=' + Number(albumId) + '&t=' + Number(i); }
+/** 发给开着的播放器的 remote-cmd：专辑 {cmd:'play', album, i}；单曲列表 {cmd:'play', queue:[单曲记录 id…], i} @param {{album?: number, queue?: number[], i: number}} o */
+function playCmd(o){
+  var m = { type: 'remote-cmd', cmd: 'play', i: Number(o.i) };
+  if (o.queue) m.queue = o.queue.slice(); else m.album = Number(o.album);
+  return m;
+}
+
 /* ---------- 文案表（语言包化第二部分 2026-11-07；curio / daymark 各脚本同一份小工具） ---------- */
 /** 页面里 #sgx-i18n-<表> 的扁平字典；没有 / 坏了返回 {} */
 function readDict(doc, table){
@@ -361,24 +375,23 @@ function makeTr(dict, lang){
   };
 }
 
-var pure = { readDict: readDict, makeTr: makeTr, SPEEDS: SPEEDS, TRACK_MAX: TRACK_MAX, nextSpeed: nextSpeed, fmtTime: fmtTime, parseLrc: parseLrc, lrcIndex: lrcIndex, trackFromName: trackFromName, sortByName: sortByName, audioType: audioType, lrcKey: lrcKey, splitKinds: splitKinds, pickSection: pickSection, albumChoices: albumChoices, lrcChange: lrcChange, trackEditBody: trackEditBody, yearOf: yearOf, batchRequests: batchRequests, artistOf: artistOf, artistWorks: artistWorks, relatedAlbums: relatedAlbums, similarArtist: similarArtist, squareCrop: squareCrop, matchKey: matchKey, uploadPlan: uploadPlan, applyPairs: applyPairs, UP_CONC: UP_CONC, pctOf: pctOf, dupOf: dupOf, batchDups: batchDups, upReason: upReason, emptySingle: emptySingle, dropKinds: dropKinds, COVER_MAX: COVER_MAX, COVER_Q: COVER_Q };
+var pure = { readDict: readDict, makeTr: makeTr, TRACK_MAX: TRACK_MAX, fmtTime: fmtTime, PLAYER_WIN: PLAYER_WIN, playerPathOf: playerPathOf, playerUrl: playerUrl, playCmd: playCmd, trackFromName: trackFromName, sortByName: sortByName, audioType: audioType, lrcKey: lrcKey, splitKinds: splitKinds, pickSection: pickSection, albumChoices: albumChoices, lrcChange: lrcChange, trackEditBody: trackEditBody, yearOf: yearOf, batchRequests: batchRequests, artistOf: artistOf, artistWorks: artistWorks, relatedAlbums: relatedAlbums, similarArtist: similarArtist, squareCrop: squareCrop, matchKey: matchKey, uploadPlan: uploadPlan, applyPairs: applyPairs, UP_CONC: UP_CONC, pctOf: pctOf, dupOf: dupOf, batchDups: batchDups, upReason: upReason, emptySingle: emptySingle, dropKinds: dropKinds, COVER_MAX: COVER_MAX, COVER_Q: COVER_Q };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
-G.SgxCurioMusic = pure;
+G.SgxMusicPage = pure;
 
 var doc = G.document;
 if (!doc.getElementById('cu-pane-music')) return;
 var UI = G.SgxCurioUI;
 var $ = function(s){ return doc.querySelector(s); };
-/* 界面文案（语言包化第二部分 2026-11-07）：页面里的 #sgx-i18n-curioMusic，模板从字符串表 data/curio/i18n/<语言>.yaml 的 js.curioMusic 输出，
+/* 界面文案（语言包化第二部分 2026-11-07）：页面里的 #sgx-i18n-musicPage，模板从字符串表 data/music/i18n/<语言>.yaml 的 js.musicPage 输出，
    已经是「英文表 ← 页面语言表」的合并（缺键回退英文）；本文件不再认识任何语言。带数字的文案走 tr（复数按 Intl.PluralRules）。 */
 var lang = doc.documentElement.lang || 'en';
-var T = readDict(doc, 'curioMusic');
+var T = readDict(doc, 'musicPage');
 var tr = makeTr(T, lang);
 T.tracks = function(n){ return tr('tracks', { n: n }); };
 T.tooBig = function(name){ return tr('tooBig', { name: name }); };
 T.badType = function(name){ return tr('badType', { name: name }); };
 T.chosen = function(n){ return tr('chosen', { n: n }); };
-T.speed = function(s){ return tr('speed', { s: s }); };
 T.selN = function(n){ return tr('selN', { n: n }); };
 T.batchFail = function(n){ return tr('batchFail', { n: n }); };
 T.batchDone = function(n){ return tr('batchDone', { n: n }); };
@@ -408,20 +421,6 @@ function setData(list, want){
   cur = Math.min(cur, Math.max(0, albums.length - 1));
   sec = pickSection(want || sec, albums.length, singles.length);
 }
-var audio = $('#mu-audio');
-/** 歌词（画在播放条里）；声音和令牌在共用核 P 里 */
-var lyr = { lines: [], line: -2 };
-var speed = 1;
-/* 共用核：签令牌走本页 req（401 = 只看模式），换曲 / 播停时这边只管画 */
-var P = CORE.createPlayer({
-  audio: audio,
-  sign: function(albumId){ return req('POST', '/curio/api/music-play', { album: albumId }); },
-  onTrack: paintTrack,
-  onChange: syncToggle,
-  onStop: function(){ renderAlbum(); syncToggle(); },
-  /* 点播失败报一句（没进站已切只看模式，不再报）；切曲 / 续签失败照旧不吭声 */
-  onError: function(e, where){ if (where === 'play' && !(e && e.sgxLocked)) toast(failMsg(e)); },
-});
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function toast(m){ if (UI) UI.toast(m); }
@@ -472,12 +471,12 @@ function failMsg(e){ return e && e.code === 'forbidden' && T.noPermission ? T.no
 function album(){ return albums[cur] || null; }
 /** 删专辑 / 单曲（album.del = root 档，D-3 a′）：先拿票再发；sudo 行带专辑 id */
 function delAlbum(id){
-  var get = UI && UI.sudoTicket ? UI.sudoTicket('sudo curio music rm ' + id, { method: 'POST', path: '/curio/api/music', action: 'album.del' }) : Promise.resolve('');
-  return get.then(function(t){ return req('POST', '/curio/api/music', { op: 'album.del', id: id }, undefined, t); });
+  var get = UI && UI.sudoTicket ? UI.sudoTicket('sudo curio music rm ' + id, { method: 'POST', path: '/music/api/music', action: 'album.del' }) : Promise.resolve('');
+  return get.then(function(t){ return req('POST', '/music/api/music', { op: 'album.del', id: id }, undefined, t); });
 }
 /** 封面地址：专辑 / 单曲自己的封面；单曲没有 → 歌手头像；都没有 ''（M4，共用核 coverOf） */
 function coverUrl(a){ return CORE.coverOf(a, arts, coverVer); }
-function avatarUrl(r){ return r && r.avatar ? '/curio/api/music-cover?artist=' + r.id + (coverVer ? '&v=' + coverVer : '') : ''; }
+function avatarUrl(r){ return r && r.avatar ? '/music/api/music-cover?artist=' + r.id + (coverVer ? '&v=' + coverVer : '') : ''; }
 /** 歌手名 → 歌手页链接（M4 入口；对不上歌手表 / 没有歌手就只是文字）。inButton：在播放按钮里面（单曲行），不能放 <a>，用不可聚焦的 span */
 function artistLink(name, id, inButton){
   var n = esc(name || '');
@@ -491,15 +490,15 @@ function renderSeg(){
   $('#mu-seg').classList.toggle('hidden', !(albums.length && singles.length));
   doc.querySelectorAll('#mu-seg [data-sec]').forEach(function(b){ b.setAttribute('aria-selected', String(b.dataset.sec === sec)); });
 }
-/** 单曲列表：小封面 · 歌名 · 歌手 · 时长；正在放的高亮 */
+/** 单曲列表：小封面 · 歌名 · 歌手 · 时长（本页不标正在播的，3.3） */
 function renderSingles(){
   var box = $('#mu-singles');
   box.classList.toggle('hidden', sec !== 'single' || !singles.length);
   if (sec !== 'single') { box.innerHTML = ''; return; }
   box.innerHTML = singles.map(function(a, i){
-    var t = a.tracks[0], on = !!P.state.queue && P.state.i >= 0 && P.state.album === a.id;
+    var t = a.tracks[0];
     var picked = sel.on && !!sel.ids[a.id];
-    return '<li' + (canManage ? ' class="mu-single-row"' : '') + '><button type="button" class="mu-single' + (on ? ' on' : '') + '" data-s="' + i + '"' + (on ? ' aria-current="true"' : '') + (sel.on ? ' aria-pressed="' + picked + '"' : '') + (t ? '' : ' disabled') + '>'
+    return '<li' + (canManage ? ' class="mu-single-row"' : '') + '><button type="button" class="mu-single" data-s="' + i + '"' + (sel.on ? ' aria-pressed="' + picked + '"' : '') + (t ? '' : ' disabled') + '>'
       + (sel.on ? CHECK : '')
       + singleIm(a)
       + '<span class="mu-single-tx"><b>' + esc(a.title) + '</b><i>' + (sel.on ? esc(a.artist || '') : artistLink(a.artist, a.artist_id, true)) + '</i></span>'
@@ -537,14 +536,13 @@ function renderAlbum(){
   renderSelBar(a, inAlb);
   $('#mu-tracks').innerHTML = '';
   renderSeg(); renderSingles();
-  if (viewOnly) paintViewOnly(inAlb ? a : singles[0] || null);
   if (!a || !inAlb) return;
   $('#mu-album-title').textContent = a.title;
   $('#mu-album-sub').innerHTML = [artistLink(a.artist, a.artist_id), a.year ? String(a.year) : '', esc(T.tracks(a.tracks.length))].filter(Boolean).join(' · ');
   $('#mu-play-all').disabled = !a.tracks.length;
   $('#mu-tracks').innerHTML = a.tracks.map(function(t, i){
-    var on = P.state.album === a.id && P.state.i === i, picked = sel.on && !!sel.ids[t.id];
-    return '<li' + (canManage ? ' class="mu-track-row"' : '') + '><button type="button" class="mu-track' + (on ? ' on' : '') + '" data-t="' + i + '"' + (on ? ' aria-current="true"' : '') + (sel.on ? ' aria-pressed="' + picked + '"' : '') + '>'
+    var picked = sel.on && !!sel.ids[t.id];
+    return '<li' + (canManage ? ' class="mu-track-row"' : '') + '><button type="button" class="mu-track" data-t="' + i + '"' + (sel.on ? ' aria-pressed="' + picked + '"' : '') + '>'
       + (sel.on ? CHECK : '<span class="mu-track-no">' + (t.no || i + 1) + '</span>') + '<span class="mu-track-title">' + esc(t.title) + '</span>'
       + '<span class="mu-track-dur">' + (t.duration ? fmtTime(t.duration) : '') + '</span></button>'
       /* 「⋯」编辑（M3：歌名、歌手、歌词、所属专辑；专辑里的曲目不设封面，7.6）；多选时不画 */
@@ -561,7 +559,7 @@ function select(i, scroll){
   renderAlbum();
   if (scroll) { var c = doc.querySelector('.mu-cover[data-i="' + i + '"]'); if (c) c.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); }
 }
-/* 分段切换：专辑 ↔ 单曲（只换显示，不打断正在放的） */
+/* 分段切换：专辑 ↔ 单曲（只换显示） */
 $('#mu-seg').addEventListener('click', function(e){
   var b = e.target.closest('[data-sec]');
   if (!b || b.dataset.sec === sec) return;
@@ -570,7 +568,7 @@ $('#mu-seg').addEventListener('click', function(e){
   renderAlbum();
   if (sec === 'album') { var c = doc.querySelector('.mu-cover[data-i="' + cur + '"]'); if (c) c.scrollIntoView({ inline: 'center', block: 'nearest' }); }
 });
-/* 单曲：点一行从这首开始，单曲区当播放列表 */
+/* 单曲：点一行 = 交给播放器从这首开始，单曲区当播放列表 */
 $('#mu-singles').addEventListener('click', function(e){
   /* 单曲行里的歌手名（M4）：进歌手页，不播放；多选时照旧是选中 */
   var ar = !sel.on && e.target.closest('[data-artist]');
@@ -585,14 +583,16 @@ $('#mu-singles').addEventListener('click', function(e){
   if (viewOnly) return askSudo();
   playSingles(Number(b.dataset.s));
 });
-/* 封面横滑：停下来以后离中线最近的那张是当前专辑 */
+/* 封面横滑：停下来以后离中线最近的那张是当前专辑。
+   按屏幕位置比（getBoundingClientRect），不用 offsetLeft：offsetLeft 相对最近的定位祖先、不是横滑框，框离页左边远（桌面）时判错，
+   会把刚选中 / 刚传完的那张又跳回第一张（搬家前就有，第 3 步在 1440 跑 e2e 时发现，一并修） */
 (function(){
   var box = $('#mu-covers'), t = 0;
   box.addEventListener('scroll', function(){
     clearTimeout(t);
     t = setTimeout(function(){
-      var mid = box.scrollLeft + box.clientWidth / 2, best = cur, d = Infinity;
-      box.querySelectorAll('.mu-cover').forEach(function(c, i){ var x = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid); if (x < d) { d = x; best = i; } });
+      var r = box.getBoundingClientRect(), mid = r.left + box.clientWidth / 2, best = cur, d = Infinity;
+      box.querySelectorAll('.mu-cover').forEach(function(c, i){ var q = c.getBoundingClientRect(), x = Math.abs(q.left + q.width / 2 - mid); if (x < d) { d = x; best = i; } });
       if (best !== cur) select(best, false);
     }, 90);
   }, { passive: true });
@@ -600,79 +600,49 @@ $('#mu-singles').addEventListener('click', function(e){
 })();
 
 /* ---------- 只看模式（没进站） ---------- */
-/** 播放条停在当前专辑：标题 / 「艺术家 · 未进站，仅可浏览」，时间 --:-- @param {any} a */
-function paintViewOnly(a){
-  var pl = $('#mu-player');
-  pl.classList.toggle('hidden', !a);
-  if (!a) return;
-  $('#mu-now-title').textContent = a.title;
-  $('#mu-now-sub').textContent = [a.artist, T.viewOnly].filter(Boolean).join(' · ');  /* 专辑 / 单曲一样：歌手 · 未进站 */
-  $('#mu-time').textContent = '--:--'; $('#mu-dur').textContent = '--:--';
-  $('#mu-seek').value = '0';
-}
-/** 切到 / 离开只看模式（离开只在本页不会发生：进站后页面重新取） @param {boolean} v */
+/** 切到 / 离开只看模式（离开只在本页不会发生：进站后页面重新取）：「播放整张」换锁标；点播放发 sgx:sudo、不开播放器 @param {boolean} v */
 function setViewOnly(v){
   viewOnly = v;
   doc.documentElement.classList.toggle('mu-view-only', v);
-  ['#mu-prev', '#mu-next', '#mu-speed', '#mu-seek', '#mu-shuffle'].forEach(function(s){ $(s).disabled = v; });
-  ['#mu-play-all', '#mu-toggle'].forEach(function(s){
-    var b = $(s);
-    if (v) { b.setAttribute('aria-disabled', 'true'); b.setAttribute('aria-label', T.locked); }
-    else b.removeAttribute('aria-disabled');
-  });
-  if (v) { P.reset(); doc.documentElement.classList.remove('mu-playing'); }
+  var b = $('#mu-play-all');
+  if (v) { b.setAttribute('aria-disabled', 'true'); b.setAttribute('aria-label', T.locked); }
+  else b.removeAttribute('aria-disabled');
   renderAlbum();
 }
 
-/* ---------- 播放（声音、令牌、切曲在共用核 music-core.js；这里只画） ---------- */
-function setLyrics(src){
-  lyr.lines = parseLrc(src); lyr.line = -2;
-  $('#mu-lyrics-in').innerHTML = lyr.lines.map(function(l, i){ return '<p data-l="' + i + '">' + esc(l.text || '♪') + '</p>'; }).join('');
-  $('#mu-lyrics').classList.toggle('hidden', !lyr.lines.length);
+/* ---------- 播放 = 交给弹出播放器（music 搬家第 3 步 3.3；本页不出声） ---------- */
+/* 本页只发不收：remote-cmd 走 BroadcastChannel「sgx-music」（同页顶栏 mountMusic 也有一个频道对象，它不认 remote-cmd） */
+var mc = null;
+try { if (typeof G.BroadcastChannel === 'function') mc = new G.BroadcastChannel(CORE.CHANNEL); } catch (e) { mc = null; }
+/**
+ * 交给播放器（要在这次点击里同步调用：window.open 要用户手势）：
+ *   1. 发 remote-cmd play。开着的播放器收到就换到那张、从第 i 首放；没开就没人收，白发一次。
+ *      不先等 player-hello 的回答再决定发不发：刚加载就点，回答还没到，会把开着的播放器当成没开（只切过去不放）——总是发，结果一样、没有这个空档。
+ *   2. 发可取消的 sgx-music-open {url}：顶栏 mountMusic 用开音乐图标同一套 go()——同名单窗口已开 = 只切过去（不重新加载，靠第 1 步放）；
+ *      没开 = 开 url（?album=&t=，新窗口自己从那首放），手机新标签页，被拦整页跳。
+ * @param {{album?: number, queue?: number[], i: number}} o @param {number} openAlbum 没开时地址里的 album @param {number} openI 地址里的 t
+ */
+function handOff(o, openAlbum, openI){
+  if (mc) { try { mc.postMessage(playCmd(o)); } catch (e) {} }
+  var url = playerUrl(G.location.pathname, openAlbum, openI), ev = null;
+  try { ev = new CustomEvent('sgx-music-open', { detail: { url: url }, cancelable: true }); } catch (e) { ev = null; }
+  if (ev && !doc.dispatchEvent(ev)) return;
+  /* 没有顶栏接：本页直接跳过去（同顶栏 go() 被拦时的退路） */
+  G.location.href = url;
 }
-function syncLyrics(){
-  if (!lyr.lines.length) return;
-  var i = lrcIndex(lyr.lines, audio.currentTime);
-  if (i === lyr.line) return;
-  lyr.line = i;
-  var box = $('#mu-lyrics'), inner = $('#mu-lyrics-in');
-  inner.querySelectorAll('p.on').forEach(function(p){ p.classList.remove('on'); });
-  var p = i >= 0 ? inner.querySelector('[data-l="' + i + '"]') : null;
-  if (p) { p.classList.add('on'); inner.style.transform = 'translateY(' + Math.round(box.clientHeight / 2 - p.offsetTop - p.offsetHeight / 2) + 'px)'; }
-  else inner.style.transform = 'translateY(' + Math.round(box.clientHeight / 2 - 12) + 'px)';
+/** 专辑从第 i 首放 */
+function playFrom(a, i){
+  if (!a || !a.tracks.length || !(i >= 0 && i < a.tracks.length)) return;
+  handOff({ album: a.id, i: i }, a.id, i);
 }
-/** 播放条副标题（同共用核 nowSub：专辑「专辑名 · 歌手」，单曲只歌手），歌手名可点进歌手页（M4） */
-function paintNowSub(a){
-  var el = $('#mu-now-sub');
-  if (!a) { el.textContent = ''; return; }
-  var who = artistLink(a.artist, a.artist_id);
-  el.innerHTML = CORE.isSingle(a) ? who : [esc(a.title), who].filter(Boolean).join(' · ');
-}
-/** 共用核开始放某一首：播放条标题、歌词、曲目高亮 */
-function paintTrack(t, st){
-  var a = all.filter(function(x){ return x.id === st.album; })[0];
-  $('#mu-now-title').textContent = t.title;
-  paintNowSub(a);  /* 单曲只显示歌手；歌手名是歌手页链接（M4） */
-  $('#mu-time').textContent = fmtTime(0); $('#mu-seek').value = '0';
-  $('#mu-dur').textContent = CORE.durText(NaN, t.duration);  /* 元数据到之前先用已知时长 */
-  setLyrics(t.lrc);
-  $('#mu-player').classList.remove('hidden');
-  doc.documentElement.classList.add('mu-playing');
-  renderAlbum();
-}
-function playFrom(a, i){ return P.playFrom(a.id, i); }
-/** 单曲区当播放列表：从第 i 首开始（没有音频的单曲不进列表） */
-function playSingles(i){
-  var list = singles.filter(function(a){ return a.tracks.length; }), pick = singles[i];
-  var k = list.indexOf(pick);
+/** 一列单曲当播放列表（没有音频的单曲不进列表），从 pick 那条开始 @param {any[]} list @param {any} pick */
+function playQueueOf(list, pick){
+  var q = list.filter(function(a){ return a.tracks.length; }), k = q.indexOf(pick);
   if (k < 0) return;
-  return P.playQueue(list.map(function(a){ return a.id; }), k);
+  handOff({ queue: q.map(function(a){ return a.id; }), i: k }, pick.id, 0);
 }
-function syncToggle(){
-  var b = $('#mu-toggle'), on = P.playing();
-  b.classList.toggle('is-playing', on);
-  b.setAttribute('aria-label', on ? b.dataset.lPause : b.dataset.lPlay);
-}
+/** 单曲区当播放列表：从第 i 首开始 */
+function playSingles(i){ return playQueueOf(singles, singles[i]); }
 $('#mu-play-all').addEventListener('click', function(){ if (viewOnly) return askSudo(); var a = album(); if (a && a.tracks.length) playFrom(a, 0); });
 $('#mu-tracks').addEventListener('click', function(e){
   var a = album(); if (!a) return;
@@ -683,45 +653,6 @@ $('#mu-tracks').addEventListener('click', function(e){
   if (viewOnly) return askSudo();
   playFrom(a, Number(b.dataset.t));
 });
-$('#mu-toggle').addEventListener('click', function(){
-  if (viewOnly) return askSudo();
-  if (!P.toggle()) {
-    if (sec === 'single') return playSingles(0);
-    var a = album(); if (a && a.tracks.length) playFrom(a, 0);
-  }
-});
-/* 随机播放：和弹出播放器共用本地设置（sgx-music-mode） */
-var modeStore = null;
-try { modeStore = G.localStorage; } catch (e) { modeStore = null; }
-function syncShuffle(){
-  var b = $('#mu-shuffle'), on = P.state.shuffle;
-  b.setAttribute('aria-pressed', String(on)); b.title = on ? T.shuffleOn : T.shuffleOff;
-}
-function applyMode(){ var on = CORE.readMode(modeStore) === 'shuffle'; if (on !== P.state.shuffle) P.setShuffle(on); syncShuffle(); }
-$('#mu-shuffle').addEventListener('click', function(){
-  if (viewOnly) return askSudo();
-  P.setShuffle(!P.state.shuffle); CORE.saveMode(modeStore, P.state.shuffle ? 'shuffle' : 'seq'); syncShuffle();
-});
-G.addEventListener('storage', function(e){ if (!e || e.key === CORE.MODE_KEY) applyMode(); });
-applyMode();
-$('#mu-prev').addEventListener('click', function(){ P.prev(); });
-$('#mu-next').addEventListener('click', function(){ P.next(); });
-$('#mu-speed').addEventListener('click', function(){
-  speed = nextSpeed(speed);
-  P.setSpeed(speed);
-  var b = $('#mu-speed'); b.textContent = speed + '×'; b.setAttribute('aria-label', T.speed(speed));
-});
-var seeking = false;
-$('#mu-seek').addEventListener('input', function(){ seeking = true; if (audio.duration) $('#mu-time').textContent = fmtTime(audio.duration * this.value / 1000); });
-$('#mu-seek').addEventListener('change', function(){ seeking = false; if (audio.duration) audio.currentTime = audio.duration * this.value / 1000; });
-audio.addEventListener('timeupdate', function(){
-  if (!seeking && audio.duration) { $('#mu-seek').value = String(Math.round(audio.currentTime / audio.duration * 1000)); $('#mu-time').textContent = fmtTime(audio.currentTime); }
-  syncLyrics();
-});
-/** 总时长：元数据到了用真实 duration，没到 / 不可用用曲目已知时长（CORE.durText） */
-function paintDur(){ var t = P.state.list[P.state.i]; $('#mu-dur').textContent = CORE.durText(audio.duration, t && t.duration); }
-audio.addEventListener('loadedmetadata', paintDur);
-audio.addEventListener('durationchange', paintDur);
 
 /* ---------- 删除专辑 ---------- */
 $('#mu-album-del').addEventListener('click', function(){
@@ -729,7 +660,6 @@ $('#mu-album-del').addEventListener('click', function(){
   if (!a || !UI) return;
   UI.ask(T.delAlbum, T.del, function(){
     delAlbum(a.id).then(function(j){
-      if (P.state.album === a.id) { P.reset(); lyr = { lines: [], line: -2 }; $('#mu-player').classList.add('hidden'); doc.documentElement.classList.remove('mu-playing'); }
       setData(j.albums); renderCovers(); renderAlbum(); toast(T.deleted);
     }).catch(function(e){ if (!e.sgxLocked) toast(failMsg(e)); });
   });
@@ -738,7 +668,7 @@ $('#mu-album-del').addEventListener('click', function(){
 /* ---------- 删除单曲（v1.13 ②，Gray 2026-11-14 18:40）：每行一个删除键，先弹确认（悬浮卡片 <dialog class="sgx-qp sgx-up mu-del">，同上传窗，不从底部升起），
    确认后复用 album.del（单曲 = kind=single 的专辑记录，连音频 / 封面一起删）；回来的歌单重画，单曲区空了按 pickSection 回到专辑、分段随之隐藏 ---------- */
 var delDlg = $('#mu-del-wrap'), delId = 0;
-/* M3：同一张确认卡片也给「删曲目」用（十二 M3 第 4 条）：delOp = {title, msg, run() → Promise<歌单>, stops() → 删的是不是正在放的}；删单曲（album.del）照旧 */
+/* M3：同一张确认卡片也给「删曲目」用（十二 M3 第 4 条）：delOp = {title, msg, run() → Promise<歌单>}；删单曲（album.del）照旧 */
 var delOp = null;
 var delSheet = G.SgxModalSheet ? G.SgxModalSheet(delDlg, doc.createElement('span') /* 共享状态机要一个同步 aria-expanded 的按钮；删除键是每行画的，给个占位 */, { ms: 240, reducedMs: 120, stateKey: 'sgxMuDel', modal: false, onOpen: function(){ upLock(true); }, onClosed: function(){ upLock(false); delId = 0; delOp = null; } })
   : { open: function(){ if (!delDlg.open) { delDlg.show(); delDlg.classList.add('is-open'); upLock(true); } }, close: function(){ if (delDlg.open) { delDlg.classList.remove('is-open'); delDlg.close(); } upLock(false); delId = 0; delOp = null; } };
@@ -750,8 +680,7 @@ function askDelSingle(id){
   delId = id;
   var t = a.tracks[0];
   askDel({ title: T.delSingleTitle, msg: tr('delSingle', { name: a.title }),
-    run: function(){ return t ? req('POST', '/curio/api/music', { op: 'track.del', id: t.id }) : delAlbum(id); },
-    stops: function(){ return P.state.album === id; } });
+    run: function(){ return t ? req('POST', '/music/api/music', { op: 'track.del', id: t.id }) : delAlbum(id); } });
 }
 /** 弹确认卡片（删单曲 / 删曲目共用） */
 function askDel(o){
@@ -771,8 +700,6 @@ $('#mu-del-ok').addEventListener('click', function(){
   if (!o) return delSheet.close();
   ok.disabled = true;
   o.run().then(function(j){
-    if (o.stops()) {  /* 正在放这首：停下、收起播放条（同删专辑） */
-      P.reset(); lyr = { lines: [], line: -2 }; $('#mu-player').classList.add('hidden'); doc.documentElement.classList.remove('mu-playing'); }
     /* M4：换视图（合并后去目标歌手、删歌手后回音乐页）要等卡片的历史哨兵出栈之后再 pushState */
     delSheet.close(o.after ? function(){ G.setTimeout(function(){ o.after(j); }, 0); } : undefined);
     setData(j.albums); renderCovers(); renderAlbum(); toast(o.done || T.deleted);
@@ -1187,12 +1114,12 @@ function jobLeft(){ return job ? job.items.filter(function(it){ return it.st ===
 function jobFail(it, e){ it.st = 'fail'; it.why = upReason(e); it.pct = 0; }
 /** 内嵌封面 → Blob（任务里的那份标签） */
 function jobEmb(i){ var g = job.tags[i]; return g && g.picture ? new Blob([g.picture.bytes], { type: UP_IMG_MIME[g.picture.mime] || 'image/jpeg' }) : null; }
-function coverUp(id, file){ return cropCover(file).then(function(b){ return req('POST', '/curio/api/music-upload?album=' + id + '&kind=cover', b, b.type); }); }
+function coverUp(id, file){ return cropCover(file).then(function(b){ return req('POST', '/music/api/music-upload?album=' + id + '&kind=cover', b, b.type); }); }
 /** 新建专辑：只建一次；专辑封面（选的没传上算失败、重试再传；内嵌的解不开就算了）。建不成 → 等着的每首都失败 */
 function jobAlbum(){
   var p = job.plan;
   if (!p.album || !p.album.add) return Promise.resolve(true);
-  var made = job.albumId ? Promise.resolve() : req('POST', '/curio/api/music', { op: 'album.add', kind: 'album', title: p.album.add.title, artist: p.album.add.artist, year: p.album.add.year }).then(function(j){ job.albumId = j.id; });
+  var made = job.albumId ? Promise.resolve() : req('POST', '/music/api/music', { op: 'album.add', kind: 'album', title: p.album.add.title, artist: p.album.add.artist, year: p.album.add.year }).then(function(j){ job.albumId = j.id; });
   return made.then(function(){
     if (job.albumCoverOk) return true;
     var ac = p.albumCover, file = ac.pick !== undefined ? job.covers[ac.pick] : jobEmb(ac.embedded);
@@ -1218,7 +1145,7 @@ function jobItem(it){
   else {
     q = job.q.then(function(){
       var reuse = emptySingle(all, t.title, t.artist, jobTaken());
-      return reuse || req('POST', '/curio/api/music', { op: 'album.add', kind: 'single', title: t.title, artist: t.artist, year: p.singleYear }).then(function(j){ return j.id; });
+      return reuse || req('POST', '/music/api/music', { op: 'album.add', kind: 'single', title: t.title, artist: t.artist, year: p.singleYear }).then(function(j){ return j.id; });
     }).then(function(id){ it.rec = id; return id; });
     job.q = q.catch(function(){});
   }
@@ -1233,7 +1160,7 @@ function jobItem(it){
     if (it.trackId) return null;
     return (it.dur ? Promise.resolve(it.dur) : durationOf(f)).then(function(d){
       it.dur = d;
-      var url = '/curio/api/music-upload?album=' + id + '&kind=track&no=' + t.no + '&title=' + encodeURIComponent(t.title) + '&duration=' + d;
+      var url = '/music/api/music-upload?album=' + id + '&kind=track&no=' + t.no + '&title=' + encodeURIComponent(t.title) + '&duration=' + d;
       return xhrUpload(url, f, audioType(f), function(pc){ if (pc !== it.pct) { it.pct = pc; upListSoon(); } });
     }).then(function(r){ it.trackId = r.id; it.pct = 100; });
   }).then(function(){
@@ -1244,7 +1171,7 @@ function jobItem(it){
     return (t.lrc >= 0 ? readText(job.lrcs[t.lrc]) : Promise.resolve(null)).then(function(text){
       if (text) body.lrc = text;
       if (Object.keys(body).length <= 2) { it.editOk = true; return null; }
-      return req('POST', '/curio/api/music', body).then(function(){ it.editOk = true; }, function(e){ throw e && e.sgxLocked ? e : { code: 'edit' }; });
+      return req('POST', '/music/api/music', body).then(function(){ it.editOk = true; }, function(e){ throw e && e.sgxLocked ? e : { code: 'edit' }; });
     });
   }).then(function(){
     if (it.coverOk) it.st = 'done'; else jobFail(it, { code: 'cover' });
@@ -1278,7 +1205,7 @@ function jobRun(){
   return jobAlbum().then(function(ok){ return ok ? jobPool() : null; }).then(function(){
     job.running = false;
     upGuard(false);
-    return req('GET', '/curio/api/music').catch(function(){ return null; });
+    return req('GET', '/music/api/music').catch(function(){ return null; });
   }).then(function(j){
     /* 传上的那部分先在页面上显示出来（有失败也一样） */
     if (j) {
@@ -1353,7 +1280,7 @@ function refresh(list){
   renderCovers(); renderAlbum();
 }
 function upCover(albumId, file){
-  return cropCover(file).then(function(b){ return req('POST', '/curio/api/music-upload?album=' + albumId + '&kind=cover', b, b.type); }).then(function(){ coverVer = Date.now(); });
+  return cropCover(file).then(function(b){ return req('POST', '/music/api/music-upload?album=' + albumId + '&kind=cover', b, b.type); }).then(function(){ coverVer = Date.now(); });
 }
 function coverPreview(img, a){
   img.classList.toggle('hidden', !(a && a.cover));
@@ -1374,7 +1301,7 @@ function edCoverName(){
 }
 /** 歌词正文只在签播放令牌时给（GET 只说有没有）：直接调 music-play 读这张的歌词，不走 req（401 不切只看模式、不请人进站） */
 function loadLrc(albumId, trackId){
-  return fetch('/curio/api/music-play', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ album: albumId }) })
+  return fetch('/music/api/music-play', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ album: albumId }) })
     .then(function(r){ return r.json(); })
     .then(function(j){
       var hit = j && j.ok && (j.tracks || []).filter(function(x){ return x.id === trackId; })[0];
@@ -1421,12 +1348,12 @@ $('#mu-ed-save').addEventListener('click', function(){
   btn.disabled = true; edMsg('');
   var list = null;
   /* 歌名、歌手、歌词、所属专辑、单曲的名 / 年份：一个 track.edit（后端一个 batch）；换封面另走 music-upload */
-  (body ? req('POST', '/curio/api/music', body) : Promise.resolve(null)).then(function(j){
+  (body ? req('POST', '/music/api/music', body) : Promise.resolve(null)).then(function(j){
     if (j) list = j.albums;
   }).then(function(){
     if (!cover) return null;
     edMsg(T.cover);
-    return upCover(a.id, cover).then(function(){ return req('GET', '/curio/api/music'); }).then(function(j3){ list = j3.albums; });
+    return upCover(a.id, cover).then(function(){ return req('GET', '/music/api/music'); }).then(function(j3){ list = j3.albums; });
   }).then(function(){
     if (list) refresh(list);
     edSheet.close(); toast(T.savedEdit);
@@ -1443,8 +1370,7 @@ $('#mu-ed-del').addEventListener('click', function(){
     askDel({
       title: single ? T.delSingleTitle : T.delTrackTitle,
       msg: tr(single ? 'delSingle' : 'delTrack', { name: single ? a.title : t.title }),
-      run: function(){ return req('POST', '/curio/api/music', { op: 'track.del', id: t.id }); },
-      stops: function(){ var c = P.state.list && P.state.list[P.state.i]; return P.state.album === a.id && (single || !!(c && c.id === t.id)); },
+      run: function(){ return req('POST', '/music/api/music', { op: 'track.del', id: t.id }); },
     });
   }, 0); });
 });
@@ -1480,11 +1406,11 @@ $('#mu-ae-save').addEventListener('click', function(){
   if (!edit && !file) return aeSheet.close();
   btn.disabled = true; aeMsg('');
   var list = null;
-  (edit ? req('POST', '/curio/api/music', b) : Promise.resolve(null)).then(function(j){
+  (edit ? req('POST', '/music/api/music', b) : Promise.resolve(null)).then(function(j){
     if (j) list = j.albums;
     if (!file) return null;
     aeMsg(T.cover);
-    return upCover(a.id, file).then(function(){ return req('GET', '/curio/api/music'); }).then(function(j2){ list = j2.albums; });
+    return upCover(a.id, file).then(function(){ return req('GET', '/music/api/music'); }).then(function(j2){ list = j2.albums; });
   }).then(function(){
     if (list) refresh(list);
     aeSheet.close(); toast(T.savedEdit);
@@ -1541,7 +1467,7 @@ $('#mu-be-save').addEventListener('click', function(){
   plan.forEach(function(item){
     chain = chain.then(function(){
       if (locked) return null;
-      return req('POST', '/curio/api/music', item.body).then(function(j){ list = j.albums; }).catch(function(e){ if (e.sgxLocked) { locked = true; return; } fails.push(item.name + '：' + errText(e)); });
+      return req('POST', '/music/api/music', item.body).then(function(j){ list = j.albums; }).catch(function(e){ if (e.sgxLocked) { locked = true; return; } fails.push(item.name + '：' + errText(e)); });
     });
   });
   chain.then(function(){
@@ -1591,7 +1517,6 @@ doc.addEventListener('sgx-music-artist', function(e){
 var arWorks = { albums: [], singles: [] };
 function renderArtist(){
   $('#mu-artist').classList.remove('hidden');
-  if (viewOnly) paintViewOnly(null);
   var r = artistById(view);
   $('#mu-ar-missing').classList.toggle('hidden', !!r);
   $('#mu-ar-body').classList.toggle('hidden', !r);
@@ -1620,8 +1545,8 @@ function renderArtist(){
       + '<span class="mu-single-tx"><b>' + esc(a.title) + '</b><i>' + esc([a.year ? String(a.year) : '', T.tracks(a.tracks.length)].filter(Boolean).join(' · ')) + '</i></span></button></li>';
   }).join('');
   $('#mu-ar-singles').innerHTML = w.singles.map(function(a, i){
-    var t = a.tracks[0], on = !!P.state.queue && P.state.i >= 0 && P.state.album === a.id;
-    return '<li><button type="button" class="mu-single' + (on ? ' on' : '') + '" data-as="' + i + '"' + (on ? ' aria-current="true"' : '') + (t ? '' : ' disabled') + '>'
+    var t = a.tracks[0];
+    return '<li><button type="button" class="mu-single" data-as="' + i + '"' + (t ? '' : ' disabled') + '>'
       + singleIm(a)
       + '<span class="mu-single-tx"><b>' + esc(a.title) + '</b><i>' + esc(a.year ? String(a.year) : '') + '</i></span>'
       + '<span class="mu-track-dur">' + (t && t.duration ? fmtTime(t.duration) : '') + '</span></button></li>';
@@ -1645,7 +1570,7 @@ $('#mu-ar-rel').addEventListener('click', function(e){
   e.preventDefault();
   goArtist(0, { album: Number(a.dataset.rel) });
 });
-/* 歌手页：点专辑 → 回音乐页那张专辑；点单曲 → 这位歌手的单曲当播放列表（同单曲区） */
+/* 歌手页：点专辑 → 回音乐页那张专辑；点单曲 → 这位歌手的单曲当播放列表交给播放器（同单曲区） */
 $('#mu-ar-albums').addEventListener('click', function(e){
   var b = e.target.closest('[data-al]');
   if (b) goArtist(0, { album: Number(b.dataset.al) });
@@ -1654,8 +1579,7 @@ $('#mu-ar-singles').addEventListener('click', function(e){
   var b = e.target.closest('[data-as]');
   if (!b) return;
   if (viewOnly) return askSudo();
-  var list = arWorks.singles.filter(function(a){ return a.tracks.length; }), k = list.indexOf(arWorks.singles[Number(b.dataset.as)]);
-  if (k >= 0) P.playQueue(list.map(function(a){ return a.id; }), k);
+  playQueueOf(arWorks.singles, arWorks.singles[Number(b.dataset.as)]);
 });
 
 /* --- 歌手栏联想（7.5）：同一个 <datalist>；近似名提示可点一下换成已有的 --- */
@@ -1746,12 +1670,12 @@ $('#mu-ar-save').addEventListener('click', function(){
   if (!edit && !file) return arSheet.close();
   btn.disabled = true; arMsg(''); arNameErr('');
   var list = null;
-  (edit ? req('POST', '/curio/api/music', b) : Promise.resolve(null)).then(function(j){
+  (edit ? req('POST', '/music/api/music', b) : Promise.resolve(null)).then(function(j){
     if (j) list = j.albums;
     if (!file) return null;
     arMsg(T.avatarUp);
-    return cropAvatar(file).then(function(blob){ return req('POST', '/curio/api/music-upload?artist=' + r.id + '&kind=avatar', blob, 'image/jpeg'); })
-      .then(function(){ coverVer = Date.now(); return req('GET', '/curio/api/music'); }).then(function(j2){ list = j2.albums; });
+    return cropAvatar(file).then(function(blob){ return req('POST', '/music/api/music-upload?artist=' + r.id + '&kind=avatar', blob, 'image/jpeg'); })
+      .then(function(){ coverVer = Date.now(); return req('GET', '/music/api/music'); }).then(function(j2){ list = j2.albums; });
   }).then(function(){
     if (list) refresh(list);
     arDropPreview();
@@ -1764,8 +1688,8 @@ $('#mu-ar-save').addEventListener('click', function(){
 });
 /** root 档（合并 / 删歌手）：先领一次性票再发（同删专辑 delAlbum） */
 function rootOp(body, line){
-  var get = UI && UI.sudoTicket ? UI.sudoTicket(line, { method: 'POST', path: '/curio/api/music', action: body.op }) : Promise.resolve('');
-  return get.then(function(t){ return req('POST', '/curio/api/music', body, undefined, t); });
+  var get = UI && UI.sudoTicket ? UI.sudoTicket(line, { method: 'POST', path: '/music/api/music', action: body.op }) : Promise.resolve('');
+  return get.then(function(t){ return req('POST', '/music/api/music', body, undefined, t); });
 }
 $('#mu-ar-merge').addEventListener('click', function(){
   if (!ar) return;
@@ -1774,7 +1698,6 @@ $('#mu-ar-merge').addEventListener('click', function(){
   arSheet.close(function(){ G.setTimeout(function(){
     askDel({ title: T.mergeTitle, msg: tr('mergeMsg', { from: from.name, to: into.name }), ok: T.mergeOk, done: T.merged, err: arErr,
       run: function(){ return rootOp({ op: 'artist.merge', id: from.id, into: into.id }, 'sudo curio music artist merge ' + from.id + ' ' + into.id); },
-      stops: function(){ return false; },
       after: function(){ goArtist(into.id); } });
   }, 0); });
 });
@@ -1784,14 +1707,13 @@ $('#mu-ar-del').addEventListener('click', function(){
   arSheet.close(function(){ G.setTimeout(function(){
     askDel({ title: T.delArtistTitle, msg: tr('delArtist', { name: r.name }), err: arErr,
       run: function(){ return rootOp({ op: 'artist.del', id: r.id }, 'sudo curio music artist rm ' + r.id); },
-      stops: function(){ return false; },
       after: function(){ goArtist(0); } });
   }, 0); });
 });
 
 /* ---------- 启动 ---------- */
 function done(){ doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); }); }
-req('GET', '/curio/api/music').then(function(j){
+req('GET', '/music/api/music').then(function(j){
   setData(j.albums);
   canManage = !!j.canManage;
   done();

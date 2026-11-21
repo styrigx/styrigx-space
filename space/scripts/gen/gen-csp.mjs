@@ -2,7 +2,7 @@
 /**
  * CSP 内联脚本哈希 + Pages 安全头（2026-10-25，PR D）。
  *
- * 从生产构建（hugo --minify -s space/web，产物在 space/web/public/）里找出主站所有会执行的内联 <script>（不含子站 /blog/ /curio/ /daymark/）
+ * 从生产构建（hugo --minify -s space/web，产物在 space/web/public/）里找出主站所有会执行的内联 <script>（不含子站 /blog/ /curio/ /daymark/ /music/）
  * （没有 src，type 为空 / text/javascript / module；application/json 等数据块不算），算 sha256，写两处：
  *   1. 各 Worker 自己的 csp-hashes.js（站点核心 workers/space-core/src/lib/、账号 workers/account/src/lib/，
  *      2026-10-30 起各自一份、内容相同；分享链接进站 v3 L2 并入 space-core）—— 各自 Report-Only CSP 用
@@ -38,7 +38,8 @@ const MAX_LINE = 2000;
 const EXEC_TYPES = new Set(['', 'text/javascript', 'application/javascript', 'module']);
 
 /** 子站目录（2026-11 合站后和主站同一棵 public/）：子站页面不发 Report-Only CSP（见 docs/architecture/overview.md §10 安全响应头），内联脚本不进主站哈希 */
-export const SUBSITE_DIRS = Object.freeze(['blog', 'curio', 'daymark']);
+/* music：music 搬家第 3 步（2026-11-21）起的第四个子站；搬家前音乐页和播放器在 /curio/ 下，本来就不进主站哈希 */
+export const SUBSITE_DIRS = Object.freeze(['blog', 'curio', 'daymark', 'music']);
 
 /** @param {string} dir @param {string[]} [out] @param {boolean} [top] */
 function htmlFiles(dir, out = [], top = true) {
