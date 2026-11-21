@@ -19,7 +19,7 @@
      icons       图标 SVG（名字 → SVG 串）：tb-palette tb-shield tb-term（终端）tb-grid（NAVIGATE 四格）tb-music（音乐）tb-chat lock tb-undo share tb-send tb-newchat tb-history
      wordmark    字标 SVG（partials/common/frame/wordmark.html；子站经 nav.json 的 wordmark）：顶栏左边 ❯ + 字标 + 闪烁下划线光标（2026-11 PR-2 起取代等宽文字 styrigx :~$）
      security    盾牌链接（没 JS / 中键时的去处：主站首页 #sec，当前语言；普通点击打开终端 #sgx-term，按身份徽章预填：访客 su 、普通用户 exit、站长 su root、root exit，定稿 v5.5 §七）
-     music       音乐图标链接：播放器页 /curio/music/player/（当前语言；音乐方案 2c，2026-11-13）。没 JS / 中键按链接走；普通点击由 topbar/panel.js mountMusic 接：没开弹出、已开切过去、被拦直接跳转
+     music       音乐图标链接：播放器页 /music/player/（当前语言；music 搬家第 3 步前是 /curio/music/player/；音乐方案 2c，2026-11-13）。没 JS / 中键按链接走；普通点击由 topbar/panel.js mountMusic 接：没开弹出、已开切过去、被拦直接跳转
      status      NAVIGATE 底部「systemctl status」链接与 STATUS 区跳转按钮：主站状态页 /status/（当前语言）
      acct        头像链接（没 JS / 中键时的去处：/account/ → 301 首页 #acct；已进站普通点击打开账号窗口 #sgx-acct，没进站是死按钮，v5 S6）；avatar 头像图片地址（顶栏头像 + AI 窗口头部 + 账号下拉）
      name / nick 账号下拉头部的姓名 / 昵称默认值（data/common/profile.yaml；运行时 topbar.js 再用本机缓存 sgx-profile 覆盖）

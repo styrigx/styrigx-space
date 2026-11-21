@@ -5,10 +5,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { mountMusic, MUSIC_WIN, MUSIC_FEATURES, MUSIC_PATH } from '../../../../space/web/assets/common/js/frame/topbar/panel.js';
+import { mountMusic, MUSIC_WIN, MUSIC_FEATURES, MUSIC_PATH, PLAYER_URL, ARTIST_URL } from '../../../../space/web/assets/common/js/frame/topbar/panel.js';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
-const URL_EN = 'https://styrigx.com/curio/music/player/';
+const URL_EN = 'https://styrigx.com/music/player/';
 
 function fakeDoc() {
   const btn = { href: URL_EN, h: null, addEventListener(t, f) { if (t === 'click') this.h = f; } };
@@ -35,7 +35,7 @@ test('没开：空 URL + 固定窗口名开小窗，再让新窗去播放器页�
 });
 
 test('已开：找到同名播放器窗只 focus，不改地址（歌不断）', () => {
-  const w = win(URL_EN + '?album=3', '/curio/music/player/');
+  const w = win(URL_EN + '?album=3', '/music/player/');
   const { go } = setup(w);
   assert.equal(go(URL_EN), 'focused');
   assert.equal(w.location.href, URL_EN + '?album=3');
@@ -83,15 +83,27 @@ test('没有音乐图标的页不接线', () => {
   assert.equal(mountMusic({ querySelector: () => null }), null);
 });
 
-test('播放器路径（英文 / 中文）', () => {
+test('播放器路径（英文 / 中文；music 搬家第 3 步起 /music/player/、/music/zh/player/，旧地址同一条正则也认）', () => {
+  assert.ok(MUSIC_PATH.test('/music/player/'));
+  assert.ok(MUSIC_PATH.test('/music/zh/player/'));
   assert.ok(MUSIC_PATH.test('/curio/music/player/'));
   assert.ok(MUSIC_PATH.test('/curio/zh/music/player/'));
-  assert.ok(!MUSIC_PATH.test('/curio/music/'));
+  assert.ok(!MUSIC_PATH.test('/music/'));
+  assert.ok(!MUSIC_PATH.test('/music/zh/'));
+});
+
+test('音乐页交接的播放器地址白名单（PLAYER_URL）：只认 /music/(zh/)player/?album=<数字>&t=<数字>', () => {
+  for (const u of ['/music/player/?album=3&t=0', '/music/zh/player/?album=12&t=7', '/music/player/?album=1234567890&t=9999']) assert.ok(PLAYER_URL.test(u), u);
+  for (const u of ['/music/player/?album=3', '/music/player/?t=0&album=3', '/curio/music/player/?album=3&t=0', 'https://evil.com/music/player/?album=3&t=0',
+    '//evil.com/music/player/?album=3&t=0', '/music/player/?album=3&t=0&x=1', '/music/player/?album=x&t=0', '/music/en/player/?album=3&t=0', 'javascript:alert(1)']) assert.ok(!PLAYER_URL.test(u), u);
+  /* 歌手页地址：只认新音乐页 */
+  assert.ok(ARTIST_URL.test('/music/?artist=3') && ARTIST_URL.test('/music/zh/?artist=3'));
+  assert.ok(!ARTIST_URL.test('/curio/music/?artist=3') && !ARTIST_URL.test('/music/player/?artist=3'));
 });
 
 test('四站顶栏的音乐链接都指向播放器页（当前语言）；播放器页把窗口名设成同一个', () => {
-  for (const p of ['space/web/layouts/_default/baseof.html', 'space/web/layouts/curio/baseof.html', 'space/web/layouts/daymark/baseof.html', 'space/web/layouts/partials/blog/topnav.html']) {
-    assert.match(rd(p), /"music" \(partial "common\/lang-path\.html" \(dict "path" "(https:\/\/styrigx\.com)?\/curio\/music\/player\/"/, p);
+  for (const p of ['space/web/layouts/_default/baseof.html', 'space/web/layouts/curio/baseof.html', 'space/web/layouts/daymark/baseof.html', 'space/web/layouts/music/baseof.html', 'space/web/layouts/partials/blog/topnav.html']) {
+    assert.match(rd(p), /"music" \(partial "common\/lang-path\.html" \(dict "path" "(https:\/\/styrigx\.com)?\/music\/player\/"/, p);
   }
   const mp = rd('space/web/assets/common/js/music/music-player.js');
   assert.ok(mp.includes("var WIN = '" + MUSIC_WIN + "'"));
@@ -113,7 +125,7 @@ function remoteSetup(path) {
   const sent = [];
   const ch = { onmessage: null, postMessage: (m) => sent.push(m) };
   const opened = [];
-  const go = mountMusic(doc, { channel: ch, path: path || '/zh/status/', open: (u, n) => { opened.push(n); return win(URL_EN, '/curio/music/player/'); }, navigate: () => {} });
+  const go = mountMusic(doc, { channel: ch, path: path || '/zh/status/', open: (u, n) => { opened.push(n); return win(URL_EN, '/music/player/'); }, navigate: () => {} });
   const say = (m) => ch.onmessage({ data: m });
   const click = () => { const e = { button: 0, defaultPrevented: false, prevented: 0, stopped: 0, preventDefault() { this.prevented++; }, stopImmediatePropagation() { this.stopped++; } }; btn.hs.forEach((f) => f(e)); return e; };
   return { btn, dlg, parts, doc, ch, sent, opened, go, say, click, events };
@@ -178,7 +190,7 @@ test('遥控层按钮：上一曲、播放/暂停、下一曲发 remote-cmd；�
 });
 
 test('遥控：播放器页自己的顶栏不弹遥控层，点了只切过去；不认的消息不动', () => {
-  const r = remoteSetup('/curio/zh/music/player/');
+  const r = remoteSetup('/music/zh/player/');
   r.say({ type: 'player-state', on: true, playing: true, title: 'A', artist: 'B' });
   assert.equal(r.click().prevented, 1);
   assert.equal(r.go.remoteOn(), false);
@@ -218,36 +230,80 @@ test('歌手页：主窗口答 artist-ask（带本页 id 和最近用过的时�
   assert.equal(a.sent[0].req, 'r1');
   assert.equal(typeof a.sent[0].from, 'string');
   assert.equal(typeof a.sent[0].at, 'number');
-  const p = artistSetup('/curio/music/player/');
+  const p = artistSetup('/music/player/');
   p.sent.length = 0;
   p.say({ type: 'artist-ask', req: 'r1', id: 3 });
   assert.deepEqual(p.sent, []);
 });
 
-test('歌手页：artist-go 只给挑中的那页；奇趣音乐页接住 sgx-music-artist 就不整页跳，没人接才跳；地址只认音乐页 ?artist=<数字>', () => {
+test('歌手页：artist-go 只给挑中的那页；音乐页接住 sgx-music-artist 就不整页跳，没人接才跳；地址只认音乐页 ?artist=<数字>', () => {
   const a = artistSetup('/blog/');
   a.say({ type: 'artist-ask', req: 'r1', id: 3 });
   const me = a.sent.at(-1).from;
-  a.say({ type: 'artist-go', req: 'r1', to: 'someone-else', id: 3, url: '/curio/music/?artist=3' });
+  a.say({ type: 'artist-go', req: 'r1', to: 'someone-else', id: 3, url: '/music/?artist=3' });
   assert.deepEqual(a.nav, [], '不是给我的');
-  a.say({ type: 'artist-go', req: 'r1', to: me, id: 3, url: '/curio/zh/music/?artist=3' });
-  assert.deepEqual(a.nav, ['/curio/zh/music/?artist=3']);
+  a.say({ type: 'artist-go', req: 'r1', to: me, id: 3, url: '/music/zh/?artist=3' });
+  assert.deepEqual(a.nav, ['/music/zh/?artist=3']);
   assert.equal(a.fired.at(-1).type, 'sgx-music-artist');
-  assert.deepEqual(a.fired.at(-1).detail, { id: 3, url: '/curio/zh/music/?artist=3' });
-  for (const url of ['https://evil.com/', '//evil.com/curio/music/?artist=3', '/curio/music/?artist=3&x=1', 'javascript:alert(1)']) {
+  assert.deepEqual(a.fired.at(-1).detail, { id: 3, url: '/music/zh/?artist=3' });
+  for (const url of ['https://evil.com/', '//evil.com/music/?artist=3', '/music/?artist=3&x=1', '/curio/music/?artist=3', 'javascript:alert(1)']) {
     a.say({ type: 'artist-go', req: 'r2', to: me, id: 3, url });
   }
-  assert.deepEqual(a.nav, ['/curio/zh/music/?artist=3'], '别的地址一律不跳');
-  const c = artistSetup('/curio/music/', { cancel: true });
+  assert.deepEqual(a.nav, ['/music/zh/?artist=3'], '别的地址一律不跳');
+  const c = artistSetup('/music/', { cancel: true });
   c.say({ type: 'artist-ask', req: 'r1', id: 3 });
-  c.say({ type: 'artist-go', req: 'r1', to: c.sent.at(-1).from, id: 3, url: '/curio/music/?artist=3' });
-  assert.deepEqual(c.nav, [], '本页在页内换视图（歌不断）');
+  c.say({ type: 'artist-go', req: 'r1', to: c.sent.at(-1).from, id: 3, url: '/music/?artist=3' });
+  assert.deepEqual(c.nav, [], '本页在页内换视图');
 });
 
-test('歌手页：播放器 / 共用核 / 奇趣音乐页三边接上（消息名同一套）', () => {
+test('歌手页：播放器 / 共用核 / 音乐页三边接上（消息名同一套）', () => {
   const core = rd('space/web/assets/common/js/music/music-core.js');
   assert.match(core, /ask: 'artist-ask', here: 'artist-here', go: 'artist-go'/);
   const mp = rd('space/web/assets/common/js/music/music-player.js');
   assert.ok(mp.includes('CORE.ARTIST_MSG.ask') && mp.includes('CORE.ARTIST_MSG.go') && mp.includes('CORE.pickMain'));
-  assert.ok(rd('space/web/assets/curio/js/curio-music.js').includes("doc.addEventListener('sgx-music-artist'"));
+  assert.ok(rd('space/web/assets/music/js/music-page.js').includes("doc.addEventListener('sgx-music-artist'"));
+});
+
+/* ---------- 音乐页「播放」交接（music 搬家第 3 步 3.3）：音乐页发可取消的 sgx-music-open {url}，mountMusic 用同一个 go() 开 / 切播放器 ---------- */
+function openSetup(path, w) {
+  const btn = { href: URL_EN, addEventListener() {} };
+  const hs = {};
+  const doc = { baseURI: 'https://styrigx.com/music/', querySelector: (s) => (s === '.sgx-tb-music' ? btn : null), addEventListener: (t, f) => { hs[t] = f; } };
+  const calls = [], nav = [];
+  mountMusic(doc, { channel: { onmessage: null, postMessage() {} }, path, open: (u, n, f) => { calls.push([u, n, f]); return typeof w === 'function' ? w() : w; }, navigate: (u) => nav.push(u) });
+  const fire = (url) => { const e = { detail: { url }, prevented: 0, preventDefault() { this.prevented++; } }; hs['sgx-music-open'](e); return e; };
+  return { fire, calls, nav, hs };
+}
+
+test('交接：没开播放器 → 同名窗口开 /music/player/?album=&t=（绝对地址），接住事件', () => {
+  const w = win('about:blank', 'blank');
+  const o = openSetup('/music/', w);
+  const e = o.fire('/music/player/?album=3&t=2');
+  assert.equal(e.prevented, 1);
+  assert.deepEqual(o.calls, [['', MUSIC_WIN, MUSIC_FEATURES]]);
+  assert.equal(w.location.href, 'https://styrigx.com/music/player/?album=3&t=2');
+  assert.equal(w.focused, 1);
+});
+
+test('交接：播放器已开 → 只切过去、不改地址（靠音乐页发的 remote-cmd play 换曲）', () => {
+  const w = win(URL_EN + '?album=1', '/music/player/');
+  const o = openSetup('/music/zh/', w);
+  assert.equal(o.fire('/music/zh/player/?album=3&t=0').prevented, 1);
+  assert.equal(w.location.href, URL_EN + '?album=1');
+  assert.equal(w.focused, 1);
+});
+
+test('交接：被拦 → 本页整页跳到播放器地址', () => {
+  const o = openSetup('/music/', null);
+  o.fire('/music/player/?album=3&t=0');
+  assert.deepEqual(o.nav, ['https://styrigx.com/music/player/?album=3&t=0']);
+});
+
+test('交接：不在白名单的地址不接（不 preventDefault、不开窗）；播放器页自己不接', () => {
+  const o = openSetup('/music/', win('about:blank', 'blank'));
+  for (const u of ['https://evil.com/', '/music/player/?album=3&t=0&x=1', '/curio/music/player/?album=3&t=0', 42]) assert.equal(o.fire(/** @type {any} */ (u)).prevented, 0, String(u));
+  assert.deepEqual(o.calls, []);
+  const p = openSetup('/music/player/', win('about:blank', 'blank'));
+  assert.equal(p.fire('/music/player/?album=3&t=0').prevented, 0);
+  assert.deepEqual(p.calls, []);
 });

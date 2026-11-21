@@ -1,0 +1,7 @@
+{{- /* /music/sitemap.xml（music 搬家第 3 步，同 /curio/sitemap.xml、/daymark/sitemap.xml）：根上只有一份，列首页的中英两版（英文默认、中文 /music/zh/）并互标 hreflang。
+中英两种语言各渲染一次但内容完全相同，谁后写都一样。播放器页 /music/player/ 不列（同搬家前不单列）。 */ -}}
+{{- printf `<?xml version="1.0" encoding="utf-8" standalone="yes"?>` | safeHTML -}}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+{{- $all := (site.GetPage "/music").AllTranslations -}}
+{{- range $all }}<url><loc>{{ .Permalink }}</loc>{{ range $all }}<xhtml:link rel="alternate" hreflang="{{ .Language.Lang }}" href="{{ .Permalink }}"/>{{ end }}</url>{{ end -}}
+</urlset>

@@ -1,16 +1,19 @@
-/* assets/common/js/music/music-player.js —— 弹出播放器页（/curio/music/player/；音乐分层方案 v1.13 第二步 2b；浏览器 IIFE；node 测试时导出纯函数）。
+/* assets/common/js/music/music-player.js —— 弹出播放器页（/music/player/，中文 /music/zh/player/；音乐分层方案 v1.13 第二步 2b；浏览器 IIFE；node 测试时导出纯函数）。
  *
- * 只播放，不管理（上传 / 删除留在奇趣音乐页 curio-music.js）。功能按方案 §7.1 播放层：
+ * music 搬家第 3 步（搬家设计稿 v1.1 3.2 / 3.3，2026-11-21）：地址从 /curio/music/player/ 搬到 /music/player/，接口走 /music/api/*；
+ * 音乐页不再出声，本页是唯一发声的页。这一步只加两样：认 ?t=<i>（开窗就从第 i 首放）、认 remote-cmd play（音乐页点播放交过来），其余不动。
+ *
+ * 只播放，不管理（上传 / 删除留在音乐页 music/js/music-page.js）。功能按方案 §7.1 播放层：
  *   - 正在播：封面小图 + 歌名 + 歌手 + 专辑名；标签页标题跟着歌名。
  *   - 播放控制：播放 / 暂停、上一首、下一首；进度条可拖（Range）+ 当前时间 / 总时长。
  *   - 播放模式：顺序 / 随机（共用核 setShuffle；模式记在 localStorage「sgx-music-mode」，下次打开还是上次的；
- *     奇趣音乐页同一个设置，另一边改了 storage 事件同步过来）。
- *   - 倍速：1× → 1.25× → 1.5× → 2× 循环（PLAYER_SPEEDS；只记在本窗口内存里，奇趣页 0.75–2 各管各的）。
+ *     多开的窗口之间 storage 事件同步）。
+ *   - 倍速：1× → 1.25× → 1.5× → 2× 循环（PLAYER_SPEEDS；只记在本窗口内存里）。
  *   - 音量滑条 + 静音（本窗口）。
  *   - 歌词：有 LRC 显示当前一句（跟播放同步）；点一下展开全部，再点收起。
  *   - 曲目列表：当前专辑，点一首直接播，正在播的高亮。专辑列表可收起，点一张换专辑（换的是列表，点曲目 / 播放才开播）。
  *   - Media Session：锁屏 / 耳机键 播放、暂停、上一首、下一首、拖进度；显示歌名、歌手、专辑、封面。
- *   - 防同时响：共用核的 BroadcastChannel「sgx-music」，奇趣页开播这边自动停，反过来一样。
+ *   - 防同时响：共用核的 BroadcastChannel「sgx-music」，别的页开播这边自动停，反过来一样。
  *   - 登录过期提示：签令牌 401（没登录 / 会话过期，music-use 档拒）→ 一句提示 +「登录」（发 sgx:sudo，顶栏终端预填 su ；第 7 步进 Platform 前是借 curio.js 的 SgxCurioUI.sudo，同一个事件），
  *     403 → 没有权限；都不静默卡住。页面带网关标记 data-sgx-lock-session="locked" 时一打开就提示。
  *   - 单窗口（2c）：窗口名 sgx-music-player，顶栏音乐图标（topbar/panel.js mountMusic）按这个名字找，已开就切过来不重开。
@@ -18,6 +21,11 @@
  *   单曲区当播放列表（共用核 playQueue，按需为下一首签令牌；顺序 / 随机、到尾停同专辑）。正在播是单曲时副标题只显示歌手，不显示专辑名（#mp-album 空），
  *   Media Session 的 album 也空；顶栏遥控（remoteState）本来就只给歌手。
  * 地址可带 ?album=<编号> 先显示那张专辑（入口 2c 用得上），没有就第一张。
+ * 再带 &t=<第几首，从 0 起>（第 3 步，音乐页没开播放器时点播放开的就是 /music/player/?album=<id>&t=<i>）：一打开就从那首放（startOf）。
+ *   单曲 album = 那条单曲记录（t = 0），从单曲组里它那一首开始、单曲组当播放列表。新开的窗口没有用户手势，浏览器拦了自动播放就停在那首、
+ *   播放键亮着，点一下就放（共用核 start 吞掉 play() 的拒绝，不另想绕法）。只看模式照旧只提示「登录」，不放。
+ * 音乐页点播放（第 3 步 3.3）：开着的播放器收 remote-cmd {cmd:'play', album, i}（单曲 {cmd:'play', queue, i}），换到那张、从第 i 首放
+ *   （歌单里没有这张就重取一次歌单再找：音乐页刚传的新专辑）；切到前面靠音乐页那边同一次点击里的 window.open('', 窗口名)，这边能 focus 也 focus 一下。
  * 歌手页（M4，音乐 v1.19 7.5 / 十二 M4）：正在播的歌手名可点；点了不在播放器里跳走（播放会断），经 BroadcastChannel 让主窗口打开歌手页
  *   （共用核 ARTIST_MSG 三步：artist-ask → 主窗口 artist-here → 挑最近用过的那个 artist-go；没人答退回 window.opener，再不行开新标签页）。
  *   单曲没封面：封面空 → 歌手头像 → 默认图（共用核 coverOf，正在播的封面和 Media Session 一样）。
@@ -33,9 +41,31 @@ function albumOf(search){ var m = /[?&]album=(\d+)(?:&|$)/.exec(String(search ||
 function failKind(e){ if (e && (e.sgxLocked || e.status === 401)) return 'expired'; if (e && e.code === 'forbidden') return 'noPermission'; return 'failed'; }
 /** Media Session 的封面（有封面才给；单曲没封面用歌手头像，M4） @param {any} a @param {any[]} [arts] */
 function artworkOf(a, arts){ var u = CORE.coverOf(a, arts); return u ? [{ src: u, sizes: '512x512' }] : []; }
-/** 播放器所在页 → 奇趣音乐页路径（/curio/music/player/ → /curio/music/；中文同理） */
-function musicPathOf(pathname){ return String(pathname || '/curio/music/player/').replace(/player\/?$/, ''); }
-/** 文案表（同 curio-music.js readDict / makeTr 的做法） */
+/** 地址里的 &t=<第几首>（从 0 起）；没有 / 不对返回 -1（只显示，不自动放） */
+function trackOf(search){ var m = /[?&]t=(\d{1,4})(?:&|$)/.exec(String(search || '')); return m ? Number(m[1]) : -1; }
+/**
+ * 打开时停在哪张、要不要从某首放：groups = groupsOf 的列表；all = 全部记录；want = ?album；t = ?t。
+ * 专辑：那张、第 t 首（t 越界 = 不放）；单曲记录：单曲组、它在组里那一首（t 只能是 0）；没有这张：第一张、不放。
+ * @returns {{cur: number, i: number}} i = -1 不放
+ */
+function startOf(groups, all, want, t){
+  var k = -1, i = -1, g;
+  for (var n = 0; n < (groups || []).length; n++) if (!groups[n].singles && groups[n].id === want) { k = n; break; }
+  if (k >= 0) { g = groups[k]; if (t >= 0 && t < g.tracks.length) i = t; return { cur: k, i: i }; }
+  var a = null;
+  for (var x = 0; want && all && x < all.length; x++) if (all[x].id === want) { a = all[x]; break; }
+  if (a && CORE.isSingle(a)) {
+    for (var s = 0; s < groups.length; s++) if (groups[s].singles) {
+      g = groups[s];
+      var j = g.items.map(function(r){ return r.id; }).indexOf(want);
+      return { cur: s, i: j >= 0 && t === 0 ? j : -1 };
+    }
+  }
+  return { cur: 0, i: -1 };
+}
+/** 播放器所在页 → 音乐页路径（/music/player/ → /music/；中文 /music/zh/player/ → /music/zh/） */
+function musicPathOf(pathname){ return String(pathname || '/music/player/').replace(/player\/?$/, ''); }
+/** 文案表（同 music-page.js readDict / makeTr 的做法） */
 function readDict(doc, table){
   try { var el = doc && doc.getElementById('sgx-i18n-' + table); var o = el && el.textContent ? JSON.parse(el.textContent) : null; return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; }
 }
@@ -59,7 +89,7 @@ function makeTr(dict, lang){
  */
 /**
  * 播放器的「专辑列表」：专辑照原顺序，有单曲时最后加一项单曲组 {singles:true, id:-1, title, items:[单曲记录], tracks:[每首单曲的那一首]}。
- * @param {any[]} list GET /curio/api/music 的 albums（每条带 kind） @param {string} label 单曲组的名字
+ * @param {any[]} list GET /music/api/music 的 albums（每条带 kind） @param {string} label 单曲组的名字
  */
 function groupsOf(list, label){
   var al = [], sg = [];
@@ -75,7 +105,7 @@ function remoteState(st, playing, albums){
   return { type: 'player-state', on: !!t, playing: !!t && !!playing, title: t ? String(t.title || '') : '', artist: t ? String((a && a.artist) || '') : '' };
 }
 
-var pure = { albumOf: albumOf, failKind: failKind, artworkOf: artworkOf, remoteState: remoteState, groupsOf: groupsOf, musicPathOf: musicPathOf };
+var pure = { albumOf: albumOf, trackOf: trackOf, startOf: startOf, failKind: failKind, artworkOf: artworkOf, remoteState: remoteState, groupsOf: groupsOf, musicPathOf: musicPathOf };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxMusicPlayer = pure;
 
@@ -104,7 +134,7 @@ var audio = $('#mp-audio');
 var viewOnly = doc.documentElement.getAttribute('data-sgx-lock-session') === 'locked';
 var P = CORE.createPlayer({
   audio: audio,
-  sign: function(albumId){ return req('POST', '/curio/api/music-play', { album: albumId }); },
+  sign: function(albumId){ return req('POST', '/music/api/music-play', { album: albumId }); },
   onTrack: paintTrack,
   onChange: syncState,
   onStop: function(){ $('#mp-now-k').classList.add('hidden'); renderTracks(); syncState(); },
@@ -135,7 +165,7 @@ function isOn(a, i){
   if (st.i < 0) return false;
   return a.singles ? !!st.queue && st.album === a.items[i].id : !st.queue && st.album === a.id && st.i === i;
 }
-function coverUrl(a){ return '/curio/api/music-cover?album=' + a.id; }
+function coverUrl(a){ return '/music/api/music-cover?album=' + a.id; }
 /** 歌手名（M4）：对得上歌手表就是歌手页链接，点了交给主窗口（openArtist） */
 function paintArtist(a){
   var el = $('#mp-artist'), name = a && a.artist || '', id = a && a.artist_id;
@@ -209,7 +239,7 @@ function syncState(){
 }
 
 /* ---------- 小遥控层（顶栏图标下，方案 v1.13 §九）：同源各页的遥控走 BroadcastChannel「sgx-music」 ----------
-   遥控每页加载先问 player-hello，这边答 player-state；播放状态 / 曲目一变也广播；遥控发 remote-cmd（prev / toggle / next）；关窗广播 player-bye。
+   遥控每页加载先问 player-hello，这边答 player-state；播放状态 / 曲目一变也广播；遥控发 remote-cmd（prev / toggle / next；音乐页发 play，第 3 步）；关窗广播 player-bye。
    单开一个频道对象：共用核那个的 onmessage 管防同时响，两边互不干扰（同一页的两个频道对象也互相收得到，核只认 type=playing） */
 var rc = null;
 try { if (typeof G.BroadcastChannel === 'function') rc = new G.BroadcastChannel(CORE.CHANNEL); } catch (e) { rc = null; }
@@ -223,6 +253,7 @@ if (rc) rc.onmessage = function(ev){
     if (m.cmd === 'toggle') { if (viewOnly) { note('locked'); return; } if (!P.toggle()) playFrom(0); }
     else if (m.cmd === 'prev') P.prev();
     else if (m.cmd === 'next') P.next();
+    else if (m.cmd === 'play') playCmd(m);
   }
 };
 G.addEventListener('pagehide', function(){ if (rc) { try { rc.postMessage({ type: 'player-bye' }); } catch (e) {} } });
@@ -283,6 +314,31 @@ function playFrom(i){
   if (viewOnly) { note('locked'); return; }
   if (a.singles) { P.playQueue(a.items.map(function(x){ return x.id; }), i); return; }
   P.playFrom(a.id, i);
+}
+/**
+ * 音乐页交过来的 remote-cmd play（第 3 步 3.3）：专辑 {album, i} 换到那张从第 i 首放；单曲 {queue:[记录 id…], i} 单曲组当前、按这一列放。
+ * 歌单里没有这张（音乐页刚传的）就重取一次歌单再找，还没有就不动。能 focus 就把自己切到前面（多半要靠音乐页那边的 window.open 才切得过来）。
+ * @param {{album?: number, queue?: number[], i?: number}} m @param {boolean} [again] 已经重取过一次
+ */
+function playCmd(m, again){
+  if (viewOnly) { note('locked'); return; }
+  var i = Number(m.i), k = -1;
+  if (Array.isArray(m.queue)) {
+    var q = m.queue.map(Number).filter(function(x){ return x > 0; });
+    if (!(i >= 0 && i < q.length)) return;
+    if (!q.every(function(id){ return !!albumById(id); })) { if (!again) reload().then(function(){ playCmd(m, true); }); return; }
+    k = singlesIdx();
+    if (k >= 0 && k !== cur) { cur = k; renderTracks(); }
+    P.playQueue(q, i);
+  } else {
+    var id = Number(m.album);
+    for (var n = 0; n < albums.length; n++) if (!albums[n].singles && albums[n].id === id) { k = n; break; }
+    if (k < 0) { if (!again) reload().then(function(){ playCmd(m, true); }); return; }
+    if (!(i >= 0 && i < albums[k].tracks.length)) return;
+    if (k !== cur) { cur = k; renderTracks(); }
+    P.playFrom(id, i);
+  }
+  try { G.focus(); } catch (e) {}
 }
 $('#mp-tracks').addEventListener('click', function(e){ var b = e.target.closest('[data-t]'); if (b) playFrom(Number(b.dataset.t)); });
 $('#mp-toggle').addEventListener('click', function(){
@@ -359,7 +415,7 @@ function mediaPos(){
 
 /* ---------- 启动 ---------- */
 P.setShuffle(CORE.readMode(store) === 'shuffle');
-/* 奇趣页那边改了随机（同一个本地设置）：这边跟着变 */
+/* 别的窗口改了随机（同一个本地设置）：这边跟着变 */
 G.addEventListener('storage', function(e){
   if (e && e.key !== CORE.MODE_KEY) return;
   var on = CORE.readMode(store) === 'shuffle';
@@ -367,20 +423,31 @@ G.addEventListener('storage', function(e){
 });
 syncVol();
 function done(){ doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); }); }
-req('GET', '/curio/api/music').then(function(j){
+/** 换一份歌单（启动、remote-cmd play 找不到那张时重取）：当前那张尽量留着 */
+function setList(j){
+  var keep = album();
   all = j.albums || [];
   arts = j.artists || [];
   albums = groupsOf(all, tr('singles'));
+  if (keep) { for (var n = 0; n < albums.length; n++) if (albums[n].id === keep.id) { cur = n; break; } }
+  if (cur >= albums.length) cur = 0;
+}
+function reload(){
+  return req('GET', '/music/api/music').then(function(j){ setList(j); renderAlbums(); renderTracks(); }, function(){});
+}
+req('GET', '/music/api/music').then(function(j){
+  setList(j);
   done();
   if (!albums.length) { var em = $('#mp-empty'); em.textContent = tr('empty'); em.classList.remove('hidden'); return; }
-  var want = albumOf(G.location.search), k = albums.map(function(a){ return a.id; }).indexOf(want);
-  if (k < 0 && want && CORE.isSingle(albumById(want))) k = singlesIdx();
-  cur = k < 0 ? 0 : k;
+  /* ?album=<id>&t=<i>（第 3 步）：停在那张；有 t 就从那首放 */
+  var go = startOf(albums, all, albumOf(G.location.search), trackOf(G.location.search));
+  cur = go.cur;
   $('#mp-app').classList.remove('hidden');
   renderAlbums(); renderTracks();
   var a = album(); $('#mp-title').textContent = a.title; paintArtist(a); paintCover(a);
   if (viewOnly) note('locked');
   syncState();
+  if (go.i >= 0 && !viewOnly) playFrom(go.i);
 }).catch(function(){
   done();
   var p = doc.querySelector('.it-loading'); if (p) { p.textContent = tr('loadFail') || tr('failed'); p.classList.remove('hidden'); }

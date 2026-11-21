@@ -987,10 +987,13 @@ export function mountTopbar(o) {
 export const MUSIC_WIN = 'sgx-music-player';
 /** 桌面 / DeX 小窗的尺寸（手机 Chrome 不认，开成新标签页，方案 §7.1） */
 export const MUSIC_FEATURES = 'popup,width=420,height=720';
-/** 播放器页路径（英文 /curio/music/player/、中文 /curio/zh/music/player/） */
-export const MUSIC_PATH = /\/music\/player\/?$/;
-/** 主窗口肯跳去的歌手页地址（M4）：只认奇趣音乐页（中英）+ ?artist=<数字>，别的一律不跳 */
-export const ARTIST_URL = /^\/curio\/(?:zh\/)?music\/\?artist=\d{1,10}$/;
+/** 播放器页路径（英文 /music/player/、中文 /music/zh/player/；music 搬家第 3 步前是 /curio/music/player/、/curio/zh/music/player/，同一条正则都认；
+ * 新中文地址的 zh/ 在 music/ 和 player/ 中间，要单独认，不然中文播放器页的顶栏会当自己不是播放器、弹遥控层） */
+export const MUSIC_PATH = /\/music\/(?:zh\/)?player\/?$/;
+/** 主窗口肯跳去的歌手页地址（M4）：只认音乐页（中英，music 搬家第 3 步起 /music/、/music/zh/）+ ?artist=<数字>，别的一律不跳 */
+export const ARTIST_URL = /^\/music\/(?:zh\/)?\?artist=\d{1,10}$/;
+/** 音乐页「播放」交过来时肯开的播放器地址（music 搬家第 3 步 3.3）：/music/player/（中文 /music/zh/player/）?album=<数字>&t=<数字>，别的一律不开 */
+export const PLAYER_URL = /^\/music\/(?:zh\/)?player\/\?album=\d{1,10}&t=\d{1,4}$/;
 
 /**
  * 顶栏音乐图标点开播放器（音乐分层方案 v1.13 第二步 2c）：图标是链接（href = 播放器页，当前语言），没 JS / 中键 / Ctrl / ⌘ / Shift / Alt 照旧按链接走。
@@ -1005,7 +1008,10 @@ export const ARTIST_URL = /^\/curio\/(?:zh\/)?music\/\?artist=\d{1,10}$/;
  * 图标上的小点（.is-playing）= 正在出声，不占宽度。播放器页自己的顶栏不弹遥控，点了只切过去。
  * 歌手页（M4，音乐 v1.19 十二 M4 第 3 条「弹出播放器经 BroadcastChannel 通知主窗口切过去，播放器不跳走」）：播放器点了歌手名发 artist-ask，
  * 每个主窗口（本页不是播放器）答 artist-here（带本页最近一次用过的时间 at），播放器挑一个发 artist-go 只给它（to = 本页的 id）；
- * 挑中的页先发可取消的 sgx-music-artist 事件（奇趣音乐页接住就在页内换视图，歌不断），没人接就整页跳到歌手页（地址只认音乐页 ?artist=<数字>）。
+ * 挑中的页先发可取消的 sgx-music-artist 事件（音乐页接住就在页内换视图），没人接就整页跳到歌手页（地址只认音乐页 ?artist=<数字>）。
+ * 音乐页点播放（music 搬家第 3 步 3.3，音乐页不再出声）：音乐页在点击里同步发可取消的 sgx-music-open {url}，这里接住、用同一个 go() 开 / 切播放器
+ * （同名单窗口；已开只切过去、不重新加载；没开开 url = /music/player/?album=&t=，手机新标签页，被拦整页跳；地址只认 PLAYER_URL）。
+ * 「开着就发 remote-cmd play」由音乐页自己发（它也听 player-state / player-bye），这里只管开窗。
  * @param {Document} [d] @param {{ open?: (url: string, name: string, features: string) => any, navigate?: (url: string) => void, channel?: any, path?: string }} [o] 测试注入
  */
 export function mountMusic(d, o) {
@@ -1093,6 +1099,16 @@ export function mountMusic(d, o) {
   };
   post({ type: 'player-hello' });
   if (doc.defaultView) doc.defaultView.addEventListener('pageshow', function (e) { if (/** @type {PageTransitionEvent} */ (e).persisted) { state = null; paint(); post({ type: 'player-hello' }); } });
+  /* 音乐页的「播放」交接（music 搬家第 3 步 3.3）：页面在点击里发 sgx-music-open，这里同步调 go()，还在那次点击的激活期里 */
+  if (typeof doc.addEventListener === 'function') doc.addEventListener('sgx-music-open', function (/** @type {any} */ e) {
+    const u = e && e.detail && e.detail.url;
+    if (onPlayer || typeof u !== 'string' || !PLAYER_URL.test(u)) return;
+    e.preventDefault();
+    /* 绝对地址：go() 可能把它写进另一个窗口的 location（相对地址按调用方解析，写成绝对的不用想） */
+    let abs = u;
+    try { abs = new URL(u, doc.baseURI || undefined).href; } catch (x) { abs = u; }
+    go(abs);
+  });
   /* 先于 mountTopbar 的 wire 注册：遥控层能用就放行（wire 开 #sgx-mu），不能用就开 / 切播放器并拦住 wire */
   btn.addEventListener('click', function (e) {
     if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;

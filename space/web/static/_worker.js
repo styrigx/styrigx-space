@@ -29,8 +29,8 @@ const REDIRECT_SECURITY_HEADERS = {
   'Content-Security-Policy': "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
 };
 
-/** 不出图片的子站前缀（图片只从接口 Worker 出）；主站和 /blog/ 不在这里 */
-const NO_IMAGE_PREFIXES = ['/curio/', '/daymark/'];
+/** 不出图片的子站前缀（图片只从接口 Worker 出）；主站和 /blog/ 不在这里。/music/：music 搬家第 3 步加（封面 / 头像只从 /music/api/music-cover 出，树里本来就没有图） */
+const NO_IMAGE_PREFIXES = ['/curio/', '/daymark/', '/music/'];
 
 /* 图片后缀（含少见的格式；大小写不敏感），和 styrigx-atlas root/_worker.js 同一张表 */
 const IMAGE_EXT = /\.(png|apng|jpe?g|jfif|pjpeg|pjp|gif|webp|avif|svgz?|ico|cur|bmp|tiff?|heic|heif|jxl)$/i;

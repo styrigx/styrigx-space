@@ -5,7 +5,7 @@
  * 主站和子站同一个放行函数 admit；不再 302 到锁屏、不再给锁屏态瘦身页面、没有路径白名单。
  *
  * 调用点（src/app.js）：
- * - 子站 styrigx.com/blog/ /curio/ /daymark/：handleSubsite(request, env, origin)（合并 PR3 起按路径前缀）
+ * - 子站 styrigx.com/blog/ /curio/ /daymark/ /music/：handleSubsite(request, env, origin)（合并 PR3 起按路径前缀）
  * - 主站 styrigx.com 其余路径：onRequest(context)（域名、会话、访问表、no-store），放行后 context.next() 交给 router.js
  * v6 P4 起分享链接（/s/<码>、/api/share）删除（定稿 §二第 19 行），进站会话删除（§十二第 105 行），只认 v6 会话。
  * 只 import core/、lib/，不 import router / app / api。
@@ -71,7 +71,7 @@ export const ACCESS = Object.freeze({ PUBLIC: 'public', ENTRY: 'entry' });
  * 2. /api/* 和 /<子站>/api/*：只有下表逐条写出的「方法 + 路径」是 public；其余（表里没有的路径、表里路径换了方法、
  *    路径后面多一段 /x）一律 entry（fail closed）。精确匹配，从不按前缀；只把结尾一个 / 当同一条（/api/geo/ = /api/geo）。
  * 3. 表里没有路径参数（v6 P4 起分享短链 /s/:code 整套删除，定稿 §二第 19 行；/s/<码> 现在是普通页面路径，Pages 回 404）。
- * 子站接口（/curio/api/*、/daymark/api/*）归各自的接口 Worker，有它们自己的访问表；漏到网关时按第 2 条一律 entry。
+ * 子站接口（/curio/api/*、/daymark/api/*、/music/api/*）归各自的接口 Worker，有它们自己的访问表；漏到网关时按第 2 条一律 entry。
  * /api/csp-report 在 app.js 里先于网关回答（只记日志、204），不过这张表。
  * 改这张表 = 改谁能不进站调接口：tests/workers/space-core/route-access.test.mjs 对整张表做快照，改动在评审里一眼可见。
  * @type {ReadonlyArray<Readonly<{method: string, path: string, access: 'public'|'entry', why: string}>>}
@@ -121,7 +121,7 @@ export function accessOf(method, pathname) {
    /zh/en/、/blog/zh/en/、/daymark/api/en/（第二段是 api，不是 en）都不算。 */
 
 /**
- * 旧英文前缀命中时返回所在站的前缀（主站 ''，子站 '/blog'、'/curio'、'/daymark'），没命中返回 null。
+ * 旧英文前缀命中时返回所在站的前缀（主站 ''，子站 '/blog'、'/curio'、'/daymark'、'/music'），没命中返回 null。
  * @param {string} pathname
  * @returns {string|null}
  */
@@ -289,7 +289,7 @@ async function handleRequest(context) {
  * 会话检查由网关统一做（合并 PR3，2026-11-03）；v5 S3 起和主站同一套放行（admit + 访问表 accessOf）。
  *
  * 子站 Pages 不持有任何公钥、不带验票代码。网关整站通配 styrigx.com/*（路由见 wrangler.toml）；
- * styrigx.com/curio/api/*、styrigx.com/daymark/api/* 是更具体的路由，归接口 Worker styrigx-atlas-core（workers/atlas-core；奇趣、日刻各有自己的访问表），不进网关：
+ * styrigx.com/curio/api/*、styrigx.com/daymark/api/*、styrigx.com/music/api/* 是更具体的路由，归接口 Worker styrigx-atlas-core（workers/atlas-core；奇趣（音乐接口同一张表）、日刻各有自己的访问表），不进网关：
  *   - 页面、RSS、站点地图、index.json：公开，HTML 注入会话状态（valid / locked）+ private, no-store
  *   - /<站>/api/*（正常归接口 Worker，漏到网关时）：访问表默认 entry，没进站 401 JSON
  *   - 静态资源后缀（js/css/字体/图片）直接回源，不验会话；/curio/、/daymark/ 下像图片的回答由 Pages 的 _worker.js 404
@@ -306,6 +306,9 @@ export const SUBSITES = Object.freeze({
   blog: { site: 'blog' },
   curio: { site: 'curio' },
   daymark: { site: 'daymark' },
+  /* music 搬家第 3 步（搬家设计稿 v1.1 3.1，2026-11-21）：音乐从奇趣搬出来成第四个子站（/music/、/music/zh/、/music/player/）；
+     接口 /music/api/* 归 atlas-core（第 2 步登记的路由），漏到网关时和 /curio/api/* 一样按接口判（isApiPath） */
+  music: { site: 'music' },
 });
 
 /* 不验会话的静态资源后缀（不含正文内容）。和原子站 middleware 白名单一致（图片后缀照旧，见代码方案待定 P3）。 */

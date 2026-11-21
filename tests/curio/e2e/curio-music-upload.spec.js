@@ -83,7 +83,7 @@ async function mockMusic(page, opts = {}) {
   return calls;
 }
 const open = async (page) => {
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await page.locator('#mu-upload').click();
   await expect(page.locator('#mu-up-wrap')).toHaveAttribute('data-state', 'open');
 };
@@ -261,8 +261,9 @@ test('批量 · 新建专辑：专辑歌手默认取多数（亲手改过就不�
 });
 
 test('412 / 360 宽：上传窗开着时 AI 浮钮藏起来（不压底部「上传」键），关窗回来', async ({ page }) => {
+  test.skip(page.viewportSize().width > 600, '只测手机宽（桌面 1440 一档跳过）');
   await mockMusic(page);
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   const fab = page.locator('.sgx-tb-ai');
   await expect(fab).toBeVisible();
   await page.locator('#mu-upload').click();

@@ -1,7 +1,7 @@
 // 音乐 v1.19 M4「歌手页」（7.5、十二 M4 第 1–4 条）。接口用 page.route 假数据（照 M4 接口的口径做一个小内存后端），不碰线上。
-// - 不加新路由：音乐页 ?artist=<id> 视图，页内换（pushState，不重新加载，歌不断）；浏览器后退回来；直接打开 ?artist= 也行；不在的歌手有提示
-// - 入口：专辑标题下的歌手名、单曲行的歌手名（不播放）、播放条里的歌手名；弹出播放器里的歌手名 → 主窗口切到歌手页，播放器不跳走（BroadcastChannel）
-// - 歌手页头部：头像（没有用默认图标）、名字、专辑数 · 单曲数；有风格 / 简介才显示；专辑一区（点了回音乐页那张）、单曲一区（点了这位歌手的单曲当播放列表）
+// - 不加新路由：音乐页（music 搬家第 3 步起 /music/，中文 /music/zh/）?artist=<id> 视图，页内换（pushState，不重新加载）；浏览器后退回来；直接打开 ?artist= 也行；不在的歌手有提示
+// - 入口：专辑标题下的歌手名、单曲行的歌手名（不播放）；弹出播放器里的歌手名 → 主窗口切到歌手页，播放器不跳走（BroadcastChannel）。音乐页不出声（第 3 步），没有播放条里的歌手名了
+// - 歌手页头部：头像（没有用默认图标）、名字、专辑数 · 单曲数；有风格 / 简介才显示；专辑一区（点了回音乐页那张）、单曲一区（点了 = 交给播放器，这位歌手的单曲当播放列表）
 // - 单曲没封面：封面空 → 歌手头像 → 默认图（单曲列表、歌手页单曲区）
 // - 编辑（能写才有）：名字 / 风格 / 简介只发改了的、一个 artist.edit；头像 → music-upload kind=avatar（jpeg，裁方 ≤ 1000）；重名 409 提示用合并
 // - 合并（root）：选目标 → 确认卡片（确认键「合并」）→ artist.merge {id, into}（先问一次性票；root 身份直接发）→ 切到目标歌手页
@@ -11,6 +11,15 @@ const { test, expect } = require('@playwright/test');
 
 test.use({ locale: 'zh-CN' });
 
+/** n 秒静音 WAV（8 kHz 单声道 8 位） */
+function wav(sec) {
+  const rate = 8000, n = rate * sec, b = Buffer.alloc(44 + n);
+  b.write('RIFF', 0); b.writeUInt32LE(36 + n, 4); b.write('WAVE', 8); b.write('fmt ', 12); b.writeUInt32LE(16, 16);
+  b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(rate, 24); b.writeUInt32LE(rate, 28); b.writeUInt16LE(1, 32); b.writeUInt16LE(8, 34);
+  b.write('data', 36); b.writeUInt32LE(n, 40); b.fill(128, 44);
+  return b;
+}
+const WAV = wav(3);
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 const t = (id, no, title, extra = {}) => ({ id, no, title, duration: 200, size: 10, type: 'audio/wav', lrc: false, artist: '', artist_id: 0, ...extra });
 const JONI = { artist: 'Joni Mitchell', artist_id: 2 };
@@ -32,6 +41,8 @@ const DATA = () => ({
 
 /** opts.canManage 默认 true；opts.fail(b) 返回错误码就让这条写请求失败；opts.edit(db) 改假数据 */
 async function mockMusic(page, opts = {}) {
+  /* opts.ctx：装在 context 上（弹出的播放器窗口也吃得到） */
+  if (opts.ctx) page = page.context();
   const canManage = opts.canManage !== false;
   await page.route('**/avatar/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>' }));
   await page.route('**/api/lock-session-check', (r) => r.fulfill({ json: { ok: true } }));
@@ -71,21 +82,23 @@ async function mockMusic(page, opts = {}) {
     const b = r.request().postDataJSON();
     calls.push({ play: b.album });
     const a = db.albums.find((x) => x.id === b.album);
-    return r.fulfill({ json: { ok: true, ttl: 600000, tracks: a.tracks.map((x) => ({ ...x, src: '/curio/api/music-stream?t=' + 'A'.repeat(43) + '&id=' + x.id, lrc: '' })) } });
+    return r.fulfill({ json: { ok: true, ttl: 600000, tracks: a.tracks.map((x) => ({ ...x, src: '/music/api/music-stream?t=' + 'A'.repeat(43) + '&id=' + x.id, lrc: '' })) } });
   });
+  /* 播放器真的放（第 3 步起点播放都在播放器里）：3 秒静音 WAV */
+  await page.route('**/api/music-stream**', (r) => r.fulfill({ status: 200, headers: { 'Content-Type': 'audio/wav', 'Accept-Ranges': 'bytes', 'Content-Length': String(WAV.length) }, body: WAV }));
   return calls;
 }
 const writes = (calls) => calls.filter((c) => c.op);
 
 test('入口：专辑标题下的歌手名 → 歌手页（页内换视图，不重新加载）；头部头像 / 名字 / 专辑数 · 单曲数 / 风格 / 简介；后退回音乐页、前进回歌手页', async ({ page }) => {
   await mockMusic(page);
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await page.evaluate(() => { window.__sameDoc = 1; });
   const link = page.locator('#mu-album-sub a.mu-artist-a');
   await expect(link).toHaveText('Joni Mitchell');
   await expect(link).toHaveAttribute('href', '?artist=2');
   await link.click();
-  await expect(page).toHaveURL(/\/curio\/zh\/music\/\?artist=2$/);
+  await expect(page).toHaveURL(/\/music\/zh\/\?artist=2$/);
   expect(await page.evaluate(() => window.__sameDoc)).toBe(1);
   await expect(page.locator('#mu-lib')).toBeHidden();
   await expect(page.locator('#mu-artist')).toBeVisible();
@@ -93,25 +106,25 @@ test('入口：专辑标题下的歌手名 → 歌手页（页内换视图，不
   await expect(page.locator('#mu-ar-sub')).toHaveText('2 张专辑 · 1 首单曲');
   await expect(page.locator('#mu-ar-style')).toHaveText('民谣');
   await expect(page.locator('#mu-ar-bio')).toHaveText('加拿大创作歌手。\n民谣、爵士。');
-  await expect(page.locator('#mu-ar-img')).toHaveAttribute('src', '/curio/api/music-cover?artist=2');
+  await expect(page.locator('#mu-ar-img')).toHaveAttribute('src', '/music/api/music-cover?artist=2');
   await expect(page.locator('#mu-ar-albums .mu-single-tx b')).toHaveText(['Blue', 'Court and Spark']);
   await expect(page.locator('#mu-ar-singles .mu-single-tx b')).toHaveText(['River']);
   await page.goBack();
-  await expect(page).toHaveURL(/\/curio\/zh\/music\/$/);
+  await expect(page).toHaveURL(/\/music\/zh\/$/);
   await expect(page.locator('#mu-lib')).toBeVisible();
   await expect(page.locator('#mu-artist')).toBeHidden();
   await page.goForward();
   await expect(page.locator('#mu-ar-name')).toHaveText('Joni Mitchell');
   /* 返回链接 → 音乐页 */
   await page.locator('#mu-ar-back').click();
-  await expect(page).toHaveURL(/\/curio\/zh\/music\/$/);
+  await expect(page).toHaveURL(/\/music\/zh\/$/);
   await expect(page.locator('#mu-album-title')).toHaveText('Blue');
   expect(await page.evaluate(() => window.__sameDoc)).toBe(1);
 });
 
 test('直接打开 ?artist=：没头像用默认图标、没风格 / 简介不显示；只有单曲的歌手没有专辑区；不在的歌手提示找不到；访客没有「编辑」', async ({ page }) => {
   await mockMusic(page, { canManage: false });
-  await page.goto('/curio/zh/music/?artist=5');
+  await page.goto('/music/zh/?artist=5');
   await expect(page.locator('#mu-ar-name')).toHaveText('周杰伦');
   await expect(page.locator('#mu-ar-sub')).toHaveText('0 张专辑 · 1 首单曲');
   await expect(page.locator('#mu-ar-img')).toBeHidden();
@@ -121,58 +134,48 @@ test('直接打开 ?artist=：没头像用默认图标、没风格 / 简介不�
   await expect(page.locator('#mu-ar-albums-h')).toBeHidden();
   await expect(page.locator('#mu-ar-singles .mu-single-tx b')).toHaveText(['晴天']);
   await expect(page.locator('#mu-ar-edit')).toBeHidden();
-  await page.goto('/curio/zh/music/?artist=999');
+  await page.goto('/music/zh/?artist=999');
   await expect(page.locator('#mu-ar-missing')).toHaveText('找不到这位歌手。');
   await expect(page.locator('#mu-ar-body')).toBeHidden();
   /* 名下没作品的歌手：提示还没有作品 */
-  await page.goto('/curio/zh/music/?artist=6');
+  await page.goto('/music/zh/?artist=6');
   await expect(page.locator('#mu-ar-none')).toBeVisible();
 });
 
-test('单曲行的歌手名 → 歌手页（不播放）；歌手页点专辑 → 回音乐页那张；点单曲 → 这位歌手的单曲当播放列表', async ({ page }) => {
-  const calls = await mockMusic(page);
-  await page.goto('/curio/zh/music/');
+test('单曲行的歌手名 → 歌手页（不播放）；歌手页点专辑 → 回音乐页那张；点单曲 → 交给播放器（?album=<单曲>&t=0），这位歌手的单曲当播放列表', async ({ page }) => {
+  const calls = await mockMusic(page, { ctx: true });
+  await page.goto('/music/zh/');
   await page.locator('#mu-seg [data-sec="single"]').click();
   await page.locator('#mu-singles [data-s="1"] [data-artist]').click();
   await expect(page).toHaveURL(/\?artist=5$/);
   expect(calls.filter((c) => c.play)).toEqual([]);
-  await page.goto('/curio/zh/music/?artist=2');
+  await page.goto('/music/zh/?artist=2');
   await page.locator('#mu-ar-albums [data-al="2"]').click();
-  await expect(page).toHaveURL(/\/curio\/zh\/music\/$/);
+  await expect(page).toHaveURL(/\/music\/zh\/$/);
   await expect(page.locator('#mu-album-title')).toHaveText('Court and Spark');
   await page.goBack();
-  await page.locator('#mu-ar-singles [data-as="0"]').click();
+  const [pl] = await Promise.all([page.context().waitForEvent('page'), page.locator('#mu-ar-singles [data-as="0"]').click()]);
+  await pl.waitForURL(/\/music\/zh\/player\/\?album=41&t=0$/);
   await expect.poll(() => calls.filter((c) => c.play).map((c) => c.play)).toEqual([41]);
-  await expect(page.locator('#mu-now-title')).toHaveText('River');
-  await expect(page.locator('#mu-ar-singles .mu-single.on .mu-single-tx b')).toHaveText('River');
-});
-
-test('播放条里的歌手名 → 歌手页，正在放的不断（同一个 <audio>、地址不变）', async ({ page }) => {
-  const calls = await mockMusic(page);
-  await page.goto('/curio/zh/music/');
-  await page.locator('#mu-tracks [data-t="0"]').click();
-  await expect.poll(() => calls.filter((c) => c.play).length).toBe(1);
-  await expect(page.locator('#mu-now-sub')).toHaveText('Blue · Joni Mitchell');
-  const src = await page.locator('#mu-audio').evaluate((a) => a.src);
-  await page.locator('#mu-now-sub a.mu-artist-a').click();
-  await expect(page.locator('#mu-ar-name')).toHaveText('Joni Mitchell');
-  await expect(page.locator('#mu-player')).toBeVisible();
-  expect(await page.locator('#mu-audio').evaluate((a) => a.src)).toBe(src);
+  await expect(pl.locator('#mp-title')).toHaveText('River');
+  /* 不标正在播（Gray 2026-11-21 14:17）；本页留在歌手页 */
+  await expect(page.locator('#mu-ar-singles .mu-single.on')).toHaveCount(0);
+  await expect(page).toHaveURL(/\?artist=2$/);
 });
 
 test('单曲没封面：封面空 → 歌手头像 → 默认图（单曲列表）', async ({ page }) => {
   await mockMusic(page);
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await page.locator('#mu-seg [data-sec="single"]').click();
   /* River 没封面、Joni 有头像 → 用头像；晴天没封面、周杰伦没头像 → 默认图 */
-  await expect(page.locator('#mu-singles [data-s="0"] .mu-single-im img')).toHaveAttribute('src', '/curio/api/music-cover?artist=2');
+  await expect(page.locator('#mu-singles [data-s="0"] .mu-single-im img')).toHaveAttribute('src', '/music/api/music-cover?artist=2');
   await expect(page.locator('#mu-singles [data-s="1"] .mu-single-im img')).toHaveCount(0);
   await expect(page.locator('#mu-singles [data-s="1"] .mu-single-im .mu-cover-ph svg')).toBeVisible();
 });
 
 test('编辑歌手：名字 / 风格 / 简介只发改了的、一个 artist.edit；头像 → music-upload kind=avatar（jpeg）；改名后专辑副标题跟着变', async ({ page }) => {
   const calls = await mockMusic(page);
-  await page.goto('/curio/zh/music/?artist=2');
+  await page.goto('/music/zh/?artist=2');
   await page.locator('#mu-ar-edit').click();
   const dlg = page.locator('#mu-ar-wrap');
   await expect(dlg).toHaveJSProperty('open', true);
@@ -198,7 +201,7 @@ test('编辑歌手：名字 / 风格 / 简介只发改了的、一个 artist.edi
   await page.locator('#mu-ar-back').click();
   await expect(page.locator('#mu-album-sub a.mu-artist-a')).toHaveText('Joni');
   /* 什么都不改：不发 */
-  await page.goto('/curio/zh/music/?artist=4');
+  await page.goto('/music/zh/?artist=4');
   await page.locator('#mu-ar-edit').click();
   await page.locator('#mu-ar-save').click();
   await expect(dlg).toHaveJSProperty('open', false);
@@ -207,7 +210,7 @@ test('编辑歌手：名字 / 风格 / 简介只发改了的、一个 artist.edi
 
 test('编辑歌手：重名 409 artist-exists → 名字栏正下方提示用「合并」，不关窗；名字不能空（同一处）；一改名字提示就收', async ({ page }) => {
   await mockMusic(page, { fail: (b) => (b.op === 'artist.edit' && b.name === '周杰伦' ? 'artist-exists' : '') });
-  await page.goto('/curio/zh/music/?artist=4');
+  await page.goto('/music/zh/?artist=4');
   await page.locator('#mu-ar-edit').click();
   const nameIn = page.locator('#mu-ar-name-in'), err = page.locator('#mu-ar-name-err');
   await nameIn.fill('');
@@ -237,7 +240,7 @@ test('歌手页诚实空状态：名下没有专辑 / 单曲、但别的专辑�
     /* 单曲记录里挂着 TA 的曲目不算「专辑」 */
     db.albums[3].tracks.push(t(53, 2, 'River (Nash)', NASH));
   } });
-  await page.goto('/curio/zh/music/?artist=7');
+  await page.goto('/music/zh/?artist=7');
   await expect(page.locator('#mu-ar-sub')).toHaveText('0 张专辑 · 0 首单曲');
   await expect(page.locator('#mu-ar-none')).toBeHidden();
   await expect(page.locator('#mu-ar-albums-h')).toBeHidden();
@@ -246,27 +249,27 @@ test('歌手页诚实空状态：名下没有专辑 / 单曲、但别的专辑�
   await expect(rel).toHaveText('还没有自己的专辑或单曲；有曲目收在「Blue」里。');
   await expect(rel.locator('a')).toHaveCount(1);
   /* 多于三张：链三张，其余说个数——中英都说「剩下几张」（总数 − 已链），不说总数 */
-  await page.goto('/curio/zh/music/?artist=8');
+  await page.goto('/music/zh/?artist=8');
   await expect(rel).toHaveText('还没有自己的专辑或单曲；有曲目收在「Blue」、「Court and Spark」、「Ammonia Avenue」和另外 1 张专辑里。');
   await expect(rel.locator('a')).toHaveText(['Blue', 'Court and Spark', 'Ammonia Avenue']);
-  await page.goto('/curio/music/?artist=8');
+  await page.goto('/music/?artist=8');
   await expect(rel).toHaveText('No albums or singles of their own yet. Their tracks are on Blue, Court and Spark, Ammonia Avenue and 1 more.');
   /* 点链接 → 回音乐页那张专辑（页内换） */
-  await page.goto('/curio/zh/music/?artist=7');
+  await page.goto('/music/zh/?artist=7');
   await page.evaluate(() => { window.__sameDoc = 1; });
   await rel.locator('a', { hasText: 'Blue' }).click();
-  await expect(page).toHaveURL(/\/curio\/zh\/music\/$/);
+  await expect(page).toHaveURL(/\/music\/zh\/$/);
   await expect(page.locator('#mu-album-title')).toHaveText('Blue');
   expect(await page.evaluate(() => window.__sameDoc)).toBe(1);
   /* 真的什么都没有：照旧「还没有专辑或单曲」，没有提示行 */
-  await page.goto('/curio/zh/music/?artist=6');
+  await page.goto('/music/zh/?artist=6');
   await expect(page.locator('#mu-ar-none')).toHaveText('还没有专辑或单曲。');
   await expect(rel).toBeHidden();
 });
 
 test('歌手名链接常驻一条淡下划线（手机上也看得出能点），悬停换主色；别的链接不加', async ({ page }) => {
   await mockMusic(page);
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   const link = page.locator('#mu-album-sub a.mu-artist-a');
   const st = () => link.evaluate((a) => { const c = getComputedStyle(a); return { line: c.textDecorationLine, dc: c.textDecorationColor, color: c.color }; });
   const base = await st();
@@ -277,13 +280,13 @@ test('歌手名链接常驻一条淡下划线（手机上也看得出能点）�
   const hov = await st();
   expect(hov.dc).toBe(hov.color);
   /* 返回链接（别的链接）不加下划线 */
-  await page.goto('/curio/zh/music/?artist=2');
+  await page.goto('/music/zh/?artist=2');
   expect(await page.locator('#mu-ar-back').evaluate((a) => getComputedStyle(a).textDecorationLine)).toBe('none');
 });
 
 test('合并（root）：选目标 → 确认卡片（确认键「合并」）→ artist.merge {id, into} → 切到目标歌手页', async ({ page }) => {
   const calls = await mockMusic(page);
-  await page.goto('/curio/zh/music/?artist=6');
+  await page.goto('/music/zh/?artist=6');
   await page.locator('#mu-ar-edit').click();
   await expect(page.locator('#mu-ar-merge')).toBeDisabled();
   /* 列别的歌手（不含自己），按当前语言排序；顶上一项「选一位歌手」 */
@@ -313,12 +316,12 @@ test('合并（root）：选目标 → 确认卡片（确认键「合并」）�
 
 test('删除歌手（root）：名下有作品 → 删除键灰、说明只能合并；没有作品 → 确认 → artist.del → 回音乐页', async ({ page }) => {
   const calls = await mockMusic(page);
-  await page.goto('/curio/zh/music/?artist=2');
+  await page.goto('/music/zh/?artist=2');
   await page.locator('#mu-ar-edit').click();
   await expect(page.locator('#mu-ar-del')).toBeDisabled();
   await expect(page.locator('#mu-ar-del-note')).toHaveText('名下还有专辑或曲目，不能删除，只能合并到另一个歌手。');
   await page.locator('#mu-ar-x').click();
-  await page.goto('/curio/zh/music/?artist=6');
+  await page.goto('/music/zh/?artist=6');
   await page.locator('#mu-ar-edit').click();
   await expect(page.locator('#mu-ar-del-note')).toBeHidden();
   await page.locator('#mu-ar-del').click();
@@ -326,13 +329,13 @@ test('删除歌手（root）：名下有作品 → 删除键灰、说明只能�
   await expect(page.locator('#mu-del-msg')).toHaveText('确定删除歌手「joni  mitchell」吗？名下没有专辑或曲目。');
   await page.locator('#mu-del-ok').click();
   await expect.poll(() => writes(calls)).toEqual([{ op: 'artist.del', id: 6, ticket: '' }]);
-  await expect(page).toHaveURL(/\/curio\/zh\/music\/$/);
+  await expect(page).toHaveURL(/\/music\/zh\/$/);
   await expect(page.locator('#mu-lib')).toBeVisible();
 });
 
 test('歌手栏联想：上传 / 编辑 / 批量改都挂 #mu-artist-list（已有歌手）；只差大小写 / 空格时提示，点一下换成已有的', async ({ page }) => {
   await mockMusic(page);
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await expect(page.locator('#mu-artist-list option')).toHaveCount(4);
   for (const id of ['mu-up-artist', 'mu-ed-artist', 'mu-ae-artist', 'mu-be-artist']) await expect(page.locator('#' + id)).toHaveAttribute('list', 'mu-artist-list');
   await page.locator('#mu-album-edit').click();
@@ -349,26 +352,26 @@ test('歌手栏联想：上传 / 编辑 / 批量改都挂 #mu-artist-list（已�
   await expect(hint).toBeHidden();
 });
 
-test('弹出播放器：正在播的歌手名可点 → 主窗口（奇趣音乐页）在页内切到歌手页，播放器不跳走', async ({ page, context }) => {
+test('弹出播放器：正在播的歌手名可点 → 主窗口（音乐页 /music/zh/）在页内切到歌手页，播放器不跳走', async ({ page, context }) => {
   await mockMusic(page);
-  await page.goto('/curio/zh/music/');
+  await page.goto('/music/zh/');
   await page.evaluate(() => { window.__sameDoc = 1; });
   const pl = await context.newPage();
   await mockMusic(pl);
-  await pl.goto('/curio/zh/music/player/');
+  await pl.goto('/music/zh/player/');
   await expect(pl.locator('#mp-title')).toHaveText('Blue');
   const a = pl.locator('#mp-artist a.mu-artist-a');
   await expect(a).toHaveText('Joni Mitchell');
-  await expect(a).toHaveAttribute('href', '/curio/zh/music/?artist=2');
+  await expect(a).toHaveAttribute('href', '/music/zh/?artist=2');
   await a.click();
-  await expect(page).toHaveURL(/\/curio\/zh\/music\/\?artist=2$/);
+  await expect(page).toHaveURL(/\/music\/zh\/\?artist=2$/);
   await expect(page.locator('#mu-ar-name')).toHaveText('Joni Mitchell');
   expect(await page.evaluate(() => window.__sameDoc)).toBe(1);
-  await expect(pl).toHaveURL(/\/curio\/zh\/music\/player\/$/);
+  await expect(pl).toHaveURL(/\/music\/zh\/player\/$/);
   /* 播放器里单曲没封面 → 歌手头像 */
   await pl.locator('#mp-albums-btn').click();
   await pl.locator('#mp-albums .mp-alb').last().click();
   await pl.locator('#mp-tracks [data-t="0"]').click();
   await expect(pl.locator('#mp-title')).toHaveText('River');
-  await expect(pl.locator('#mp-cover img')).toHaveAttribute('src', '/curio/api/music-cover?artist=2');
+  await expect(pl.locator('#mp-cover img')).toHaveAttribute('src', '/music/api/music-cover?artist=2');
 });

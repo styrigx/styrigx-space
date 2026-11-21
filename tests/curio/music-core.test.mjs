@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const CORE = require('../../space/web/assets/common/js/music/music-core.js');
-const MU = require('../../space/web/assets/curio/js/curio-music.js');
+const MU = require('../../space/web/assets/music/js/music-page.js');
 
 class FakeAudio {
   constructor() { this.paused = true; this.ended = false; this.currentTime = 0; this.src = ''; this.playbackRate = 1; this.defaultPlaybackRate = 1; this.ls = {}; this.plays = 0; }
@@ -43,8 +43,9 @@ function make(opts = {}) {
   return { p, audio, signs, log, setClock: (v) => { clock = v; } };
 }
 
-test('纯函数从共用核转出，curio-music.js 原有导出不变', () => {
-  for (const k of ['SPEEDS', 'nextSpeed', 'fmtTime', 'parseLrc', 'lrcIndex']) assert.equal(MU[k], CORE[k], k);
+test('纯函数从共用核转出；音乐页（music-page.js，music 搬家第 3 步起不出声）只留时间格式，倍速 / 歌词解析不再导出', () => {
+  assert.equal(MU.fmtTime, CORE.fmtTime);
+  for (const k of ['SPEEDS', 'nextSpeed', 'parseLrc', 'lrcIndex']) assert.equal(MU[k], undefined, k);
   assert.equal(CORE.CHANNEL, 'sgx-music');
   assert.equal(CORE.nextSpeed(2), 0.75);
   assert.equal(CORE.fmtTime(3725), '1:02:05');
@@ -126,21 +127,87 @@ test('防同时响：一边开播，另一边（同一频道）自动暂停；�
   assert.equal(B.audio.paused, true);
 });
 
-test('curio-music.js 不再自己签令牌 / 续签（只走共用核）', () => {
-  const src = readFileSync(new URL('../../space/web/assets/curio/js/curio-music.js', import.meta.url), 'utf8');
-  assert.match(src, /sign: function\(albumId\)\{ return req\('POST', '\/curio\/api\/music-play'/, '签令牌只经 sign 回调');
-  assert.doesNotMatch(src, /function (session|startTrack|step)\(/, '旧的签令牌 / 切曲函数已搬走');
-  assert.match(src, /CORE\.createPlayer\(/);
-  assert.doesNotMatch(src, /addEventListener\('(error|ended)'/, '续签 / 接下一首在共用核');
+test('音乐页不出声（搬家设计稿 v1.1 3.3）：不建播放器、不签令牌、不碰 <audio>；点播放 = handOff（remote-cmd play + sgx-music-open）；共用核不碰界面', () => {
+  const src = readFileSync(new URL('../../space/web/assets/music/js/music-page.js', import.meta.url), 'utf8');
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(code, /CORE\.createPlayer\(/, '本页不建播放器');
+  assert.doesNotMatch(code, /music-stream/, '本页不拉音频');
+  /* music-play 只剩一处：编辑歌词时读这张的歌词正文（歌词只在签令牌时给，管理用，不是播放） */
+  assert.equal((src.match(/'\/music\/api\/music-play'/g) || []).length, 1, 'music-play 只用来读歌词');
+  assert.match(code, /return fetch\('\/music\/api\/music-play'/);
+  assert.doesNotMatch(code, /mu-audio|mu-player|mu-lyrics|#mu-seek|#mu-toggle|#mu-speed|#mu-shuffle/, '播放条 / audio / 歌词条的选择器都删了');
+  assert.doesNotMatch(code, /\.play\(\)|playbackRate/, '本页不出声');
+  assert.match(code, /function handOff\(o, openAlbum, openI\)\{\n  if \(mc\) \{ try \{ mc\.postMessage\(playCmd\(o\)\); \} catch \(e\) \{\} \}/, '先发 remote-cmd play（不等 player-hello）');
+  assert.match(code, /new CustomEvent\('sgx-music-open', \{ detail: \{ url: url \}, cancelable: true \}\)/, '再发可取消的 sgx-music-open，顶栏 mountMusic 开窗');
+  assert.match(code, /if \(viewOnly\) return askSudo\(\);/, '只看模式点播放发 sgx:sudo，不开播放器');
+  const tpl = readFileSync(new URL('../../space/web/layouts/music/section.html', import.meta.url), 'utf8').replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '');
+  for (const id of ['mu-player', 'mu-audio', 'mu-lyrics', 'mu-seek', 'mu-toggle', 'mu-speed', 'mu-shuffle', 'mu-prev', 'mu-next', '<audio']) assert.ok(!tpl.includes(id), '模板没有 ' + id);
   const core = readFileSync(new URL('../../space/web/assets/common/js/music/music-core.js', import.meta.url), 'utf8');
   assert.doesNotMatch(core, /document|querySelector/, '共用核不碰界面');
+});
+
+test('音乐页交接的纯函数：playerPathOf / playerUrl（?album=&t=，中英）、playCmd（专辑 album + i；单曲 queue + i）、窗口名同顶栏', async () => {
+  const { MUSIC_WIN, PLAYER_URL } = await import('../../space/web/assets/common/js/frame/topbar/panel.js');
+  assert.equal(MU.PLAYER_WIN, MUSIC_WIN);
+  assert.equal(MU.playerPathOf('/music/'), '/music/player/');
+  assert.equal(MU.playerPathOf('/music/zh/'), '/music/zh/player/');
+  assert.equal(MU.playerPathOf(''), '/music/player/');
+  assert.equal(MU.playerUrl('/music/', 3, 2), '/music/player/?album=3&t=2');
+  assert.equal(MU.playerUrl('/music/zh/', '12', '0'), '/music/zh/player/?album=12&t=0');
+  for (const u of [MU.playerUrl('/music/', 3, 2), MU.playerUrl('/music/zh/', 9, 0)]) assert.ok(PLAYER_URL.test(u), u + ' 过顶栏白名单');
+  assert.deepEqual(MU.playCmd({ album: '7', i: 3 }), { type: 'remote-cmd', cmd: 'play', i: 3, album: 7 });
+  const q = [11, 12, 13];
+  const m = MU.playCmd({ queue: q, i: 1 });
+  assert.deepEqual(m, { type: 'remote-cmd', cmd: 'play', i: 1, queue: [11, 12, 13] });
+  assert.notEqual(m.queue, q, '复制一份，不和页面的数组共用');
+  assert.equal('album' in m, false);
+});
+
+test('播放器 ?t= 与 startOf（第 3 步）：专辑停在那张、t 在范围内才放；单曲记录 → 单曲组里它那一首（只认 t=0）；没有这张 → 第一张不放', () => {
+  const MP = require('../../space/web/assets/common/js/music/music-player.js');
+  assert.equal(MP.trackOf('?album=3&t=2'), 2);
+  assert.equal(MP.trackOf('?t=0&album=3'), 0);
+  assert.equal(MP.trackOf('?album=3'), -1);
+  assert.equal(MP.trackOf('?album=3&t=x'), -1);
+  assert.equal(MP.trackOf('?album=3&t=12345'), -1, '最多 4 位');
+  assert.equal(MP.trackOf(''), -1);
+  const all = [
+    { id: 1, kind: 'album', title: 'A', tracks: [{ id: 10, title: 'a1' }, { id: 11, title: 'a2' }, { id: 12, title: 'a3' }] },
+    { id: 2, kind: 'single', title: 'S1', tracks: [{ id: 20, title: 'S1' }] },
+    { id: 4, kind: 'album', title: 'B', tracks: [{ id: 40, title: 'b1' }] },
+    { id: 3, kind: 'single', title: 'S2', tracks: [{ id: 30, title: 'S2' }] },
+  ];
+  const g = MP.groupsOf(all, 'Singles');
+  assert.deepEqual(g.map((x) => x.id), [1, 4, -1]);
+  assert.deepEqual(MP.startOf(g, all, 1, 2), { cur: 0, i: 2 });
+  assert.deepEqual(MP.startOf(g, all, 4, 0), { cur: 1, i: 0 });
+  assert.deepEqual(MP.startOf(g, all, 1, 3), { cur: 0, i: -1 }, 't 越界只显示不放');
+  assert.deepEqual(MP.startOf(g, all, 1, -1), { cur: 0, i: -1 }, '没 t（顶栏图标开的）只显示不放');
+  assert.deepEqual(MP.startOf(g, all, 3, 0), { cur: 2, i: 1 }, '单曲记录：单曲组里它那一首');
+  assert.deepEqual(MP.startOf(g, all, 2, 0), { cur: 2, i: 0 });
+  assert.deepEqual(MP.startOf(g, all, 3, 1), { cur: 2, i: -1 }, '单曲只认 t=0');
+  assert.deepEqual(MP.startOf(g, all, 99, 0), { cur: 0, i: -1 }, '没有这张（刚删）：第一张不放');
+  assert.deepEqual(MP.startOf(g, all, 0, -1), { cur: 0, i: -1 });
+  assert.deepEqual(MP.startOf([], [], 1, 0), { cur: 0, i: -1 });
+});
+
+test('播放器收 remote-cmd play（第 3 步）：专辑 / 单曲两种消息都认；只看模式只提示；歌单里没有先重取一次', () => {
+  const src = readFileSync(new URL('../../space/web/assets/common/js/music/music-player.js', import.meta.url), 'utf8');
+  assert.match(src, /else if \(m\.cmd === 'play'\) playCmd\(m\);/);
+  const fn = src.slice(src.indexOf('function playCmd(m, again){'), src.indexOf("$('#mp-tracks').addEventListener"));
+  assert.match(fn, /if \(viewOnly\) \{ note\('locked'\); return; \}/);
+  assert.match(fn, /Array\.isArray\(m\.queue\)/);
+  assert.match(fn, /P\.playQueue\(q, i\)/);
+  assert.match(fn, /P\.playFrom\(id, i\)/);
+  assert.equal((fn.match(/if \(!again\) reload\(\)\.then\(function\(\)\{ playCmd\(m, true\); \}\)/g) || []).length, 2, '专辑 / 单曲都只重取一次');
+  assert.match(src, /if \(go\.i >= 0 && !viewOnly\) playFrom\(go\.i\);/, '?t= 开窗就从那首放（只看模式不放）');
 });
 
 /* ---------- 2b：播放模式（顺序 / 随机）、播放器倍速档 ---------- */
 /** 可复现的伪随机 */
 function seeded(seed = 7) { let x = seed; return () => { x = (x * 1103515245 + 12345) % 2147483648; return x / 2147483648; }; }
 
-test('播放器倍速档 1 → 1.25 → 1.5 → 2 → 1；奇趣页 SPEEDS 不变（0.75–2）', () => {
+test('播放器倍速档 1 → 1.25 → 1.5 → 2 → 1；共用核 SPEEDS 不变（0.75–2；音乐页不再用，核的逻辑不改）', () => {
   const L = CORE.PLAYER_SPEEDS;
   assert.deepEqual(L, [1, 1.25, 1.5, 2]);
   assert.deepEqual([1, 1.25, 1.5, 2].map((s) => CORE.nextSpeed(s, L)), [1.25, 1.5, 2, 1]);
@@ -221,7 +288,7 @@ test('播放器页纯函数：?album= 取专辑；签令牌失败分 登录过�
   assert.equal(MP.failKind({ status: 401 }), 'expired');
   assert.equal(MP.failKind({ code: 'forbidden', status: 403 }), 'noPermission');
   assert.equal(MP.failKind(new Error('x')), 'failed');
-  assert.deepEqual(MP.artworkOf({ id: 4, cover: true }), [{ src: '/curio/api/music-cover?album=4', sizes: '512x512' }]);
+  assert.deepEqual(MP.artworkOf({ id: 4, cover: true }), [{ src: '/music/api/music-cover?album=4', sizes: '512x512' }]);
   assert.deepEqual(MP.artworkOf({ id: 4, cover: false }), []);
   assert.deepEqual(MP.artworkOf(null), []);
 });
@@ -338,9 +405,9 @@ test('durText：元数据到了用真实 duration；没到 / NaN / Infinity / 0 
 /* ---------- M4（音乐 v1.19 7.5 / 十二 M4）：单曲封面回退、主窗口挑选 ---------- */
 test('M4 coverOf：有封面用自己的；单曲没封面 → 歌手头像；歌手没头像 / 专辑没封面 → 空（默认图）', () => {
   const arts = [{ id: 2, avatar: true }, { id: 5, avatar: false }];
-  assert.equal(CORE.coverOf({ id: 7, kind: 'album', cover: true, artist_id: 2 }, arts), '/curio/api/music-cover?album=7');
-  assert.equal(CORE.coverOf({ id: 7, kind: 'single', cover: true, artist_id: 2 }, arts, 9), '/curio/api/music-cover?album=7&v=9');
-  assert.equal(CORE.coverOf({ id: 8, kind: 'single', cover: false, artist_id: 2 }, arts), '/curio/api/music-cover?artist=2');
+  assert.equal(CORE.coverOf({ id: 7, kind: 'album', cover: true, artist_id: 2 }, arts), '/music/api/music-cover?album=7');
+  assert.equal(CORE.coverOf({ id: 7, kind: 'single', cover: true, artist_id: 2 }, arts, 9), '/music/api/music-cover?album=7&v=9');
+  assert.equal(CORE.coverOf({ id: 8, kind: 'single', cover: false, artist_id: 2 }, arts), '/music/api/music-cover?artist=2');
   assert.equal(CORE.coverOf({ id: 8, kind: 'single', cover: false, artist_id: 5 }, arts), '');
   assert.equal(CORE.coverOf({ id: 8, kind: 'single', cover: false, artist_id: 0 }, arts), '');
   assert.equal(CORE.coverOf({ id: 8, kind: 'single', cover: false, artist_id: 99 }, arts), '', '对不上歌手表');
@@ -352,11 +419,11 @@ test('M4 pickMain：挑最近用过的主窗口（at 最大，一样取先答的
   assert.equal(CORE.pickMain([]), null);
   assert.equal(CORE.pickMain([{ from: 'a', at: 5 }, { from: 'b', at: 9 }, { from: 'c', at: 9 }]).from, 'b');
   assert.equal(CORE.pickMain([{ from: '', at: 99 }, { from: 'x', at: 1 }]).from, 'x');
-  assert.equal(CORE.artistHref('/curio/zh/music/', 3), '/curio/zh/music/?artist=3');
+  assert.equal(CORE.artistHref('/music/zh/', 3), '/music/zh/?artist=3');
   assert.deepEqual(Object.values(CORE.ARTIST_MSG), ['artist-ask', 'artist-here', 'artist-go']);
 });
 
-test('M4 curio-music 纯函数：artistOf 读 ?artist=；artistWorks 按 artist_id 分专辑 / 单曲；similarArtist 只差大小写 / 空格才提示；squareCrop 取中间正方形 ≤ 1000', () => {
+test('M4 music-page 纯函数：artistOf 读 ?artist=；artistWorks 按 artist_id 分专辑 / 单曲；similarArtist 只差大小写 / 空格才提示；squareCrop 取中间正方形 ≤ 1000', () => {
   assert.equal(MU.artistOf('?artist=12'), 12);
   assert.equal(MU.artistOf('?x=1&artist=3'), 3);
   for (const q of ['', '?artist=', '?artist=0', '?artist=-1', '?artist=1x', '?artist=99999999999']) assert.equal(MU.artistOf(q), 0, q);
@@ -376,7 +443,7 @@ test('M4 curio-music 纯函数：artistOf 读 ?artist=；artistWorks 按 artist_
   assert.deepEqual(MU.squareCrop(400, 600, 1000), { sx: 0, sy: 100, side: 400, out: 400 });
 });
 
-test('M4 curio-music relatedAlbums（歌手页诚实空状态，Gray 2026-11-20）：别的歌手的专辑里有 TA 的曲目 → 那些专辑（不算单曲记录、不算 TA 自己的），保持顺序', () => {
+test('M4 music-page relatedAlbums（歌手页诚实空状态，Gray 2026-11-20）：别的歌手的专辑里有 TA 的曲目 → 那些专辑（不算单曲记录、不算 TA 自己的），保持顺序', () => {
   const tr = (id, artist_id) => ({ id, artist_id });
   const list = [
     { id: 1, kind: 'album', artist_id: 2, tracks: [tr(11, 2), tr(12, 7)] },

@@ -382,7 +382,8 @@ test('B2-2 store and its apps are gone; main-site bookmarks are gone too', async
   }
   /* 2026-10-19：Dock 已全部删除 */
   for (const sel of ['#mobile-dock', '#dex-dock', '#dex-drawer']) await expect(pg.locator(sel), sel).toHaveCount(0);
-  for (const p of ['/store/', '/ai/', '/books/', '/music/']) {
+  /* /music/：旧主站音乐 App 早删了；music 搬家第 3 步（2026-11-21）起这个地址是第四个子站「音乐」（不是主站页），不在这里查 404 */
+  for (const p of ['/store/', '/ai/', '/books/']) {
     const r = await pg.request.get(p);
     expect(r.status(), p).toBe(404);
   }

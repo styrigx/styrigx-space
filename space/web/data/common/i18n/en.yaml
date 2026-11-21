@@ -44,7 +44,7 @@ player:
   signIn: Sign in
   loading: Loading…
 js:
-  # 共用播放器（/curio/music/player/，music-player.js 读 #sgx-i18n-curioPlayer；2026-11 第 7 步从 data/curio/i18n 搬来，表名不改）
+  # 共用播放器（/music/player/，music 搬家第 3 步前 /curio/music/player/；music-player.js 读 #sgx-i18n-curioPlayer；2026-11 第 7 步从 data/curio/i18n 搬来，表名不改）
   curioPlayer:
     tracks: '{n} tracks'
     tracks_one: '{n} track'

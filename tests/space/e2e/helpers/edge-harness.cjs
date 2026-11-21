@@ -108,7 +108,7 @@ function mainPages(req) {
 /** 单树里的子站：各站固定页面（正文带 SUBSITE-CONTENT 标记，测试据此判断「真的进了子站」） */
 function subPages(req) {
   const u = new URL(req.url);
-  const m = /^\/(blog|curio|daymark)(\/.*)$/.exec(u.pathname);
+  const m = /^\/(blog|curio|daymark|music)(\/.*)$/.exec(u.pathname);
   const site = m ? m[1] : 'atlas';
   const rest = m ? m[2] : u.pathname;
   if (m && (rest === '/' || rest.startsWith('/post/') || rest === '/en/' || rest === '/zh/')) {
@@ -120,11 +120,11 @@ function subPages(req) {
   return new Response('not found', { status: 404, headers: { 'Content-Type': 'text/plain' } });
 }
 
-/* 合并 PR3：一个 Pages（styrigx-space）一棵树，子站在 /blog/ /curio/ /daymark/ 下 */
+/* 合并 PR3：一个 Pages（styrigx-space）一棵树，子站在 /blog/ /curio/ /daymark/ /music/ 下（music 搬家第 3 步加） */
 function pagesFor(req) {
   const u = new URL(req.url);
   if (u.hostname !== 'styrigx.com') return new Response('no pages on ' + u.hostname, { status: 421, headers: { 'Content-Type': 'text/plain' } });
-  return /^\/(blog|curio|daymark)(\/|$)/.test(u.pathname) ? subPages(req) : mainPages(req);
+  return /^\/(blog|curio|daymark|music)(\/|$)/.test(u.pathname) ? subPages(req) : mainPages(req);
 }
 
 /**

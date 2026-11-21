@@ -51,8 +51,8 @@ test('makeTr：占位替换、复数按 Intl.PluralRules（键_one 只英文有�
 });
 
 test('makeTr：页面把带数字的键改挂成函数（T.tracks = function(n){ return tr(\'tracks\', …) }）后，tr 仍读原始文案（四个脚本同一份）', () => {
-  for (const f of ['curio.js', 'curio-items.js', 'curio-movies.js', 'curio-music.js']) {
-    const M = require('../../space/web/assets/curio/js/' + f);
+  for (const f of ['curio/js/curio.js', 'curio/js/curio-items.js', 'curio/js/curio-movies.js', 'music/js/music-page.js']) {
+    const M = require('../../space/web/assets/' + f);
     const T = { tracks: '{n} 首', chosen: '已选 {n} 个' };
     const tr = M.makeTr(T, 'zh');
     T.tracks = function (n) { return tr('tracks', { n: n }); };
@@ -110,7 +110,7 @@ test('importSummary：文案走字符串表 js.curio.imp*，复数按语言', ()
   assert.equal(C.importSummary({ added: 2, cats_added: 1, skipped: 4 }, trOf('curio', 'en')), 'Added 2 links, 1 new category; 4 already here.');
 });
 
-/* ===== 设备 / 游戏（curio-items.js）、首页（curio-home.js）、电影（curio-movies.js）、音乐（curio-music.js） ===== */
+/* ===== 设备 / 游戏（curio-items.js）、首页（curio-home.js）、电影（curio-movies.js）、音乐（music/js/music-page.js，music 搬家第 3 步前 curio-music.js） ===== */
 test('isLockedReply：写请求 401 当锁定；其余不是', () => {
   assert.equal(C.isLockedReply(401), true);
   assert.equal(C.isLockedReply(403), false);
@@ -120,7 +120,7 @@ test('isLockedReply：写请求 401 当锁定；其余不是', () => {
 const IT = require('../../space/web/assets/curio/js/curio-items.js');
 const HM = require('../../space/web/assets/curio/js/curio-home.js');
 const MV = require('../../space/web/assets/curio/js/curio-movies.js');
-const MU = require('../../space/web/assets/curio/js/curio-music.js');
+const MU = require('../../space/web/assets/music/js/music-page.js');
 
 test('usedDays：购买当天算第 1 天，退役了算到退役日；没填 / 倒了返回 null；daysText 满一年带年数', () => {
   assert.equal(IT.usedDays('2026-10-22', '', '2026-10-22'), 1);
@@ -156,7 +156,8 @@ test('筛选、换代历史、平台联想、缩图尺寸', () => {
 });
 
 test('裁剪几何：取景框按卡片比例、照片始终盖满、框住的原图区域、重新调整摆回原位', () => {
-  const css = readFileSync(new URL('../../space/web/assets/curio/css/input.css', import.meta.url), 'utf8');
+  /* music 搬家第 3 步：奇趣样式后半段拆到 curio-tail.css（input.css 末尾 @import），两份合起来是搬家前的 input.css */
+  const css = readFileSync(new URL('../../space/web/assets/curio/css/input.css', import.meta.url), 'utf8') + readFileSync(new URL('../../space/web/assets/curio/css/curio-tail.css', import.meta.url), 'utf8');
   /* 照片按 设备 4:3 / 游戏 3:4 存；2026-11 对齐 PR-C2 起卡片封面位是固定高度（共享外壳 .sgx-cc-im 150 / 90px），图片 object-fit: cover 铺满 */
   assert.match(readFileSync(new URL('../../space/web/assets/common/css/frame.css', import.meta.url), 'utf8'), /\.sgx-cc-im img \{[^}]*object-fit: cover;/);
   assert.match(css, /\.it-cc \.sgx-cc-im img \{ z-index: 1; \}/);
@@ -216,20 +217,19 @@ test('电影：副标题 = 年份 · 导演；年份空 = 0、不合格 null；�
   assert.deepEqual(IT.cropOut(3000, 4500, 2 / 3, 1600), { w: 1067, h: 1600 });
 });
 
-test('音乐：倍速循环、时间格式、LRC 解析与当前行、文件名 → 曲序 / 曲名、自然排序、音频类型、歌词配对', () => {
-  assert.deepEqual(MU.SPEEDS, [0.75, 1, 1.25, 1.5, 2]);
-  assert.deepEqual([1, 1.25, 1.5, 2, 0.75].map(MU.nextSpeed), [1.25, 1.5, 2, 0.75, 1]);
-  assert.equal(MU.nextSpeed(3), 0.75);
+test('音乐：时间格式、文件名 → 曲序 / 曲名、自然排序、音频类型、歌词配对（倍速 / LRC 当前行随页内播放删了，music 搬家第 3 步；LRC 解析在共用核，播放器用）', () => {
+  const CORE = require('../../space/web/assets/common/js/music/music-core.js');
+  assert.equal(MU.SPEEDS, undefined);
   assert.equal(MU.fmtTime(0), '0:00');
   assert.equal(MU.fmtTime(212.7), '3:32');
   assert.equal(MU.fmtTime(3725), '1:02:05');
-  const L = MU.parseLrc('[ar:Joni]\n[00:01.50][00:10.00]hi\n\n[00:05]yo\nplain');
+  const L = CORE.parseLrc('[ar:Joni]\n[00:01.50][00:10.00]hi\n\n[00:05]yo\nplain');
   assert.deepEqual(L, [{ t: 1.5, text: 'hi' }, { t: 5, text: 'yo' }, { t: 10, text: 'hi' }]);
-  assert.equal(MU.lrcIndex(L, 0), -1);
-  assert.equal(MU.lrcIndex(L, 1.5), 0);
-  assert.equal(MU.lrcIndex(L, 7), 1);
-  assert.equal(MU.lrcIndex(L, 99), 2);
-  assert.equal(MU.lrcIndex([], 3), -1);
+  assert.equal(CORE.lrcIndex(L, 0), -1);
+  assert.equal(CORE.lrcIndex(L, 1.5), 0);
+  assert.equal(CORE.lrcIndex(L, 7), 1);
+  assert.equal(CORE.lrcIndex(L, 99), 2);
+  assert.equal(CORE.lrcIndex([], 3), -1);
   assert.deepEqual(MU.trackFromName('01 - All I Want.mp3', 9), { no: 1, title: 'All I Want' });
   assert.deepEqual(MU.trackFromName('10.My Old Man.m4a', 1), { no: 10, title: 'My Old Man' });
   assert.deepEqual(MU.trackFromName('Blue.flac', 3), { no: 3, title: 'Blue' });

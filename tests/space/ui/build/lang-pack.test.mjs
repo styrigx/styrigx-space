@@ -10,8 +10,8 @@ import path from 'node:path';
 import { REPO, rawTable, tableLangs, strings, flatKeys, deepMerge } from '../../../fixtures/strings.mjs';
 
 const rd = (/** @type {string} */ p) => readFileSync(path.join(REPO, p), 'utf8');
-const SITES = ['space', 'curio', 'daymark'];
-const PUB = { space: 'space/web/public', blog: 'space/web/public/blog', curio: 'space/web/public/curio', daymark: 'space/web/public/daymark' };
+const SITES = ['space', 'curio', 'daymark', 'music'];
+const PUB = { space: 'space/web/public', blog: 'space/web/public/blog', curio: 'space/web/public/curio', daymark: 'space/web/public/daymark', music: 'space/web/public/music' };
 const built = Object.values(PUB).every((d) => existsSync(path.join(REPO, d, 'index.html')));
 
 /* 只在英文表里、不需要译文的键（品牌 / 产品名，回退英文就是对的） */
@@ -112,7 +112,7 @@ function pages(dir, keep) {
 }
 const isZh = (/** @type {string} */ rel) => rel.startsWith('zh/');
 /* 2026-11 合站：子站页面和主站同在 space/web/public/，主站这一组跳过 /<站>/ 目录（子站各自一组） */
-const ownPage = (/** @type {string} */ site, /** @type {string} */ rel) => site !== 'space' || !/^(blog|curio|daymark)\//.test(rel);
+const ownPage = (/** @type {string} */ site, /** @type {string} */ rel) => site !== 'space' || !/^(blog|curio|daymark|music)\//.test(rel);
 
 test('英文页没有中文：四站英文页的可见文字和读屏文字里没有 CJK（个人信息 / translate="no" 节点除外；博客文章正文是内容，不查）', { skip: !built && '没构建' }, () => {
   const bad = [];
@@ -240,7 +240,7 @@ test('奇趣 / 日刻页面脚本（语言包化第二部分）：文案只读 #
     ['curio', 'space/web/assets/curio/js/curio.js', 'curio'],
     ['curio', 'space/web/assets/curio/js/curio-items.js', 'curioItems'],
     ['curio', 'space/web/assets/curio/js/curio-movies.js', 'curioMovies'],
-    ['curio', 'space/web/assets/curio/js/curio-music.js', 'curioMusic'],
+    ['music', 'space/web/assets/music/js/music-page.js', 'musicPage'],
     ['daymark', 'space/web/assets/daymark/js/daymark.js', 'daymark'],
   ];
   const bad = [];
@@ -257,7 +257,7 @@ test('奇趣 / 日刻页面脚本（语言包化第二部分）：文案只读 #
   }
   assert.deepEqual(bad, [], '缺键');
   /* 两站模板把整张 js 表按表名输出（页面脚本运行前） */
-  for (const s of ['curio', 'daymark']) {
+  for (const s of ['curio', 'daymark', 'music']) {
     const tpl = rd(`space/web/layouts/${s}/baseof.html`);
     assert.ok(tpl.indexOf('<script id="sgx-i18n-{{ $tbl }}"') !== -1 && tpl.indexOf('sgx-i18n-{{ $tbl }}') < tpl.indexOf('{{ block "main" . }}'), s + ' baseof 在 main 前输出文案表');
   }

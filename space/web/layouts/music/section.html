@@ -1,14 +1,15 @@
 {{ define "main" }}
-{{ $lang := .Lang }}{{ $tr := partialCached "common/tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
-{{/* 奇趣 › 音乐（/curio/music/，中文 /curio/zh/music/；P4-3 奇趣拆页新增）：数字专辑，curio-music.js 画。
-   三层（v5 S3；接口档在 workers/atlas-core/src/curio/routes.js ROUTE_ACCESS）：歌单 / 封面谁都能看（GET /curio/api/music 不带任何音频地址）；
-   听要进站（没进站 = 只看模式：播放键是锁、播放条只显示专辑，点播放发 sgx:sudo，顶栏终端预填 sudo styrigx）；
-   上传 / 删除要music-manage（接口回 canManage 才显示）。公开页，不带 noindex（R-23）；站点地图只列奇趣首页，本页不单列；元数据进全站搜索 / AI 召回（site:curio 索引）。
-   播放器交互借 jojo.best/music 的思路（只借交互）：封面横滑切专辑、整张按曲序播放、歌词跟着滚、倍速 0.75 / 1 / 1.25 / 1.5 / 2；随机播放（和弹出播放器共用本地设置）。
-   播放走短链：/curio/api/music-play 签一枚随机令牌（10 分钟），<audio> 的地址是 /curio/api/music-stream?t=…&id=…（支持 Range，拖进度）。
+{{ $lang := .Lang }}{{ $tr := partialCached "common/tr.html" (dict "lang" $lang "ns" "music") (printf "music-%s" $lang) }}
+{{/* 页头 / 确认框 / su 那一条借奇趣的部件和文案（外观不变，搬家设计稿 v1.1 3.1 第 3 条） */}}{{ $cu := partialCached "common/tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
+{{/* 音乐（/music/，中文 /music/zh/；music 搬家第 3 步起是第四个子站，原奇趣 › 音乐 /curio/music/）：数字专辑，music-page.js 画。
+   三层（v5 S3；接口档在 workers/atlas-core/src/curio/routes.js ROUTE_ACCESS）：歌单 / 封面谁都能看（GET /music/api/music 不带任何音频地址）；
+   听要进站（没进站 = 只看模式：播放键是锁，点播放发 sgx:sudo，顶栏终端预填 su ，不开播放器）；
+   上传 / 删除要 music-manage（接口回 canManage 才显示）。公开页，不带 noindex（R-23）；站点地图 /music/sitemap.xml 只列本页中英两版。
+   本页不出声（搬家设计稿 v1.1 3.3，Gray 2026-11-21 02:02–02:09「发声只归 player」）：没有播放条、<audio>、同步歌词；
+   点「播放整张」/ 点曲目 = 交给弹出播放器 /music/player/（开着就经 BroadcastChannel 发 remote-cmd play，没开就开 ?album=&t=）。
    上传：「上传专辑」弹层，分段「单首 | 批量」（M2）：歌名 / 歌手按音频标签、没有再按文件名预填；可选封面 + 可选 .lrc 歌词，浏览器直传（单个音频 ≤ 95 MB）。 */}}
 <main id="cu-main" class="cu-wrap mu-wrap" data-cu-page="music">
-{{ partial "curio/page-head.html" (dict "page" . "id" "music" "tr" $tr "lang" $lang "grep" false "cmds" (slice (dict "id" "mu-upload" "k" "cp *.flac curio/music/ +" "d" $tr.cmd.upload))) }}
+{{ partial "curio/page-head.html" (dict "page" . "id" "music" "tr" $cu "lang" $lang "grep" false "cmds" (slice (dict "id" "mu-upload" "k" "cp *.flac music/ +" "d" $tr.cmd.upload))) }}
   <section id="cu-pane-music" class="cu-pane" aria-label="{{ $tr.music.music }}">
     <div id="mu-app" class="hidden">
       {{/* 音乐页本身（专辑 / 单曲）；歌手页视图（?artist=<id>，M4）时收起 */}}
@@ -34,14 +35,14 @@
         <span id="mu-sel-n" class="mu-sel-n"></span>
         <button id="mu-sel" type="button" class="cu-btn-text">{{ $tr.music.select }}</button>
         <button id="mu-sel-edit" type="button" class="cu-btn-text hidden">{{ $tr.music.batchEdit }}</button>
-        <button id="mu-sel-x" type="button" class="cu-btn-text hidden">{{ $tr.curioCommon.cancel }}</button>
+        <button id="mu-sel-x" type="button" class="cu-btn-text hidden">{{ $tr.music.cancel }}</button>
       </div>
       <ol id="mu-tracks" class="mu-tracks" aria-label="{{ $tr.music.tracks }}"></ol>
       <ul id="mu-singles" class="mu-tracks mu-singles hidden" aria-label="{{ $tr.music.singles }}"></ul>
       <div class="mu-album-acts"><button id="mu-album-del" type="button" class="cu-btn-text mu-del-btn">{{ $tr.music.deleteAlbum }}</button></div>
       <p id="mu-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant">{{ $tr.music.noAlbumsYetTap }}</p>
       </div>
-      {{/* 歌手页（M4，音乐 v1.19 7.5 / 十二 M4）：不加新路由，本页 ?artist=<id> 视图（curio-music.js 页内换视图，歌不断）。
+      {{/* 歌手页（M4，音乐 v1.19 7.5 / 十二 M4）：不加新路由，本页 ?artist=<id> 视图（music-page.js 页内换视图）。
          头部头像（没有用默认图标）、名字、专辑数和单曲数；有风格 / 简介才显示；下面专辑一区、单曲一区。能写（canManage）才有「编辑」。 */}}
       <section id="mu-artist" class="mu-artist hidden" aria-labelledby="mu-ar-name">
         <a id="mu-ar-back" class="mu-ar-back" href="./" data-artist="0"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>{{ $tr.music.backToMusic }}</a>
@@ -70,36 +71,12 @@
   </section>
 </main>
 
-{{/* ===== 播放条（固定在底部；播放时出现） ===== */}}
-<div id="mu-player" class="mu-player hidden" role="region" aria-label="{{ $tr.music.player }}">
-  <div class="mu-player-in">
-    <div class="mu-now-row">
-      <div class="mu-now"><span id="mu-now-title" class="mu-now-title"></span><span id="mu-now-sub" class="mu-now-sub"></span></div>
-      {{/* 随机播放（第二步 2b，放在标题行右边，避开右下角 AI 浮钮：模式记在本地 sgx-music-mode，和弹出播放器共用一个设置，方案 v1.13 §7.1） */}}
-      <button id="mu-shuffle" type="button" class="mu-shuffle" aria-pressed="false" aria-label="{{ $tr.music.shuffle }}" title="{{ $tr.music.shuffle }}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h3.5c2 0 3.2 1 4.3 2.6l2.4 4.8C14.3 16 15.5 17 17.5 17H21M3 17h3.5c1.4 0 2.4-.5 3.2-1.4M14.3 8.4C15.1 7.5 16.1 7 17.5 7H21M18.5 4.5 21 7l-2.5 2.5M18.5 14.5 21 17l-2.5 2.5"/></svg></button>
-    </div>
-    <div id="mu-lyrics" class="mu-lyrics" aria-hidden="true"><div id="mu-lyrics-in" class="mu-lyrics-in"></div></div>
-    <div class="mu-seek-row">
-      <span id="mu-time" class="mu-time">0:00</span>
-      <input id="mu-seek" class="mu-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="{{ $tr.music.position }}">
-      <span id="mu-dur" class="mu-time">0:00</span>
-    </div>
-    <div class="mu-ctrl">
-      <button id="mu-speed" type="button" class="mu-speed" aria-label="{{ $tr.music.playbackSpeed }}">1×</button>
-      <button id="mu-prev" type="button" class="mu-cbtn" aria-label="{{ $tr.music.previous }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M7 6v12M18 6.5v11L9.5 12z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
-      <button id="mu-toggle" type="button" class="mu-cbtn mu-toggle" aria-label="{{ $tr.music.play }}" data-l-play="{{ $tr.music.play }}" data-l-pause="{{ $tr.music.pause }}"><svg class="mu-ic-play" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg><svg class="mu-ic-pause" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg><svg class="mu-ic-lock" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
-      <button id="mu-next" type="button" class="mu-cbtn" aria-label="{{ $tr.music.next }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M17 6v12M6 6.5v11l8.5-5.5z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
-      <span class="mu-ctrl-pad" aria-hidden="true"></span>
-    </div>
-  </div>
-</div>
-<audio id="mu-audio" preload="metadata"></audio>
-{{/* 歌手栏联想（M4，7.5「输入带联想」）：上传 / 编辑 / 批量改的歌手栏共用，curio-music.js 按歌手表填 */}}
+{{/* 歌手栏联想（M4，7.5「输入带联想」）：上传 / 编辑 / 批量改的歌手栏共用，music-page.js 按歌手表填 */}}
 <datalist id="mu-artist-list"></datalist>
 
 {{/* ===== 上传专辑：同 AI 窗口的悬浮终端卡片（Gray 2026-11-14 03:37：不要底部升起半遮，要 AI 窗那种）。
    非模态 <dialog class="sgx-qp sgx-up">（共享外壳 .sgx-qp：顶栏下方铺满、dialog 本身是遮罩、顶栏留在上面可点）+ 共享 modalSheet（系统返回 / Esc / bfcache）；
-   点遮罩关，点顶栏任一按钮也先关它（顶栏窗口互斥）。外观在 curio input.css .sgx-up。
+   点遮罩关，点顶栏任一按钮也先关它（顶栏窗口互斥）。外观在 music/css/input.css .sgx-up（原在奇趣 input.css）。
    桌面（Gray 03:50–03:51）：只取终端窗那种横版矩形——居中宽窗；内容自己排：表单左右两栏（左：音频 + 文字 + 说明，右：封面 / 歌词 + 批量预填列表；M2），按钮靠右。
    这次只换音乐上传；设备 / 游戏 / 电影 / 发现 / 日刻的 bk-overlay 后续跟进。 ===== */}}
 <dialog id="mu-up-wrap" class="sgx-qp sgx-up" aria-labelledby="mu-up-title">
@@ -161,7 +138,7 @@
     </div>
     <p id="mu-del-msg" class="mu-del-msg"></p>
     <div class="mu-up-foot mu-del-foot">
-      <button id="mu-del-cancel" type="button" class="mu-del-no">{{ $tr.curioCommon.cancel }}</button>
+      <button id="mu-del-cancel" type="button" class="mu-del-no">{{ $tr.music.cancel }}</button>
       <button id="mu-del-ok" type="button" class="mu-del-ok disabled:opacity-50">{{ $tr.music.delete }}</button>
     </div>
   </div>
@@ -287,14 +264,16 @@
   </div>
 </dialog>
 
-{{ partial "curio/common.html" (dict "tr" $tr "lang" $lang) }}
+{{ partial "curio/common.html" (dict "tr" $cu "lang" $lang) }}
 {{ end }}
 
 {{ define "pagejs" }}
+{{/* 技术债（搬家设计稿 v1.1 3.1 第 3 条，Gray 2026-11-21 14:17 定）：确认框、提示条、弹层开关、sudo / sudoTicket 仍借奇趣的 curio.js（window.SgxCurioUI），
+   第 3 步照旧引用、行为不变；搬家做完再挪进 common，挪完这里和 music-page.js 的 UI 一起换 */}}
 <script src="{{ (resources.Get "curio/js/curio.js" | minify | fingerprint).RelPermalink }}"></script>
-{{/* 播放共用核（签令牌 / 续签 / 切曲 / 防同时响；弹出播放器同一份），要在 curio-music.js 之前 */}}
+{{/* 共用核的纯函数（单曲判断、封面、时长、歌手页地址；本页不再 createPlayer），要在 music-page.js 之前 */}}
 <script src="{{ (resources.Get "common/js/music/music-core.js" | resources.Copy "js/music/music-core.js" | minify | fingerprint).RelPermalink }}"></script>
-{{/* 上传预填（M2：读 ID3 / Vorbis 标签、清理文件名），要在 curio-music.js 之前 */}}
-<script src="{{ (resources.Get "curio/js/curio-music-tags.js" | minify | fingerprint).RelPermalink }}"></script>
-<script src="{{ (resources.Get "curio/js/curio-music.js" | minify | fingerprint).RelPermalink }}"></script>
+{{/* 上传预填（M2：读 ID3 / Vorbis 标签、清理文件名），要在 music-page.js 之前 */}}
+<script src="{{ (resources.Get "music/js/music-tags.js" | minify | fingerprint).RelPermalink }}"></script>
+<script src="{{ (resources.Get "music/js/music-page.js" | minify | fingerprint).RelPermalink }}"></script>
 {{ end }}

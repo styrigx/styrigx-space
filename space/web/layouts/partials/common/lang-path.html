@@ -6,7 +6,8 @@
 {{- $origin := "" -}}
 {{- with findRESubmatch `^(https?://[^/]+)(.*)$` $p 1 }}{{ $origin = index (index . 0) 1 }}{{ $p = index (index . 0) 2 | default "/" }}{{ end -}}
 {{- $site := "" -}}
-{{- with findRESubmatch `^(/(?:blog|curio|daymark))(/.*)?$` $p 1 }}{{ $site = index (index . 0) 1 }}{{ $p = index (index . 0) 2 | default "/" }}{{ end -}}
+{{- /* 子站（四个：music 搬家第 3 步起加 music，/music/ ↔ /music/zh/） */ -}}
+{{- with findRESubmatch `^(/(?:blog|curio|daymark|music))(/.*)?$` $p 1 }}{{ $site = index (index . 0) 1 }}{{ $p = index (index . 0) 2 | default "/" }}{{ end -}}
 {{- /* 语言包化（2026-11-07）：带前缀的语言 = hugo.yaml languages 里英文以外的语言（不写死 zh；加语言只改配置） */ -}}
 {{- $codes := slice }}{{ range hugo.Sites }}{{ if ne .Language.Lang "en" }}{{ $codes = $codes | append .Language.Lang }}{{ end }}{{ end -}}
 {{- with $codes }}{{ $p = replaceRE (printf `^/(?:%s)(/|$)` (delimit . "|")) "/" $p }}{{ end -}}

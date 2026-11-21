@@ -34,14 +34,14 @@ Styrigx（整个 Styrigx，拉到最大是一个生态系统）
 ```
 /
 ├── space/          Platform
-│   └── web/        Hugo 站；Products 住在这里：content/、layouts/、assets/、data/ 各按 blog/、curio/、daymark/ 分
+│   └── web/        Hugo 站；Products 住在这里：content/、layouts/、assets/、data/ 各按 blog/、curio/、daymark/、music/ 分
 └── workers/        Services（放仓库根，表达它的独立性；规范见 workers/README.md）
 ```
 
 本文件只管 Platform 内部（`space/web` + `space/scripts`）。和 Services 的交界处（接口、路由、会话、版本）两边说法要一致。
 
 **Platform 包括**：顶栏、终端、AI 窗、调色板、鉴权、锁屏、共用播放器，以及首页（`/`）和状态页。
-**Products 只有三个**：`blog`、`curio`、`daymark`。
+**Products 有四个**：`blog`、`curio`、`daymark`、`music`（music 2026-11-21 搬家第 3 步从 curio 里搬出来，搬家设计稿 v1.1 3.1）。
 
 ## 1. 目标骨架
 
@@ -54,20 +54,21 @@ space/
 │  │  │  ├─ css/                入口 CSS 与外壳样式（frame.css、tokens.css、input.css、tw-input.css）
 │  │  │  └─ js/                 库按功能分组，外壳在 frame/ 下（见 §1.1），含共用播放器 music-core.js、music-player.js
 │  │  ├─ blog/   css/  js/      博客
-│  │  ├─ curio/  css/  js/      奇趣（音乐浏览界面在这，播放器不在）
-│  │  └─ daymark/ css/ js/      日刻
+│  │  ├─ curio/  css/  js/      奇趣
+│  │  ├─ daymark/ css/ js/      日刻
+│  │  └─ music/  css/  js/      音乐（歌单 / 管理界面；播放器不在，在 common）
 │  ├─ layouts/
 │  │  ├─ _default/              默认模板
 │  │  ├─ partials/
 │  │  │  ├─ common/             Platform 的 partials
 │  │  │  └─ blog/  curio/  daymark/
-│  │  ├─ blog/  curio/  daymark/   各产品页面模板
+│  │  ├─ blog/  curio/  daymark/  music/   各产品页面模板
 │  │  ├─ common/                Platform 的页面模板（共用播放器页 player.html）
 │  │  └─ index.html  404.html  alias.html  …   根模板（归 Platform）
 │  ├─ content/                  按产品分
 │  ├─ data/
 │  │  ├─ common/                Platform 数据（i18n、frame/i18n、调色板、功能开关、站点、导航、版本号……）
-│  │  └─ blog/  curio/  daymark/
+│  │  └─ blog/  curio/  daymark/  music/
 │  ├─ i18n/  static/  archetypes/  hugo.yaml
 └─ scripts/
    ├─ lib/                      共享脚本库
@@ -153,6 +154,10 @@ space/
 | 文件 / 引用 | 违反哪条 | 原因 | 加入日期 / PR |
 |---|---|---|---|
 | `web/assets/jsconfig.json` | 26（落点） | 横跨整个 `assets/` 的 JS 路径配置：`baseUrl` 为 `.`（即 `assets/` 本身），覆盖 Platform 的 `common/js/` 和 curio、daymark、blog 的 `js/`；放进任一层都会断掉其它层的路径解析 | 2026-11-13 #450 |
+| `web/layouts/music/section.html` → `curio/js/curio.js` | 24（产品互引） | music 搬家第 3 步：确认框、提示条、弹层开关、`sudo` / `sudoTicket` 照旧借奇趣的 `curio.js`（搬家设计稿 v1.1 3.1 第 3 条，Gray 2026-11-21 定）；技术债，搬完后挪进 common | 2026-11-21 music 第 3 步 |
+| `web/layouts/music/section.html` → `partials/curio/page-head.html`、`curio/icon.html`、`curio/common.html` | 24（产品互引） | 外观不变（3.1 第 2 条）：音乐页照旧用奇趣的页头、图标、确认框；同上，随 curio.js 一起挪 | 2026-11-21 music 第 3 步 |
+| `web/layouts/music/baseof.html` → `curio/css/main.css`、`curio/js/sgx/topbar-host.js`、`curio/js/sgx/ui-inherit-run.js` | 24（产品互引） | 外框照奇趣的写：借奇趣的样式表（cu- / bk- / it- 部件）和奇趣打好的共享外壳入口（里面全是 common 的代码）；同上 | 2026-11-21 music 第 3 步 |
+| `web/assets/music/css/input.css` → `curio/css/curio-tail.css` | 24（产品互引） | 外观不变：搬家前 mu- 规则夹在奇趣样式中间，奇趣后半段同权重时压过它们；音乐那份在 mu- 规则后再 `@import` 一次后半段，层叠顺序同搬家前；同上 | 2026-11-21 music 第 3 步 |
 
 ## 6. 迁移（已完成）
 

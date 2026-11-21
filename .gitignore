@@ -9,11 +9,12 @@ space/web/hugo_stats.json
 space/web/assets/common/css/main.css
 space/web/data/common/tailwind.json
 
-# 子站样式（space/scripts/build/build-css.cjs 顺带构建；主站和三个子站是同一个 Hugo 站）
+# 子站样式（space/scripts/build/build-css.cjs 顺带构建；主站和四个子站是同一个 Hugo 站）
 space/web/assets/blog/css/main.css
 space/web/assets/blog/css/.tw-out.css
 space/web/assets/curio/css/main.css
 space/web/assets/daymark/css/main.css
+space/web/assets/music/css/main.css
 
 # 博客搜索索引（含私密文章，从不随页面发布）
 search-index.*.json

@@ -19,9 +19,9 @@ async function go(page, block) {
 
 test('没开就弹、已开切过去（单窗口、不重载）', async ({ page, context }) => {
   await go(page);
-  await expect(page.locator('.sgx-tb-music')).toHaveAttribute('href', '/curio/zh/music/player/');
+  await expect(page.locator('.sgx-tb-music')).toHaveAttribute('href', '/music/zh/player/');
   const [pop] = await Promise.all([context.waitForEvent('page'), page.locator('.sgx-tb-music').click()]);
-  await pop.waitForURL(/\/curio\/zh\/music\/player\/$/);
+  await pop.waitForURL(/\/music\/zh\/player\/$/);
   await pop.waitForLoadState('domcontentloaded');
   expect(await pop.evaluate(() => window.name)).toBe('sgx-music-player');
   expect(page.url()).toMatch(/\/zh\/status\/$/);
@@ -39,5 +39,5 @@ test('没开就弹、已开切过去（单窗口、不重载）', async ({ page,
 test('弹窗被拦：本页直接跳到播放器页', async ({ page }) => {
   await go(page, true);
   await page.locator('.sgx-tb-music').click();
-  await page.waitForURL(/\/curio\/zh\/music\/player\/$/);
+  await page.waitForURL(/\/music\/zh\/player\/$/);
 });

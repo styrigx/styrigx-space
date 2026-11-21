@@ -51,7 +51,7 @@ function env() {
         if (p === '/en/' || p === '/en' || p.startsWith('/en/')) return html(STALE_EN_HOME);
         if (p === '/') return html(HOME);
         /* 子站：/<站>/en/… 也还能拿到旧页（同一类旧副本）；/<站>/ 下其余不存在的地址回该站自己的 404.html；普通页面 200 */
-        const m = p.match(/^\/(blog|curio|daymark)(\/.*)?$/i);
+        const m = p.match(/^\/(blog|curio|daymark|music)(\/.*)?$/i);
         if (m) {
           const s = m[1].toLowerCase();
           const rest = m[2] || '/';
@@ -85,6 +85,8 @@ test('四站同一个函数：/<站>/en… 及归一后等价写法都算，站�
     '/blog': ['/blog/en', '/blog/en/', '/blog/EN/', '/blog/%65n/', '//blog//en/', '/BLOG/En/post/x/', '/blog/en/rss.xml', '/blog/en/x.js', '/%62log/en/', '/blog/./en/'],
     '/curio': ['/curio/en', '/curio/en/', '/Curio/EN/', '/curio/%65n/', '//curio//en//', '/curio/en/items/'],
     '/daymark': ['/daymark/en', '/daymark/en/', '/DAYMARK/en/', '/daymark/%65N/', '//daymark//en/', '/daymark/en/sitemap.xml'],
+    /* music 搬家第 3 步起第四个子站：同一条规则 */
+    '/music': ['/music/en', '/music/en/', '/MUSIC/En/', '/music/%65n/', '//music//en/', '/music/en/player/', '/music/en/?artist=1'],
   };
   for (const [prefix, list] of Object.entries(hit)) {
     for (const p of list) {
@@ -96,6 +98,7 @@ test('四站同一个函数：/<站>/en… 及归一后等价写法都算，站�
     '/blog/', '/blog/english-post/', '/blog/post/en/', '/blog/zh/', '/blog/zh/en/', '/blog/env/', '/blog/en.html', '/blog/tags/en/',
     '/curio/', '/curio/enx/', '/curio/zh/en/', '/curio/api/en/', '/curio/api/items?lang=en',
     '/daymark/', '/daymark/entries/', '/daymark/api/en/', '/daymark/api/today', '/daymark/zh/',
+    '/music/', '/music/zh/', '/music/player/', '/music/zh/player/', '/music/api/en/', '/music/enx/', '/zh/music/',
     '/other/en/', '/blogs/en/', '/zh/blog/en/',
   ]) {
     assert.equal(isRetiredEnPath(p), false, p);
@@ -107,6 +110,7 @@ const SUB_EN = {
   blog: ['/blog/en/', '/blog/en', '/blog/en/post/2026-10-11-agent-collaboration-whitepaper-v2/', '/blog/en/rss.xml', '/blog/EN/', '/blog/%65n/', '//blog//en/', '/BLOG/En/tags/ai/', '/blog/en/x.js'],
   curio: ['/curio/en/', '/curio/en', '/curio/en/items/', '/curio/EN/', '/curio/%65n/', '//curio//en/', '/curio/en/sitemap.xml', '/curio/en/app.js'],
   daymark: ['/daymark/en/', '/daymark/en', '/daymark/en/entries/', '/daymark/EN/', '/daymark/%65n/', '//daymark//en/', '/daymark/en/sitemap.xml'],
+  music: ['/music/en/', '/music/en', '/music/en/player/', '/music/EN/', '/music/%65n/', '//music//en/', '/music/en/sitemap.xml', '/music/en/app.js'],
 };
 
 for (const [site, paths] of Object.entries(SUB_EN)) {
@@ -148,7 +152,7 @@ test('子站：回源拿到的不是 HTML（或是跳转、或抛错）→ 纯�
 
 test('子站误伤反例：/blog/english-post/、/curio/enx/、/daymark/zh/、/blog/post/en/ 照常走子站关口（有没有会话都 200 正文），静态后缀照常直通', async () => {
   const c = await sessionCookie();
-  for (const p of ['/blog/english-post/', '/blog/post/en/', '/curio/enx/', '/curio/zh/', '/daymark/zh/', '/daymark/entries/', '/blog/tags/en/']) {
+  for (const p of ['/blog/english-post/', '/blog/post/en/', '/curio/enx/', '/curio/zh/', '/daymark/zh/', '/daymark/entries/', '/blog/tags/en/', '/music/zh/', '/music/player/']) {
     const e = env();
     const r = await get(e, p, c);
     assert.equal(r.status, 200, p);
@@ -165,7 +169,7 @@ test('子站误伤反例：/blog/english-post/、/curio/enx/、/daymark/zh/、/b
 });
 
 test('子站接口路径里的 en 段不被前缀规则命中：/curio/api/en/、/daymark/api/en/ 漏到网关时照旧 401 JSON（不是 404 页）', async () => {
-  for (const p of ['/curio/api/en/', '/daymark/api/en/x', '/daymark/api/today?lang=en']) {
+  for (const p of ['/curio/api/en/', '/daymark/api/en/x', '/daymark/api/today?lang=en', '/music/api/en/']) {
     const e = env();
     const r = await get(e, p);
     assert.equal(r.status, 401, p);
