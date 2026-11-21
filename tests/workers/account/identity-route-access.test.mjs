@@ -37,6 +37,8 @@ function handled() {
   for (const [p, mod] of acc.API_ROUTES) add(p, mod, 'account/src/api/' + (p.startsWith('/api/account/') ? 'account/' + p.slice(13) : p.slice(5)) + '.js');
   out.push({ host: RA.MAIN_HOST, path: '/avatar/:file', methods: ['GET'], generic: false, file: 'account/src/api/avatar-file.js' });
   for (const [p, mod] of curio.API_ROUTES) add('/curio' + p, mod, 'atlas-core/src/curio/api' + p.slice(4) + '.js');
+  /* music 搬家第 2 步：/music/api/* 只挂音乐的行，handler 同一份（curio/api/music*.js） */
+  for (const [p, mod] of curio.API_ROUTES) if (curio.ROUTE_ACCESS.some((r) => r.path === p && r.product === 'music')) add('/music' + p, mod, 'atlas-core/src/curio/api' + p.slice(4) + '.js');
   for (const [p, mod] of daymark.API_ROUTES) add('/daymark' + p, mod, 'atlas-core/src/daymark/api' + p.slice(4) + '.js');
   return out;
 }
@@ -147,9 +149,9 @@ test('档合法；删除两级；sudo 继任；root 不能从访客直接登录'
 test('摘要快照：各档路由数（改表必须改这里）', () => {
   const count = {};
   for (const r of RA.ROUTE_ACCESS) count[r.level] = (count[r.level] || 0) + 1;
-  assert.deepEqual(count, { public: 24, 'ai-use': 2, 'status-use': 1, root: 5, webmaster: 5, user: 1, 'curio-manage': 6, 'music-manage': 2, 'music-use': 3, 'daymark-manage': 6 },
-    'P4-3（定稿 v5.5 §五）：avatar PUT / DELETE、prefs POST、devices 由 user 改 webmaster；组权限 v1.1 §六：音乐的 POST music / music-upload 从 curio-write 拆到 music-manage');
-  assert.equal(RA.ROUTE_ACCESS.length, 55, 'v6 P4 删旧入口 20 条（78 → 58），应用授权 /api/account/grants 删除（58 → 57），数字健康 POST / GET /api/wellbeing 删除（57 → 55）');
+  assert.deepEqual(count, { public: 26, 'ai-use': 2, 'status-use': 1, root: 5, webmaster: 5, user: 1, 'curio-manage': 6, 'music-manage': 4, 'music-use': 6, 'daymark-manage': 6 },
+    'P4-3（定稿 v5.5 §五）：avatar PUT / DELETE、prefs POST、devices 由 user 改 webmaster；组权限 v1.1 §六：音乐的 POST music / music-upload 从 curio-write 拆到 music-manage；music 搬家第 2 步：/music/api/* 7 行（public 2、music-manage 2、music-use 3）');
+  assert.equal(RA.ROUTE_ACCESS.length, 62, 'v6 P4 删旧入口 20 条（78 → 58），应用授权 /api/account/grants 删除（58 → 57），数字健康 POST / GET /api/wellbeing 删除（57 → 55），music 搬家第 2 步加 /music/api/* 7 行（55 → 62）');
   assert.equal(RA.ROUTE_ACCESS.filter((r) => r.decided).length, 14, 'Gray 2026-11-11 定稿的 17 条，P4 删 lock-all-devices 后 16 条，数字健康两条删除后 14 条');
   assert.equal(RA.ROUTE_ACCESS.filter((r) => 'doubt' in r).length, 0, '不再有存疑');
   assert.equal(RA.levelOf('GET', '/curio/api/export'), 'root', '导出含私密 → root（Gray 2026-11-11）');
@@ -242,7 +244,25 @@ test('组权限 v1.1 §八：带 product 的行组名由 product / kind 推出�
   assert.equal(RA.levelOf('GET', '/curio/api/music-cover'), 'public');
   for (const a of ['album.del', 'artist.merge', 'artist.del']) assert.equal(RA.levelOf('POST', '/curio/api/music', { action: a }), 'root', a + ' 仍是 root');
   assert.equal(RA.ruleOf('POST', '/curio/api/music').sudoTicket, true, 'sudoTicket 不变');
-  assert.equal(RA.ruleOf('GET', '/music/api/music'), null, '/music/api/* 是搬家第 2 步，这一步不加');
+});
+
+test('music 搬家第 2 步：/music/api/* 7 行与旧 /curio/api/music* 7 行逐条同档（level、actions、kind、product、sudoTicket、del）', () => {
+  const OLD = '/curio/api/music';
+  const NEW = '/music/api/music';
+  const olds = RA.ROUTE_ACCESS.filter((r) => r.path.startsWith(OLD));
+  const news = RA.ROUTE_ACCESS.filter((r) => r.path.startsWith(NEW));
+  assert.equal(olds.length, 7, '旧 7 行保留（第 4 步再删）');
+  assert.equal(news.length, 7);
+  const pick = (r) => ({ method: r.method, tail: r.path.slice(r.path.indexOf('/api/')), level: r.level, actions: r.actions || null, kind: r.kind, product: r.product,
+    sudoTicket: !!r.sudoTicket, del: r.del || null, worker: r.worker, rescue: !!r.rescue });
+  assert.deepEqual(news.map(pick), olds.map(pick));
+  for (const r of news) assert.equal(r.product, 'music', r.path);
+  /* /music/api/ 下只有音乐：别的产品没有新路径 */
+  assert.deepEqual(RA.ROUTE_ACCESS.filter((r) => r.path.startsWith('/music/')).map((r) => r.path.split('/api/')[1].split('-')[0]).filter((x, i, a) => a.indexOf(x) === i), ['music']);
+  assert.equal(RA.levelOf('GET', '/music/api/items'), null, '奇趣接口不能从新前缀走');
+  for (const a of ['album.del', 'artist.merge', 'artist.del']) assert.equal(RA.levelOf('POST', NEW, { action: a }), 'root', a);
+  assert.equal(RA.levelOf('GET', NEW, { action: 'private' }), 'music-use');
+  assert.equal(RA.levelOf('GET', NEW, { action: 'manage' }), 'music-manage');
 });
 
 test('product / kind 推导：写错就抛（表写错 Worker 起不来）', () => {

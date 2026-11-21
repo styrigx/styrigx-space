@@ -95,9 +95,9 @@ const grant = (env, tok, command, pw) => id(env, { action: 'sudo-grant', passwor
 const ck = (tok) => 'sgx-session=' + tok;
 const EXPORT = { method: 'GET', path: '/curio/api/export' };
 
-test('路由表：只有 atlas-core 的四条 root 接口标了 sudoTicket；sudo-grant 是 sudoers 档、不在救援白名单', () => {
+test('路由表：只有 atlas-core 的四条 root 接口（音乐搬家第 2 步起新旧两条路径）标了 sudoTicket；sudo-grant 是 sudoers 档、不在救援白名单', () => {
   const marked = RA.ROUTE_ACCESS.filter((r) => r.sudoTicket).map((r) => r.method + ' ' + r.path).sort();
-  assert.deepEqual(marked, ['DELETE /daymark/api/collections', 'GET /curio/api/export', 'POST /curio/api/import', 'POST /curio/api/music']);
+  assert.deepEqual(marked, ['DELETE /daymark/api/collections', 'GET /curio/api/export', 'POST /curio/api/import', 'POST /curio/api/music', 'POST /music/api/music']);
   for (const r of RA.ROUTE_ACCESS.filter((x) => x.sudoTicket)) assert.equal(r.worker, 'atlas-core', r.path);
   assert.equal(RA.levelOf('POST', '/api/identity', { action: 'sudo-grant' }), 'sudoers');
   assert.equal(RA.rescueOf('POST', '/api/identity', { action: 'sudo-grant' }), false);
@@ -111,6 +111,8 @@ test('ticketTarget：root 档才发；带 action 的按 action；账号自己的
   assert.equal(T.ticketTarget({ method: 'POST', path: '/curio/api/music' }).error, 'action', '音乐路由本身是写组档');
   assert.equal(T.ticketTarget({ method: 'POST', path: '/curio/api/music', action: 'album.edit' }).error, 'action');
   assert.equal(T.ticketTarget({ method: 'POST', path: '/curio/api/music', action: 'nope' }).error, 'action');
+  assert.equal(T.ticketTarget({ method: 'POST', path: '/music/api/music', action: 'album.del' }).ok, true, '搬家第 2 步：新路径同一条规则');
+  assert.equal(T.ticketTarget({ method: 'POST', path: '/music/api/music', action: 'album.edit' }).error, 'action');
   assert.equal(T.ticketTarget({ method: 'POST', path: '/api/account/proxy' }).error, 'not-here', '账号自己的 root 接口走 sudo，不发票');
   assert.equal(T.ticketTarget({ method: 'POST', path: '/curio/api/items' }).error, 'not-here');
   assert.equal(T.ticketTarget({ method: 'GET', path: '/curio/api/export?lang=en' }).ok, false, '票不绑查询串');

@@ -1291,3 +1291,46 @@ test('M4 权限走真路由表：artist.edit = music-manage；artist.merge / art
   assert.equal(RA.levelOf('POST', '/curio/api/music', { action: 'artist.del' }), 'root');
   assert.equal(RA.ruleOf('POST', '/curio/api/music').sudoTicket, true);
 });
+
+/* ================= music 搬家第 2 步：/music/api/* ================= */
+
+test('音乐新路径 /music/api/*（搬家第 2 步）：同一份 handler、同一个库；档同旧路径；播放地址跟着前缀走；旧路径照常；奇趣接口不能从新前缀走', async () => {
+  const e = makeEnv();
+  /* 档：访客写 401、alice（只有 music-use）写 403、root 写 200 */
+  assert.equal((await call(e, '/music/api/music', { method: 'POST', body: { op: 'album.add', title: 'A' } })).status, 401);
+  assert.equal((await call(e, '/music/api/music', { who: 'noscope', method: 'POST', body: { op: 'album.add', title: 'A' } })).status, 403);
+  const add = await call(e, '/music/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Origin', artist: 'Muse', year: 2001 } });
+  assert.equal(add.status, 200);
+  const id = (await add.json()).id;
+  const up = await call(e, `/music/api/music-upload?album=${id}&kind=track&no=1&title=New%20Born&duration=60`, { who: 'owner', method: 'POST', body: AUDIO, type: 'audio/mpeg' });
+  assert.equal(up.status, 200);
+  assert.equal((await call(e, `/music/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' })).status, 200);
+  /* 新旧两条路径读到同一份歌单（公开，不带音频地址） */
+  const neu = await (await call(e, '/music/api/music')).json();
+  const old = await (await call(e, '/curio/api/music')).json();
+  assert.deepEqual(neu, old);
+  assert.equal(neu.albums.length, 1);
+  assert.equal(neu.canManage, false);
+  assert.equal((await (await call(e, '/music/api/music', { who: 'styrigx' })).json()).canManage, true, 'manage 提示同样按 music-manage 问');
+  assert.equal((await call(e, `/music/api/music-cover?album=${id}`)).status, 200);
+  /* 听：访客 401、没组 403；有 music-use 的签到的地址在新前缀下，旧前缀签的仍在旧前缀下，两边都能取 */
+  assert.equal((await call(e, '/music/api/music-play', { method: 'POST', body: { album: id } })).status, 401);
+  assert.equal((await call(e, '/music/api/music-play', { who: 'lock', method: 'POST', body: { album: id } })).status, 403);
+  const pn = await (await call(e, '/music/api/music-play', { who: 'noscope', method: 'POST', body: { album: id } })).json();
+  assert.match(pn.tracks[0].src, /^\/music\/api\/music-stream\?t=/);
+  const po = await (await call(e, '/curio/api/music-play', { who: 'noscope', method: 'POST', body: { album: id } })).json();
+  assert.match(po.tracks[0].src, /^\/curio\/api\/music-stream\?t=/);
+  for (const src of [pn.tracks[0].src, po.tracks[0].src]) {
+    const r = await call(e, src, { who: 'noscope', origin: null });
+    assert.equal(r.status, 200, src);
+    assert.equal((await call(e, src, { origin: null })).status, 401, '没有身份不给音频 ' + src);
+  }
+  /* 奇趣接口不能从新前缀走：账号路由表里没有这些路径 → 谁来都 401（同旧路径下不在表里的 /curio/api/access） */
+  for (const p of ['/music/api/items', '/music/api/links', '/music/api/export', '/music/api/nope']) {
+    assert.equal((await call(e, p)).status, 401, p);
+    assert.equal((await call(e, p, { who: 'owner' })).status, 401, p);
+  }
+  assert.equal((await call(e, '/curio/api/items', { who: 'owner' })).status, 200, '旧前缀的奇趣接口不受影响');
+  assert.equal((await call(e, '/music/api/music/x')).status, 401, '精确匹配：多一段不是公开的');
+  assert.equal((await call(e, '/music/api/music', { method: 'PUT', body: {} })).status, 401);
+});

@@ -15,7 +15,8 @@
  * 4. 子站（合并 PR3：styrigx.com/blog/ /curio/ /daymark/）必须登记的路径（含各站首页 + 查询串、RSS、站点地图）和三站产物里的每个页面
  *    都归网关（v5 S3 起页面公开，网关按路径前缀注入会话标记）
  * 5. 子站接口 Worker styrigx-atlas-core（workers/atlas-core/wrangler.toml；2026-11-14 由 curio-core、daymark-core 合并而来）：
- *    styrigx.com/curio/api/*、styrigx.com/daymark/api/* 必须登记、归它，只许登记这两条；网关不得有更具体的规则抢走，
+ *    styrigx.com/curio/api/*、styrigx.com/daymark/api/*、styrigx.com/music/api/*（music 搬家设计稿 v1.0 第 2 步）必须登记、归它，只许登记这三条；
+ *    网关不得有更具体的规则抢走，
  *    它也不得抢走网关的接口、主站页面和子站页面
  * 6. 没有公开地址的 Worker（NO_ROUTE_WORKERS：P4-1 起 styrigx-ai）：wrangler.toml 一条路由都没有，workers_dev / preview_urls 关，
  *    只经网关的服务绑定进来
@@ -56,10 +57,11 @@ const SUBSITE_MUST = ['/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?
   '/daymark/', '/daymark/?x=1', '/daymark/zh/', '/daymark/sitemap.xml', '/daymark/sitemap.xml?a'];
 /* 子站接口 Worker：必须登记的路由（每个站一条 /<站>/api/*）和归它的样例路径（主域名） */
 export const CORE_WORKERS = [
-  { name: 'atlas-core', label: '内容层接口 Worker（styrigx-atlas-core）', dir: 'workers/atlas-core', sites: ['curio', 'daymark'],
+  { name: 'atlas-core', label: '内容层接口 Worker（styrigx-atlas-core）', dir: 'workers/atlas-core', sites: ['curio', 'daymark', 'music'],
     samples: ['/curio/api/links', '/curio/api/icon?id=1', '/curio/api/import', '/curio/api/export', '/curio/api/preview?url=x', '/curio/api/photo?kind=device&id=1',
       '/curio/api/movies', '/curio/api/music', '/curio/api/music-upload?album=1&kind=track', '/curio/api/music-play', '/curio/api/music-stream?t=x&id=1', '/curio/api/music-cover?album=1',
-      '/daymark/api/quotes', '/daymark/api/today', '/daymark/api/today?x=1', '/daymark/api/collections', '/daymark/api/days'] },
+      '/daymark/api/quotes', '/daymark/api/today', '/daymark/api/today?x=1', '/daymark/api/collections', '/daymark/api/days',
+      '/music/api/music', '/music/api/music-upload?album=1&kind=track', '/music/api/music-play', '/music/api/music-stream?t=x&id=1', '/music/api/music-cover?album=1'] },
 ];
 
 /** space/web/public 里的 a/b/index.html → /a/b/；其他 .html 原样 */

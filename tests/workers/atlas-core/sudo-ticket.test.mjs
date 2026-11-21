@@ -74,6 +74,15 @@ test('音乐：票绑 body 里的 op（album.del）；别的 action 拿不到票
   assert.equal((await CA.requireMusic(big)).status, 403);
 });
 
+test('音乐搬家第 2 步：新路径 POST /music/api/music 的票同样绑 body 里的 op', async () => {
+  const S = space(true);
+  const c = ctx('POST', '/music/api/music', { SPACE: S }, { body: JSON.stringify({ op: 'artist.merge', from: 2, to: 1 }) });
+  assert.equal((await CA.requireMusic(c)), null);
+  assert.equal((await CA.v6Of(c, 'artist.merge')).allowed, true);
+  assert.equal((await CA.v6Of(c, 'album.del')).allowed, false);
+  assert.deepEqual(S.calls, [['sudoAdmit', TICKET, 'POST', '/music/api/music', 'artist.merge']]);
+});
+
 test('日刻删专题：票不绑 action', async () => {
   const S = space(true);
   const c = ctx('DELETE', '/daymark/api/collections?id=2', { SPACE: S });

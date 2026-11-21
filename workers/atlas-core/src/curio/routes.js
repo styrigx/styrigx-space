@@ -42,7 +42,7 @@ export const API_ROUTES = new Map([
  * - music：同 entry（requireMusic：音乐的上传 / 管理，档同其他写接口）
  * 精确匹配「方法 + 路由表路径」（结尾一个 / 当同一条）；表里没有的方法 / 路径一律 entry（fail closed）。
  * product（组权限 v1.1 §八）：这一行归哪个产品（同账号 Worker 路由表行上的 product）；公用 visibility(context) 从命中的这一行取，
- * 不另传。音乐在搬家第 1 步仍挂在 /curio/api/music* 下，但 product 是 'music'。
+ * 不另传。音乐挂在 /curio/api/music*（旧，第 4 步删）和 /music/api/music*（搬家第 2 步起；curio/app.js 只放 product 'music' 的行）下，product 都是 'music'。
  * 改这张表 = 改谁能调接口：tests/workers/atlas-core/curio.test.mjs 对整张表做快照。
  * @type {ReadonlyArray<Readonly<{method: string, path: string, access: 'public'|'entry'|'music', product: 'curio'|'music'}>>}
  */
