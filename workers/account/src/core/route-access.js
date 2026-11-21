@@ -162,6 +162,16 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'GET', path: '/curio/api/music-stream', product: 'music', kind: 'use', worker: 'atlas-core', why: '取音频（令牌 + Range）' }),
   R({ method: 'HEAD', path: '/curio/api/music-stream', product: 'music', kind: 'use', worker: 'atlas-core', why: '同上' }),
   R({ method: 'POST', path: '/curio/api/music-upload', product: 'music', kind: 'manage', worker: 'atlas-core', why: '上传音轨 / 封面 / 歌手头像（kind=avatar，M4）' }),
+  /* 音乐新路径（music 搬家设计稿 v1.0 第 2 步）：styrigx.com/music/api/*，同一个 Worker、同一份 handler；档与上面旧 7 行逐条一致（表自检兜住），
+     旧 7 行到第 4 步再删 */
+  R({ method: 'GET', path: '/music/api/music', product: 'music', kind: 'read', worker: 'atlas-core', why: '歌单（不含音频地址；canManage 提示给 music-manage）' }),
+  R({ method: 'POST', path: '/music/api/music', product: 'music', kind: 'manage', worker: 'atlas-core', sudoTicket: true, why: 'album.add / edit、track.edit / del（单条）、artist.edit（改歌手信息）；album.del 连曲目一起删、artist.merge / artist.del（合并 / 删歌手，音乐 v1.19 十二 M4 第 1 条）= 结构删除',
+    actions: { 'album.add': 'music-manage', 'album.edit': 'music-manage', 'track.edit': 'music-manage', 'track.del': 'music-manage', 'album.del': 'root', 'artist.edit': 'music-manage', 'artist.merge': 'root', 'artist.del': 'root' }, del: 'item' }),
+  R({ method: 'GET', path: '/music/api/music-cover', product: 'music', level: 'public', worker: 'atlas-core', why: '专辑封面 / 歌手头像（?artist=，M4）' }),
+  R({ method: 'POST', path: '/music/api/music-play', product: 'music', kind: 'use', worker: 'atlas-core', why: '签播放令牌（听歌）' }),
+  R({ method: 'GET', path: '/music/api/music-stream', product: 'music', kind: 'use', worker: 'atlas-core', why: '取音频（令牌 + Range）' }),
+  R({ method: 'HEAD', path: '/music/api/music-stream', product: 'music', kind: 'use', worker: 'atlas-core', why: '同上' }),
+  R({ method: 'POST', path: '/music/api/music-upload', product: 'music', kind: 'manage', worker: 'atlas-core', why: '上传音轨 / 封面 / 歌手头像（kind=avatar，M4）' }),
 
   /* ---------- 日刻接口 styrigx-atlas-core（styrigx.com/daymark/api/*，不经网关；workers/atlas-core/src/daymark/routes.js；2026-11-14 由 daymark-core 合并进 atlas-core） ---------- */
   R({ method: 'GET', path: '/daymark/api/today', product: 'daymark', level: 'public', worker: 'atlas-core', why: '今日一句（首页 / 锁屏跨站读）' }),

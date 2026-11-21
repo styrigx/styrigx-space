@@ -20,6 +20,11 @@ zone_name = "styrigx.com"
 pattern = "styrigx.com/daymark/api/*"
 zone_name = "styrigx.com"
 
+# 音乐新接口（music 搬家设计稿 v1.0 第 2 步）：旧 /curio/api/music* 照常
+[[routes]]
+pattern = "styrigx.com/music/api/*"
+zone_name = "styrigx.com"
+
 [observability]
 enabled = true
 head_sampling_rate = 1

@@ -1491,7 +1491,8 @@ jobs:
 
   deploy-atlas-core:
     # 内容层接口 Worker styrigx-atlas-core（workers/atlas-core；2026-11-14 Atlas 后端合并：原 deploy-curio-core / deploy-daymark-core 两个 job 合成本 job）。
-    # 奇趣 + 日刻一个 Worker、一个 D1、一个 R2；路由见 workers/atlas-core/wrangler.toml：styrigx.com/curio/api/*、styrigx.com/daymark/api/*，
+    # 奇趣 + 日刻 + 音乐一个 Worker、一个 D1、一个 R2；路由见 workers/atlas-core/wrangler.toml：styrigx.com/curio/api/*、styrigx.com/daymark/api/*、
+    # styrigx.com/music/api/*（music 搬家第 2 步；旧 /curio/api/music* 照常），
     # 比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：v6 会话经站点核心 SpaceVerifier.admit() 问账号 Worker（服务绑定 SPACE）。
     # 排在 styrigx-space-core 之后（needs）：服务绑定 SPACE 指向的 Worker / 入口 SpaceVerifier 要先在。status（JOB_ATLAS）、ai（CURIO）绑本 Worker 的入口，
     # 本 Worker 已在线上（2026-11-14 不挂路由先部署过），所以它们排在前面也部署得了。
@@ -1534,7 +1535,7 @@ jobs:
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy Atlas core Worker (styrigx-atlas-core)
-        # wrangler deploy 按 wrangler.toml 的 [[routes]] 整体覆盖线上路由：/curio/api/*、/daymark/api/* 两条
+        # wrangler deploy 按 wrangler.toml 的 [[routes]] 整体覆盖线上路由：/curio/api/*、/daymark/api/*、/music/api/* 三条
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_ATLAS_CORE_DEPLOY }}
@@ -1551,7 +1552,7 @@ jobs:
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
-      - name: Smoke test production (styrigx.com/curio/api/* and /daymark/api/* land on this Worker)
+      - name: Smoke test production (styrigx.com/curio/api/*, /daymark/api/* and /music/api/* land on this Worker)
         # 只发不带 cookie 的只读请求。X-Atlas-Runtime 只有本 Worker 打（产品头 X-Curio-Runtime / X-Daymark-Runtime 旧 Worker 也有，分不出来）。
         run: |
           set -u
@@ -1575,6 +1576,9 @@ jobs:
           check "https://styrigx.com/daymark/api/quotes" 200 || ok=1
           check "https://styrigx.com/daymark/api/today" 200 || ok=1
           check "https://styrigx.com/daymark/api/no-such-endpoint" 401 || ok=1
+          check "https://styrigx.com/music/api/music" 200 || ok=1
+          check "https://styrigx.com/music/api/music-stream?t=smoke&id=1" 401 || ok=1
+          check "https://styrigx.com/music/api/links" 401 || ok=1
           exit $ok
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)

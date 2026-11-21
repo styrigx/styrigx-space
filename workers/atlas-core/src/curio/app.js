@@ -5,7 +5,8 @@
  * R2_MUSIC：私人音乐的音频和封面，同一个桶的 music/ 前缀）只绑在本 Worker 上；Pages 只放静态文件。
  * 本 Worker 不持任何钥匙：会话交给主站鉴权网关验（服务绑定 SPACE，见 src/api/_auth.js）。
  *
- * 请求顺序（下面的 /api/* 都是去掉 /curio 前缀后的路径，公开地址是 styrigx.com/curio/api/*）：
+ * 请求顺序（下面的 /api/* 都是去掉 /curio 前缀后的路径，公开地址是 styrigx.com/curio/api/*；
+ * 音乐另有 styrigx.com/music/api/*（music 搬家第 2 步，同一份 handler，只认 product 'music' 的行，旧路径照常）：
  *   1. 访问档（v5 S3）：routes.js ROUTE_ACCESS 按「方法 + 路径」给出 public / entry / music（不在表里 = entry），
  *      在这里套上那一档的守卫（api/_auth.js GUARDS：publicRead / requireEntry / requireMusic），entry / music 档在守卫里经网关 SpaceVerifier.admit 问 v6 会话的档，
  *      public 档要私密行 / canManage 的 handler 调公用 visibility()（common/visibility.js，分别问 action private / manage）；每个请求每个 action 最多问一次。没有 v6 身份 → 401 unauthorized（不 302，fetch 不跟跳转），档不够 → 403 forbidden。
@@ -83,24 +84,40 @@ function tag(res) {
 
 /** 本站在主域名 styrigx.com 下的前缀：接口公开地址是 {BASE}/api/*，路由表按去掉前缀后的 /api/* 登记 */
 export const BASE = '/curio';
+/** 音乐的新前缀（music 搬家设计稿 v1.0 第 2 步）：/music/api/* 只认路由表里 product 'music' 的行，handler 同一份 */
+export const MUSIC_BASE = '/music';
 
-/** 公开地址 → 路由表里的路径（/curio/api/x → /api/x）；不是本站接口返回 '' */
+/** 公开地址 → 路由表里的路径（/curio/api/x、/music/api/x → /api/x）；不是本站接口返回 '' */
 export function apiPath(pathname) {
-  return pathname.startsWith(BASE + '/api/') ? pathname.slice(BASE.length) : '';
+  if (pathname.startsWith(BASE + '/api/')) return pathname.slice(BASE.length);
+  if (pathname.startsWith(MUSIC_BASE + '/api/')) return pathname.slice(MUSIC_BASE.length);
+  return '';
+}
+
+/** 这个公开地址走的是哪个前缀（'/curio' 或 '/music'；不是本站接口 → ''） @param {string} pathname */
+export function baseOf(pathname) {
+  if (pathname.startsWith(BASE + '/api/')) return BASE;
+  if (pathname.startsWith(MUSIC_BASE + '/api/')) return MUSIC_BASE;
+  return '';
 }
 
 export async function handle(request, env, ctx) {
   const url = new URL(request.url);
   const path = apiPath(url.pathname);
   if (!path) return json(404, { ok: false, error: 'not-found' });
+  const base = baseOf(url.pathname);
 
-  const hit = resolve(path);
+  /* /music/api/* 下只有音乐的行：别的产品的路径在这里当「不在表里」（entry 档 + 404），不能从新前缀绕进奇趣接口 */
+  const row = routeOf(request.method, path);
+  const own = base !== MUSIC_BASE || !!(row && row.product === 'music');
+  const hit = own ? resolve(path) : null;
   const context = makeContext(request, env, ctx, hit ? hit.params : {}, hit ? hit.functionPath : path);
   /* 组权限 v1.1 §八：公用 visibility(context) 从命中的路由行取 product，经本产品的 v6Of 问 private / manage 两档（common/visibility.js） */
-  context.data.route = routeOf(request.method, path);
+  context.data.route = own ? row : null;
   context.data.ask = v6Of;
+  context.data.base = base;
   /* 先过访问档（不在路由表里的路径也是 entry：没有身份 401，有身份才看 404，不让陌生人探路由表） */
-  const denied = await GUARDS[accessOf(request.method, path)](context);
+  const denied = await GUARDS[own ? accessOf(request.method, path) : 'entry'](context);
   if (denied) return denied;
   if (!hit) return json(404, { ok: false, error: 'not-found' });
   const handler = pickHandler(hit.mod, request.method);

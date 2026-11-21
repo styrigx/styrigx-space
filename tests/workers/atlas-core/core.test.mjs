@@ -168,14 +168,14 @@ function bindings(toml, block) {
   return out;
 }
 
-test('wrangler.toml：挂 /curio/api/*、/daymark/api/* 两条路由 / 不开 workers.dev / 无 Cron；绑定名沿用旧两个 Worker 的，D1、R2 各一个叫 styrigx-atlas-core', () => {
+test('wrangler.toml：挂 /curio/api/*、/daymark/api/*、/music/api/*（music 搬家第 2 步）三条路由 / 不开 workers.dev / 无 Cron；绑定名沿用旧两个 Worker 的，D1、R2 各一个叫 styrigx-atlas-core', () => {
   const t = readFileSync(A + '/wrangler.toml', 'utf8');
   assert.match(t, /^name = "styrigx-atlas-core"$/m);
   assert.match(t, /^main = "src\/index.js"$/m);
   assert.match(t, /^workers_dev = false$/m);
   assert.match(t, /^preview_urls = false$/m);
-  assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/curio/api/*', 'styrigx.com/daymark/api/*']);
-  assert.equal([...t.matchAll(/^zone_name = "styrigx\.com"$/gm)].length, 2);
+  assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/curio/api/*', 'styrigx.com/daymark/api/*', 'styrigx.com/music/api/*']);
+  assert.equal([...t.matchAll(/^zone_name = "styrigx\.com"$/gm)].length, 3);
   assert.match(t, /^crons = \[\]$/m);
 
   /* 绑定名沿用旧两个 Worker 的（业务代码按这些名字取） */
