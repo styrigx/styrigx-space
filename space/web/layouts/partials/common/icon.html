@@ -128,6 +128,9 @@
 {{/* 日刻：日历页 + 引号（与 daymark 站内同一个图标） */}}
 {{ else if eq $name "nav-daymark" }}
 <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15.5" rx="2.5"/><path d="M8.5 3v4M15.5 3v4"/><path d="M10.5 11.2c-1.3.5-2 1.6-2 3.3v1.3"/><path d="M8.5 15.8h1.8v-1.9H8.6"/><path d="M15.5 11.2c-1.3.5-2 1.6-2 3.3v1.3"/><path d="M13.5 15.8h1.8v-1.9h-1.7"/></svg>
+{{/* 音乐（/music/，2026-11-21 music 搬家后进导航）：两个音符，同 nav-* 描边风格（24 视口、2px、圆角端点；形状同顶栏 tb-music） */}}
+{{ else if eq $name "nav-music" }}
+<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>
 {{ else if eq $name "nav-blog" }}
 <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4.2L19.4 8.8a2 2 0 0 0 0-2.8l-1.4-1.4a2 2 0 0 0-2.8 0L4 15.8z"/><path d="M13.5 6.5l4 4"/></svg>
 {{/* 2026-11-04 P5-1 顶栏 / 快捷面板 / AI 窗口用的线条图标（完整内联 SVG，不引用页面里的 sprite：共享外壳原样带给子站） */}}

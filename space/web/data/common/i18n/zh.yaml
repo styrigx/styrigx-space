@@ -9,14 +9,16 @@ home:
   blog: 博客
   minutes: "{n} 分钟"
   blogLabel: "[01] 博客 · 最新 3 篇"
-  curioLabel: "[02] 奇趣"
+  curioLabel: "[04] 奇趣"
   curio:
     title: 奇趣
     finds: { name: 发现, latest: 最近收藏 }
     devices: { name: 设备, latest: 在用 }
     games: { name: 游戏, latest: 在玩 }
   daymark: 日刻
-  daymarkLabel: "[03] 日刻 · 今日一句"
+  daymarkLabel: "[02] 日刻 · 今日一句"
+  music: 音乐
+  musicLabel: "[03] 音乐 · 最新专辑"
 index:
   dmWindow: 余响
   noLineForToday: 今天还没有句子

@@ -83,6 +83,9 @@ nav:
   blog:
     title: "博客"
     sub: "文章与专题"
+  music:
+    title: "音乐"
+    sub: "专辑与单曲"
   title: "NAVIGATE"
   status: "STATUS"
   statusPending: "待接入"
@@ -101,6 +104,7 @@ foot:
     blog: "blog"
     curio: "curio"
     daymark: "daymark"
+    music: "music"
   status: "服务状态"
   clock: "北京时间"
   langs: "语言"

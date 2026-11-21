@@ -1,7 +1,8 @@
 /**
- * @fileoverview 主页（/，中文 /zh/）三节和首屏里要运行时取数的部分（2026-11 对齐 PR-B，设计稿 tb4.html）：
- * - [02] 奇趣 三个目录卡：计数 + 最近收藏 / 在用 / 在玩（/curio/api/links、/curio/api/items，进门即可读，私密的服务端不给）
- * - [03] 日刻 今日一句（apps/daymark-today.js，/daymark/api/today 公开只读）
+ * @fileoverview 主页（/，中文 /zh/）四节和首屏里要运行时取数的部分（2026-11 对齐 PR-B，设计稿 tb4.html；2026-11-21 重排 博客 / 日刻 / 音乐 / 奇趣）：
+ * - [02] 日刻 今日一句（apps/daymark-today.js，/daymark/api/today 公开只读）
+ * - [03] 音乐 最新 4 张专辑（/music/api/music，只有元数据；封面 /music/api/music-cover 公开）
+ * - [04] 奇趣 三个目录卡：计数 + 最近收藏 / 在用 / 在玩（/curio/api/links、/curio/api/items，进门即可读，私密的服务端不给）
  * - 首屏状态胶囊：接外壳 topbar/panel.js mountStatus 发的 sgx:status-cells（同一份 /api/status，不另取）
  * - hero：$ 行标语打字轮播（apps/home-typer.js）；# 行签名 motto 空值时整行隐藏（跟 sgx-profile-changed）
  * mountHome() 由 apps/entries/entry-space.js 在加载时调一次（先于 initCore，事件监听在外壳取数之前挂好）。
@@ -48,6 +49,35 @@ export function curioSummary(links, items, lang) {
     games = { n: gs.length, latest: playing ? String(playing.title || '') : '' };
   }
   return { finds: finds, devices: devices, games: games };
+}
+
+/** 主页 [03] 音乐放几张 */
+export const MUSIC_LATEST_N = 4;
+/**
+ * 最新几张专辑（纯函数，单测看它）：/music/api/music 的结果 → 按记录 id 从新到旧的前 n 张专辑（kind 不是 single；单曲不进这一行）。
+ * 链接 = 那位歌手的歌手页（音乐页 ?artist=<id>，目前唯一的深链），没歌手 = 音乐页；封面有才给 /music/api/music-cover?album=<id>。
+ * @param {any} j GET /music/api/music 的回答（{ok, albums:[{id, kind, title, artist, artist_id, cover}]}）或 null
+ * @param {string} musicHref 当前语言的音乐页地址（/music/、/music/zh/）
+ * @param {number} [n]
+ * @returns {Array<{id:number, title:string, artist:string, cover:string, href:string}>|null} 拿不到（不是 ok / 没列表）给 null
+ */
+export function musicLatest(j, musicHref, n) {
+  if (!j || !j.ok || !Array.isArray(j.albums)) return null;
+  const base = String(musicHref || '/music/');
+  return j.albums
+    .filter(function (/** @type {any} */ a) { return a && a.kind !== 'single' && Number(a.id) > 0; })
+    .sort(function (/** @type {any} */ a, /** @type {any} */ b) { return Number(b.id) - Number(a.id); })
+    .slice(0, n || MUSIC_LATEST_N)
+    .map(function (/** @type {any} */ a) {
+      const aid = Number(a.artist_id) || 0;
+      return {
+        id: Number(a.id),
+        title: String(a.title || ''),
+        artist: String(a.artist || ''),
+        cover: a.cover ? '/music/api/music-cover?album=' + Number(a.id) : '',
+        href: aid > 0 ? base + '?artist=' + aid : base,
+      };
+    });
 }
 
 /**
@@ -107,7 +137,7 @@ export function mountHome(o) {
     window.addEventListener(PROFILE_EVENT, syncMotto);
   }
 
-  /* [03] 日刻 · 今日一句：先画本地缓存（同一天才用），再静默拉新；拉失败且没缓存 → 保持隐藏 */
+  /* [02] 日刻 · 今日一句：先画本地缓存（同一天才用），再静默拉新；拉失败且没缓存 → 保持隐藏 */
   const dm = document.getElementById('w-daymark');
   /* 等的时候那行「› fetching daymark…」：有结论（缓存画上 / 拉到 / 拉失败）就收起 */
   const dmWait = /** @type {HTMLElement|null} */ (document.querySelector('[data-dm-wait]'));
@@ -122,7 +152,7 @@ export function mountHome(o) {
   /* 日刻小字「 · 拾录 N · 百味 N」（R-05）：和今日一句各拉各的，失败只是不显示计数 */
   if (dm) mountDaymarkCounts(dm);
 
-  /* 首屏胶囊：外壳每次画 NAVIGATE STATUS 时发 sgx:status-cells（[04] 旷野 status 小卡 2026-11-12 随旷野删除） */
+  /* 首屏胶囊：外壳每次画 NAVIGATE STATUS 时发 sgx:status-cells（旧 [04] 旷野 status 小卡 2026-11-12 随旷野删除） */
   const pill = document.querySelector('[data-home-status]');
   const pillDot = document.querySelector('[data-home-status-dot]');
   document.addEventListener('sgx:status-cells', function (/** @type {any} */ e) {
@@ -133,7 +163,41 @@ export function mountHome(o) {
     if (pillDot) pillDot.setAttribute('data-up', ok ? '1' : '0');
   });
 
-  /* [02] 奇趣：CI 静态测试构建（SGX_TEST_NO_WB）没有接口，加载时不问（404 会进控制台，Lighthouse errors-in-console）；
+  /* [03] 音乐：最新几张专辑。测试构建（SGX_TEST_NO_WB）同奇趣不问接口（e2e 要测时先设 window.__sgxMusicApi = true）；
+     等的时候「› fetching music…」，有结论就收起；拿不到 / 没专辑保持「—」占位 */
+  const mu = /** @type {HTMLElement|null} */ (document.querySelector('[data-home-music]'));
+  const muWait = /** @type {HTMLElement|null} */ (document.querySelector('[data-mu-wait]'));
+  const noMuApi = typeof SGX_TEST_NO_WB !== 'undefined' && SGX_TEST_NO_WB && !(/** @type {any} */ (window).__sgxMusicApi);
+  if (mu && !noMuApi && typeof fetch === 'function') {
+    getJSON('/music/api/music').then(function (j) {
+      if (muWait) muWait.hidden = true;
+      const list = musicLatest(j, mu.getAttribute('data-music-href') || '/music/');
+      if (!list || !list.length) return;
+      const slots = Array.from(mu.querySelectorAll('[data-mu-slot]'));
+      slots.forEach(function (el, i) {
+        const a = /** @type {HTMLAnchorElement} */ (el);
+        const it = list[i];
+        if (!it) { const li = a.closest('li'); if (li) li.remove(); return; }
+        a.href = it.href;
+        const t = a.querySelector('[data-mu-title]');
+        const ar = a.querySelector('[data-mu-artist]');
+        if (t) t.textContent = it.title || '—';
+        if (ar) ar.textContent = it.artist;
+        if (it.cover) {
+          const c = a.querySelector('.home-alb-c');
+          const img = document.createElement('img');
+          img.alt = '';
+          img.decoding = 'async';
+          img.loading = 'lazy';
+          img.addEventListener('error', function () { img.remove(); });
+          img.src = it.cover;
+          if (c) c.appendChild(img);
+        }
+      });
+    });
+  } else if (muWait) muWait.hidden = true;
+
+  /* [04] 奇趣：CI 静态测试构建（SGX_TEST_NO_WB）没有接口，加载时不问（404 会进控制台，Lighthouse errors-in-console）；
      e2e 要测时先设 window.__sgxCurioApi = true（只在测试构建里有这个分支，生产构建整段按常量摇掉） */
   const cu = document.querySelector('[data-home-curio]');
   const noApi = typeof SGX_TEST_NO_WB !== 'undefined' && SGX_TEST_NO_WB && !(/** @type {any} */ (window).__sgxCurioApi);

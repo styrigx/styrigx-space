@@ -733,7 +733,7 @@ export function mountTopbar(o) {
     };
     term = T.createShell({
       str: T.termStrings(doc),
-      cwd: ['blog', 'curio', 'daymark'].indexOf(curId) >= 0 ? curId : '~',
+      cwd: ['blog', 'daymark', 'music', 'curio'].indexOf(curId) >= 0 ? curId : '~',
       act: act,
       who: who,
     });

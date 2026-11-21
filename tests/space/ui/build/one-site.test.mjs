@@ -228,9 +228,11 @@ test('真实构建：根文件归主站、三站各在前缀下（中文 /<站>/
     /* 合并 PR3：导航（2026-11-04 P5-1 起在快捷面板导航页）里另两个子站是同源相对地址 /<站>/（中文 /<站>/zh/，P4-3 PR-4c），主站项 / 账号 / 头像是 https://styrigx.com 绝对地址，其余站内地址都带本站前缀；
        2026-11-12：顶栏 logo 四站统一回主站首页，子站英文页 logo 是 /（只此一处） */
     const others = SITES.filter((x) => x !== s).map((x) => '/' + x + '/');
-    /* music 搬家第 3 步：奇趣首页的「音乐」入口指向第四个子站 /music/（中文 /music/zh/），不是本站前缀 */
-    const music = s === 'curio' ? ['/music/', '/music/zh/'] : [];
-    assert.deepEqual(refs.filter((r) => !r.startsWith('/' + s + '/') && !others.includes(r) && !music.includes(r) && r !== '/'), [], s + '：站内地址都带 /' + s + '/（另两站的导航项、logo、奇趣的音乐入口除外）');
+    /* music 搬家第 3 步：奇趣首页的「音乐」入口指向第四个子站 /music/（中文 /music/zh/），不是本站前缀；
+       2026-11-21 起 /music/ 也是 NAVIGATE 03 / 页脚 3:music（同源相对地址，同另几站的导航项） */
+    const music = s === 'curio' ? ['/music/', '/music/zh/'] : ['/music/'];
+    assert.ok(refs.includes('/music/'), s + '：导航 / 页脚里有音乐 /music/');
+    assert.deepEqual(refs.filter((r) => !r.startsWith('/' + s + '/') && !others.includes(r) && !music.includes(r) && r !== '/'), [], s + '：站内地址都带 /' + s + '/（另几站和音乐的导航项、logo、奇趣的音乐入口除外）');
     assert.equal([...html.matchAll(/class="?sgx-tb-logo"? href="?([^"\s>]+)/g)].map((m) => m[1]).join(), '/', s + '：logo 回主站首页 /');
     assert.deepEqual(others.filter((o) => !refs.includes(o)), [], s + '：导航页里另两站是相对地址');
     assert.doesNotMatch(html, /atlas\.styrigx\.com/, s + '：不再有旧图志域名');

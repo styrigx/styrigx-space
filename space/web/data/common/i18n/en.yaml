@@ -7,19 +7,21 @@ notFound:
   backHome: Back home
   curio: Curio
 home:
-  # 主页首屏终端（2026-11 UI 重设计 PR-2；对齐 PR-B 按设计稿 tb4.html：博客 / 奇趣 / 日刻；[04] 旷野 2026-11-12 删除）。status 是首帧文字，外壳取到 /api/status 后换成 js.space.homeStatusUp / Down
+  # 主页首屏终端（2026-11 UI 重设计 PR-2；对齐 PR-B 按设计稿 tb4.html；2026-11-21 重排为 博客 / 日刻 / 音乐 / 奇趣；旧 [04] 旷野 2026-11-12 删除）。status 是首帧文字，外壳取到 /api/status 后换成 js.space.homeStatusUp / Down
   status: "STATUS: ONLINE · 6/6 ACTIVE"
   blog: Blog
   minutes: "{n} min"
   blogLabel: "[01] Blog · latest 3"
-  curioLabel: "[02] Curio"
+  curioLabel: "[04] Curio"
   curio:
     title: Curio
     finds: { name: Finds, latest: Latest find }
     devices: { name: Devices, latest: In use }
     games: { name: Games, latest: Playing }
   daymark: Daymark
-  daymarkLabel: "[03] Daymark · line of the day"
+  daymarkLabel: "[02] Daymark · line of the day"
+  music: Music
+  musicLabel: "[03] Music · latest albums"
 index:
   dmWindow: Echo
   noLineForToday: No line for today yet

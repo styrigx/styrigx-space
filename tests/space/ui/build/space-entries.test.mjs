@@ -87,12 +87,21 @@ function files(dir) {
   return out;
 }
 
-test('构建产物：中英主页三节 [01]–[03]、没有分类入口；[04] 旷野一节 2026-11-12 删除（about 只在首屏 #about）；状态页 /status/ 一个窗', { skip: !BUILT && '没构建 space/web/public' }, () => {
+test('构建产物：中英主页四节 [01] 博客 [02] 日刻 [03] 音乐 [04] 奇趣（Gray 2026-11-21 重排）、没有分类入口；旧 [04] 旷野一节 2026-11-12 删除（about 只在首屏 #about）；状态页 /status/ 一个窗', { skip: !BUILT && '没构建 space/web/public' }, () => {
   for (const [lang, file, pre] of [['en', 'index.html', '/'], ['zh', 'zh/index.html', '/zh/']]) {
     const html = readFileSync(path.join(REPO, 'space/web/public', file), 'utf8');
     assert.doesNotMatch(html, /class="?sgx-ents/, lang + '：主页没有入口区块');
     const ks = [...html.matchAll(/home-sec-k"? aria-hidden="?true"? translate="?no"?>([^<]+)</g)].map((m) => m[1]);
-    assert.deepEqual(ks, ['[01] // BLOG', '[02] // CURIO', '[03] // DAYMARK'], lang + '：三节顺序');
+    assert.deepEqual(ks, ['[01] // BLOG', '[02] // DAYMARK', '[03] // MUSIC', '[04] // CURIO'], lang + '：四节顺序');
+    assert.deepEqual([...html.matchAll(/<section class="?home-sec"? id="?(\w+)"?/g)].map((m) => m[1]), ['blog', 'daymark', 'music', 'curio'], lang + '：分节 id 同序');
+    /* [03] 音乐：cd music/ → 当前语言的音乐页；4 个「—」占位（运行时由 /music/api/music 填）；等待提示 › fetching music… */
+    const mu = lang === 'zh' ? '/music/zh/' : '/music/';
+    assert.match(html, new RegExp(`class="?home-sec-more"? href="?${mu}"? translate="?no"?>cd music/ →`), `${lang}：cd music/ →`);
+    assert.match(html, /\$<\/span> ls music\//, `${lang}：$ ls music/`);
+    assert.match(html, new RegExp(`data-home-music data-music-href="?${mu}"?`), `${lang}：音乐行带音乐页地址`);
+    assert.equal([...html.matchAll(/data-mu-slot/g)].length, 4, `${lang}：4 个占位`);
+    assert.match(html, /data-mu-wait[^>]*>.*music…/, `${lang}：等待提示`);
+    assert.match(html, /data-term-dir="?music"?/, `${lang}：终端 cd music 落点`);
     /* 2026-11-12：[04] 旷野一节（status 小卡）删除，主页没有 #wild、没有指向旷野的链接 */
     assert.doesNotMatch(html, /id="?wild"?|home-mini|\/wild\//, `${lang}：主页没有旷野一节`);
     assert.doesNotMatch(html, /href="?#about"?/, `${lang}：没有指回 #about 的小卡`);

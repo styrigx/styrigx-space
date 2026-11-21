@@ -15,8 +15,8 @@ const VIEWPORTS = [
 ];
 
 /* P4-3 PR-4c：英文无前缀、中文 /zh/。当前窗口同 NAVIGATE 当前项：主页 = 0:home，状态页 /status/、账号页没有当前项
-   （2026-11-12：旷野删除，4:wild 窗口随之删除） */
-const PAGES = [['/', 'home'], ['/status/', ''], ['/zh/', 'home'], ['/zh/status/', '']] /* 对齐 PR-C：风格页 /theme/ 退役；进站 v3 L1：/security/ 已删 */;
+   （2026-11-12：旷野删除，旧 4:wild 窗口随之删除；2026-11-21 起 0:home 1:blog 2:daymark 3:music 4:curio，音乐页当前窗口 3:music） */
+const PAGES = [['/', 'home'], ['/status/', ''], ['/zh/', 'home'], ['/zh/status/', ''], ['/music/', 'music'], ['/music/zh/', 'music']] /* 对齐 PR-C：风格页 /theme/ 退役；进站 v3 L1：/security/ 已删 */;
 
 for (const vp of VIEWPORTS) {
   for (const [path, win] of PAGES) {
@@ -73,7 +73,7 @@ test('B1-10 1280 桌面布局：页脚显示全部窗口（当前带 *）和语�
   await page.goto('/zh/');
   await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
   const wins = page.locator('.sgx-foot-win a');
-  expect(await wins.count()).toBeGreaterThanOrEqual(4);
+  await expect(wins).toHaveText(['0:home', '1:blog', '2:daymark', '3:music', '4:curio']);
   for (let i = 0; i < await wins.count(); i++) await expect(wins.nth(i)).toBeVisible();
   await expect(page.locator('.sgx-foot-win a[aria-current="page"]')).toHaveAttribute('data-win', 'home');
   await expect(page.locator('.sgx-foot-lang')).toBeVisible();

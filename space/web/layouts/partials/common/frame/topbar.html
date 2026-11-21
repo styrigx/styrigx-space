@@ -4,7 +4,7 @@
    结构：<header id="site-nav"> 通栏 .sgx-topbar（底边一条 1px 线，内容宽 = --sgx-content-w，1080）=
      [字标 ❯ + SVG 字标 Styrigx + _（光标 1.05s 闪；2026-11 PR-2 起不再是等宽文字 styrigx :~$）] [.sgx-tb-pill：页名（v3 不显示，标记留着给子站脚本 / 锁屏抄）] [盾牌 · 外观 · 四格（NAVIGATE）· 分隔 · >_（终端）· 头像（账号窗口）]（v5 S6 顶栏 E）；
      底边 .sgx-tb-prog 滑页进度条（JS 写 --sgx-prog）；右下角 AI 浮钮 .sgx-tb-ai（打开 AI 窗口）。三个窗口都是非模态 <dialog>、互斥：
-     #sgx-nav NAVIGATE：01 主页 02 博客 03 奇趣 04 日刻（当前站「开」态；05 旷野 2026-11-12 删除）→ lang / layout 分段 → share（v5 S6 去掉 lock：上锁走终端 lock / 盾牌）→ STATUS（/api/status）→ systemctl status · Ctrl K 终端 · esc 关闭；
+     #sgx-nav NAVIGATE：00 主页 01 博客 02 日刻 03 音乐 04 奇趣（当前站「开」态；Gray 2026-11-21 加音乐、重排、编号从 00 起；旧 05 旷野 2026-11-12 删除）→ lang / layout 分段 → share（v5 S6 去掉 lock：上锁走终端 lock / 盾牌）→ STATUS（/api/status）→ systemctl status · Ctrl K 终端 · esc 关闭；
      #sgx-qp  外观：MODE（跟随系统 / 深 / 浅）+ PALETTE（色板列表 + 标题行 reset = 恢复默认）；（2026-11 PR-A：NAVIGATE / 外观都是锚在各自图标下的实色卡，不压暗页面、不毛玻璃）
      #sgx-ai  AI 窗口：头部 Gray AI · 新对话 · 历史 · 头像（账号页），底部「仅公开内容 · 联系我」（邮箱 = 参数 email）。
    参数（dict）：
@@ -14,7 +14,7 @@
      home        logo 链接：一律回主站首页（2026-11-12 起四站统一，英文 /、中文 /zh/；调用方用 sgx-lang-path 拼 path "/"）
      center      中间的 HTML（页名 .sgx-tb-title / 阅读进度，调用方渲染好；v3 顶栏不显示，见上）；pillClass 中间容器的额外 class
      headerClass / headerAttrs  <header> 的额外 class / 属性（博客：data-sgx-topbar-root data-mode）
-     nav         frame/nav-source.json（items：id icon origin path hint；名字在 tr.nav.<id>.title）；site 当前项的 nav id（NAVIGATE「开」态、计数 01/04）
+     nav         frame/nav-source.json（items：id icon origin path hint；名字在 tr.nav.<id>.title）；site 当前项的 nav id（NAVIGATE「开」态、计数 00/04；不在任何项上 --/04）
      mainOrigin  主站项（origin 为 styrigx.com、不是子站的项）地址前缀：主站不传（同源相对 /）；子站传 https://styrigx.com
      icons       图标 SVG（名字 → SVG 串）：tb-palette tb-shield tb-term（终端）tb-grid（NAVIGATE 四格）tb-music（音乐）tb-chat lock tb-undo share tb-send tb-newchat tb-history
      wordmark    字标 SVG（partials/common/frame/wordmark.html；子站经 nav.json 的 wordmark）：顶栏左边 ❯ + 字标 + 闪烁下划线光标（2026-11 PR-2 起取代等宽文字 styrigx :~$）
@@ -30,7 +30,9 @@
 {{- $lang := .lang | default "en" -}}
 {{- $t := .tr -}}
 {{- $i := .icons -}}
-{{- $n := 0 }}{{ $cur := 0 }}{{ range .nav.items }}{{ $n = add $n 1 }}{{ if eq .id $.site }}{{ $cur = $n }}{{ end }}{{ end -}}
+{{- /* NAVIGATE 编号从 00 起（Gray 2026-11-21）：00 主页 · 01 博客 · 02 日刻 · 03 音乐 · 04 奇趣，= 主页分节 [01]–[04] = 页脚窗口 0–4；
+   头部计数「当前编号/最大编号」（主页 00/04、/music/ 03/04）；不在任何一项上（状态页、账号页……）写 --/04 */ -}}
+{{- $n := -1 }}{{ $cur := -1 }}{{ range .nav.items }}{{ $n = add $n 1 }}{{ if eq .id $.site }}{{ $cur = $n }}{{ end }}{{ end -}}
 <header id="site-nav" class="z-50{{ with .headerClass }} {{ . }}{{ end }}"{{ with .headerAttrs }} {{ . | safeHTMLAttr }}{{ end }}>
   <div class="sgx-topbar">
     <a class="sgx-tb-logo" href="{{ .home }}" aria-label="{{ $t.topbar.home }}"><span class="sgx-tb-ps" aria-hidden="true">❯</span><span class="sgx-tb-name" aria-hidden="true" translate="no">{{ .wordmark | safeHTML }}</span><span class="sgx-tb-cu" aria-hidden="true"></span></a>
@@ -54,15 +56,15 @@
 </header>
 <dialog id="sgx-nav" class="sgx-qp sgx-nav" aria-label="{{ $t.nav.label }}">
   <div class="sgx-qp-sheet" tabindex="-1" autofocus>
-    <div class="sgx-nav-h"><span><b aria-hidden="true">$</b> {{ $t.nav.title }}</span><span class="sgx-nav-count" data-nav-count>{{ printf "%02d/%02d" $cur $n }}</span></div>
+    <div class="sgx-nav-h"><span><b aria-hidden="true">$</b> {{ $t.nav.title }}</span><span class="sgx-nav-count" data-nav-count>{{ if ge $cur 0 }}{{ printf "%02d" $cur }}{{ else }}--{{ end }}/{{ printf "%02d" $n }}</span></div>
     <nav aria-label="{{ $t.nav.label }}">
       <ul class="sgx-nav-list">
         {{- range $k, $it := .nav.items }}
-        {{- $sub := in (slice "blog" "curio" "daymark") .id }}
+        {{- $sub := in (slice "blog" "curio" "daymark" "music") .id }}
         {{- /* 语言前缀同 lang-path.html / lib/lang-path.js（外壳只用参数、不调用别的模板，这里照同一规则展开；tests/space/ui/build/lang-default.test.mjs 对表）：英文无前缀，其他语言主站 /<语言>/…、子站 /<站>/<语言>/ */ -}}
         {{- $p := .path }}{{ if ne $lang "en" }}{{ if $sub }}{{ $p = printf "%s%s/" .path $lang }}{{ else }}{{ $p = printf "/%s%s" $lang .path }}{{ end }}{{ end }}
         {{- if not $sub }}{{ if ne .origin "https://styrigx.com" }}{{ $p = printf "%s%s" .origin $p }}{{ else }}{{ $p = printf "%s%s" ($.mainOrigin | default "") $p }}{{ end }}{{ end }}
-        <li><a class="sgx-nav-tile" href="{{ $p }}" data-nav="{{ .id }}"{{ if eq .id $.site }} aria-current="page"{{ end }}><em class="sgx-nav-no" aria-hidden="true">{{ printf "%02d" (add $k 1) }}</em><span class="sgx-nav-name">{{ (index $t.nav .id).title }}</span><span class="sgx-nav-hint" aria-hidden="true" translate="no">{{ .hint }}</span></a></li>
+        <li><a class="sgx-nav-tile" href="{{ $p }}" data-nav="{{ .id }}"{{ if eq .id $.site }} aria-current="page"{{ end }}><em class="sgx-nav-no" aria-hidden="true">{{ printf "%02d" $k }}</em><span class="sgx-nav-name">{{ (index $t.nav .id).title }}</span><span class="sgx-nav-hint" aria-hidden="true" translate="no">{{ .hint }}</span></a></li>
         {{- end }}
       </ul>
     </nav>

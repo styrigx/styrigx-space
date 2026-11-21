@@ -74,7 +74,7 @@ test('子站地址：主站项 / 账号 / 头像走 https://styrigx.com，中文
 
 /* ---------------- 真实构建 ---------------- */
 
-const PUB = { atlas: 'space/web/public', blog: 'space/web/public/blog', curio: 'space/web/public/curio', daymark: 'space/web/public/daymark' };
+const PUB = { atlas: 'space/web/public', blog: 'space/web/public/blog', curio: 'space/web/public/curio', daymark: 'space/web/public/daymark', music: 'space/web/public/music' };
 const built = Object.values(PUB).every((d) => existsSync(path.join(REPO, d, 'index.html')));
 
 /** 顶栏骨架（顶栏 v3）：去掉中间内容，只留结构上的 class / id / data-*，按出现顺序 */
@@ -93,7 +93,8 @@ function skeleton(html) {
     sorted: pos.every((x, n) => n === 0 || x > pos[n - 1]),
     nav: [...nav.matchAll(/data-nav=([a-z]+)/g)].map((x) => x[1]),
     current: [...nav.matchAll(/data-nav=([a-z]+) aria-current=page/g)].map((x) => x[1]),
-    count: (nav.match(/data-nav-count>(\d\d\/\d\d)</) || [])[1],
+    count: (nav.match(/data-nav-count>((?:\d\d|--)\/\d\d)</) || [])[1],
+    nos: [...nav.matchAll(/class=sgx-nav-no aria-hidden=true>(\d\d)</g)].map((x) => x[1]),
     logo: (h.match(/class="?sgx-tb-logo"? href="?([^"\s>]+)/) || [])[1],
     stGo: (h.match(/<a href="?([^"\s>]+)"? class="?sgx-nav-st-go/) || [])[1],
     langs: [...nav.matchAll(/data-qp-lang=([a-z]+)/g)].map((x) => x[1]),
@@ -114,17 +115,19 @@ function skeleton(html) {
   };
 }
 
-test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字标 · 调色盘 · 九宫格 · 音乐 · 盾牌 · | · >_ · 头像 · 进度条 · AI 浮钮；NAVIGATE 四项同序、logo 回主站首页、STATUS 有跳转按钮且当前项「开」态；外观面板同一套；tmux 页脚当前窗口', (t) => {
+test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字标 · 调色盘 · 九宫格 · 音乐 · 盾牌 · | · >_ · 头像 · 进度条 · AI 浮钮；NAVIGATE 五项同序（00 主页 01 博客 02 日刻 03 音乐 04 奇趣）、logo 回主站首页、STATUS 有跳转按钮且当前项「开」态；外观面板同一套；tmux 页脚当前窗口', (t) => {
   if (!built) { t.skip('还没构建（先 npm run build）'); return; }
-  const CUR = { atlas: 'home', blog: 'blog', curio: 'curio', daymark: 'daymark' };
-  const NO = { home: '01', blog: '02', curio: '03', daymark: '04' };
+  const CUR = { atlas: 'home', blog: 'blog', curio: 'curio', daymark: 'daymark', music: 'music' };
+  /* Gray 2026-11-21：编号从 00 起，= 主页分节 [01]–[04] = 页脚窗口 0–4 */
+  const NO = { home: '00', blog: '01', daymark: '02', music: '03', curio: '04' };
   for (const site of Object.keys(PUB)) {
     for (const f of ['index.html', 'zh/index.html']) {
       const sk = skeleton(readFileSync(path.join(REPO, PUB[site], f), 'utf8'));
       const at = `${site}/${f}`;
       assert.ok(sk.sorted, at + '：顶栏顺序');
       assert.ok(sk.me, at + '：头像在顶栏最右、账号下拉在（AI 窗口头部没有头像）');
-      assert.deepEqual(sk.nav, ['home', 'blog', 'curio', 'daymark'], at);
+      assert.deepEqual(sk.nav, ['home', 'blog', 'daymark', 'music', 'curio'], at);
+      assert.deepEqual(sk.nos, ['00', '01', '02', '03', '04'], at + '：面板编号从 00 起');
       assert.deepEqual(sk.current, [CUR[site]], at + '：当前项高亮');
       assert.equal(sk.count, NO[CUR[site]] + '/04', at + '：计数');
       assert.deepEqual(sk.langs, ['en', 'system', 'zh'], at + '：lang EN / Auto / 中文（2026-11-09 Auto 在中间）');
@@ -133,7 +136,7 @@ test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字�
       assert.deepEqual(sk.status, ['space', 'atlas', 'account', 'proxy', 'gray-ai'], at + '：STATUS 五个单元（P4 状态页五格）');
       assert.deepEqual(sk.modes, [], at + '：没有 MODE（调色板 v4：每套一个模式，2026-11-12）');
       assert.equal(sk.swatches, 25, at + '：25 套色板');
-      assert.deepEqual(sk.win, ['home', 'blog', 'curio', 'daymark'], at + '：页脚窗口');
+      assert.deepEqual(sk.win, ['home', 'blog', 'daymark', 'music', 'curio'], at + '：页脚窗口');
       assert.equal(sk.logo, f.startsWith('zh/') ? '/zh/' : '/', at + '：logo 回主站首页（2026-11-12 四站统一）');
       assert.equal(sk.stGo, f.startsWith('zh/') ? (site === 'atlas' ? '/zh/status/' : 'https://styrigx.com/zh/status/') : (site === 'atlas' ? '/status/' : 'https://styrigx.com/status/'), at + '：STATUS 区跳转按钮去状态页');
       assert.deepEqual(sk.winCur, [CUR[site]], at + '：页脚当前窗口');
@@ -142,5 +145,21 @@ test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字�
       assert.ok(sk.wordmark, at + '：字标是 SVG（❯ Styrigx _）');
       assert.ok(sk.term, at + '：全站终端抽屉 #sgx-term');
     }
+  }
+});
+
+test('真实构建：NAVIGATE 计数不在任何一项上（状态页）写 --/04，不和主页 00/04 混；页脚窗口编号 0:home 1:blog 2:daymark 3:music 4:curio', (t) => {
+  if (!built) { t.skip('还没构建（先 npm run build）'); return; }
+  for (const f of ['status/index.html', 'zh/status/index.html']) {
+    const h = readFileSync(path.join(REPO, 'space/web/public', f), 'utf8');
+    assert.match(h, /data-nav-count"?>--\/04</, f);
+    assert.doesNotMatch(h, /class="?sgx-nav-tile"?[^>]*aria-current="?page/, f + '：没有当前项');
+  }
+  for (const f of ['music/index.html', 'music/zh/index.html']) {
+    const h = readFileSync(path.join(REPO, 'space/web/public', f), 'utf8');
+    const foot = h.slice(h.search(/<footer class="?sgx-foot/));
+    assert.deepEqual([...foot.matchAll(/data-win="?[a-z]+"?(?: aria-current="?page"?)? translate="?no"?>(\d:[a-z]+)</g)].map((x) => x[1]), ['0:home', '1:blog', '2:daymark', '3:music', '4:curio'], f);
+    assert.match(foot, /data-win="?music"? aria-current="?page"?/, f + '：当前窗口 music');
+    assert.match(h, /data-nav-count"?>03\/04</, f);
   }
 });

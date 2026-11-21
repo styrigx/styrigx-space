@@ -5855,7 +5855,7 @@ html.mu-view-only :is(#mp-prev, #mp-next, #mp-speed, #mp-seek, #mp-shuffle) { op
 .home-post i { font-style: normal; color: var(--sgx-text-tertiary); }
 @media (hover: hover) and (pointer: fine) { .home-post:hover b { color: var(--sgx-primary); } }
 :root:not([data-sgx-layout="desktop"]) .home-post { grid-template-columns: 78px minmax(0, 1fr) auto; gap: 10px; }
-/* [02] 奇趣三张细线目录卡（稿 .dir：名字强调色 · 右上计数 · 下面一条），桌面三栏、手机一栏（[04] 旷野小卡 2026-11-12 随旷野删除） */
+/* [04] 奇趣三张细线目录卡（稿 .dir：名字强调色 · 右上计数 · 下面一条），桌面三栏、手机一栏（2026-11-21 重排前是 [02]；旧 [04] 旷野小卡 2026-11-12 随旷野删除） */
 .home-dirs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
 :root:not([data-sgx-layout="desktop"]) .home-dirs { grid-template-columns: minmax(0, 1fr); }
 .home-dir { display: block; box-sizing: border-box; height: 100%; padding: 16px; border: 1px solid var(--sgx-term-line); border-radius: 12px;
@@ -5866,7 +5866,22 @@ html.mu-view-only :is(#mp-prev, #mp-next, #mp-speed, #mp-seek, #mp-shuffle) { op
 .home-dir-z { display: block; margin-top: 10px; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; line-height: 1.7; color: var(--sgx-text-primary);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-dir-z small { display: block; font-family: var(--sgx-font-mono); font-size: 11px; color: var(--sgx-text-tertiary); }
-/* [03] 日刻：左 2px 强调线 + 大字引句 + 一行小字（稿 .qt；无卡片） */
+/* [03] 音乐：最新 4 张专辑一行（2026-11-21）：方形封面（细线框，同奇趣卡的线和底色；没封面 = 音符占位）+ 专辑名一行 + 歌手一行等宽小字。
+   手机四栏铺满（封面约 85px）；桌面按六栏的宽度排、靠左（封面约 165px，不让四张大图压过别的节）；名字放不下省略号。 */
+.home-albs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+:root:not([data-sgx-layout="desktop"]) .home-albs { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.home-alb { display: block; min-width: 0; color: var(--sgx-text-primary); text-decoration: none; border-radius: 12px; }
+.home-alb:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+.home-alb-c { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--sgx-term-line); border-radius: 12px;
+  background: color-mix(in srgb, var(--sgx-surface-container-low) 70%, transparent); color: var(--sgx-text-tertiary); transition: border-color .15s ease; }
+:root:not([data-sgx-layout="desktop"]) .home-alb-c { border-radius: 10px; }
+.home-alb-c img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.home-alb-t { display: block; margin-top: 8px; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root:not([data-sgx-layout="desktop"]) .home-alb-t { font-size: 13px; }
+.home-alb-a { display: block; font-family: var(--sgx-font-mono); font-size: 11px; line-height: 1.6; color: var(--sgx-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-alb-a:empty { display: none; }
+@media (hover: hover) and (pointer: fine) { .home-alb:hover .home-alb-c { border-color: var(--sgx-primary); } .home-alb:hover .home-alb-t { color: var(--sgx-primary); } }
+/* [02] 日刻：左 2px 强调线 + 大字引句 + 一行小字（稿 .qt；无卡片） */
 .home-qt { display: block; padding: 6px 0 6px 20px; border-left: 2px solid var(--sgx-primary); color: var(--sgx-text-primary); text-decoration: none; border-radius: 0; }
 .home-qt.hidden, .home-qt .hidden { display: none; }
 .home-qt-body { display: block; }

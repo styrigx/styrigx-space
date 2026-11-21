@@ -23,7 +23,7 @@ test('NAVIGATE #sgx-nav（顶栏 v3；v5 S6 顶栏 E）：四格按钮（类名�
   assert.match(tb, /<button type="button" class="sgx-tb-btn sgx-tb-grid" aria-label="\{\{ \$t\.topbar\.sites \}\}" title="\{\{ \$t\.topbar\.sites \}\}" aria-haspopup="dialog" aria-controls="sgx-nav" aria-expanded="false">\{\{ index \$i "tb-grid" \| safeHTML \}\}<\/button>/);
   const nav = tb.slice(tb.indexOf('<dialog id="sgx-nav"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-nav"')));
   assert.match(nav, /<ul class="sgx-nav-list">/);
-  assert.match(nav, /<a class="sgx-nav-tile" href="\{\{ \$p \}\}" data-nav="\{\{ \.id \}\}"\{\{ if eq \.id \$\.site \}\} aria-current="page"\{\{ end \}\}><em class="sgx-nav-no" aria-hidden="true">\{\{ printf "%02d" \(add \$k 1\) \}\}<\/em><span class="sgx-nav-name">\{\{ \(index \$t\.nav \.id\)\.title \}\}<\/span><span class="sgx-nav-hint" aria-hidden="true" translate="no">\{\{ \.hint \}\}<\/span><\/a>/);
+  assert.match(nav, /<a class="sgx-nav-tile" href="\{\{ \$p \}\}" data-nav="\{\{ \.id \}\}"\{\{ if eq \.id \$\.site \}\} aria-current="page"\{\{ end \}\}><em class="sgx-nav-no" aria-hidden="true">\{\{ printf "%02d" \$k \}\}<\/em><span class="sgx-nav-name">\{\{ \(index \$t\.nav \.id\)\.title \}\}<\/span><span class="sgx-nav-hint" aria-hidden="true" translate="no">\{\{ \.hint \}\}<\/span><\/a>/);
   const js = rd('space/web/assets/common/js/frame/topbar/panel.js');
   assert.match(js, /wire\(navBtn, navDlg, 'sgxNav'/);
   assert.match(js, /tg\.closest\('\[data-nav-close\]'\)/);

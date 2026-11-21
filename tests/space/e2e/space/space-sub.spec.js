@@ -42,7 +42,7 @@ async function pinLang(pg, lang) {
 /* Mobile（竖屏）：单列 */
 test.use({ viewport: { width: 412, height: 915 } });
 
-test('home (mobile, 对齐 PR-B; 2026-11-12 no [04] wild): hero, then [01] blog · [02] curio · [03] daymark in order; no category entries, no account card, no option groups', async ({ page: pg }) => {
+test('home (mobile, 对齐 PR-B; 2026-11-12 no wild; 2026-11-21 reorder): hero, then [01] blog · [02] daymark · [03] music · [04] curio in order; no category entries, no account card, no option groups', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/zh/');
   await expect(pg).toHaveTitle('主页 | Styrigx');
@@ -55,13 +55,17 @@ test('home (mobile, 对齐 PR-B; 2026-11-12 no [04] wild): hero, then [01] blog 
   await expect(pg.locator('#w-screen')).toHaveCount(0);
   /* 分类入口（旧 sgx-entries 平铺行 + 标题带）删除 */
   await expect(pg.locator('#space-entries, .home-wrap .sgx-ents, .home-wrap [aria-label="分类"]')).toHaveCount(0);
-  // 三节顺序：hero 在上，[01]–[03] 自上而下（[04] 旷野 2026-11-12 删除）
-  await expect(pg.locator('.home-sec .home-sec-k')).toHaveText(['[01] // BLOG', '[02] // CURIO', '[03] // DAYMARK']);
+  // 四节顺序：hero 在上，[01]–[04] 自上而下（Gray 2026-11-21 重排；旧 [04] 旷野 2026-11-12 删除）
+  await expect(pg.locator('.home-sec .home-sec-k')).toHaveText(['[01] // BLOG', '[02] // DAYMARK', '[03] // MUSIC', '[04] // CURIO']);
   await expect(pg.locator('#wild, .home-mini')).toHaveCount(0);
   const ys = [];
-  for (const id of ['#home-hero', '#blog', '#curio', '#daymark']) ys.push((await pg.locator(id).boundingBox()).y);
+  for (const id of ['#home-hero', '#blog', '#daymark', '#music', '#curio']) ys.push((await pg.locator(id).boundingBox()).y);
   expect([...ys].sort((a, b) => a - b)).toEqual(ys);
-  // [02] 奇趣三个目录（手机一栏）
+  // [03] 音乐：cd music/ → /music/zh/，测试构建不问接口，4 个「—」占位、等待提示收起
+  await expect(pg.locator('#music .home-sec-more')).toHaveAttribute('href', '/music/zh/');
+  await expect(pg.locator('#music .home-alb-t')).toHaveText(['—', '—', '—', '—']);
+  await expect(pg.locator('#music [data-mu-wait]')).toBeHidden();
+  // [04] 奇趣三个目录（手机一栏）
   const dirs = pg.locator('#curio a.home-dir');
   expect(await dirs.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/zh/finds/', '/curio/zh/devices/', '/curio/zh/games/']);
   // 删掉的分类（含显示页、旷野）不再有链接；页面上没有任何指向旧设置层的链接
@@ -71,7 +75,44 @@ test('home (mobile, 对齐 PR-B; 2026-11-12 no [04] wild): hero, then [01] blog 
   await expect(pg.locator('#sg-display, #sg-theme, #sg-wellbeing, #sg-about, #set-cat-nav, .set-col-r')).toHaveCount(0);
 });
 
-/* [02] 奇趣目录（3 张）：手机布局一栏，桌面布局三栏、同一行顶边对齐（对齐 PR-B，设计稿 tb4.html；[04] 旷野小卡 2026-11-12 删除） */
+/* [03] 音乐（2026-11-21）：取 /music/api/music（测试构建要先设 window.__sgxMusicApi），最新 4 张专辑（不含单曲，id 从新到旧）填进占位；
+   有封面画 /music/api/music-cover?album=，链接 = 歌手页 ?artist=；只有 2 张时多的占位删掉；接口失败保持「—」 */
+test('home [03] music: latest albums from /music/api/music fill the row; fewer albums drop slots; API failure keeps —', async ({ page: pg }) => {
+  await pinLang(pg, 'zh');
+  await pg.addInitScript(() => { window.__sgxMusicApi = true; });
+  const albums = [
+    { id: 1, kind: 'album', title: 'Blue', artist: 'Joni Mitchell', artist_id: 2, cover: true },
+    { id: 2, kind: 'album', title: 'Court and Spark', artist: 'Joni Mitchell', artist_id: 2, cover: false },
+    { id: 3, kind: 'album', title: 'Ammonia Avenue', artist: 'APP', artist_id: 4, cover: true },
+    { id: 41, kind: 'single', title: 'River', artist: 'Joni Mitchell', artist_id: 2, cover: true },
+    { id: 5, kind: 'album', title: 'Hejira', artist: 'Joni Mitchell', artist_id: 2, cover: false },
+    { id: 6, kind: 'album', title: 'Mingus', artist: '', artist_id: 0, cover: false },
+  ];
+  let reply = { ok: true, albums };
+  /* 先挂兜底（后挂的路由先匹配），再挂假接口 */
+  await blockExternalRequests(pg);
+  await pg.route(/\/music\/api\/music(\?|$)/, (r) => r.fulfill(reply ? { json: reply } : { status: 500, json: { ok: false } }));
+  await pg.route(/\/music\/api\/music-cover/, (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>' }));
+  await pg.goto('/zh/', { waitUntil: 'domcontentloaded' });
+  const t = pg.locator('#music .home-alb-t');
+  await expect(t).toHaveText(['Mingus', 'Hejira', 'Ammonia Avenue', 'Court and Spark']);
+  await expect(pg.locator('#music [data-mu-wait]')).toBeHidden();
+  expect(await pg.locator('#music a.home-alb').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/music/zh/', '/music/zh/?artist=2', '/music/zh/?artist=4', '/music/zh/?artist=2']);
+  await expect(pg.locator('#music .home-alb img')).toHaveCount(1);
+  await expect(pg.locator('#music .home-alb').nth(2).locator('img')).toHaveAttribute('src', '/music/api/music-cover?album=3');
+  const row = await pg.locator('#music .home-albs').evaluate((ul) => ({ cols: getComputedStyle(ul).gridTemplateColumns.split(' ').length, sw: document.scrollingElement.scrollWidth, vw: innerWidth }));
+  expect(row.cols).toBe(4);
+  expect(row.sw).toBeLessThanOrEqual(row.vw);
+  reply = { ok: true, albums: albums.slice(0, 2) };
+  await pg.reload();
+  await expect(t).toHaveText(['Court and Spark', 'Blue']);
+  reply = null;
+  await pg.reload();
+  await expect(pg.locator('#music [data-mu-wait]')).toBeHidden();
+  await expect(t).toHaveText(['—', '—', '—', '—']);
+});
+
+/* [04] 奇趣目录（3 张）：手机布局一栏，桌面布局三栏、同一行顶边对齐（对齐 PR-B，设计稿 tb4.html；[04] 旷野小卡 2026-11-12 删除） */
 for (const [w, h, cols] of [[412, 900, 1], [1100, 900, 3], [1366, 768, 3]]) {
   test(`home dirs: ${w}px wide → ${cols} column(s)`, async ({ page: pg }) => {
     await pg.setViewportSize({ width: w, height: h });
@@ -103,14 +144,15 @@ test.describe('home (dex)', () => {
   });
 });
 
-test('home (en): title Home, three sections, no wild section', async ({ page: pg }) => {
+test('home (en): title Home, four sections (blog · daymark · music · curio), no wild section', async ({ page: pg }) => {
   await pinLang(pg, 'en');
   await gotoSettings(pg, '/');
   await expect(pg).toHaveTitle('Home | Styrigx');
   await expect(pg.locator('.sgx-tb-tab')).toHaveCount(0);
   await expect(pg.locator('.sgx-tb-title')).toHaveText('Home');
   await expect(pg.locator('#space-entries')).toHaveCount(0);
-  await expect(pg.locator('.home-sec .home-sec-k')).toHaveText(['[01] // BLOG', '[02] // CURIO', '[03] // DAYMARK']);
+  await expect(pg.locator('.home-sec .home-sec-k')).toHaveText(['[01] // BLOG', '[02] // DAYMARK', '[03] // MUSIC', '[04] // CURIO']);
+  await expect(pg.locator('#music .home-sec-more')).toHaveAttribute('href', '/music/');
   await expect(pg.locator('#wild, .home-mini')).toHaveCount(0);
   expect(await pg.locator('#curio a.home-dir').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/finds/', '/curio/devices/', '/curio/games/']);
   await expect(pg.locator('a[href="/display/"]')).toHaveCount(0);
@@ -377,9 +419,12 @@ test('B2-2 store and its apps are gone; main-site bookmarks are gone too', async
   await blockExternalRequests(pg);
   await pg.goto('/zh/', { waitUntil: 'domcontentloaded' });
   await expect(pg.locator('#home-hero')).toBeVisible({ timeout: 15000 });
-  for (const sel of ['[data-dock="store"]', '[data-navpage="store"]', 'a[href="/store/"]', 'a[href="/ai/"]', 'a[href="/books/"]', 'a[href="/music/"]', 'a[href="/goodlock/"]', '#np-widget', '#books', '#music', '[data-appid]']) {
+  for (const sel of ['[data-dock="store"]', '[data-navpage="store"]', 'a[href="/store/"]', 'a[href="/ai/"]', 'a[href="/books/"]', 'a[href="/goodlock/"]', '#np-widget', '#books', '[data-appid]']) {
     await expect(pg.locator(sel), sel).toHaveCount(0);
   }
+  /* 旧主站音乐应用（#music 小部件 / /music/ 应用页）早删了；2026-11-21 起 #music 是主页 [03] 音乐一节、/music/ 是第四个子站（不是应用） */
+  await expect(pg.locator('#music.home-sec')).toHaveCount(1);
+  await expect(pg.locator('#music [data-appid], #np-widget')).toHaveCount(0);
   /* 2026-10-19：Dock 已全部删除 */
   for (const sel of ['#mobile-dock', '#dex-dock', '#dex-drawer']) await expect(pg.locator(sel), sel).toHaveCount(0);
   /* /music/：旧主站音乐 App 早删了；music 搬家第 3 步（2026-11-21）起这个地址是第四个子站「音乐」（不是主站页），不在这里查 404 */
