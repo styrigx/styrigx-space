@@ -11,15 +11,16 @@
  *   3. 没有未过期的播放令牌（music_tokens.expires_at > now）。
  * 删哪些看开关 env.MUSIC_JANITOR（wrangler.toml 不写 = 线上默认 report）：
  *   - report（缺省 / 不认识的值）：只读、只打一行日志，什么都不删；
- *   - singles：删空单曲（kind = single）。单曲删到 0 首时 track.del 本来就连记录一起删，空单曲只会是放弃上传 / 传一半失败留下的。
- * 空专辑（kind = album）任何模式都只报不删：专辑删空是故意保留的（方案十一 第 3 条），原先的 all 模式已去掉（Gray 2026-11-22）。
+ *   - singles：只删空单曲（kind = single）。单曲删到 0 首时 track.del 本来就连记录一起删，空单曲只会是放弃上传 / 传一半失败留下的；
+ *   - all：空单曲 + 空专辑（kind = album），连同各自的 R2 封面（安全规则同下）。专辑删空原本是故意保留的（方案十一 第 3 条），
+ *     Gray 2026-11-22 09:23 定：空专辑也删，所以加回 all（a4b93d9 曾去掉）；仍要显式开，缺省 report 不删。
  * 只报不删：曲目行的音频不在 R2（r2_key 空，或 R2 music/ 前缀里列不到这个 key；只看建了 24 小时以上的曲目）——报数量和曲目 id，永远不删。
  *
  * 删的时候（保守）：
  *   - 每条记录一个 db.batch：DELETE 语句自己再带一遍条件 1–3 和 kind（读完到写之间有人传了歌 / 换了封面 / 在听，就删 0 行、跳过）；
  *     同一 batch 里删它的过期令牌（只在记录已删时）。
  *   - D1 提交、确实删了 1 行之后才删 R2 封面；封面 key 要在 music/ 下，且没有别的专辑 / 歌手头像引用它。R2 删失败只打日志（留残余，不回滚）。
- *   - 每轮最多删 MAX_DELETE（20）条，多的下一轮再删（日志里报 deferred）。
+ *   - 每轮最多删 MAX_DELETE（20）条（单曲和专辑合计，按 id 先后），多的下一轮再删（日志里报 deferred）。
  *   - D1 读不到（表不在、库出错）→ 整轮不删；R2 列不到 → 只是「缺音频」那一项报不出来，不影响空记录（空记录不看 R2）。
  * 日志只写 id 和数量，不写歌名 / 歌手名。
  */
@@ -30,19 +31,21 @@ export const MIN_AGE_MS = 24 * 3600 * 1000;
 /** 每轮最多删几条 */
 export const MAX_DELETE = 20;
 /** 开关的取值 */
-export const MODES = Object.freeze(['report', 'singles']);
+export const MODES = Object.freeze(['report', 'singles', 'all']);
 /** R2 里音乐对象的前缀 */
 export const MUSIC_PREFIX = 'music/';
 
-/** 开关：env.MUSIC_JANITOR → report / singles；没写、写错（含已去掉的 all）都当 report @param {Record<string, any>} [env] */
+/** 开关：env.MUSIC_JANITOR → report / singles / all；没写、写错都当 report @param {Record<string, any>} [env] */
 export function janitorMode(env) {
   const v = String((env && env.MUSIC_JANITOR) || '').trim().toLowerCase();
   return MODES.includes(v) ? v : 'report';
 }
 
-/** 这种模式删不删这种记录：只有 singles 删空单曲，空专辑永远不删 @param {string} mode @param {string} kind */
+/** 这种模式删不删这种记录：singles 只删空单曲，all 空单曲 + 空专辑，report 都不删 @param {string} mode @param {string} kind */
 export function deletable(mode, kind) {
-  return mode === 'singles' && kind === 'single';
+  if (mode === 'all') return kind === 'single' || kind === 'album';
+  if (mode === 'singles') return kind === 'single';
+  return false;
 }
 
 /* 条件 1–3（?1 = 截止时间 cut，?2 = now），查和删用同一段，删的时候再核一遍 */

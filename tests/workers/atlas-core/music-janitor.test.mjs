@@ -1,6 +1,6 @@
 // 音乐空记录清理（workers/atlas-core/src/music/janitor.js）：
 // - 空 = 0 首、created_at > 0、created_at / updated_at 都早于 24 小时、没有未过期令牌
-// - 开关 MUSIC_JANITOR：缺省 / 写错（含已去掉的 all）= report（只报不删）；singles 只删空单曲；空专辑永远只报不删
+// - 开关 MUSIC_JANITOR：缺省 / 写错 = report（只报不删）；singles 只删空单曲；all 空单曲 + 空专辑连封面一起删
 // - 删的时候 DELETE 再核一遍条件；D1 提交后才删 R2 封面，有人引用的封面不删；每轮最多 20 条
 // - 缺音频的曲目只报不删；D1 读不到整轮不删；R2 列不到只少报缺音频
 // - 只在清扫时段（UTC 19 点）随每小时任务跑
@@ -92,20 +92,22 @@ async function seed(db) {
 const albumIds = (db) => db.raw.prepare('SELECT id FROM music_albums ORDER BY id').all().map((r) => r.id);
 const R2_KEYS = ['music/1/cover-1.jpg', 'music/2/cover-2.jpg', 'music/6/1-1.mp3', 'photos/x.webp'];
 
-test('开关：只认 report / singles；缺省 / 写错 / all = report（大小写、空格不论）', () => {
-  assert.deepEqual([...J.MODES], ['report', 'singles']);
+test('开关：只认 report / singles / all；缺省 / 写错 = report（大小写、空格不论）', () => {
+  assert.deepEqual([...J.MODES], ['report', 'singles', 'all']);
   assert.equal(J.janitorMode(undefined), 'report');
   assert.equal(J.janitorMode({}), 'report');
   assert.equal(J.janitorMode({ MUSIC_JANITOR: 'delete' }), 'report');
   assert.equal(J.janitorMode({ MUSIC_JANITOR: ' Singles ' }), 'singles');
-  assert.equal(J.janitorMode({ MUSIC_JANITOR: 'all' }), 'report');
-  assert.equal(J.janitorMode({ MUSIC_JANITOR: 'ALL' }), 'report');
+  assert.equal(J.janitorMode({ MUSIC_JANITOR: 'all' }), 'all');
+  assert.equal(J.janitorMode({ MUSIC_JANITOR: ' ALL ' }), 'all');
+  assert.equal(J.janitorMode({ MUSIC_JANITOR: 'albums' }), 'report');
   assert.equal(J.deletable('report', 'single'), false);
   assert.equal(J.deletable('report', 'album'), false);
   assert.equal(J.deletable('singles', 'album'), false);
   assert.equal(J.deletable('singles', 'single'), true);
-  assert.equal(J.deletable('all', 'album'), false);
-  assert.equal(J.deletable('all', 'single'), false);
+  assert.equal(J.deletable('all', 'album'), true);
+  assert.equal(J.deletable('all', 'single'), true);
+  assert.equal(J.deletable('all', 'other'), false);
   assert.equal(J.MIN_AGE_MS, 24 * 3600e3);
 });
 
@@ -142,25 +144,54 @@ test('singles：只删空单曲 + 它的过期令牌 + 封面；空专辑、正�
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM music_tracks').get().n, 4, '曲目（含缺音频的）一首不删');
 });
 
-test('空专辑永远只报不删：写 all（已去掉）当 report 什么都不删；singles 跑两轮空专辑也还在', async () => {
+test('all：空单曲 + 空专辑都删，连各自封面和过期令牌；正在传、刚改过、年龄不明、有歌、在听的都留着；再跑幂等', async () => {
   const db = makeD1();
   const ids = await seed(db);
   const r2 = makeR2(R2_KEYS);
-  const before = albumIds(db);
-  const ra = await J.runMusicJanitor({ D1_MUSIC: db, R2_MUSIC: r2, MUSIC_JANITOR: 'all' }, NOW);
-  assert.equal(ra.mode, 'report');
-  assert.deepEqual(ra.deleted, []);
-  assert.deepEqual(albumIds(db), before);
-  assert.equal(r2.deletes.length, 0);
-  /* opts.mode 写 all 也不认 */
-  const ro = await J.runMusicJanitor({ D1_MUSIC: db, R2_MUSIC: r2, MUSIC_JANITOR: 'singles' }, NOW, { mode: 'all' });
-  assert.equal(ro.mode, 'singles');
-  assert.deepEqual(ro.deleted, [ids.emptySingle]);
-  /* 再跑一轮：空单曲没了，空专辑还报着、还在（幂等） */
+  const r = await J.runMusicJanitor({ D1_MUSIC: db, R2_MUSIC: r2, MUSIC_JANITOR: 'all' }, NOW);
+  assert.equal(r.mode, 'all');
+  assert.deepEqual(r.deleted, [ids.emptySingle, ids.emptyAlbum]);
+  assert.deepEqual([r.emptySingles, r.emptyAlbums], [[ids.emptySingle], [ids.emptyAlbum]]);
+  const left = albumIds(db);
+  assert.ok(!left.includes(ids.emptySingle) && !left.includes(ids.emptyAlbum));
+  for (const k of ['freshSingle', 'touchedSingle', 'unknownAge', 'fullSingle', 'fullAlbum', 'playing']) assert.ok(left.includes(ids[k]), k);
+  assert.deepEqual(r2.deletes, ['music/1/cover-1.jpg', 'music/2/cover-2.jpg']);
+  assert.ok(!r2.m.has('music/2/cover-2.jpg'), '空专辑封面删掉');
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM music_tokens').get().n, 1, '只剩在听的那张令牌');
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM music_tracks').get().n, 4, '曲目一首不删');
+  const again = await J.runMusicJanitor({ D1_MUSIC: db, R2_MUSIC: r2, MUSIC_JANITOR: 'all' }, NOW);
+  assert.deepEqual([again.deleted, again.emptySingles, again.emptyAlbums], [[], [], []]);
+  assert.equal(r2.deletes.length, 2);
+});
+
+test('singles 不碰空专辑：跑两轮空专辑和它的封面都还在；opts.mode 可覆盖成 all', async () => {
+  const db = makeD1();
+  const ids = await seed(db);
+  const r2 = makeR2(R2_KEYS);
+  await J.runMusicJanitor({ D1_MUSIC: db, R2_MUSIC: r2, MUSIC_JANITOR: 'singles' }, NOW);
   const r2nd = await J.runMusicJanitor({ D1_MUSIC: db, R2_MUSIC: r2, MUSIC_JANITOR: 'singles' }, NOW);
   assert.deepEqual([r2nd.deleted, r2nd.emptySingles, r2nd.emptyAlbums], [[], [], [ids.emptyAlbum]]);
   assert.ok(albumIds(db).includes(ids.emptyAlbum));
+  assert.ok(r2.m.has('music/2/cover-2.jpg'));
   assert.deepEqual(r2.deletes, ['music/1/cover-1.jpg'], '空专辑的封面不删');
+  const ro = await J.runMusicJanitor({ D1_MUSIC: db, R2_MUSIC: r2, MUSIC_JANITOR: 'singles' }, NOW, { mode: 'all' });
+  assert.equal(ro.mode, 'all');
+  assert.deepEqual(ro.deleted, [ids.emptyAlbum]);
+  assert.deepEqual(r2.deletes, ['music/1/cover-1.jpg', 'music/2/cover-2.jpg']);
+});
+
+test('report：写错的值也当 report，什么都不删（含空专辑和封面）', async () => {
+  const db = makeD1();
+  await seed(db);
+  const r2 = makeR2(R2_KEYS);
+  const before = albumIds(db);
+  for (const v of [undefined, 'report', 'delete', 'albums']) {
+    const r = await J.runMusicJanitor({ D1_MUSIC: db, R2_MUSIC: r2, MUSIC_JANITOR: v }, NOW);
+    assert.equal(r.mode, 'report', String(v));
+    assert.deepEqual(r.deleted, []);
+  }
+  assert.deepEqual(albumIds(db), before);
+  assert.equal(r2.deletes.length, 0);
 });
 
 test('24 小时边界：正好 24 小时算，差 1 毫秒不算', async () => {
@@ -254,6 +285,62 @@ test('每轮最多删 20 条，多的 deferred 下一轮', async () => {
   assert.equal(albumIds(db).length, 5);
   const again = await J.runMusicJanitor({ D1_MUSIC: db, MUSIC_JANITOR: 'singles' }, NOW);
   assert.deepEqual([again.deleted.length, again.deferred.length, albumIds(db).length], [5, 0, 0]);
+});
+
+test('all：空专辑封面被别的专辑 / 歌手头像共用就不删，记录照删；不在 music/ 下的封面不删', async () => {
+  const db = makeD1();
+  await M.ensureMusicSchema(db);
+  const ins = (t, kind, cover) => Number(db.raw.prepare('INSERT INTO music_albums (title, kind, created_at, updated_at, cover) VALUES (?, ?, ?, ?, ?)').run(t, kind, OLD, OLD, cover).lastInsertRowid);
+  const a1 = ins('空专辑甲', 'album', 'music/9/cover-9.jpg');
+  const a2 = ins('有歌专辑', 'album', 'music/9/cover-9.jpg');
+  db.raw.prepare("INSERT INTO music_tracks (album_id, no, title, r2_key, created_at) VALUES (?, 1, 't', 'music/2/1.mp3', ?)").run(a2, OLD);
+  const a3 = ins('空专辑乙', 'album', 'music/artist/1/avatar-1.jpg');
+  db.raw.prepare("INSERT INTO music_artists (name, avatar) VALUES ('x', 'music/artist/1/avatar-1.jpg')").run();
+  const a4 = ins('空专辑丙', 'album', 'photos/not-music.jpg');
+  /* 两张空专辑共用一个封面：先删的那张时另一张还引用 → 留；后删的那张时已没人引用 → 删 */
+  const a5 = ins('空专辑丁', 'album', 'music/8/cover-8.jpg');
+  const a6 = ins('空单曲戊', 'single', 'music/8/cover-8.jpg');
+  const r2 = makeR2(['music/9/cover-9.jpg', 'music/2/1.mp3', 'music/artist/1/avatar-1.jpg', 'photos/not-music.jpg', 'music/8/cover-8.jpg']);
+  const r = await J.runMusicJanitor({ D1_MUSIC: db, R2_MUSIC: r2, MUSIC_JANITOR: 'all' }, NOW);
+  assert.deepEqual(r.deleted, [a1, a3, a4, a5, a6]);
+  assert.deepEqual(albumIds(db), [a2]);
+  assert.deepEqual(r2.deletes, ['music/8/cover-8.jpg'], '只有最后一个引用也删了的那张封面才删');
+  for (const k of ['music/9/cover-9.jpg', 'music/artist/1/avatar-1.jpg', 'photos/not-music.jpg']) assert.ok(r2.m.has(k), k);
+});
+
+test('all：删空专辑的 D1 出错 / 删 0 行 → 专辑留着、封面不动，其余照删', async () => {
+  let n = 0;
+  const db = makeD1((sql) => { if (/^DELETE FROM music_albums/.test(sql) && ++n === 2) throw new Error('d1 busy'); });
+  const ids = await seed(db);
+  const r2 = makeR2(R2_KEYS);
+  const r = await J.runMusicJanitor({ D1_MUSIC: db, R2_MUSIC: r2, MUSIC_JANITOR: 'all' }, NOW);
+  assert.deepEqual([r.deleted, r.failed], [[ids.emptySingle], [ids.emptyAlbum]]);
+  assert.ok(albumIds(db).includes(ids.emptyAlbum));
+  assert.ok(r2.m.has('music/2/cover-2.jpg'), 'D1 失败 R2 不删');
+  assert.deepEqual(r2.deletes, ['music/1/cover-1.jpg']);
+  /* 扫完到删之间空专辑换了封面（updated_at 刷新）：DELETE 再核条件删 0 行 → skipped，封面不删 */
+  const db2 = makeD1();
+  const ids2 = await seed(db2);
+  const r2b = makeR2(R2_KEYS);
+  db2.prepare = ((orig) => (sql) => {
+    if (/^DELETE FROM music_albums/.test(sql)) db2.raw.prepare('UPDATE music_albums SET updated_at = ? WHERE id = ?').run(NOW, ids2.emptyAlbum);
+    return orig(sql);
+  })(db2.prepare);
+  const rs = await J.runMusicJanitor({ D1_MUSIC: db2, R2_MUSIC: r2b, MUSIC_JANITOR: 'all' }, NOW);
+  assert.deepEqual([rs.deleted, rs.skipped], [[ids2.emptySingle], [ids2.emptyAlbum]]);
+  assert.ok(r2b.m.has('music/2/cover-2.jpg'));
+});
+
+test('all：每轮合计最多 20 条（单曲 + 专辑），多的 deferred', async () => {
+  const db = makeD1();
+  await M.ensureMusicSchema(db);
+  for (let i = 0; i < 26; i++) db.raw.prepare('INSERT INTO music_albums (title, kind, created_at, updated_at) VALUES (?, ?, ?, ?)').run('e', i % 2 ? 'album' : 'single', OLD, OLD);
+  const r = await J.runMusicJanitor({ D1_MUSIC: db, MUSIC_JANITOR: 'all' }, NOW);
+  assert.equal(r.deleted.length, J.MAX_DELETE);
+  assert.equal(r.deferred.length, 6);
+  assert.deepEqual(albumIds(db), r.deferred);
+  const again = await J.runMusicJanitor({ D1_MUSIC: db, MUSIC_JANITOR: 'all' }, NOW);
+  assert.deepEqual([again.deleted.length, again.deferred.length, albumIds(db).length], [6, 0, 0]);
 });
 
 test('每小时任务：只有清扫时段（UTC 19 点）跑；开了 singles 才删', async () => {
