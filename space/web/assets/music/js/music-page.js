@@ -5,7 +5,7 @@
  * 三层（v5 S3；接口档在账号 Worker core/route-access.js 与 workers/atlas-core/src/curio/routes.js ROUTE_ACCESS）：
  *   - 看：GET /music/api/music 谁都能调（只有专辑 / 曲目元数据，没有音频地址）；回 canManage（music-manage）才显示上传 / 删除专辑。
  *   - 听：要进站。没进站（网关标记 <html data-sgx-lock-session="locked">，或接口回 401）= 只看模式（html.mu-view-only）：
- *     「播放整张」是锁；点播放、点曲目都发 sgx:sudo（经 curio.js SgxCurioUI.sudo；= common/js/auth/sudo.js SUDO_EVENT），顶栏终端预填 su ，不开播放器。
+ *     「播放整张」是锁；点播放、点曲目都发 sgx:sudo（经 music-ui.js SgxMusicUI.sudo；= common/js/auth/sudo.js SUDO_EVENT），顶栏终端预填 su ，不开播放器。
  *   - 写的接口 401 同样按没进站处理。
  * 播放 = 交给弹出播放器（3.3）：
  *   - 封面横滑切专辑（scroll-snap，停下来的那张是当前专辑；点封面也能切），下面是这张的曲目（按曲序）。
@@ -31,7 +31,7 @@
  *     合并到另一个歌手（artist.merge）、删歌手（artist.del，名下没作品才能删）都是 root 档：先确认，再领一次性票（同删专辑）。
  *   - 单曲没封面：封面空 → 歌手头像 → 默认图（共用核 coverOf）。
  *   - 歌手栏联想（7.5「输入带联想」）：上传 / 编辑 / 批量改的歌手栏挂同一个 <datalist>（已有歌手）；输入和已有歌手只差大小写 / 空格时提示一句，可点一下换成已有的。
- * 确认框、提示条、弹层开关、sudo / sudoTicket 借 curio.js 的（window.SgxCurioUI）——技术债（3.1 第 3 条）：搬家做完再挪进 common。
+ * 确认框、提示条、sudo / sudoTicket 在本站 music-ui.js（window.SgxMusicUI；打磨 6.2 从奇趣 curio.js 拆来，本页不再加载 curio.js）。
  */
 (function(){
 "use strict";
@@ -383,7 +383,8 @@ G.SgxMusicPage = pure;
 
 var doc = G.document;
 if (!doc.getElementById('cu-pane-music')) return;
-var UI = G.SgxCurioUI;
+/* 确认框、提示条、sudo / sudoTicket：本站 music-ui.js（打磨 6.2，原借奇趣 curio.js 的 SgxCurioUI） */
+var UI = G.SgxMusicUI;
 var $ = function(s){ return doc.querySelector(s); };
 /* 界面文案（语言包化第二部分 2026-11-07）：页面里的 #sgx-i18n-musicPage，模板从字符串表 data/music/i18n/<语言>.yaml 的 js.musicPage 输出，
    已经是「英文表 ← 页面语言表」的合并（缺键回退英文）；本文件不再认识任何语言。带数字的文案走 tr（复数按 Intl.PluralRules）。 */
@@ -430,12 +431,12 @@ function toast(m){ if (UI) UI.toast(m); }
 var viewOnly = doc.documentElement.getAttribute('data-sgx-lock-session') === 'locked';
 /** 写的权限（GET /api/music 回的 canManage：music-manage） */
 var canManage = false;
-/** 请人进站：顶栏终端预填 su （curio.js SgxCurioUI.sudo → sgx:sudo，topbar/panel.js 接） */
+/** 请人进站：顶栏终端预填 su （music-ui.js SgxMusicUI.sudo → sgx:sudo，topbar/panel.js 接） */
 function askSudo(){ if (UI && UI.sudo) UI.sudo(); }
 /** 本页接口：401 = 没进站（切到只看模式 + 请人进站，抛 sgxLocked，调用方不再报错）；其它错误带 code 抛出 */
 function req(method, url, body, type, ticket){
   var h = body === undefined ? {} : { 'Content-Type': type || 'application/json' };
-  if (ticket) h['X-Sgx-Sudo'] = ticket; /* D-3 a′：album.del 的一次性票（curio.js SgxCurioUI.sudoTicket） */
+  if (ticket) h['X-Sgx-Sudo'] = ticket; /* D-3 a′：album.del 的一次性票（music-ui.js SgxMusicUI.sudoTicket） */
   return fetch(url, {
     method: method, credentials: 'same-origin', cache: 'no-store',
     headers: h,

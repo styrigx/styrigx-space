@@ -3,10 +3,9 @@
 {{- if and (eq .Lang "zh") (not (hasPrefix .RelPermalink "/music/zh/")) }}{{ errorf "合站：中文页 %s 的地址 %s 不在 /music/zh/ 下，在它的 front matter 写 url: /music/zh/…" .File.Path .RelPermalink }}{{ end -}}
 <!DOCTYPE html>
 {{/* 本站只有首页（content/music/ 分区页 = 歌单 / 专辑 / 歌手页）；播放器页 /music/player/ 套主站 baseof（layouts/common/player.html），不走这里。
-   字符串表两张：$tr = 本站 data/music/i18n；$cu = 奇趣的 data/curio/i18n——页头（站名 / tab / su 那一条）和借来的 curio.js（确认框、提示条、sudo）照旧用奇趣的文案，外观不变（3.1 第 3 条，技术债：搬完后挪进 common） */}}
+   字符串表一张：$tr = 本站 data/music/i18n（打磨 6.1 / 6.2 起页头、标题、确认框都用本站的，不再读奇趣的 data/curio/i18n） */}}
 {{ $isHome := and (eq .Kind "section") (eq .Section "music") }}
 {{ $lang := .Lang }}{{ $tr := partialCached "common/tr.html" (dict "lang" $lang "ns" "music") (printf "music-%s" $lang) }}
-{{ $cu := partialCached "common/tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
 {{- /* 测试构建（SGX_TEST_NO_WEATHER=1，CI 静态服务器没有接口）：<html data-sgx-test-no-api>，页面脚本加载时不自动问新加的读接口（tab 计数 / /api/days），免得 404 进控制台（同主站 SGX_TEST_NO_WB）；e2e 要测时先设 window.__sgxCurioApi / __sgxDaymarkApi = true。生产构建不加，产物不变 */ -}}
 <html lang="{{ $lang }}" class="scroll-smooth" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}"{{ if eq (getenv "SGX_TEST_NO_WEATHER") "1" }} data-sgx-test-no-api{{ end }}>
 <head>
@@ -62,8 +61,8 @@ __applyLayout();
 /* 拖窗口 / 分屏 / 转屏：不刷新，按同一条规则重算 */
 __sgxLayoutWatch(__applyLayout);
 </script>
-{{/* 样式两份：奇趣的 main.css（页头、弹层、表单这些 cu- / bk- / it- 部件，借用，同 curio.js）+ 本站的 main.css（mu- 规则 + 本站模板用到的工具类，assets/music/css/input.css）。
-   本站那份在后面，里面 mu- 规则之后再带一次奇趣样式的后半段（curio-tail.css）：层叠顺序 = 搬家前「奇趣前半段 < mu- < 奇趣后半段」（3.1 第 2 条「外观不变」） */}}
+{{/* 样式两份：奇趣的 main.css（弹层、表单这些 cu- / bk- / it- 部件，借用）+ 本站的 main.css（mu- 规则 + 本站模板用到的工具类，assets/music/css/input.css）。
+   本站那份在后面；奇趣样式的后半段（curio-tail.css）只在奇趣 main.css 里带一次（打磨 6.2），同权重时本站的 mu- 规则赢（比如歌词框等宽） */}}
 <link rel="stylesheet" href="{{ (resources.Get "curio/css/main.css" | minify | fingerprint).RelPermalink }}">
 <link rel="stylesheet" href="{{ (resources.Get "music/css/main.css" | minify | fingerprint).RelPermalink }}">
 </head>
@@ -119,9 +118,8 @@ __sgxLayoutWatch(__applyLayout);
 ) }}
 {{ partial "common/profile-default.html" . }}
 {{/* 页面脚本的界面文案（语言包化第二部分 2026-11-07）：字符串表 js.<表> 已是「英文表 ← 页面语言表」的合并，每张表一个 #sgx-i18n-<表>；
-   本站的 js.musicPage（music-page.js）+ 奇趣的 js.*（借来的 curio.js 读 js.curio；同搬家前奇趣页输出的那几张） */}}
-{{ range $tbl, $dict := $cu.js }}<script id="sgx-i18n-{{ $tbl }}" type="application/json">{{ $dict | jsonify | safeJS }}</script>
-{{ end }}{{ range $tbl, $dict := $tr.js }}<script id="sgx-i18n-{{ $tbl }}" type="application/json">{{ $dict | jsonify | safeJS }}</script>
+   本站的 js.musicPage（music-page.js）；打磨 6.2 起不再加载 curio.js，奇趣的 js.* 那几张不再输出 */}}
+{{ range $tbl, $dict := $tr.js }}<script id="sgx-i18n-{{ $tbl }}" type="application/json">{{ $dict | jsonify | safeJS }}</script>
 {{ end }}{{ block "main" . }}{{ end }}
 {{/* tmux 页脚（2026-11 UI 重设计 PR-1，四站同一个 partials/common/frame/footer.html；当前窗口 = music，页脚窗口里没有这一项） */}}
 {{ partial "common/frame/footer.html" (dict

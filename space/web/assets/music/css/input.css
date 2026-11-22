@@ -2,7 +2,7 @@
    音乐页（layouts/music/）先引奇趣的 curio/css/main.css（页头、弹层、表单这些 cu- / bk- / it- 部件，借用，同借 curio.js；外观不变），再引本份：
    - Tailwind 只要主题 + 工具类（不要 preflight，奇趣那份已经有）：只扫本站模板、本站 js（source(none) + @source）；
    - 下面是从 assets/curio/css/input.css 原样搬来的 mu- 规则（上传 / 编辑 / 批量改 / 歌手卡片、单曲列表、歌手页；约 150 条，一个字不改），
-     最后再 @import 奇趣样式的后半段 curio-tail.css（搬家前它排在 mu- 规则后面；层叠顺序不变 = 外观不变）。
+     奇趣样式的后半段 curio-tail.css 只在奇趣 main.css 里引一次（打磨 6.2 起本份不再 @import 它；奇趣 main.css 先引，所以同权重时本份的 mu- 规则赢）。
    共享的 .mu-* 播放控件 / .mp-* 播放器仍在共享外壳 @frame music（common/css/input.css → frame.css，奇趣 main.css 经 @import 带着）。 */
 @layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
@@ -82,7 +82,7 @@
 :root[data-sgx-layout="desktop"] .mu-up-foot { display: flex; justify-content: flex-end; padding: 12px 24px 14px; }
 :root[data-sgx-layout="desktop"] .mu-up-go { width: auto; min-width: 160px; padding: 0 24px; }
 /* 上传窗分段「专辑 | 单曲」（v1.13 ②）：头部细线下一行，共享 .sgx-chip（选中同 .cu-chips aria-selected） */
-.mu-up-kind { flex: none; margin: 0; padding: 12px 16px 0; }
+.mu-up-kind { flex: none; padding: 12px 16px 0; }
 :root[data-sgx-layout="desktop"] .mu-up-kind { padding: 18px 24px 0; }
 .mu-up-kind.hidden, .mu-seg.hidden { display: none; }
 /* 上传（M2）：批量时右栏的预填列表（歌名 · 歌手，新歌手标「新」）、没对上的文件；单首 / 批量切换时藏起来的栏 */
@@ -139,7 +139,7 @@
    有 .sgx-up 窗开着就先把浮钮藏起来，关了窗就回来。桌面布局窗是居中的，碰不到浮钮，不动。 */
 :root:not([data-sgx-layout="desktop"]):has(dialog.sgx-up[open]) .sgx-tb-ai { opacity: 0; visibility: hidden; pointer-events: none; }
 /* 音乐页分段「专辑 · 单曲」（方案 A，Gray 2026-11-14 17:33）：封面横滑上方；单曲 = 列表（小封面 · 歌名 · 歌手 · 时长），外框同曲目表 .mu-tracks */
-.mu-seg { justify-content: center; margin: 4px 0 14px; }
+.mu-seg { justify-content: center; }
 .mu-single { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 8px 16px 8px 10px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .mu-singles li + li .mu-single { border-top: 1px solid var(--sgx-divider); }
 .mu-single-im { position: relative; flex: none; width: 46px; height: 46px; border-radius: 10px; overflow: hidden; background: var(--sgx-surface-container-high, var(--sgx-surface-container)); color: var(--sgx-text-tertiary); }
@@ -182,7 +182,6 @@
 .mu-more:active { background: var(--sgx-state-pressed-bg); }
 .mu-more:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 .mu-single-row .mu-more + .mu-single-del { margin-left: -4px; }
-.mu-edit-btn { height: 36px; padding: 0 12px; }
 .mu-edit-btn.hidden, .mu-sel-bar.hidden { display: none; }
 .mu-sel-bar { display: flex; align-items: center; justify-content: flex-end; gap: 4px; min-height: 40px; margin: 0 2px 6px; }
 .mu-sel-n { flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--sgx-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -193,6 +192,8 @@
 .mu-check svg { width: 16px; height: 16px; }
 [aria-pressed="true"] > .mu-check { background: var(--sgx-primary-fill); border-color: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); }
 .mu-ed .cu-field select.it-select { min-height: 46px; }
+/* 歌词框等宽（打磨 6.2，Gray 2026-11-22）：LRC 时间戳要对齐。和奇趣 curio-tail.css 的 .cu-field textarea（font: inherit; font-size: 16px; line-height: 1.5; min-height: 3.2em）同权重 (0,1,1)，
+   以前本份末尾又 @import 一次 curio-tail.css，它排在后面把这条压掉了（从没生效过）；现在 curio-tail.css 只在奇趣 main.css 里引一次，奇趣 main.css 先引、本份后引，两边都不分层，同权重后者赢 → 这条生效 */
 .mu-ed-lrc textarea { min-height: 9.5em; font-family: var(--sgx-font-mono); font-size: 14px; line-height: 1.55; }
 .mu-ed-cover { display: flex; align-items: center; gap: 12px; }
 .mu-ed-cover.hidden { display: none; }
@@ -237,6 +238,3 @@
 .mu-hint { align-self: flex-start; margin: -8px 0 0; padding: 2px 0; border: 0; background: transparent; color: var(--sgx-primary); font-size: 12px; text-align: left; cursor: pointer; }
 .mu-hint:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
 
-/* 奇趣样式的后半段：搬家前排在上面这些 mu- 规则后面，同权重时压过它们（比如 .cu-chips 的外边距、.cu-btn-text 的尺寸、.cu-field textarea 的字体）。
-   再引一次，顺序照旧（音乐页先引奇趣 main.css，再引本份）。 */
-@import "../../curio/css/curio-tail.css";
