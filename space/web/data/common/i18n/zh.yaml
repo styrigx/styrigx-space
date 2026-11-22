@@ -42,6 +42,19 @@ player:
   tracks: 曲目
   signIn: 登录
   loading: 加载中…
+  # 打磨 6.4 播放器两页 / 左右两栏（v2 稿）
+  pick: 选歌
+  pickCmd: cd /music
+  pagePlayer: 播放
+  pageLyrics: 歌词
+  pages: 播放页 / 歌词页
+  queue: 播放队列
+  more: 更多
+  close: 关闭
+  mode: 播放模式
+  noLyrics: 暂无歌词
+  lrcHint: 点一句跳到那里
+  moreFoot: 换歌、换专辑都在 /music/ 里选；播放器只管播放
 js:
   # 共用播放器（/music/player/，music 搬家第 3 步前 /curio/music/player/；music-player.js 读 #sgx-i18n-curioPlayer；2026-11 第 7 步从 data/curio/i18n 搬来，表名不改）
   curioPlayer:
@@ -62,6 +75,13 @@ js:
     showLyrics: 展开全部歌词
     hideLyrics: 收起歌词
     singles: 单曲
+    modeSeq: 顺序播放
+    modeShuffle: 随机播放
+    moreAlbum: 专辑：
+    moreArtist: 歌手：
+    moreLibrary: 回到曲库
+    queueOf: 《{t}》
+    lrcFile: '{t}.lrc'
   core:
     pkCancelled: 已取消
     pkTimeout: 超时，请重试

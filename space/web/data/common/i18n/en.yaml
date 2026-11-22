@@ -45,6 +45,19 @@ player:
   tracks: Tracks
   signIn: Sign in
   loading: Loading…
+  # 6.4 player: two pages on phone / two columns on desktop (v2 mockups)
+  pick: Library
+  pickCmd: cd /music
+  pagePlayer: Player
+  pageLyrics: Lyrics
+  pages: Player / lyrics
+  queue: Queue
+  more: More
+  close: Close
+  mode: Play mode
+  noLyrics: No lyrics
+  lrcHint: tap a line to jump there
+  moreFoot: Pick songs and albums in /music/ — the player only plays
 js:
   # 共用播放器（/music/player/，music 搬家第 3 步前 /curio/music/player/；music-player.js 读 #sgx-i18n-curioPlayer；2026-11 第 7 步从 data/curio/i18n 搬来，表名不改）
   curioPlayer:
@@ -66,6 +79,13 @@ js:
     showLyrics: Show all lyrics
     hideLyrics: Show one line
     singles: Singles
+    modeSeq: In order
+    modeShuffle: Shuffle
+    moreAlbum: 'Album: '
+    moreArtist: 'Artist: '
+    moreLibrary: Back to library
+    queueOf: '“{t}”'
+    lrcFile: '{t}.lrc'
   core:
     pkCancelled: Cancelled
     pkTimeout: Timed out, please retry

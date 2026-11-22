@@ -76,17 +76,25 @@ function coverOf(a, arts, v){
   for (var k = 0; arts && k < arts.length; k++) if (arts[k].id === a.artist_id) return arts[k].avatar ? '/music/api/music-cover?artist=' + a.artist_id + q : '';
   return '';
 }
-/** 主窗口打开歌手页的三步消息名（同一个频道 sgx-music） */
+/** 主窗口打开歌手页的三步消息名（同一个频道 sgx-music）；打磨 6.4 起播放器 ⋯ 的专辑 / 曲库也走这三步（artist-go 带 kind：artist / album / library） */
 var ARTIST_MSG = Object.freeze({ ask: 'artist-ask', here: 'artist-here', go: 'artist-go' });
 /** 播放器等主窗口回答的时间（毫秒） */
 var ARTIST_WAIT_MS = 350;
 /**
  * 几个主窗口都答了 artist-here：挑最近用过的那个（at 最大；一样大取先答的）；没人答 null。
- * @param {Array<{from: string, at: number}>} replies
+ * 打磨 6.4：开着音乐页（/music/、/music/zh/，答的时候带 music: true）的优先——播放器 ⋯ 里的专辑 / 歌手 / 曲库要回到「主音乐窗口」，
+ * 音乐页之间照旧按 at 挑；一个音乐页都没有才轮到别的页（博客、奇趣…，同 M4 原来的规矩）。
+ * @param {Array<{from: string, at: number, music?: boolean}>} replies
  */
 function pickMain(replies){
   var best = null;
-  (replies || []).forEach(function(r){ if (r && r.from && (!best || (Number(r.at) || 0) > (Number(best.at) || 0))) best = r; });
+  (replies || []).forEach(function(r){
+    if (!r || !r.from) return;
+    if (!best) { best = r; return; }
+    var a = !!r.music, b = !!best.music;
+    if (a !== b) { if (a) best = r; return; }
+    if ((Number(r.at) || 0) > (Number(best.at) || 0)) best = r;
+  });
   return best;
 }
 /** 歌手页地址：音乐页路径（英文 /music/、中文 /music/zh/）+ ?artist=<id> @param {string} musicPath @param {number} id */
