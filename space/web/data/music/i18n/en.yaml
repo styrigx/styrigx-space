@@ -6,6 +6,12 @@ site:
   name: Music
   description: 'Sloan Gray''s Music: albums collected one by one, played in a pop-out player'
 music:
+  # 6.4 mini dock (pinned to the bottom while a player is playing; tap the title to go back to the player)
+  dock: Now playing
+  dockOpen: Back to the player
+  dockPlay: Play
+  dockPause: Pause
+  dockQueue: Queue
   music: Music
   albums: Albums
   playAlbum: Play album

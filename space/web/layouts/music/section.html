@@ -75,6 +75,19 @@
   </section>
 </main>
 
+{{/* ===== 迷你播放条（打磨 6.4，v2 稿）：有播放器在放 / 暂停着时贴在底部——封面、歌名 – 歌手、播放 / 暂停、队列；跟着 BroadcastChannel 的 player-state 画
+   （顶栏 mountMusic 转成 sgx-music-state 事件）。点歌名 = 回到播放器（顶栏 reach()，同顶栏音乐图标）；队列 = 回到播放器并打开它的队列。
+   本页不出声，播放 / 暂停只是遥控。data-sgx-foot-lift：滑到底时同 AI 浮钮一样让过页脚。 ===== */}}
+<div id="mu-dock" class="mu-dock hidden" data-sgx-foot-lift role="region" aria-label="{{ $tr.music.dock }}">
+  <button id="mu-dock-open" type="button" class="mu-dock-open" aria-label="{{ $tr.music.dockOpen }}" title="{{ $tr.music.dockOpen }}">
+    <span class="mu-dock-im" aria-hidden="true"><img id="mu-dock-img" alt="" class="hidden" decoding="async"><span class="mu-cover-ph"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg></span></span>
+    <span class="mu-dock-tx"><b id="mu-dock-title"></b><i id="mu-dock-artist"></i></span>
+  </button>
+  <button id="mu-dock-toggle" type="button" class="mu-dock-btn" aria-label="{{ $tr.music.dockPlay }}" data-l-play="{{ $tr.music.dockPlay }}" data-l-pause="{{ $tr.music.dockPause }}"><svg class="mu-ic-play" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg><svg class="mu-ic-pause" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg></button>
+  <button id="mu-dock-queue" type="button" class="mu-dock-btn" aria-label="{{ $tr.music.dockQueue }}" title="{{ $tr.music.dockQueue }}"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 11h16M4 16h9"/><path d="M16 14.5v6l4.5-3z" fill="currentColor"/></svg></button>
+  <span class="mu-dock-bar" aria-hidden="true"><i id="mu-dock-bar"></i></span>
+</div>
+
 {{/* 歌手栏联想（M4，7.5「输入带联想」）：上传 / 编辑 / 批量改的歌手栏共用，music-page.js 按歌手表填 */}}
 <datalist id="mu-artist-list"></datalist>
 

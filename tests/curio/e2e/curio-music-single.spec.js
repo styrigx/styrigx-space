@@ -205,29 +205,31 @@ test('音乐页：只有单曲 → 不显示分段，直接是单曲列表；点
   await expect(pl.locator('#mp-album')).toHaveText('');
 });
 
-test('弹出播放器：专辑列表末尾多一项「单曲」；选它曲目表 = 全部单曲；单曲在播时副标题只显示歌手（#mp-album 空）；?album=<单曲> 落在单曲组', async ({ page }) => {
+test('弹出播放器（打磨 6.4）：没有专辑列表 / 曲目表；?album=<单曲> 停在单曲组里它那一首，队列 = 全部单曲、正在放的高亮；单曲在播时副标题只显示歌手（#mp-album 空）；下一首接下一条单曲', async ({ page }) => {
   const calls = await mockMusic(page, [ALBUM, ...SINGLES]);
-  await page.goto('/music/zh/player/');
+  await page.goto('/music/zh/player/?album=31');
   await expect(page.locator('#mp-app')).toBeVisible();
-  await page.locator('#mp-albums-btn').click();
-  await expect(page.locator('#mp-albums .mp-alb b')).toHaveText(['Blue', '单曲']);
-  await page.locator('#mp-albums [data-a="1"]').click();
-  await expect(page.locator('#mp-tracks .mu-track-title')).toHaveText([/^River/, /^晴天/, /^Both Sides Now/]);
-  await page.locator('#mp-tracks [data-t="0"]').click();
+  await expect(page.locator('#mp-albums, #mp-albums-btn, #mp-tracks')).toHaveCount(0);
+  await expect(page.locator('#mp-title')).toHaveText('River');
+  await page.locator('#mp-toggle').click();
   await expect.poll(() => plays(calls)).toEqual([31]);
   await expect(page.locator('#mp-title')).toHaveText('River');
   await expect(page.locator('#mp-artist')).toHaveText('Joni Mitchell');
   await expect(page.locator('#mp-album')).toHaveText('');
+  await page.locator('#mp-queue-btn').click();
+  await expect(page.locator('#mp-q-list .mp-qtx b')).toHaveText(['River', '晴天', 'Both Sides Now']);
+  await expect(page.locator('#mp-q-list .mp-q.on b')).toHaveText('River');
+  await page.locator('#mp-q-x').click();
+  await expect(page.locator('#mp-queue')).toHaveAttribute('data-state', 'closed');
   await page.locator('#mp-next').click();
   await expect.poll(() => plays(calls)).toEqual([31, 32]);
   await expect(page.locator('#mp-artist')).toHaveText('周杰伦');
   await expect(page.locator('#mp-album')).toHaveText('');
-  /* 换回专辑：副标题照旧带专辑名 */
-  await page.locator('#mp-albums [data-a="0"]').click();
-  await page.locator('#mp-tracks [data-t="0"]').click();
+  /* 专辑：副标题照旧带专辑名 */
+  await page.goto('/music/zh/player/?album=1&t=0');
   await expect(page.locator('#mp-album')).toHaveText('Blue');
   await page.goto('/music/zh/player/?album=32');
-  await expect(page.locator('#mp-tracks .mu-track')).toHaveCount(3);
+  await expect(page.locator('#mp-title')).toHaveText('晴天');
 });
 
 test('删除单曲：每行删除键（仅能写）；先弹悬浮确认卡片（不从底部升起），取消不删；确认 → track.del（删曲目那一档，M3 Gray 审 2；后端连单曲记录和封面一起删）、列表刷新、提示「已删除」；删除键不交给播放器；删光后分段隐藏回到专辑', async ({ page }) => {
@@ -299,8 +301,8 @@ test('播放器总时长：音频元数据到之前显示曲目已知时长（4:
   await page.context().unroute('**/api/music-stream**');
   await page.context().route('**/api/music-stream**', async (r) => { await gate; await r.fulfill({ status: 200, headers: { 'Content-Type': 'audio/wav', 'Accept-Ranges': 'bytes', 'Content-Length': String(WAV.length) }, body: WAV }); });
   await page.goto('/music/zh/player/?album=32');
-  await page.locator('#mp-tracks [data-t="1"]').click();
   await expect(page.locator('#mp-title')).toHaveText('晴天');
+  await page.locator('#mp-toggle').click();
   await expect(page.locator('#mp-dur')).toHaveText('4:29');
   release();
   await expect(page.locator('#mp-dur')).toHaveText('0:01');

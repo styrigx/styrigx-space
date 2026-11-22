@@ -39,6 +39,8 @@ function langPref() {
 }
 
 export function initQuickPanel() {
+  /* 打磨 6.4：播放器页（/music/player/，套主站 baseof，经典脚本 music-player.js）的队列 / ⋯ 悬浮卡片要同一个状态机（同子站 topbar-host.js 挂的那个） */
+  /** @type {any} */ (window).SgxModalSheet = modalSheet;
   mountTopbar({
     modalSheet,
     prefs: {

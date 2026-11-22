@@ -992,10 +992,44 @@ export const MUSIC_FEATURES = 'popup,width=420,height=720';
 export const MUSIC_PATH = /\/music\/(?:zh\/)?player\/?$/;
 /** 主窗口肯跳去的歌手页地址（M4）：只认音乐页（中英，music 搬家第 3 步起 /music/、/music/zh/）+ ?artist=<数字>，别的一律不跳 */
 export const ARTIST_URL = /^\/music\/(?:zh\/)?\?artist=\d{1,10}$/;
+/** 播放器 ⋯ 的专辑 / 曲库（打磨 6.4）：音乐页 ?album=<数字>，或音乐页本身；别的一律不跳 */
+export const ALBUM_URL = /^\/music\/(?:zh\/)?\?album=\d{1,10}$/;
+export const LIBRARY_URL = /^\/music\/(?:zh\/)?$/;
+/** 本页是不是音乐页（/music/、/music/zh/，不管带不带查询）：答 artist-here 时带 music: true，播放器优先挑它（打磨 6.4） */
+export const MUSIC_PAGE = /^\/music\/(?:zh\/)?$/;
+/**
+ * artist-go 要本页去哪（M4 歌手；打磨 6.4 加 kind：album / library）：回 {kind, id, url}，不认的 null。
+ * 不带 kind 的是 6.4 之前的播放器（只会发歌手），照旧当歌手。
+ * @param {any} m
+ * @returns {{kind: 'artist'|'album'|'library', id: number, url: string}|null}
+ */
+export function linkOf(m) {
+  if (!m || typeof m !== 'object') return null;
+  const kind = m.kind == null ? 'artist' : m.kind;
+  const u = typeof m.url === 'string' ? m.url : '';
+  if (kind === 'library') return { kind: 'library', id: 0, url: LIBRARY_URL.test(u) ? u : '' };
+  if (kind !== 'artist' && kind !== 'album') return null;
+  if (!Number.isInteger(m.id) || m.id <= 0) return null;
+  const re = kind === 'artist' ? ARTIST_URL : ALBUM_URL;
+  return { kind: kind, id: m.id, url: re.test(u) ? u : '' };
+}
 /** 音乐页「播放」交过来时肯开的播放器地址（music 搬家第 3 步 3.3）：/music/player/（中文 /music/zh/player/）?album=<数字>&t=<数字>，别的一律不开 */
 export const PLAYER_URL = /^\/music\/(?:zh\/)?player\/\?album=\d{1,10}&t=\d{1,4}$/;
 /** 交接握手等播放器回答的上限（打磨 6.3）：只等第一个回答，到点没人答当没开 */
 export const HANDOFF_WAIT_MS = 300;
+/**
+ * 播放器广播的 player-state → 本页记的状态（打磨 6.4：多记音乐页迷你播放条 / 曲目高亮要的几样，类型不对的丢掉）。
+ * @param {any} m
+ */
+export function stateOf(m) {
+  const num = function (/** @type {any} */ v, /** @type {number} */ d) { const n = Number(v); return isFinite(n) ? n : d; };
+  const cover = typeof m.cover === 'string' && /^\/music\/api\/music-cover\?(?:album|artist)=\d+(?:&v=\d+)?$/.test(m.cover) ? m.cover : '';
+  return {
+    on: !!m.on, playing: !!m.playing, title: String(m.title || ''), artist: String(m.artist || ''),
+    album: Number.isInteger(m.album) ? m.album : 0, i: Number.isInteger(m.i) ? m.i : -1, queue: !!m.queue, cover: cover,
+    t: Math.max(0, num(m.t, 0)), d: Math.max(0, num(m.d, 0)), rate: num(m.rate, 1) || 1, at: num(m.at, 0),
+  };
+}
 /** 音乐页交过来的 cmd 只认 play：{cmd:'play', i, album} 或 {cmd:'play', i, queue:[记录 id…]}；别的一律不发 @param {any} c */
 export function playCmdOk(c) {
   if (!c || typeof c !== 'object' || c.cmd !== 'play' || !Number.isInteger(c.i) || c.i < 0) return false;
@@ -1053,7 +1087,7 @@ export function mountMusic(d, o) {
     try { w.focus(); } catch (e) {}
     return at === 'player' ? 'focused' : 'opened';
   };
-  /** 播放器最近一次答的状态；null = 没答 / 已关 @type {{ on: boolean, playing: boolean, title: string, artist: string }|null} */
+  /** 播放器最近一次答的状态；null = 没答 / 已关（打磨 6.4 多记 album / i / queue / cover / 进度，见 stateOf） @type {any} */
   let state = null;
   /** 正在等回答的握手：req → 收尾函数 @type {Record<string, (a: {id: string, mine: boolean}|null) => void>} */
   const waits = {};
@@ -1085,6 +1119,8 @@ export function mountMusic(d, o) {
     dlg.setAttribute('data-mu-on', remoteOn() ? '1' : '');
     /* 播放器关了 / 放完停了：开着的遥控层没东西可控，让 mountTopbar 收起 */
     if (!remoteOn()) { try { doc.dispatchEvent(new CustomEvent('sgx-music-off')); } catch (e) {} }
+    /* 打磨 6.4：音乐页的迷你播放条 / 曲目高亮跟着这个事件画（detail = 状态的一份拷贝，没开 / 关了 null） */
+    try { doc.dispatchEvent(new CustomEvent('sgx-music-state', { detail: state ? Object.assign({}, state) : null })); } catch (e) {}
   };
   /** @param {any} m */
   const post = function (m) { if (ch) { try { ch.postMessage(m); } catch (e) {} } };
@@ -1100,14 +1136,22 @@ export function mountMusic(d, o) {
     doc.addEventListener('visibilitychange', function () { if (doc.visibilityState === 'visible') touch(); });
   }
   /** @param {any} m */
+  /* 打磨 6.4：本页是音乐页就在 artist-here 里带 music: true（播放器 ⋯ 优先回到开着的音乐页） */
+  const onMusicPage = MUSIC_PAGE.test(opt.path != null ? opt.path : ((doc.defaultView && doc.defaultView.location && doc.defaultView.location.pathname) || ''));
   const onArtist = function (m) {
     if (onPlayer) return;
-    if (m.type === 'artist-ask' && typeof m.req === 'string') post({ type: 'artist-here', req: m.req, from: pageId, at: lastActive });
-    else if (m.type === 'artist-go' && m.to === pageId && Number.isInteger(m.id) && m.id > 0) {
-      const url = typeof m.url === 'string' && ARTIST_URL.test(m.url) ? m.url : '';
+    if (m.type === 'artist-ask' && typeof m.req === 'string') post({ type: 'artist-here', req: m.req, from: pageId, at: lastActive, music: onMusicPage });
+    else if (m.type === 'artist-go' && m.to === pageId) {
+      const k = linkOf(m);
+      if (!k) return;
+      /* 歌手照旧发 sgx-music-artist（音乐页页内换视图）；专辑 / 曲库发 sgx-music-link（打磨 6.4）；没人接就整页跳 */
       let handled = false;
-      try { handled = !doc.dispatchEvent(new CustomEvent('sgx-music-artist', { detail: { id: m.id, url: url }, cancelable: true })); } catch (e) {}
-      if (!handled && url) navigate(url);
+      try {
+        const ev = k.kind === 'artist' ? new CustomEvent('sgx-music-artist', { detail: { id: k.id, url: k.url }, cancelable: true })
+          : new CustomEvent('sgx-music-link', { detail: { kind: k.kind, id: k.id, url: k.url }, cancelable: true });
+        handled = !doc.dispatchEvent(ev);
+      } catch (e) {}
+      if (!handled && k.url) navigate(k.url);
       try { if (doc.defaultView) doc.defaultView.focus(); } catch (e) {}
     }
   };
@@ -1117,7 +1161,7 @@ export function mountMusic(d, o) {
     const m = ev && ev.data;
     if (!m) return;
     if (m.type === 'player-state') {
-      state = { on: !!m.on, playing: !!m.playing, title: String(m.title || ''), artist: String(m.artist || '') };
+      state = stateOf(m);
       if (typeof m.id === 'string' && m.id) {
         /* mine：答本页的握手看 mine；别的（播放器自己广播、答别的页的握手）看 by（它的 opener 的页 id） */
         const ours = typeof m.req === 'string' && mineReqs.has(m.req);
@@ -1195,6 +1239,19 @@ export function mountMusic(d, o) {
     /** @type {any} */ let cm = null;
     if (playCmdOk(c)) { cm = { cmd: 'play', i: c.i }; if (Array.isArray(c.queue)) cm.queue = c.queue.slice(); else cm.album = c.album; }
     reach(abs, cm);
+  });
+  /* 打磨 6.4 音乐页迷你播放条：sgx-music-dock {act}——open = 切到播放器（同顶栏图标，走 reach）；queue = 切过去并让它开队列；
+     toggle / prev / next = 遥控（同遥控层，不带 to） */
+  if (typeof doc.addEventListener === 'function') doc.addEventListener('sgx-music-dock', function (/** @type {any} */ e) {
+    const act = e && e.detail && e.detail.act;
+    if (onPlayer) return;
+    if (act === 'open') { e.preventDefault(); reach(btn.href, null); }
+    else if (act === 'queue') { e.preventDefault(); reach(btn.href, { cmd: 'show', what: 'queue' }); }
+    else if (act === 'toggle' || act === 'prev' || act === 'next') {
+      e.preventDefault();
+      post({ type: 'remote-cmd', cmd: act });
+      if (act === 'toggle' && state) { state.playing = !state.playing; paint(); }
+    }
   });
   /* 先于 mountTopbar 的 wire 注册：遥控层能用就放行（wire 开 #sgx-mu），不能用就开 / 切播放器并拦住 wire */
   btn.addEventListener('click', function (e) {
@@ -1365,7 +1422,7 @@ export function mountFootLift(d) {
     if (lift === last) return;
     last = lift;
     const v = lift + 'px';
-    doc.querySelectorAll('#site-nav .sgx-tb-ai, [data-scroll-top-button], #sgx-ai').forEach(function (el) {
+    doc.querySelectorAll('#site-nav .sgx-tb-ai, [data-scroll-top-button], #sgx-ai, [data-sgx-foot-lift]').forEach(function (el) {
       /** @type {HTMLElement} */ (el).style.setProperty('--sgx-foot-lift', v);
     });
   };

@@ -238,3 +238,35 @@
 .mu-hint { align-self: flex-start; margin: -8px 0 0; padding: 2px 0; border: 0; background: transparent; color: var(--sgx-primary); font-size: 12px; text-align: left; cursor: pointer; }
 .mu-hint:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
 
+/* ===== 打磨 6.4（v2 稿）：正在播高亮 + 迷你播放条 =====
+   正在播的那首（music-page.js markPlaying，跟播放器广播的 player-state）：淡主色底 + 左边一道主色线，曲序号换成三根小跳动条（同播放器队列）。 */
+.mu-tracks > li:has(> .mu-track.on), .mu-tracks > li:has(> .mu-single.on) { background: color-mix(in srgb, var(--sgx-primary) 11%, transparent); box-shadow: inset 3px 0 0 var(--sgx-primary); }
+.mu-tracks .mu-single.on .mu-single-tx b, .mu-tracks .mu-single.on .mu-track-dur, .mu-tracks .mu-track.on .mu-track-dur { color: var(--sgx-primary); font-weight: 600; }
+.mu-track.on .mu-track-no { font-size: 0; }
+.mu-track.on .mu-track-no::after { content: ""; display: inline-block; width: 13px; height: 13px; vertical-align: middle;
+  background: linear-gradient(var(--sgx-primary), var(--sgx-primary)) 0 100% / 3px 55% no-repeat, linear-gradient(var(--sgx-primary), var(--sgx-primary)) 5px 100% / 3px 100% no-repeat, linear-gradient(var(--sgx-primary), var(--sgx-primary)) 10px 100% / 3px 35% no-repeat; }
+/* 迷你播放条：贴底悬浮（手机左右留页边距，桌面居中最宽 560）；底边一道细进度；滑到底同 AI 浮钮让过页脚（--sgx-foot-lift，topbar mountFootLift 写） */
+.mu-dock { position: fixed; z-index: 44; left: max(var(--sgx-page-m), env(safe-area-inset-left, 0px)); right: max(var(--sgx-page-m), env(safe-area-inset-right, 0px));
+  bottom: calc(12px + max(env(safe-area-inset-bottom, 0px), var(--sgx-foot-lift, 0px))); display: flex; align-items: center; gap: 4px; height: 64px; padding: 0 6px 0 8px; margin: 0 auto; max-width: 560px;
+  box-sizing: border-box; border-radius: 18px; overflow: hidden; background: var(--sgx-mat-solid, var(--sgx-surface-container-high)); border: 1px solid var(--sgx-term-line, var(--sgx-outline-variant));
+  box-shadow: 0 10px 32px rgb(0 0 0 / 28%); color: var(--sgx-text-primary); }
+.mu-dock.hidden { display: none; }
+.mu-dock button { border: 0; background: transparent; color: inherit; font: inherit; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.mu-dock-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; height: 100%; text-align: left; }
+.mu-dock-im { position: relative; flex: none; width: 44px; height: 44px; border-radius: 9px; overflow: hidden; color: var(--sgx-on-primary-container);
+  background: radial-gradient(120% 90% at 20% 15%, color-mix(in srgb, var(--sgx-primary) 55%, var(--sgx-primary-container)) 0%, var(--sgx-primary-container) 45%, var(--sgx-surface-container-high) 100%); }
+.mu-dock-im img { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: cover; }
+.mu-dock-im img.hidden { display: none; }
+.mu-dock-tx { flex: 1; min-width: 0; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mu-dock-tx b { font-weight: 600; }
+.mu-dock-tx i { font-style: normal; color: var(--sgx-text-secondary); }
+.mu-dock-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 999px; }
+.mu-dock-btn:hover { background: var(--sgx-state-hover); }
+.mu-dock-btn .mu-ic-pause, .mu-dock-btn.is-playing .mu-ic-play { display: none; }
+.mu-dock-btn.is-playing .mu-ic-pause { display: block; }
+.mu-dock-open:focus-visible, .mu-dock-btn:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; border-radius: 12px; }
+.mu-dock-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--sgx-slider-inactive); pointer-events: none; }
+.mu-dock-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--sgx-primary); }
+/* 播放条开着：页面底部垫出它的高度，最后几行不被盖住；手机布局 AI 浮钮抬到播放条上方（不盖住「队列」键） */
+:root.mu-dock-on .mu-wrap { padding-bottom: 96px; }
+:root.mu-dock-on:not([data-sgx-layout="desktop"]) .sgx-tb-ai { bottom: calc(12px + 64px + 12px + max(env(safe-area-inset-bottom, 0px), var(--sgx-foot-lift, 0px))); }

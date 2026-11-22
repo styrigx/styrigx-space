@@ -5,7 +5,7 @@
 // - 没人答（等满 300ms）：才开窗；音乐页自己不再发 remote-cmd
 // - 只看模式（没进站）：点播放在页内发 sgx:sudo（顶栏终端预填 su ），不开播放器、不签令牌
 // - 新开的窗口没有用户手势、浏览器拦了自动播放：停在那首、播放键亮着，点一下就放（不另想绕法）
-// - 不标正在播（Gray 2026-11-21 14:17）
+// - 打磨 6.4（Gray 2026-11-22，改掉 2026-11-21 14:17「不标正在播」）：专辑曲目标出正在播的那首，底部有迷你播放条（见 curio-music-player.spec.js）
 const { test, expect } = require('@playwright/test');
 
 test.use({ locale: 'zh-CN' });
@@ -83,8 +83,9 @@ test('没开播放器：点「播放整张」开 /music/zh/player/?album=1&t=0�
   expect(await page.evaluate(() => /** @type {any} */ (window).__sent)).toEqual([]);
   await expect(page.locator('audio, #mu-player')).toHaveCount(0);
   expect(new URL(page.url()).pathname).toBe('/music/zh/');
-  /* 不标正在播 */
-  await expect(page.locator('#mu-tracks .on, #mu-tracks [aria-current]')).toHaveCount(0);
+  /* 打磨 6.4：标出正在播的那首（跟播放器广播的 player-state） */
+  await expect(page.locator('#mu-tracks .mu-track.on')).toHaveCount(1);
+  await expect(page.locator('#mu-tracks [data-t="0"]')).toHaveAttribute('aria-current', 'true');
 });
 
 test('没开播放器（英文页）：点第 2 首开 /music/player/?album=1&t=1，播放器从第 2 首放', async ({ page, context }) => {

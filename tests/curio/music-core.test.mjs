@@ -309,6 +309,52 @@ test('模式存本地：readMode / saveMode（键 sgx-music-mode；坏值、读�
   assert.equal(CORE.readMode(null), 'seq');
 });
 
+test('列表循环（打磨 6.4 v2 稿）：模式存本地 repeat；nextMode 顺序 → 列表循环 → 随机 → 顺序', () => {
+  const m = new Map();
+  const store = { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, v) };
+  CORE.saveMode(store, 'repeat'); assert.equal(m.get('sgx-music-mode'), 'repeat'); assert.equal(CORE.readMode(store), 'repeat');
+  CORE.saveMode(store, 'bogus'); assert.equal(m.get('sgx-music-mode'), 'seq');
+  assert.deepEqual(CORE.MODES, ['seq', 'repeat', 'shuffle']);
+  assert.equal(CORE.nextMode('seq'), 'repeat');
+  assert.equal(CORE.nextMode('repeat'), 'shuffle');
+  assert.equal(CORE.nextMode('shuffle'), 'seq');
+  assert.equal(CORE.nextMode('x'), 'repeat', '不认识的当顺序');
+});
+
+test('列表循环：末首放完（ended）接第一首、不停；末首点下一首绕到第一首；首首点上一首绕到最后一首', async () => {
+  const { p, audio, log } = make({ n: 3 });
+  p.setMode('repeat');
+  assert.equal(p.mode(), 'repeat');
+  await p.playFrom(1, 1);
+  audio.emit('ended'); await tick();
+  assert.equal(p.state.i, 2);
+  audio.emit('ended'); await tick();
+  assert.equal(p.state.i, 0, '末首放完接第一首');
+  assert.ok(!log.includes('stop'), '列表循环不停');
+  await p.playFrom(1, 2);
+  await p.next();
+  assert.equal(p.state.i, 0, '末首的下一首 = 第一首');
+  audio.currentTime = 0;
+  await p.prev();
+  assert.equal(p.state.i, 2, '首首的上一首 = 最后一首');
+});
+
+test('顺序（不是列表循环）：末首点下一首不动、首首点上一首不动；三档切换互斥', async () => {
+  const { p, audio } = make({ n: 3 });
+  p.setMode('seq');
+  await p.playFrom(1, 2);
+  await p.next();
+  assert.equal(p.state.i, 2, '顺序到尾不绕');
+  await p.playFrom(1, 0);
+  audio.currentTime = 0;
+  await p.prev();
+  assert.equal(p.state.i, 0, '顺序在头不绕');
+  p.setMode('repeat'); assert.equal(p.state.repeat, true); assert.equal(p.state.shuffle, false);
+  p.setMode('shuffle'); assert.equal(p.state.repeat, false); assert.equal(p.state.shuffle, true); assert.equal(p.mode(), 'shuffle');
+  p.setMode('seq'); assert.equal(p.mode(), 'seq');
+  p.setMode('repeat'); p.setShuffle(true); assert.equal(p.mode(), 'shuffle', 'setShuffle(true) 顶掉列表循环');
+});
+
 test('默认顺序（奇趣页不调 setShuffle）：放完停，同 2a', async () => {
   const { p, audio, log } = make({ n: 2 });
   await p.playFrom(1, 0);
@@ -369,12 +415,16 @@ test('播放器页纯函数：?album= 取专辑；签令牌失败分 登录过�
 test('播放器给小遥控层的状态：有一首 = on，歌名 + 本专辑歌手；没开播 = 空', () => {
   const MP = require('../../space/web/assets/common/js/music/music-player.js');
   const albums = [{ id: 3, artist: 'Singer' }];
+  /* 打磨 6.4：多带 album / i / queue / cover（音乐页迷你播放条、曲目高亮用） */
   assert.deepEqual(MP.remoteState({ album: 3, list: [{ title: 'A' }, { title: 'B' }], i: 1 }, true, albums),
-    { type: 'player-state', on: true, playing: true, title: 'B', artist: 'Singer' });
+    { type: 'player-state', on: true, playing: true, title: 'B', artist: 'Singer', album: 3, i: 1, queue: false, cover: '' });
   assert.deepEqual(MP.remoteState({ album: 3, list: [{ title: 'A' }], i: 0 }, false, []),
-    { type: 'player-state', on: true, playing: false, title: 'A', artist: '' });
+    { type: 'player-state', on: true, playing: false, title: 'A', artist: '', album: 3, i: 0, queue: false, cover: '' });
   assert.deepEqual(MP.remoteState({ album: 0, list: [], i: -1 }, true, albums),
-    { type: 'player-state', on: false, playing: false, title: '', artist: '' });
+    { type: 'player-state', on: false, playing: false, title: '', artist: '', album: 0, i: -1, queue: false, cover: '' });
+  /* 有封面给封面地址；单曲列表 queue = true */
+  assert.equal(MP.remoteState({ album: 3, list: [{ title: 'A' }], i: 0 }, true, [{ id: 3, artist: 'S', cover: true }]).cover, '/music/api/music-cover?album=3');
+  assert.equal(MP.remoteState({ album: 3, list: [{ title: 'A' }], i: 0, queue: [3] }, true, albums).queue, true);
 });
 
 /* ---------- 单曲列表（音乐 v1.13 ②，Gray 2026-11-14 17:33：单曲区当播放列表，按当前模式走、到尾停，切歌按需签） ---------- */
@@ -461,7 +511,7 @@ test('单曲 / 专辑分类的纯函数：nowSub（单曲只显示歌手）、sp
   assert.deepEqual(PL.groupsOf([alb], 'x').map((x) => x.id), [1], '没单曲不加组');
   /* 遥控层：单曲在播时只给歌手 */
   const r = PL.remoteState({ album: 2, list: [{ title: 'River' }], i: 0 }, true, [alb, s1]);
-  assert.deepEqual(r, { type: 'player-state', on: true, playing: true, title: 'River', artist: 'Joni Mitchell' });
+  assert.deepEqual(r, { type: 'player-state', on: true, playing: true, title: 'River', artist: 'Joni Mitchell', album: 2, i: 0, queue: false, cover: '' });
 });
 
 test('durText：元数据到了用真实 duration；没到 / NaN / Infinity / 0 用曲目已知时长；都没有 --:--', () => {
@@ -486,6 +536,70 @@ test('M4 coverOf：有封面用自己的；单曲没封面 → 歌手头像；�
   assert.equal(CORE.coverOf({ id: 8, kind: 'single', cover: false, artist_id: 99 }, arts), '', '对不上歌手表');
   assert.equal(CORE.coverOf({ id: 9, kind: 'album', cover: false, artist_id: 2 }, arts), '', '专辑不回退到歌手头像（7.5 只说单曲）');
   assert.equal(CORE.coverOf(null, arts), '');
+});
+
+test('打磨 6.4 pickMain：开着的音乐页（music: true）优先，音乐页之间照旧按 at；一个音乐页都没有才挑别的页', () => {
+  assert.equal(CORE.pickMain([{ from: 'blog', at: 99 }, { from: 'mu', at: 1, music: true }]).from, 'mu');
+  assert.equal(CORE.pickMain([{ from: 'mu1', at: 3, music: true }, { from: 'blog', at: 99 }, { from: 'mu2', at: 5, music: true }]).from, 'mu2');
+  assert.equal(CORE.pickMain([{ from: 'a', at: 3 }, { from: 'b', at: 7 }]).from, 'b');
+});
+
+test('打磨 6.4 播放器纯函数：翻页（拖过 22% 或甩一下）、歌词远近、⋯ 三行、队列', () => {
+  const MP = require('../../space/web/assets/common/js/music/music-player.js');
+  /* 翻页：412 宽，22% ≈ 90.6px */
+  assert.equal(MP.PAGE_SWIPE, 0.22);
+  assert.equal(MP.pageAfterDrag(0, -100, 412, 600), 1, '左拖过 22% → 歌词页');
+  assert.equal(MP.pageAfterDrag(0, -80, 412, 600), 0, '没过、也不快 → 回播放页');
+  assert.equal(MP.pageAfterDrag(0, -40, 412, 60), 1, '甩一下（0.67 px/ms）→ 歌词页');
+  assert.equal(MP.pageAfterDrag(0, -20, 412, 10), 0, '太短的抖动不算甩');
+  assert.equal(MP.pageAfterDrag(1, 100, 412, 600), 0, '右拖回播放页');
+  assert.equal(MP.pageAfterDrag(1, -200, 412, 600), 1, '已经在歌词页，再左拖还是歌词页');
+  assert.equal(MP.pageAfterDrag(1, 10, 412, 600), 1);
+  assert.equal(MP.dragP(0, -206, 412), 0.5);
+  assert.equal(MP.dragP(0, 300, 412), -0.08, '左头有阻力');
+  assert.equal(MP.dragP(1, -300, 412), 1.08, '右头有阻力');
+  /* 歌词：离当前句越远越淡，最多 4 档；还没到第一句按 -1 算 */
+  assert.deepEqual([0, 1, 2, 3, 4, 5, 9].map((i) => MP.lyricDist(i, 3)), [3, 2, 1, 0, 1, 2, 4]);
+  assert.deepEqual([0, 1, 7].map((i) => MP.lyricDist(i, -1)), [1, 2, 4]);
+  /* ⋯：专辑 · 歌手 · 曲库；单曲没有专辑行；歌手对不上歌手表没有歌手行 */
+  const arts = [{ id: 7 }];
+  const alb = { id: 1, kind: 'album', title: 'Blue', artist: 'Joni', artist_id: 7 };
+  assert.deepEqual(MP.moreRows(alb, arts, '/music/zh/'), [
+    { kind: 'album', id: 1, name: 'Blue', href: '/music/zh/?album=1' },
+    { kind: 'artist', id: 7, name: 'Joni', href: '/music/zh/?artist=7' },
+    { kind: 'library', id: 0, name: '', href: '/music/zh/' },
+  ]);
+  assert.deepEqual(MP.moreRows({ id: 9, kind: 'single', title: 'River', artist: 'Joni', artist_id: 7 }, arts, '/music/').map((r) => r.kind), ['artist', 'library'], '单曲没有专辑行');
+  assert.deepEqual(MP.moreRows({ ...alb, artist_id: 0 }, arts, '/music/').map((r) => r.kind), ['album', 'library']);
+  assert.deepEqual(MP.moreRows(null, arts, '/music/').map((r) => r.kind), ['library']);
+  /* 队列：在放专辑 = 签下来的曲目、正在放的 on；单曲列表 = 每条单曲；没开播 = 停着的那组、都不 on */
+  const all = [alb, { id: 9, kind: 'single', title: 'River', artist: 'Joni', tracks: [{ id: 90, duration: 240 }] }, { id: 8, kind: 'single', title: '晴天', artist: '周杰伦', tracks: [{ id: 80, duration: 269 }] }];
+  const qa = MP.queueOf({ album: 1, i: 1, list: [{ title: 'A', duration: 100 }, { title: 'B', duration: 200 }], queue: null }, all, null);
+  assert.equal(qa.ref, alb);
+  assert.deepEqual(qa.items, [{ title: 'A', artist: 'Joni', dur: 100, on: false }, { title: 'B', artist: 'Joni', dur: 200, on: true }]);
+  const qs = MP.queueOf({ album: 8, i: 1, list: [], queue: [9, 8] }, all, null);
+  assert.equal(qs.ref, null);
+  assert.deepEqual(qs.items, [{ title: 'River', artist: 'Joni', dur: 240, on: false }, { title: '晴天', artist: '周杰伦', dur: 269, on: true }]);
+  const g = { id: 1, title: 'Blue', artist: 'Joni', tracks: [{ title: 'A', duration: 1 }] };
+  assert.deepEqual(MP.queueOf({ album: 0, i: -1, list: [] }, all, g).items, [{ title: 'A', artist: 'Joni', dur: 1, on: false }]);
+  assert.deepEqual(MP.queueOf({ album: 0, i: -1, list: [] }, all, null).items, []);
+});
+
+test('打磨 6.4 音乐页迷你播放条 / 正在播高亮的纯函数：dockPos 按 at 往前推（暂停不推、不超过 1）；playingTrack / playingSingle', () => {
+  assert.equal(MU.dockPos(null, 0), 0);
+  assert.equal(MU.dockPos({ t: 10, d: 0, playing: true, at: 0 }, 0), 0, '不知道总长 = 0');
+  assert.equal(MU.dockPos({ t: 10, d: 100, playing: false, at: 1000 }, 99999), 0.1, '暂停不往前推');
+  assert.equal(MU.dockPos({ t: 10, d: 100, playing: true, at: 1000, rate: 2 }, 6000), 0.2, '5 秒 × 2 倍速');
+  assert.equal(MU.dockPos({ t: 90, d: 100, playing: true, at: 1, rate: 1 }, 60000), 1, '不超过 1');
+  const a = { id: 1 };
+  assert.equal(MU.playingTrack({ on: true, album: 1, i: 2, queue: false }, a), 2);
+  assert.equal(MU.playingTrack({ on: true, album: 2, i: 2, queue: false }, a), -1, '别的专辑');
+  assert.equal(MU.playingTrack({ on: true, album: 1, i: 0, queue: true }, a), -1, '单曲列表不算专辑');
+  assert.equal(MU.playingTrack({ on: false, album: 1, i: 0 }, a), -1);
+  assert.equal(MU.playingTrack(null, a), -1);
+  assert.equal(MU.playingSingle({ on: true, album: 42, i: 1, queue: true }), 42);
+  assert.equal(MU.playingSingle({ on: true, album: 42, i: 1, queue: false }), 0);
+  assert.equal(MU.playingSingle(null), 0);
 });
 
 test('M4 pickMain：挑最近用过的主窗口（at 最大，一样取先答的）；没人答 null；artistHref', () => {

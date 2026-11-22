@@ -216,12 +216,19 @@ test('弹出播放器页（音乐第二步 2b；2026-11 第 7 步进 Platform；
     const c = read('space/web/content/music/' + f);
     assert.match(c, /^type: common$/m); assert.match(c, /^layout: player$/m); assert.match(c, /^navSite: music$/m);
   }
-  for (const id of ['mp-app', 'mp-cover', 'mp-title', 'mp-artist', 'mp-album', 'mp-note', 'mp-signin', 'mp-lyrics', 'mp-seek', 'mp-time', 'mp-dur',
-    'mp-shuffle', 'mp-prev', 'mp-toggle', 'mp-next', 'mp-speed', 'mp-mute', 'mp-volume', 'mp-tracks', 'mp-albums-btn', 'mp-albums', 'mp-audio']) {
+  for (const id of ['mp-app', 'mp-cover', 'mp-title', 'mp-artist', 'mp-album', 'mp-year', 'mp-note', 'mp-signin', 'mp-lyrics', 'mp-line', 'mp-seek', 'mp-time', 'mp-dur',
+    'mp-shuffle', 'mp-prev', 'mp-toggle', 'mp-next', 'mp-speed', 'mp-mute', 'mp-volume', 'mp-audio',
+    /* 打磨 6.4：两页 + 页点、顶行选歌 / ⋯、队列键、歌词页小播放条、两个悬浮卡片 */
+    'mp-pager', 'mp-dots', 'mp-pg-player', 'mp-pg-lyrics', 'mp-pick', 'mp-more-btn', 'mp-queue-btn', 'mp-d-toggle', 'mp-queue', 'mp-q-list', 'mp-q-mode', 'mp-more', 'mp-m-list']) {
     assert.ok(hasId(player, id), id);
   }
   assert.match(player, /id="mp-app" class="mp-app hidden"/);
-  assert.equal((player.match(/class="mu-ic-lock"/g) || []).length, 1, '播放键带锁标（没进站 / 登录过期）');
+  /* 打磨 6.4（v2 稿）：播放器没有曲目列表、没有专辑列表（选歌只在 /music/） */
+  for (const id of ['mp-tracks', 'mp-albums-btn', 'mp-albums']) assert.ok(!hasId(player, id), '播放器不选歌：' + id);
+  /* 队列、⋯ 是非模态悬浮卡片（同上传窗 .sgx-qp），不是底部抽屉 */
+  assert.match(player, /<dialog id="mp-queue" class="sgx-qp mp-dlg mp-queue"/);
+  assert.match(player, /<dialog id="mp-more" class="sgx-qp mp-dlg mp-more"/);
+  assert.equal((player.match(/class="mu-ic-lock"/g) || []).length, 2, '两颗播放键（播放页 + 歌词页小播放条）都带锁标（没进站 / 登录过期）');
   for (const id of ['mu-upload', 'mu-up-wrap', 'mu-album-del']) assert.ok(!hasId(player, id), '播放器不管理：' + id);
   assert.doesNotMatch(player, /curio\/js\/|partial "curio\//, 'Platform 页不引产品的脚本 / partial（规则 23）');
   const b = player.indexOf('js/music/music-core.js'), c = player.indexOf('js/music/music-player.js');

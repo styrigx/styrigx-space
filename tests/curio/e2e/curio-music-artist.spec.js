@@ -359,7 +359,8 @@ test('弹出播放器：正在播的歌手名可点 → 主窗口（音乐页 /m
   const pl = await context.newPage();
   await mockMusic(pl);
   await pl.goto('/music/zh/player/');
-  await expect(pl.locator('#mp-title')).toHaveText('Blue');
+  /* 打磨 6.4：没开播时显示停着等放的那首（第一张的第一首） */
+  await expect(pl.locator('#mp-title')).toHaveText('All I Want');
   const a = pl.locator('#mp-artist a.mu-artist-a');
   await expect(a).toHaveText('Joni Mitchell');
   await expect(a).toHaveAttribute('href', '/music/zh/?artist=2');
@@ -368,10 +369,10 @@ test('弹出播放器：正在播的歌手名可点 → 主窗口（音乐页 /m
   await expect(page.locator('#mu-ar-name')).toHaveText('Joni Mitchell');
   expect(await page.evaluate(() => window.__sameDoc)).toBe(1);
   await expect(pl).toHaveURL(/\/music\/zh\/player\/$/);
-  /* 播放器里单曲没封面 → 歌手头像 */
-  await pl.locator('#mp-albums-btn').click();
-  await pl.locator('#mp-albums .mp-alb').last().click();
-  await pl.locator('#mp-tracks [data-t="0"]').click();
+  /* 播放器里单曲没封面 → 歌手头像（打磨 6.4 起播放器不选歌：?album=<单曲> 停在它那一首） */
+  await pl.goto('/music/zh/player/?album=41');
   await expect(pl.locator('#mp-title')).toHaveText('River');
+  await pl.locator('#mp-toggle').click();
+  await expect(pl.locator('#mp-toggle')).toHaveClass(/is-playing/);
   await expect(pl.locator('#mp-cover img')).toHaveAttribute('src', '/music/api/music-cover?artist=2');
 });
