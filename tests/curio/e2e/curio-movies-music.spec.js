@@ -377,66 +377,80 @@ test('音乐（有权限）：上传窗是 AI 窗口那种悬浮卡片（非模�
 
 /* ================= 弹出播放器（音乐第二步 2b；music 搬家第 3 步起 /music/player/，中文 /music/zh/player/） ================= */
 
-test('播放器（有权限）：点曲目开播走短链；随机按钮记到本地；倍速 1 → 1.25 → 1.5 → 2 → 1；歌词点开全部；专辑列表收起 / 换专辑；静音', async ({ page }) => {
+test('播放器（有权限，打磨 6.4）：没有曲目 / 专辑列表，停着等放第一首；点播放开播走短链；模式键记到本地；倍速 1 → 1.25 → 1.5 → 2 → 1；当前一句歌词（手机点了去歌词页）；队列里点一首在这一列里跳；音量只在桌面', async ({ page }, info) => {
+  const desk = info.project.name.startsWith('desktop');
   const calls = await mockMusic(page, 'owner');
   await page.goto('/music/zh/player/');
   await expect(page.locator('#mp-app')).toBeVisible();
-  await expect(page.locator('#mp-title')).toHaveText('Blue');
-  await expect(page.locator('#mp-tracks .mu-track-title')).toHaveText(['All I Want', 'My Old Man']);
-  await expect(page.locator('#mp-upload, #mu-upload')).toHaveCount(0);
-  await page.locator('#mp-tracks [data-t="0"]').click();
+  await expect(page.locator('#mp-title')).toHaveText('All I Want');
+  await expect(page.locator('#mp-album')).toHaveText('Blue');
+  await expect(page.locator('#mp-year')).toHaveText('1971');
+  await expect(page.locator('#mp-tracks, #mp-albums, #mp-albums-btn, #mp-upload, #mu-upload')).toHaveCount(0);
+  expect(calls.filter((c) => c.play).length).toBe(0);
+  await page.locator('#mp-toggle').click();
   await expect.poll(() => calls.filter((c) => c.play === 1).length).toBe(1);
   await expect(page.locator('#mp-toggle')).toHaveClass(/is-playing/);
   await expect(page.locator('#mp-title')).toHaveText('All I Want');
   await expect(page.locator('#mp-artist')).toHaveText('Joni Mitchell');
-  await expect(page.locator('#mp-album')).toHaveText('Blue');
   expect(await page.locator('#mp-audio').evaluate((a) => a.src)).toMatch(/\/music\/api\/music-stream\?t=A{43}&id=11$/);
-  await expect(page.locator('#mp-tracks .mu-track.on .mu-track-title')).toHaveText('All I Want');
   await expect(page).toHaveTitle(/^All I Want \| /);
-  /* 随机：按下、记到本地 */
+  /* 模式（顺序 / 随机）：按下、记到本地 */
   await page.locator('#mp-shuffle').click();
   await expect(page.locator('#mp-shuffle')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#mp-shuffle')).toHaveAttribute('aria-label', '随机播放');
   expect(await page.evaluate(() => localStorage.getItem('sgx-music-mode'))).toBe('shuffle');
+  await page.locator('#mp-shuffle').click();
+  expect(await page.evaluate(() => localStorage.getItem('sgx-music-mode'))).toBe('seq');
   /* 倍速 */
   const sp = page.locator('#mp-speed');
+  await expect(sp).toBeVisible();
   for (const want of ['1.25×', '1.5×', '2×', '1×']) { await sp.click(); await expect(sp).toHaveText(want); }
   await sp.click();
   expect(await page.locator('#mp-audio').evaluate((a) => a.playbackRate)).toBe(1.25);
-  /* 歌词：默认只一句，点开全部 */
-  await expect(page.locator('#mp-lyrics')).toBeVisible();
-  await expect(page.locator('#mp-lyrics')).toHaveAttribute('aria-expanded', 'false');
-  await page.locator('#mp-lyrics').click();
-  await expect(page.locator('#mp-lyrics')).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.locator('#mp-lyrics-in > span:visible')).toHaveCount(3);
-  /* 静音 */
-  await page.locator('#mp-mute').click();
-  expect(await page.locator('#mp-audio').evaluate((a) => a.muted)).toBe(true);
-  /* 专辑列表：收起 → 展开 → 换专辑（换列表，不自动开播） */
-  await expect(page.locator('#mp-albums')).toBeHidden();
-  await page.locator('#mp-albums-btn').click();
-  await expect(page.locator('#mp-albums .mp-alb')).toHaveCount(2);
-  await page.locator('#mp-albums [data-a="1"]').click();
-  await expect(page.locator('#mp-tracks .mu-track-title')).toHaveText(['爱在西元前']);
-  expect(calls.filter((c) => c.play === 2).length).toBe(0);
-  await page.locator('#mp-tracks [data-t="0"]').click();
-  await expect.poll(() => calls.filter((c) => c.play === 2).length).toBe(1);
-  await expect(page.locator('#mp-title')).toHaveText('爱在西元前');
+  /* 歌词：滚动歌词三句，当前句高亮 */
+  await expect(page.locator('#mp-lyrics-in p')).toHaveCount(3);
+  await expect(page.locator('#mp-lyrics-in p.on')).toHaveCount(1);
+  if (desk) {
+    await expect(page.locator('#mp-line')).toBeHidden();
+    await expect(page.locator('#mp-lyrics')).toBeVisible();
+    await page.locator('#mp-mute').click();
+    expect(await page.locator('#mp-audio').evaluate((a) => a.muted)).toBe(true);
+  } else {
+    await expect(page.locator('#mp-line')).toHaveText(/第.句/);
+    await expect(page.locator('#mp-mute')).toBeHidden();
+    await expect(page.locator('#mp-volume')).toBeHidden();
+    await page.locator('#mp-line').click();
+    await expect(page.locator('#mp-app')).toHaveAttribute('data-page', '1');
+    await expect(page.locator('#mp-dots [data-go="1"]')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#mp-lyrics')).toBeInViewport();
+    await page.locator('#mp-dots [data-go="0"]').click();
+    await expect(page.locator('#mp-app')).toHaveAttribute('data-page', '0');
+  }
+  /* 队列：当前这一列（这张专辑），正在放的高亮；点第 2 首在这一列里跳过去（不重签） */
+  await page.locator('#mp-queue-btn').click();
+  await expect(page.locator('#mp-q-list .mp-qtx b')).toHaveText(['All I Want', 'My Old Man']);
+  await expect(page.locator('#mp-q-list .mp-q.on b')).toHaveText('All I Want');
+  await page.locator('#mp-q-list [data-q="1"]').click();
+  await expect(page.locator('#mp-title')).toHaveText('My Old Man');
+  await expect(page.locator('#mp-q-list .mp-q.on b')).toHaveText('My Old Man');
+  expect(calls.filter((c) => c.play).length).toBe(1);
 });
 
-test('播放器：随机模式下次打开还在；?album= 先显示那张', async ({ page }) => {
+test('播放器：随机模式下次打开还在；?album= 停在那张的第一首', async ({ page }) => {
   await mockMusic(page, 'owner');
   await page.addInitScript(() => localStorage.setItem('sgx-music-mode', 'shuffle'));
   await page.goto('/music/zh/player/?album=2');
   await expect(page.locator('#mp-app')).toBeVisible();
   await expect(page.locator('#mp-shuffle')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#mp-tracks .mu-track-title')).toHaveText(['爱在西元前']);
+  await expect(page.locator('#mp-title')).toHaveText('爱在西元前');
+  await expect(page.locator('#mp-album')).toHaveText('范特西');
 });
 
 test('播放器（登录过期 / 没进站，签令牌 401）：给一句提示和「登录」，不静默卡住；点「登录」打开终端预填 su ', async ({ page }) => {
   const calls = await mockMusic(page, 'visitor');
   await page.goto('/music/zh/player/');
   await expect(page.locator('#mp-app')).toBeVisible();
-  await page.locator('#mp-tracks [data-t="0"]').click();
+  await page.locator('#mp-toggle').click();
   await expect.poll(() => calls.filter((c) => c.play401).length).toBe(1);
   await expect(page.locator('#mp-note')).toBeVisible();
   await expect(page.locator('#mp-note-tx')).toHaveText('登录已过期，重新登录后才能继续听。');
@@ -446,7 +460,7 @@ test('播放器（登录过期 / 没进站，签令牌 401）：给一句提示�
   await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
 });
 
-test('播放器 ?album=<id>&t=<i>（第 3 步）：打开就从那张的第 i 首放；t 越界 = 只显示那张、不放；没有 t = 照旧只显示', async ({ page }) => {
+test('播放器 ?album=<id>&t=<i>（第 3 步）：打开就从那张的第 i 首放；t 越界 = 停在那张第一首、不放；没有 t = 照旧只显示', async ({ page }) => {
   const calls = await mockMusic(page, 'owner');
   await page.goto('/music/zh/player/?album=1&t=1');
   await expect(page.locator('#mp-title')).toHaveText('My Old Man');
@@ -454,9 +468,10 @@ test('播放器 ?album=<id>&t=<i>（第 3 步）：打开就从那张的第 i �
   expect(await page.locator('#mp-audio').evaluate((a) => a.src)).toMatch(/&id=12$/);
   await page.goto('/music/zh/player/?album=1&t=9');
   await expect(page.locator('#mp-app')).toBeVisible();
-  await expect(page.locator('#mp-title')).toHaveText('Blue');
+  await expect(page.locator('#mp-title')).toHaveText('All I Want');
+  await expect(page.locator('#mp-toggle')).not.toHaveClass(/is-playing/);
   await page.goto('/music/zh/player/?album=2');
-  await expect(page.locator('#mp-title')).toHaveText('范特西');
+  await expect(page.locator('#mp-title')).toHaveText('爱在西元前');
   await expect(page.locator('#mp-toggle')).not.toHaveClass(/is-playing/);
 });
 

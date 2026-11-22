@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { mountMusic, MUSIC_WIN, MUSIC_FEATURES, MUSIC_PATH, PLAYER_URL, ARTIST_URL, HANDOFF_WAIT_MS, playCmdOk } from '../../../../space/web/assets/common/js/frame/topbar/panel.js';
+import { mountMusic, MUSIC_WIN, MUSIC_FEATURES, MUSIC_PATH, PLAYER_URL, ARTIST_URL, ALBUM_URL, LIBRARY_URL, MUSIC_PAGE, HANDOFF_WAIT_MS, playCmdOk, stateOf, linkOf } from '../../../../space/web/assets/common/js/frame/topbar/panel.js';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
 const URL_EN = 'https://styrigx.com/music/player/';
@@ -186,7 +186,7 @@ test('遥控：播放器关窗（player-bye）→ 回到只开播放器，并通
   r.events.length = 0;
   r.say({ type: 'player-bye' });
   assert.ok(!r.btn.classList.contains('is-playing'));
-  assert.deepEqual(r.events, ['sgx-music-off']);
+  assert.deepEqual(r.events, ['sgx-music-off', 'sgx-music-state']);
   assert.equal(r.click().prevented, 1);
 });
 
@@ -456,4 +456,85 @@ test('交接：不在白名单的地址不接（不 preventDefault、不开窗�
   await sleep(W + 20);
   assert.deepEqual(o.calls, []);
   assert.deepEqual(p.calls, []);
+});
+
+/* ---------- 打磨 6.4：音乐页迷你播放条 / 曲目高亮（sgx-music-state）、播放条遥控（sgx-music-dock）、⋯ 的专辑 / 曲库（artist-go kind） ---------- */
+test('6.4 stateOf：多记 album / i / queue / cover / 进度，类型不对的丢掉；封面只认 /music/api/music-cover', () => {
+  assert.deepEqual(stateOf({ on: true, playing: true, title: 'A', artist: 'B', album: 3, i: 1, queue: false, cover: '/music/api/music-cover?album=3', t: 12.5, d: 200, rate: 1.5, at: 99 }),
+    { on: true, playing: true, title: 'A', artist: 'B', album: 3, i: 1, queue: false, cover: '/music/api/music-cover?album=3', t: 12.5, d: 200, rate: 1.5, at: 99 });
+  const bad = stateOf({ on: 1, album: '3', i: 1.5, cover: 'https://evil.com/x.png', t: -4, d: 'x', rate: 0 });
+  assert.equal(bad.album, 0); assert.equal(bad.i, -1); assert.equal(bad.cover, ''); assert.equal(bad.t, 0); assert.equal(bad.d, 0); assert.equal(bad.rate, 1);
+  assert.equal(stateOf({ cover: '/music/api/music-cover?artist=7&v=12' }).cover, '/music/api/music-cover?artist=7&v=12');
+});
+
+test('6.4 每次画都发 sgx-music-state（detail = 状态拷贝；关窗 null），音乐页靠它画迷你播放条', () => {
+  const a = artistSetup('/music/zh/');
+  a.say({ type: 'player-state', on: true, playing: false, title: 'A', artist: 'B', album: 2, i: 0, queue: true, cover: '', t: 1, d: 30, rate: 1, at: 5 });
+  const st = a.fired.filter((e) => e.type === 'sgx-music-state');
+  assert.equal(st.at(-1).detail.album, 2);
+  assert.equal(st.at(-1).detail.queue, true);
+  assert.equal(st.at(-1).detail.d, 30);
+  a.say({ type: 'player-bye' });
+  assert.equal(a.fired.filter((e) => e.type === 'sgx-music-state').at(-1).detail, null);
+});
+
+test('6.4 音乐页答 artist-here 带 music: true（播放器 ⋯ 优先回到它）；别的页 false', () => {
+  for (const [path, want] of [['/music/', true], ['/music/zh/', true], ['/blog/', false], ['/music/zh/player/', null]]) {
+    const a = artistSetup(path);
+    a.sent.length = 0;
+    a.say({ type: 'artist-ask', req: 'r', id: 0, kind: 'library' });
+    if (want === null) { assert.deepEqual(a.sent, [], '播放器页自己不答'); continue; }
+    assert.equal(a.sent[0].music, want, path);
+  }
+  assert.ok(MUSIC_PAGE.test('/music/') && MUSIC_PAGE.test('/music/zh/') && !MUSIC_PAGE.test('/music/player/'));
+});
+
+test('6.4 linkOf：artist（没 kind 的旧消息也当歌手）/ album / library；地址只认音乐页的，别的 kind 不认', () => {
+  assert.deepEqual(linkOf({ id: 3, url: '/music/?artist=3' }), { kind: 'artist', id: 3, url: '/music/?artist=3' });
+  assert.deepEqual(linkOf({ kind: 'album', id: 5, url: '/music/zh/?album=5' }), { kind: 'album', id: 5, url: '/music/zh/?album=5' });
+  assert.deepEqual(linkOf({ kind: 'album', id: 5, url: 'https://evil.com/' }), { kind: 'album', id: 5, url: '' });
+  assert.deepEqual(linkOf({ kind: 'library', id: 0, url: '/music/zh/' }), { kind: 'library', id: 0, url: '/music/zh/' });
+  assert.deepEqual(linkOf({ kind: 'library', url: '/music/?x=1' }), { kind: 'library', id: 0, url: '' });
+  assert.equal(linkOf({ kind: 'album', id: 0, url: '/music/?album=0' }), null);
+  assert.equal(linkOf({ kind: 'vip', id: 1, url: '/music/' }), null);
+  assert.ok(ALBUM_URL.test('/music/?album=12') && !ALBUM_URL.test('/music/?album=1&t=2'));
+  assert.ok(LIBRARY_URL.test('/music/zh/') && !LIBRARY_URL.test('/music/player/'));
+});
+
+test('6.4 artist-go kind=album / library：发可取消的 sgx-music-link（音乐页页内换视图）；没人接才整页跳；kind=artist 照旧 sgx-music-artist', () => {
+  const a = artistSetup('/blog/');
+  a.say({ type: 'artist-ask', req: 'r1', id: 5, kind: 'album' });
+  const me = a.sent.at(-1).from;
+  a.say({ type: 'artist-go', req: 'r1', to: me, id: 5, kind: 'album', url: '/music/zh/?album=5' });
+  assert.equal(a.fired.at(-1).type, 'sgx-music-link');
+  assert.deepEqual(a.fired.at(-1).detail, { kind: 'album', id: 5, url: '/music/zh/?album=5' });
+  assert.deepEqual(a.nav, ['/music/zh/?album=5']);
+  a.say({ type: 'artist-go', req: 'r2', to: me, id: 0, kind: 'library', url: '/music/zh/' });
+  assert.deepEqual(a.nav, ['/music/zh/?album=5', '/music/zh/']);
+  a.say({ type: 'artist-go', req: 'r3', to: me, id: 0, kind: 'library', url: 'https://evil.com/' });
+  assert.equal(a.nav.length, 2, '别的地址不跳');
+  /* 音乐页接住（preventDefault）就不跳 */
+  const fired = [], nav = [];
+  const ch = { onmessage: null, postMessage() {} };
+  const doc = { querySelector: (q) => (q === '.sgx-tb-music' ? { href: URL_EN, addEventListener() {} } : null), getElementById: () => null,
+    dispatchEvent: (e) => { fired.push(e); if (e.type === 'sgx-music-link') e.preventDefault(); return !e.defaultPrevented; } };
+  const g = mountMusic(doc, { channel: ch, path: '/music/', open: () => null, navigate: (u) => nav.push(u) });
+  ch.onmessage({ data: { type: 'artist-go', to: g.pageId, id: 1, kind: 'album', url: '/music/?album=1' } });
+  assert.deepEqual(nav, []);
+});
+
+test('6.4 sgx-music-dock：open = reach（同顶栏图标）；queue = reach 并带 {cmd:show, what:queue}；toggle 发 remote-cmd（不带 to）', async () => {
+  const w = win(URL_EN, '/music/player/');
+  const o = openSetup('/music/', w, { id: 'p1', mine: true });
+  await sleep(W + 20);
+  const fire = (act) => { const e = { detail: { act }, prevented: 0, preventDefault() { this.prevented++; } }; o.hs['sgx-music-dock'](e); return e; };
+  assert.equal(fire('open').prevented, 1);
+  await sleep(5);
+  assert.equal(o.calls.length, 1, '切到播放器（mine → go()）');
+  assert.equal(fire('queue').prevented, 1);
+  await sleep(5);
+  assert.deepEqual(o.cmds().at(-1), { cmd: 'show', what: 'queue', type: 'remote-cmd', to: 'p1' });
+  assert.equal(fire('toggle').prevented, 1);
+  assert.deepEqual(o.cmds().at(-1), { type: 'remote-cmd', cmd: 'toggle' });
+  assert.equal(fire('nope').prevented, 0);
 });
