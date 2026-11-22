@@ -4,6 +4,12 @@ site:
   name: 音乐
   description: Sloan Gray 的音乐：一张张收好的专辑，在弹出的播放器里听
 music:
+  # 打磨 6.4 迷你播放条（有播放器在放时贴底；点歌名回到播放器）
+  dock: 正在播放
+  dockOpen: 回到播放器
+  dockPlay: 播放
+  dockPause: 暂停
+  dockQueue: 播放队列
   music: 音乐
   albums: 专辑
   playAlbum: 播放整张
