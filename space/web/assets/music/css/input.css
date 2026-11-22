@@ -194,7 +194,7 @@
 .mu-ed .cu-field select.it-select { min-height: 46px; }
 /* 歌词框等宽（打磨 6.2，Gray 2026-11-22）：LRC 时间戳要对齐。和奇趣 curio-tail.css 的 .cu-field textarea（font: inherit; font-size: 16px; line-height: 1.5; min-height: 3.2em）同权重 (0,1,1)，
    以前本份末尾又 @import 一次 curio-tail.css，它排在后面把这条压掉了（从没生效过）；现在 curio-tail.css 只在奇趣 main.css 里引一次，奇趣 main.css 先引、本份后引，两边都不分层，同权重后者赢 → 这条生效 */
-.mu-ed-lrc textarea { min-height: 9.5em; font-family: var(--sgx-font-mono); font-size: 14px; line-height: 1.55; }
+.mu-ed-lrc textarea { min-height: 9.5em; font-family: var(--sgx-font-mono); font-size: 14px; line-height: 1.55; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
 .mu-ed-cover { display: flex; align-items: center; gap: 12px; }
 .mu-ed-cover.hidden { display: none; }
 .mu-ed-cover .cu-file { flex: 1 1 auto; min-width: 0; }

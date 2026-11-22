@@ -280,7 +280,8 @@ test('测试构建不问新加的读接口（对齐 PR-C2）：SGX_TEST_NO_WEATH
 test('打磨 6.2：音乐样式不再 @import curio-tail.css（只在奇趣 main.css 里引一次，奇趣那份先引）；歌词框等宽这条排在后面、同权重，所以生效', () => {
   const muCss = read('space/web/assets/music/css/input.css');
   assert.doesNotMatch(muCss.replace(/\/\*[\s\S]*?\*\//g, ''), /@import\s+["'][^"']*curio-tail\.css/);
-  assert.match(muCss, /^\.mu-ed-lrc textarea \{ min-height: 9\.5em; font-family: var\(--sgx-font-mono\); font-size: 14px;[^}]*\}$/m);
+  assert.match(muCss, /^\.mu-ed-lrc textarea \{ min-height: 9\.5em; font-family: var\(--sgx-font-mono\); font-size: 14px;[^}]*white-space: pre; overflow-wrap: normal; overflow-x: auto; \}$/m);
+  assert.match(read('space/web/layouts/music/section.html'), /<textarea id="mu-ed-lrc" rows="7" wrap="off"/);
   assert.match(read('space/web/assets/curio/css/input.css'), /^@import "\.\/curio-tail\.css";$/m);
   assert.ok(musicBase.indexOf('"curio/css/main.css"') > 0 && musicBase.indexOf('"curio/css/main.css"') < musicBase.indexOf('"music/css/main.css"'), '奇趣 main.css 在音乐 main.css 之前');
 });
