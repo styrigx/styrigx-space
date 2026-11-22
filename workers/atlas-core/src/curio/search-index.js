@@ -282,8 +282,9 @@ export async function rebuildSearchIndex(env, now = Date.now(), opts = {}) {
   }
 }
 
-/* 改内容的接口：收藏、设备 / 游戏、导入、电影、音乐（专辑 / 曲目增删改、上传曲目）。照片（/api/photo）不进索引，换照片不用重建 */
-const CONTENT_ROUTES = ['/api/links', '/api/items', '/api/import', '/api/movies', '/api/music', '/api/music-upload'];
+/* 改内容的接口：收藏、设备 / 游戏、导入、电影、音乐（专辑 / 曲目增删改、上传曲目）、游戏（/games/api/games，奇趣重组 PR 1）。
+   照片（/api/photo）、游戏封面（/games/api/cover）不进索引，换照片不用重建 */
+const CONTENT_ROUTES = ['/api/links', '/api/items', '/api/import', '/api/movies', '/api/music', '/api/music-upload', '/api/games'];
 const MUTATING = ['POST', 'PUT', 'DELETE', 'PATCH'];
 
 /** 这次请求成功改了要进索引的内容吗（内容接口 + 写方法 + 2xx）；key 是 routeKey 后的路径 */

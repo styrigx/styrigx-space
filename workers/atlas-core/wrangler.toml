@@ -25,6 +25,12 @@ zone_name = "styrigx.com"
 pattern = "styrigx.com/music/api/*"
 zone_name = "styrigx.com"
 
+# 游戏接口（奇趣重组设计稿 v1.0 第三节 PR 1 加；旧 /curio/api/items、/curio/api/photo 照常，PR 3 再删）。
+# 部署时 wrangler 按这里在 CF 上建这条路由：Gray 单独批
+[[routes]]
+pattern = "styrigx.com/games/api/*"
+zone_name = "styrigx.com"
+
 [observability]
 enabled = true
 head_sampling_rate = 1

@@ -23,13 +23,13 @@ test('组与默认组钉死', () => {
   assert.equal(G.ROOT_UID, 0);
   assert.equal(G.STYRIGX_UID, 1000);
   assert.equal(G.FIRST_USER_UID, 1001);
-  assert.deepEqual([...G.GROUPS], ['wheel', 'sudoers', 'music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use', 'music-manage', 'curio-manage', 'daymark-manage']);
+  assert.deepEqual([...G.GROUPS], ['wheel', 'sudoers', 'music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use', 'games-use', 'music-manage', 'curio-manage', 'daymark-manage', 'games-manage']);
   assert.deepEqual([...G.SPECIAL_GROUPS], ['wheel', 'sudoers']);
-  assert.deepEqual([...G.USE_GROUPS], ['music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use']);
-  assert.deepEqual([...G.MANAGE_GROUPS], ['music-manage', 'curio-manage', 'daymark-manage']);
+  assert.deepEqual([...G.USE_GROUPS], ['music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use', 'games-use'], '奇趣重组 PR 1：games 缀在最后');
+  assert.deepEqual([...G.MANAGE_GROUPS], ['music-manage', 'curio-manage', 'daymark-manage', 'games-manage']);
   assert.equal(G.PRIVILEGED_GROUPS, undefined, '旧名 PRIVILEGED_GROUPS 改名 SPECIAL_GROUPS');
   assert.equal(G.WRITE_GROUPS, undefined, '旧名 WRITE_GROUPS 改名 MANAGE_GROUPS');
-  assert.deepEqual([...G.STYRIGX_DEFAULT_GROUPS], ['wheel', 'sudoers', 'music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use', 'music-manage', 'curio-manage', 'daymark-manage']);
+  assert.deepEqual([...G.STYRIGX_DEFAULT_GROUPS], ['wheel', 'sudoers', 'music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use', 'games-use', 'music-manage', 'curio-manage', 'daymark-manage', 'games-manage']);
   assert.ok(Object.isFrozen(G.GROUPS) && Object.isFrozen(G.ACCESS_LEVELS));
   for (const v of Object.values(G.ACCESS)) assert.ok(!G.GROUPS.includes(v), v + ' 不许是组名');
   assert.ok(!G.GROUPS.includes('delete'), '删除不做组');
@@ -99,7 +99,7 @@ test('组权限 v1.1 §五：三类不重叠、拼起来正好等于 GROUPS；�
   for (const g of G.GROUPS) assert.ok(G.SPECIAL_GROUPS.includes(g) || G.PRODUCT_GROUP_RE.test(g), g);
   for (const g of G.USE_GROUPS) assert.match(g, /-use$/);
   for (const g of G.MANAGE_GROUPS) assert.match(g, /-manage$/);
-  assert.deepEqual([...G.PRODUCTS], ['music', 'curio', 'daymark', 'status', 'ai']);
+  assert.deepEqual([...G.PRODUCTS], ['music', 'curio', 'daymark', 'status', 'ai', 'games']);
   assert.equal(G.useGroupOf('music'), 'music-use');
   assert.equal(G.manageGroupOf('music'), 'music-manage');
   assert.equal(G.manageGroupOf('ai'), null, 'ai 没有 manage 组');

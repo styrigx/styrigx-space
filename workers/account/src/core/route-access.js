@@ -164,6 +164,14 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'HEAD', path: '/music/api/music-stream', product: 'music', kind: 'use', worker: 'atlas-core', why: '同上' }),
   R({ method: 'POST', path: '/music/api/music-upload', product: 'music', kind: 'manage', worker: 'atlas-core', why: '上传音轨 / 封面 / 歌手头像（kind=avatar，M4）' }),
 
+  /* 游戏（奇趣重组设计稿 v1.0 第三节 PR 1）：styrigx.com/games/api/*，同一个 Worker（atlas-core；workers/atlas-core/src/games/routes.js）；product 'games'
+     （组 games-use / games-manage 由 product 推出）。数据和奇趣 /curio/api/items、/curio/api/photo 的游戏同一张表、同一份封面；旧行 PR 3 再删 */
+  R({ method: 'GET', path: '/games/api/games', product: 'games', kind: 'read', worker: 'atlas-core', why: '游戏列表（私密行给 games-use，管理提示给 games-manage；不回设备）' }),
+  R({ method: 'POST', path: '/games/api/games', product: 'games', kind: 'manage', worker: 'atlas-core', why: 'game.add / edit / order；game.del 是单条', del: 'item' }),
+  R({ method: 'GET', path: '/games/api/cover', product: 'games', kind: 'read', worker: 'atlas-core', why: '游戏封面（私密游戏的封面只给 games-use，看不到 = 404）' }),
+  R({ method: 'POST', path: '/games/api/cover', product: 'games', kind: 'manage', worker: 'atlas-core', why: '上传 / 换游戏封面' }),
+  R({ method: 'DELETE', path: '/games/api/cover', product: 'games', kind: 'manage', worker: 'atlas-core', why: '删一张游戏封面', del: 'item' }),
+
   /* ---------- 日刻接口 styrigx-atlas-core（styrigx.com/daymark/api/*，不经网关；workers/atlas-core/src/daymark/routes.js；2026-11-14 由 daymark-core 合并进 atlas-core） ---------- */
   R({ method: 'GET', path: '/daymark/api/today', product: 'daymark', level: 'public', worker: 'atlas-core', why: '今日一句（首页 / 锁屏跨站读）' }),
   R({ method: 'HEAD', path: '/daymark/api/today', product: 'daymark', level: 'public', worker: 'atlas-core', why: '同上' }),
