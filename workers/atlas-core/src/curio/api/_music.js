@@ -13,12 +13,12 @@
 //                 没有就在同一个 batch 里建。专辑的 artist 文本留作显示名；曲目没有歌手文本，歌单里的曲目歌手名取这张表。
 //                 M4（歌手页，音乐 v1.19 7.5 / 十二 M4）：artist.edit 改名 / 简介 / 风格（改名同一个 batch 把名下专辑的 artist 文本跟着改）；
 //                 artist.merge 并到另一个歌手（名下专辑 / 曲目的 artist_id 和专辑文本改过去，原歌手删掉）；artist.del 只删名下没有作品的。
-//                 头像 avatar = R2_MUSIC 的 key music/artist/<id>/avatar-<时间>.jpg（music-upload kind=avatar）。旧数据回填是生产 SQL，单独报批，不在代码里。
+//                 头像 avatar = R2_MUSIC 的 key music/artist/<id>/avatar-<时间>.<jpg|png|webp>（music-upload kind=avatar；6.5b 前只有 .jpg）。旧数据回填是生产 SQL，单独报批，不在代码里。
 //   music_tokens  播放令牌：随机 32 字节（crypto.getRandomValues，base64url），一张专辑一枚，10 分钟有效；
 //                 有效期内可以多次 Range 请求（拖进度）。不用 HMAC、不要任何 secret。签新令牌时顺手删过期的。
 // R2（绑定 R2_MUSIC，同一个桶 styrigx-atlas-core）：music/<专辑 id>/<曲序>-<时间>.<扩展名>、music/<专辑 id>/cover-<时间>.<扩展名>；
 //   曲目移出专辑变单曲时复制的封面：music/t<曲目 id>/cover-<时间>.<扩展名>（复制在写 D1 之前，那时还没有单曲 id）。
-//   歌手头像（M4）：music/artist/<歌手 id>/avatar-<时间>.jpg；合并 / 删歌手时等 D1 提交成功之后删。
+//   歌手头像（M4）：music/artist/<歌手 id>/avatar-<时间>.<jpg|png|webp>；合并 / 删歌手时等 D1 提交成功之后删。
 //   不在 photos/ 下，照片清扫（photo-sweep.js）不碰；删专辑 / 删曲目时当场删。
 // 不进全站搜索索引 / AI 召回、不进站点地图（search-index.js 不读这些表；页面 noindex）。
 import { err, isSameOrigin } from './_lib.js';
@@ -38,7 +38,7 @@ export const MUSIC_SCHEMA = [
 /**
  * 上限（音乐分层方案 v1.13）：专辑 100 张、单曲 500 首，按 music_albums.kind 分开算；每张专辑 200 首；名字 / 艺术家 120 字；歌词 60000 字；
  * 单个音频文件 95 MB（Workers 请求体上限 100 MB，留余量；浏览器端直传，不分片）；封面 3 MB（浏览器先缩到 1600 webp）。
- * 歌手（M4）：名字、风格同 short 120 字；简介 bio 2000 字（方案没定，取保守值）；头像同封面 3 MB（浏览器裁方、≤ 1000、jpeg）。
+ * 歌手（M4）：名字、风格同 short 120 字；简介 bio 2000 字（方案没定，取保守值）；头像同封面 3 MB（浏览器裁方、≤ 1000、jpeg；后端收 jpeg / png / webp）。
  */
 export const MUSIC_LIMITS = { albums: 100, singles: 500, tracks: 200, short: 120, lrc: 60000, bio: 2000, trackBytes: 95 * 1024 * 1024, coverBytes: 3 * 1024 * 1024 };
 /** 播放令牌有效期：10 分钟 */
@@ -538,7 +538,7 @@ async function editArtist(db, o, now) {
  * artist.merge（M4，7.5「名下还有作品只能合并到另一个歌手」）：把 id 名下的专辑 / 单曲记录（artist_id + artist 文本 = 目标名字）、
  * 曲目（artist_id）都改到 into，再删掉 id 这条歌手；一个 batch，失败整体回滚。目标的名字、简介、风格不动。
  * 头像（Gray 2026-11-20 定）：
- *   - 目标没有头像、原歌手有 → 搬过去：D1 写之前先在 R2 复制成目标的 key（music/artist/<目标>/avatar-<时间>.jpg），
+ *   - 目标没有头像、原歌手有 → 搬过去：D1 写之前先在 R2 复制成目标的 key（music/artist/<目标>/avatar-<时间>.<原头像的扩展名>），
  *     目标的 avatar 在同一个 batch 里写上；D1 失败 → 删掉这份副本（不留孤儿），原头像不动；
  *     复制失败 → 503 storage，D1 没动；原头像在 R2 里找不到 → 照常合并，目标不挂头像（只记日志）。
  *   - 目标已有头像 → 原歌手的头像丢掉（目标的不动）。
@@ -554,12 +554,12 @@ async function mergeArtist(db, o, now, r2) {
   let copied = '';
   if (from.avatar && !to.avatar) {
     if (!r2) return { error: 'storage' };
-    const key = avatarKey(to.id, now);
+    const key = avatarKey(to.id, now, avatarExtOf(from.avatar));
     try {
       const obj = await r2.get(from.avatar);
       if (obj) {
         const bytes = obj.arrayBuffer ? await obj.arrayBuffer() : obj.body;
-        await r2.put(key, bytes, { httpMetadata: obj.httpMetadata || { contentType: 'image/jpeg' } });
+        await r2.put(key, bytes, { httpMetadata: obj.httpMetadata && obj.httpMetadata.contentType ? obj.httpMetadata : { contentType: coverTypeOf(null, from.avatar, 'image/jpeg') } });
         copied = key;
       } else console.error('[curio-music] artist avatar missing in r2, merge target gets none');
     } catch (e) {
@@ -590,9 +590,35 @@ async function mergeArtist(db, o, now, r2) {
   return { removed, id: to.id };
 }
 
-/** 歌手头像的 R2 key（十二 M4 第 2 条） @param {number} artistId @param {number} now */
-export function avatarKey(artistId, now) {
-  return `music/artist/${artistId}/avatar-${now}.jpg`;
+/** 封面 / 头像收的三种图（看头几个字节，_image.js sniffImage）→ R2 key 的扩展名（polish 6.5b：头像也收 png / webp） */
+export const COVER_EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const EXT_TYPE = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+
+/**
+ * 封面 / 头像回放的 Content-Type：R2 对象自带的 httpMetadata.contentType 优先（上传时按字节嗅出来的写进去）；
+ * 没有（老数据 / 复制丢了元数据）→ 按 key 的扩展名推；推不出 → fallback（专辑 webp、头像 jpeg，同改之前）。
+ * D1 只存 R2 key，不存类型，所以不用迁移。 @param {any} obj @param {string} key @param {string} fallback
+ */
+export function coverTypeOf(obj, key, fallback) {
+  const t = obj && obj.httpMetadata && obj.httpMetadata.contentType;
+  if (t) return t;
+  const m = /\.([a-z0-9]+)$/i.exec(key || '');
+  return (m && EXT_TYPE[m[1].toLowerCase()]) || fallback;
+}
+
+/**
+ * 歌手头像的 R2 key（十二 M4 第 2 条）：music/artist/<id>/avatar-<时间>.<扩展名>；扩展名跟图片类型走（polish 6.5b），默认 jpg（老 key 都是 .jpg）。
+ * @param {number} artistId @param {number} now @param {string} [ext]
+ */
+export function avatarKey(artistId, now, ext = 'jpg') {
+  return `music/artist/${artistId}/avatar-${now}.${ext}`;
+}
+
+/** 合并歌手时复制头像：新 key 的扩展名跟原头像的 key 走（原来是 png 就还是 .png；认不出 → jpg） @param {string} src */
+export function avatarExtOf(src) {
+  const m = /\.([a-z0-9]+)$/i.exec(src || '');
+  const ext = m ? m[1].toLowerCase() : '';
+  return EXT_TYPE[ext] ? (ext === 'jpeg' ? 'jpg' : ext) : 'jpg';
 }
 
 /** 随机令牌：32 字节 crypto.getRandomValues → base64url（43 字符，无填充） */
