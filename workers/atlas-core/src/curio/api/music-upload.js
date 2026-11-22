@@ -11,9 +11,7 @@
 // → 曲目 {ok:true, id}；封面 {ok:true}。400 参数不对 / 不是音频图片；404 专辑不在；409 曲目满了（专辑 200 首 limit；单曲已有 1 首 single-full）；413 太大
 import { err, json, methodNotAllowed } from './_lib.js';
 import { sniffImage } from './_image.js';
-import { musicOrigin, ensureMusicSchema, MUSIC_LIMITS, AUDIO_TYPES, trackKey, avatarKey } from './_music.js';
-
-const IMG_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+import { musicOrigin, ensureMusicSchema, MUSIC_LIMITS, AUDIO_TYPES, trackKey, avatarKey, COVER_EXT } from './_music.js';
 
 /** R2 写进去了、D1 却没写成：当场删掉，不留没人认的文件（音乐 v1.18 十 M1；错误照旧往上抛 → 500 internal） @param {any} r2 @param {string} key */
 async function dropOrphan(r2, key) {
@@ -52,7 +50,7 @@ export async function onRequestPost(context) {
     if (bytes.length > max) return err('too-large', 413);
     const type = sniffImage(bytes);
     if (!type) return err('not-image', 400);
-    const key = `music/${albumId}/cover-${now}.${IMG_EXT[type]}`;
+    const key = `music/${albumId}/cover-${now}.${COVER_EXT[type]}`;
     try { await env.R2_MUSIC.put(key, bytes, { httpMetadata: { contentType: type } }); } catch (e) { return err('storage', 503); }
     try {
       await db.prepare('UPDATE music_albums SET cover = ?1, updated_at = ?2 WHERE id = ?3').bind(key, now, albumId).run();
@@ -95,8 +93,8 @@ export async function onRequestPost(context) {
 }
 
 /**
- * 歌手头像（M4）：?artist=N&kind=avatar，body 是 jpeg（浏览器先裁方、缩到 ≤ 1000、转 jpeg，同一套裁切）。
- * 400 bad-params（没给歌手 / 同时给了专辑）/ not-image（不是 jpeg）；404 歌手不在；413 超 3 MB；503 storage（R2 写失败）。
+ * 歌手头像（M4）：?artist=N&kind=avatar，body 是 jpeg / png / webp（浏览器先裁方、缩到 ≤ 1000、转 jpeg，同一套裁切；6.5b 起后端三种都收）。
+ * 400 bad-params（没给歌手 / 同时给了专辑）/ not-image（不是这三种）；404 歌手不在；413 超 3 MB；503 storage（R2 写失败）。
  * @param {Request} request @param {any} env @param {URLSearchParams} sp
  */
 async function uploadAvatar(request, env, sp) {
@@ -111,10 +109,11 @@ async function uploadAvatar(request, env, sp) {
   if (!artist) return err('not-found', 404);
   const bytes = new Uint8Array(await request.arrayBuffer());
   if (bytes.length > MUSIC_LIMITS.coverBytes) return err('too-large', 413);
-  if (sniffImage(bytes) !== 'image/jpeg') return err('not-image', 400);
+  const type = sniffImage(bytes);
+  if (!COVER_EXT[type]) return err('not-image', 400);
   const now = Date.now();
-  const key = avatarKey(artistId, now);
-  try { await env.R2_MUSIC.put(key, bytes, { httpMetadata: { contentType: 'image/jpeg' } }); } catch (e) { return err('storage', 503); }
+  const key = avatarKey(artistId, now, COVER_EXT[type]);
+  try { await env.R2_MUSIC.put(key, bytes, { httpMetadata: { contentType: type } }); } catch (e) { return err('storage', 503); }
   try {
     await db.prepare('UPDATE music_artists SET avatar = ?1, updated_at = ?2 WHERE id = ?3').bind(key, now, artistId).run();
   } catch (e) {
