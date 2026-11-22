@@ -154,10 +154,8 @@ space/
 | 文件 / 引用 | 违反哪条 | 原因 | 加入日期 / PR |
 |---|---|---|---|
 | `web/assets/jsconfig.json` | 26（落点） | 横跨整个 `assets/` 的 JS 路径配置：`baseUrl` 为 `.`（即 `assets/` 本身），覆盖 Platform 的 `common/js/` 和 curio、daymark、blog 的 `js/`；放进任一层都会断掉其它层的路径解析 | 2026-11-13 #450 |
-| `web/layouts/music/section.html` → `curio/js/curio.js` | 24（产品互引） | music 搬家第 3 步：确认框、提示条、弹层开关、`sudo` / `sudoTicket` 照旧借奇趣的 `curio.js`（搬家设计稿 v1.1 3.1 第 3 条，Gray 2026-11-21 定）；技术债，搬完后挪进 common | 2026-11-21 music 第 3 步 |
-| `web/layouts/music/section.html` → `partials/curio/page-head.html`、`curio/icon.html`、`curio/common.html` | 24（产品互引） | 外观不变（3.1 第 2 条）：音乐页照旧用奇趣的页头、图标、确认框；同上，随 curio.js 一起挪 | 2026-11-21 music 第 3 步 |
+| `web/layouts/music/section.html` → `partials/curio/icon.html` | 24（产品互引） | 外观不变（3.1 第 2 条）：音乐页照旧用奇趣的图标（页头打磨 6.1、确认框和 `curio.js` 打磨 6.2 已换成本站自己的） | 2026-11-21 music 第 3 步 |
 | `web/layouts/music/baseof.html` → `curio/css/main.css`、`curio/js/sgx/topbar-host.js`、`curio/js/sgx/ui-inherit-run.js` | 24（产品互引） | 外框照奇趣的写：借奇趣的样式表（cu- / bk- / it- 部件）和奇趣打好的共享外壳入口（里面全是 common 的代码）；同上 | 2026-11-21 music 第 3 步 |
-| `web/assets/music/css/input.css` → `curio/css/curio-tail.css` | 24（产品互引） | 外观不变：搬家前 mu- 规则夹在奇趣样式中间，奇趣后半段同权重时压过它们；音乐那份在 mu- 规则后再 `@import` 一次后半段，层叠顺序同搬家前；同上 | 2026-11-21 music 第 3 步 |
 
 ## 6. 迁移（已完成）
 

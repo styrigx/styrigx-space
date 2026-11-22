@@ -127,7 +127,7 @@ test('防同时响：一边开播，另一边（同一频道）自动暂停；�
   assert.equal(B.audio.paused, true);
 });
 
-test('音乐页不出声（搬家设计稿 v1.1 3.3）：不建播放器、不签令牌、不碰 <audio>；点播放 = handOff（remote-cmd play + sgx-music-open）；共用核不碰界面', () => {
+test('音乐页不出声（搬家设计稿 v1.1 3.3）：不建播放器、不签令牌、不碰 <audio>；点播放 = handOff（只发 sgx-music-open {url, cmd}，打磨 6.3 起本页不自己发 remote-cmd）；共用核不碰界面', () => {
   const src = readFileSync(new URL('../../space/web/assets/music/js/music-page.js', import.meta.url), 'utf8');
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   assert.doesNotMatch(code, /CORE\.createPlayer\(/, '本页不建播放器');
@@ -137,8 +137,8 @@ test('音乐页不出声（搬家设计稿 v1.1 3.3）：不建播放器、不�
   assert.match(code, /return fetch\('\/music\/api\/music-play'/);
   assert.doesNotMatch(code, /mu-audio|mu-player|mu-lyrics|#mu-seek|#mu-toggle|#mu-speed|#mu-shuffle/, '播放条 / audio / 歌词条的选择器都删了');
   assert.doesNotMatch(code, /\.play\(\)|playbackRate/, '本页不出声');
-  assert.match(code, /function handOff\(o, openAlbum, openI\)\{\n  if \(mc\) \{ try \{ mc\.postMessage\(playCmd\(o\)\); \} catch \(e\) \{\} \}/, '先发 remote-cmd play（不等 player-hello）');
-  assert.match(code, /new CustomEvent\('sgx-music-open', \{ detail: \{ url: url \}, cancelable: true \}\)/, '再发可取消的 sgx-music-open，顶栏 mountMusic 开窗');
+  assert.doesNotMatch(code, /postMessage|BroadcastChannel/, '本页不再自己发 remote-cmd（顶栏 reach() 握手后发，带 to）');
+  assert.match(code, /new CustomEvent\('sgx-music-open', \{ detail: \{ url: url, cmd: playCmd\(o\) \}, cancelable: true \}\)/, '发可取消的 sgx-music-open {url, cmd}，顶栏 mountMusic reach() 接');
   assert.match(code, /if \(viewOnly\) return askSudo\(\);/, '只看模式点播放发 sgx:sudo，不开播放器');
   const tpl = readFileSync(new URL('../../space/web/layouts/music/section.html', import.meta.url), 'utf8').replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '');
   for (const id of ['mu-player', 'mu-audio', 'mu-lyrics', 'mu-seek', 'mu-toggle', 'mu-speed', 'mu-shuffle', 'mu-prev', 'mu-next', '<audio']) assert.ok(!tpl.includes(id), '模板没有 ' + id);
@@ -155,10 +155,12 @@ test('音乐页交接的纯函数：playerPathOf / playerUrl（?album=&t=，中�
   assert.equal(MU.playerUrl('/music/', 3, 2), '/music/player/?album=3&t=2');
   assert.equal(MU.playerUrl('/music/zh/', '12', '0'), '/music/zh/player/?album=12&t=0');
   for (const u of [MU.playerUrl('/music/', 3, 2), MU.playerUrl('/music/zh/', 9, 0)]) assert.ok(PLAYER_URL.test(u), u + ' 过顶栏白名单');
-  assert.deepEqual(MU.playCmd({ album: '7', i: 3 }), { type: 'remote-cmd', cmd: 'play', i: 3, album: 7 });
+  assert.deepEqual(MU.playCmd({ album: '7', i: 3 }), { cmd: 'play', i: 3, album: 7 });
   const q = [11, 12, 13];
   const m = MU.playCmd({ queue: q, i: 1 });
-  assert.deepEqual(m, { type: 'remote-cmd', cmd: 'play', i: 1, queue: [11, 12, 13] });
+  assert.deepEqual(m, { cmd: 'play', i: 1, queue: [11, 12, 13] });
+  const { playCmdOk } = await import('../../space/web/assets/common/js/frame/topbar/panel.js');
+  assert.ok(playCmdOk(MU.playCmd({ album: 7, i: 3 })) && playCmdOk(m), '过顶栏 cmd 白名单');
   assert.notEqual(m.queue, q, '复制一份，不和页面的数组共用');
   assert.equal('album' in m, false);
 });
@@ -191,16 +193,87 @@ test('播放器 ?t= 与 startOf（第 3 步）：专辑停在那张、t 在范�
   assert.deepEqual(MP.startOf([], [], 1, 0), { cur: 0, i: -1 });
 });
 
-test('播放器收 remote-cmd play（第 3 步）：专辑 / 单曲两种消息都认；只看模式只提示；歌单里没有先重取一次', () => {
+test('播放器收 remote-cmd play（第 3 步）：消息接到纯函数 playCmdWith；?t= 开窗就从那首放', () => {
   const src = readFileSync(new URL('../../space/web/assets/common/js/music/music-player.js', import.meta.url), 'utf8');
   assert.match(src, /else if \(m\.cmd === 'play'\) playCmd\(m\);/);
-  const fn = src.slice(src.indexOf('function playCmd(m, again){'), src.indexOf("$('#mp-tracks').addEventListener"));
-  assert.match(fn, /if \(viewOnly\) \{ note\('locked'\); return; \}/);
-  assert.match(fn, /Array\.isArray\(m\.queue\)/);
-  assert.match(fn, /P\.playQueue\(q, i\)/);
-  assert.match(fn, /P\.playFrom\(id, i\)/);
-  assert.equal((fn.match(/if \(!again\) reload\(\)\.then\(function\(\)\{ playCmd\(m, true\); \}\)/g) || []).length, 2, '专辑 / 单曲都只重取一次');
+  assert.match(src, /function playCmd\(m\)\{\n  return playCmdWith\(m, \{/);
   assert.match(src, /if \(go\.i >= 0 && !viewOnly\) playFrom\(go\.i\);/, '?t= 开窗就从那首放（只看模式不放）');
+});
+
+/** playCmdWith 的假环境：groups 随 reload 换成 next（next 不给 = 重取后还是旧的） */
+function cmdEnv(groups, next, viewOnly) {
+  const e = { viewOnly: !!viewOnly, g: groups, reloads: 0, did: [], pending: [] };
+  Object.assign(e, {
+    groups: () => e.g,
+    has: (id) => e.g.some((x) => (x.singles ? x.items.some((r) => r.id === id) : x.id === id)),
+    reload: () => { e.reloads++; const p = Promise.resolve().then(() => { if (next) e.g = next; }); e.pending.push(p); return p; },
+    locked: () => e.did.push('locked'),
+    select: (k) => e.did.push('select ' + k),
+    playQueue: (q, i) => e.did.push('queue ' + q.join(',') + ' @' + i),
+    playFrom: (id, i) => e.did.push('album ' + id + ' @' + i),
+    focus: () => e.did.push('focus'),
+  });
+  return e;
+}
+const settle = async (e) => { for (let n = 0; n < 5; n++) { await Promise.all(e.pending); await Promise.resolve(); } };
+
+test('播放器 playCmdWith（打磨 6.3 保留）：歌单里没有这张 → 重取一次再找；重取后还没有就不动、不再重取', async () => {
+  const MP = require('../../space/web/assets/common/js/music/music-player.js');
+  const A = { id: 1, title: 'A', tracks: [{ id: 10 }, { id: 11 }] };
+  const B = { id: 2, title: 'B', tracks: [{ id: 20 }] };
+  const S = { singles: true, id: -1, items: [{ id: 31 }, { id: 32 }], tracks: [{ id: 41 }, { id: 42 }] };
+  /* 认识的专辑：直接放，不重取 */
+  let e = cmdEnv([A, S]);
+  assert.equal(MP.playCmdWith({ cmd: 'play', album: 1, i: 1 }, e, false), 'album');
+  assert.deepEqual(e.did, ['select 0', 'album 1 @1', 'focus']);
+  assert.equal(e.reloads, 0);
+  /* 不认识的专辑，重取后有了：重取一次，放那张 */
+  e = cmdEnv([A, S], [A, B, S]);
+  assert.equal(MP.playCmdWith({ cmd: 'play', album: 2, i: 0 }, e, false), 'reload');
+  await settle(e);
+  assert.equal(e.reloads, 1);
+  assert.deepEqual(e.did, ['select 1', 'album 2 @0', 'focus']);
+  /* 不认识的专辑，重取后还是没有：只重取一次，然后不动 */
+  e = cmdEnv([A, S]);
+  MP.playCmdWith({ cmd: 'play', album: 99, i: 0 }, e, false);
+  await settle(e);
+  assert.equal(e.reloads, 1, '只重取一次');
+  assert.deepEqual(e.did, []);
+  /* 单曲队列里有不认识的：同样只重取一次 */
+  e = cmdEnv([A, S]);
+  MP.playCmdWith({ cmd: 'play', queue: [31, 77], i: 0 }, e, false);
+  await settle(e);
+  assert.equal(e.reloads, 1);
+  assert.deepEqual(e.did, []);
+  e = cmdEnv([A, S], [A, { ...S, items: [{ id: 31 }, { id: 77 }] }]);
+  MP.playCmdWith({ cmd: 'play', queue: [31, 77], i: 1 }, e, false);
+  await settle(e);
+  assert.deepEqual(e.did, ['select 1', 'queue 31,77 @1', 'focus']);
+  /* 已经重取过（again）：直接不动 */
+  e = cmdEnv([A]);
+  assert.equal(MP.playCmdWith({ cmd: 'play', album: 99, i: 0 }, e, true), 'none');
+  assert.equal(e.reloads, 0);
+  /* i 越界不动不重取；只看模式只提示 */
+  e = cmdEnv([A]);
+  assert.equal(MP.playCmdWith({ cmd: 'play', album: 1, i: 5 }, e, false), 'skip');
+  assert.equal(e.reloads, 0);
+  e = cmdEnv([A], null, true);
+  assert.equal(MP.playCmdWith({ cmd: 'play', album: 1, i: 0 }, e, false), 'locked');
+  assert.deepEqual(e.did, ['locked']);
+});
+
+test('播放器 cmdForMe（打磨 6.3）：带 to 的只认自己；不带 to 的照旧认', () => {
+  const MP = require('../../space/web/assets/common/js/music/music-player.js');
+  assert.equal(MP.cmdForMe({ type: 'remote-cmd', cmd: 'next' }, 'me'), true);
+  assert.equal(MP.cmdForMe({ type: 'remote-cmd', cmd: 'play', to: 'me' }, 'me'), true);
+  assert.equal(MP.cmdForMe({ type: 'remote-cmd', cmd: 'play', to: 'other' }, 'me'), false);
+  const src = readFileSync(new URL('../../space/web/assets/common/js/music/music-player.js', import.meta.url), 'utf8');
+  assert.match(src, /else if \(m\.type === 'remote-cmd'\) \{\n    if \(!cmdForMe\(m, PID\)\) return;/);
+  assert.match(src, /if \(m\.type === 'player-hello'\) tell\(typeof m\.req === 'string' \? \{ id: PID, req: m\.req, mine: openerIs\(m\.from\) \} : null\);/);
+  assert.match(src, /G\.opener && !G\.opener\.closed \? G\.opener\.sgxMusicPageId : ''/);
+  assert.match(src, /m\.type === 'player-focus'\) \{ if \(m\.to === PID\)/);
+  assert.match(src, /m\.id = PID; m\.by = openerId\(\);/, '平时广播也带 id 和 by');
+  assert.match(src, /\{ type: 'player-bye', id: PID \}/);
 });
 
 /* ---------- 2b：播放模式（顺序 / 随机）、播放器倍速档 ---------- */

@@ -1,6 +1,10 @@
 # 音乐子站字符串表（music 搬家第 3 步，2026-11-21：从 data/curio/i18n 的 music / cmd.upload / js.curioMusic 搬来，表名 curioMusic → musicPage；
 # 页面不再出声，播放条那几条（player / position / playbackSpeed / shuffle / previous / play / pause / next、js 的 viewOnly / play / pause / speed / shuffleOn / shuffleOff）删了）。
 # 英文是源文本；其他语言的表缺键时回退英文（partials/common/tr.html）。页头、确认框、su 那一条照旧读奇趣的表（layouts/music/section.html 的 $cu）。
+# 站名 / 一句话（打磨 6.1）：页头大标题、标签页标题（首页 = 站名，同 daymark / curio）、meta description
+site:
+  name: Music
+  description: 'Sloan Gray''s Music: albums collected one by one, played in a pop-out player'
 music:
   music: Music
   albums: Albums

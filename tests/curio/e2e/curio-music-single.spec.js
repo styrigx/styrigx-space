@@ -164,7 +164,9 @@ test('音乐页分段：两边都有才显示；单曲列表（小封面 · 歌�
   await expect(page.locator('#mu-singles .mu-track-dur')).toHaveText(['4:00', '4:29', '4:31']);
   await expect(page.locator('#mu-singles .mu-single-im img')).toHaveCount(1);
   expect(plays(calls)).toEqual([]);
-  /* 点第二行：开播放器 ?album=32&t=0，播放器只签它 */
+  /* 点第二行：开播放器 ?album=32&t=0，播放器只签它。
+     打磨 6.3：先等加载时的握手到点（HANDOFF_WAIT_MS = 300）——再快的点击要等回答、晚开窗，Chromium 不让新窗口自动播放，这一条要它自己接下一首 */
+  await page.waitForTimeout(350);
   const [pl] = await Promise.all([page.context().waitForEvent('page'), page.locator('#mu-singles [data-s="1"]').click()]);
   await pl.waitForURL(/\/music\/zh\/player\/\?album=32&t=0$/);
   await expect.poll(() => plays(calls)).toEqual([32]);
