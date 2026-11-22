@@ -1258,9 +1258,9 @@ a.mu-artist-a:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-
 .mp-app .mp-play { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); }
 .mp-app .mp-play-s { width: 46px; height: 46px; box-shadow: none; }
 html.mu-view-only .mp-app .mp-play { background: var(--sgx-surface-container-high); color: var(--sgx-on-surface-variant); box-shadow: none; }
-.mp-ic-shuffle, .mp-mode.is-shuffle .mp-ic-seq, .mp-modechip.is-shuffle .mp-ic-seq { display: none; }
-.mp-mode.is-shuffle .mp-ic-shuffle, .mp-modechip.is-shuffle .mp-ic-shuffle { display: block; }
-.mp-app .mp-mode.is-shuffle { color: var(--sgx-primary); }
+.mp-ic-shuffle, .mp-ic-repeat, :is(.mp-mode, .mp-modechip):is(.is-shuffle, .is-repeat) .mp-ic-seq { display: none; }
+.mp-mode.is-shuffle .mp-ic-shuffle, .mp-modechip.is-shuffle .mp-ic-shuffle, .mp-mode.is-repeat .mp-ic-repeat, .mp-modechip.is-repeat .mp-ic-repeat { display: block; }
+.mp-app .mp-mode:is(.is-shuffle, .is-repeat) { color: var(--sgx-primary); }
 .mp-util { display: none; }
 .mp-ic-muted, .mp-ib.is-muted .mp-ic-vol { display: none; }
 .mp-ib.is-muted .mp-ic-muted { display: block; }
@@ -1316,7 +1316,7 @@ html.mu-view-only :is(#mp-prev, #mp-next, #mp-d-prev, #mp-d-next, #mp-speed, #mp
 .mp-ps { color: var(--sgx-primary); }
 .mp-dx { margin-left: -4px; }
 .mp-dlg .mp-modechip { display: inline-flex; align-items: center; gap: 6px; flex: none; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 13px; color: var(--sgx-text-secondary); background: var(--sgx-surface-container-high); white-space: nowrap; }
-.mp-dlg .mp-modechip.is-shuffle { color: var(--sgx-primary); }
+.mp-dlg .mp-modechip:is(.is-shuffle, .is-repeat) { color: var(--sgx-primary); }
 .mp-ql { flex: 1 1 auto; min-height: 0; list-style: none; margin: 0; padding: 6px 0 10px; overflow-y: auto; overscroll-behavior: contain; }
 .mp-dlg .mp-q { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 56px; padding: 6px 20px; text-align: left; }
 .mp-dlg .mp-q:hover { background: var(--sgx-state-hover); }

@@ -143,12 +143,76 @@ test('队列 / ⋯：手机是居中的悬浮卡片（非模态 <dialog class="s
     await page.mouse.click(8, db.y + 12);
     await expect(d).toHaveAttribute('data-state', 'closed');
   }
-  /* 队列头部切模式 = 同一个模式键 */
+  /* 队列头部切模式 = 同一个模式键：顺序播放 → 列表循环 → 随机播放 → 顺序播放 */
   await page.locator('#mp-queue-btn').click();
-  await page.locator('#mp-q-mode').click();
+  const chip = page.locator('#mp-q-mode');
+  await expect(chip).toHaveText('顺序播放');
+  await chip.click();
   await expect(page.locator('#mp-shuffle')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#mp-q-mode')).toHaveText('随机播放');
+  await expect(chip).toHaveText('列表循环');
+  await expect(chip).toHaveClass(/is-repeat/);
+  await expect(chip.locator('.mp-ic-repeat')).toBeVisible();
+  await expect(chip.locator('.mp-ic-seq')).toBeHidden();
+  expect(await page.evaluate(() => localStorage.getItem('sgx-music-mode'))).toBe('repeat');
+  await chip.click();
+  await expect(chip).toHaveText('随机播放');
+  await expect(chip.locator('.mp-ic-shuffle')).toBeVisible();
+  await expect(chip.locator('.mp-ic-repeat')).toBeHidden();
   expect(await page.evaluate(() => localStorage.getItem('sgx-music-mode'))).toBe('shuffle');
+  await chip.click();
+  await expect(chip).toHaveText('顺序播放');
+  await expect(page.locator('#mp-shuffle')).toHaveAttribute('aria-pressed', 'false');
+  expect(await page.evaluate(() => localStorage.getItem('sgx-music-mode'))).toBe('seq');
+});
+
+test('列表循环（打磨 6.4 v2 稿）：英文队列模式键 In order → Repeat list → Shuffle；列表循环里末首放完接第一首，末首点下一首绕到第一首，首首点上一首绕到最后一首；顺序到尾停', async ({ page, context }) => {
+  await mockMusic(context);
+  await page.goto('/music/player/?album=1');
+  await expect(page.locator('#mp-app')).toBeVisible();
+  await page.locator('#mp-toggle').click();
+  await expect(page.locator('#mp-toggle')).toHaveClass(/is-playing/);
+  await page.locator('#mp-queue-btn').click();
+  const chip = page.locator('#mp-q-mode');
+  await expect(chip).toHaveText('In order');
+  await chip.click();
+  await expect(chip).toHaveText('Repeat list');
+  await expect(page.locator('#mp-shuffle')).toHaveAttribute('aria-label', 'Repeat list');
+  expect(await page.evaluate(() => localStorage.getItem('sgx-music-mode'))).toBe('repeat');
+  await chip.click();
+  await expect(chip).toHaveText('Shuffle');
+  await chip.click();
+  await expect(chip).toHaveText('In order');
+  await chip.click();
+  await expect(chip).toHaveText('Repeat list');
+  await page.keyboard.press('Escape');
+  const title = page.locator('#mp-title');
+  await expect(title).toHaveText('All I Want');
+  await page.locator('#mp-next').dispatchEvent('click');
+  await expect(title).toHaveText('My Old Man');
+  await page.locator('#mp-next').dispatchEvent('click');
+  await expect(title).toHaveText('Little Green');
+  /* 末首放完（ended）：接第一首、接着放 */
+  await page.locator('#mp-audio').evaluate((a) => a.dispatchEvent(new Event('ended')));
+  await expect(title).toHaveText('All I Want');
+  await expect(page.locator('#mp-toggle')).toHaveClass(/is-playing/);
+  /* 首首点上一首（刚开头，不到 3 秒）：绕到最后一首；再点下一首绕回第一首 */
+  await page.locator('#mp-prev').dispatchEvent('click');
+  await expect(title).toHaveText('Little Green');
+  await page.locator('#mp-next').dispatchEvent('click');
+  await expect(title).toHaveText('All I Want');
+  /* 重开还是列表循环（记在本地） */
+  await page.reload();
+  await expect(page.locator('#mp-app')).toBeVisible();
+  await expect(page.locator('#mp-shuffle')).toHaveAttribute('data-mode', 'repeat');
+  /* 切回顺序：末首点下一首不动 */
+  await page.evaluate(() => localStorage.setItem('sgx-music-mode', 'seq'));
+  await page.goto('/music/player/?album=1&t=2');
+  await expect(page.locator('#mp-app')).toBeVisible();
+  await page.locator('#mp-toggle').click();
+  await expect(title).toHaveText('Little Green');
+  await page.locator('#mp-next').dispatchEvent('click');
+  await page.waitForTimeout(300);
+  await expect(title).toHaveText('Little Green');
 });
 
 test('⋯ 只有三行（专辑 / 歌手 / 回到曲库），单曲没有专辑行；开着音乐页 → 在它那里页内换（专辑、歌手、曲库），播放器不跳走、不断', async ({ page, context }) => {

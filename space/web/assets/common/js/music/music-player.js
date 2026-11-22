@@ -12,7 +12,7 @@
  * 只播放，不管理（上传 / 删除留在音乐页 music/js/music-page.js）。功能按方案 §7.1 播放层：
  *   - 正在播：封面小图 + 歌名 + 歌手 + 专辑名；标签页标题跟着歌名。
  *   - 播放控制：播放 / 暂停、上一首、下一首；进度条可拖（Range）+ 当前时间 / 总时长。
- *   - 播放模式：顺序 / 随机（共用核 setShuffle；模式记在 localStorage「sgx-music-mode」，下次打开还是上次的；
+ *   - 播放模式：顺序 / 列表循环 / 随机（打磨 6.4 v2 稿加列表循环；模式键三档轮换 CORE.nextMode，共用核 setMode；模式记在 localStorage「sgx-music-mode」，下次打开还是上次的；
  *     多开的窗口之间 storage 事件同步）。
  *   - 倍速：1× → 1.25× → 1.5× → 2× 循环（PLAYER_SPEEDS；只记在本窗口内存里）。
  *   - 音量滑条 + 静音（本窗口）。
@@ -335,8 +335,11 @@ function syncState(){
   });
   var ms = G.navigator && G.navigator.mediaSession;
   if (ms) { try { ms.playbackState = P.state.i < 0 ? 'none' : on ? 'playing' : 'paused'; } catch (e) {} }
-  var sh = P.state.shuffle, lbl = tr(sh ? 'modeShuffle' : 'modeSeq');
-  $$('#mp-shuffle, #mp-q-mode').forEach(function(b){ b.setAttribute('aria-pressed', String(sh)); b.classList.toggle('is-shuffle', sh); });
+  var md = P.mode(), lbl = tr(md === 'shuffle' ? 'modeShuffle' : md === 'repeat' ? 'modeRepeat' : 'modeSeq');
+  $$('#mp-shuffle, #mp-q-mode').forEach(function(b){
+    b.setAttribute('aria-pressed', String(md !== 'seq')); b.dataset.mode = md;
+    b.classList.toggle('is-shuffle', md === 'shuffle'); b.classList.toggle('is-repeat', md === 'repeat');
+  });
   $('#mp-shuffle').title = lbl; $('#mp-shuffle').setAttribute('aria-label', lbl);
   $('#mp-q-mode-tx').textContent = lbl;
   if (qSheet && qSheet.isOpen()) renderQueue();
@@ -577,7 +580,7 @@ $('#mp-q-list').addEventListener('click', function(e){
   else if (P.state.i >= 0) P.playFrom(P.state.album, k);
   else { pend = k; playFrom(k); }
 });
-$('#mp-q-mode').addEventListener('click', function(){ setMode(!P.state.shuffle); });
+$('#mp-q-mode').addEventListener('click', function(){ setMode(CORE.nextMode(P.mode())); });
 function renderMore(){
   var a = shownRec(), t = shownTrack();
   $('#mp-m-title').textContent = t ? t.title : (a ? a.title : '');
@@ -633,8 +636,9 @@ $$('[data-toggle]').forEach(function(b){ b.addEventListener('click', function(){
 }); });
 $$('#mp-prev, #mp-d-prev').forEach(function(b){ b.addEventListener('click', function(){ P.prev(); }); });
 $$('#mp-next, #mp-d-next').forEach(function(b){ b.addEventListener('click', function(){ P.next(); }); });
-function setMode(on){ P.setShuffle(on); CORE.saveMode(store, on ? 'shuffle' : 'seq'); }
-$('#mp-shuffle').addEventListener('click', function(){ setMode(!P.state.shuffle); });
+/* 模式键：顺序播放 → 列表循环 → 随机播放 → 顺序播放（打磨 6.4 v2 稿），记到本地 */
+function setMode(m){ P.setMode(m); CORE.saveMode(store, m); }
+$('#mp-shuffle').addEventListener('click', function(){ setMode(CORE.nextMode(P.mode())); });
 $('#mp-speed').addEventListener('click', function(){
   speed = CORE.nextSpeed(speed, CORE.PLAYER_SPEEDS);
   P.setSpeed(speed);
@@ -696,12 +700,12 @@ function mediaPos(){
 })();
 
 /* ---------- 启动 ---------- */
-P.setShuffle(CORE.readMode(store) === 'shuffle');
-/* 别的窗口改了随机（同一个本地设置）：这边跟着变 */
+P.setMode(CORE.readMode(store));
+/* 别的窗口改了模式（同一个本地设置）：这边跟着变 */
 G.addEventListener('storage', function(e){
   if (e && e.key !== CORE.MODE_KEY) return;
-  var on = CORE.readMode(store) === 'shuffle';
-  if (on !== P.state.shuffle) P.setShuffle(on);
+  var m = CORE.readMode(store);
+  if (m !== P.mode()) P.setMode(m);
 });
 syncVol();
 function done(){ doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); }); }

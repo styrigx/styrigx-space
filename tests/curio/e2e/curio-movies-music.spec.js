@@ -394,12 +394,18 @@ test('播放器（有权限，打磨 6.4）：没有曲目 / 专辑列表，停�
   await expect(page.locator('#mp-artist')).toHaveText('Joni Mitchell');
   expect(await page.locator('#mp-audio').evaluate((a) => a.src)).toMatch(/\/music\/api\/music-stream\?t=A{43}&id=11$/);
   await expect(page).toHaveTitle(/^All I Want \| /);
-  /* 模式（顺序 / 随机）：按下、记到本地 */
+  /* 模式（顺序 → 列表循环 → 随机 → 顺序，打磨 6.4 v2 稿）：按下、记到本地 */
   await page.locator('#mp-shuffle').click();
   await expect(page.locator('#mp-shuffle')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#mp-shuffle')).toHaveAttribute('aria-label', '列表循环');
+  await expect(page.locator('#mp-shuffle')).toHaveClass(/is-repeat/);
+  expect(await page.evaluate(() => localStorage.getItem('sgx-music-mode'))).toBe('repeat');
+  await page.locator('#mp-shuffle').click();
   await expect(page.locator('#mp-shuffle')).toHaveAttribute('aria-label', '随机播放');
+  await expect(page.locator('#mp-shuffle')).toHaveClass(/is-shuffle/);
   expect(await page.evaluate(() => localStorage.getItem('sgx-music-mode'))).toBe('shuffle');
   await page.locator('#mp-shuffle').click();
+  await expect(page.locator('#mp-shuffle')).toHaveAttribute('aria-pressed', 'false');
   expect(await page.evaluate(() => localStorage.getItem('sgx-music-mode'))).toBe('seq');
   /* 倍速 */
   const sp = page.locator('#mp-speed');
@@ -486,14 +492,20 @@ test('随机播放：播放器的随机按钮记到本地（sgx-music-mode），
   await expect(b.locator('#mp-app')).toBeVisible();
   const sb = b.locator('#mp-shuffle');
   await expect(sb).toHaveAttribute('aria-pressed', 'false');
+  /* 顺序 → 列表循环 → 随机（打磨 6.4 v2 稿三档） */
+  await sb.dispatchEvent('click');
+  await expect(sb).toHaveAttribute('data-mode', 'repeat');
   await sb.dispatchEvent('click');
   await expect(sb).toHaveAttribute('aria-pressed', 'true');
+  await expect(sb).toHaveAttribute('data-mode', 'shuffle');
   expect(await b.evaluate(() => localStorage.getItem('sgx-music-mode'))).toBe('shuffle');
   const c = await ctx.newPage();
   await mockMusic(c, 'owner');
   await c.goto('/music/zh/player/');
   await expect(c.locator('#mp-shuffle')).toHaveAttribute('aria-pressed', 'true');
+  await expect(c.locator('#mp-shuffle')).toHaveAttribute('data-mode', 'shuffle');
   await sb.dispatchEvent('click');
   await expect(c.locator('#mp-shuffle')).toHaveAttribute('aria-pressed', 'false');
+  await expect(c.locator('#mp-shuffle')).toHaveAttribute('data-mode', 'seq');
   await ctx.close();
 });

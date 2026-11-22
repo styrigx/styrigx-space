@@ -309,6 +309,52 @@ test('模式存本地：readMode / saveMode（键 sgx-music-mode；坏值、读�
   assert.equal(CORE.readMode(null), 'seq');
 });
 
+test('列表循环（打磨 6.4 v2 稿）：模式存本地 repeat；nextMode 顺序 → 列表循环 → 随机 → 顺序', () => {
+  const m = new Map();
+  const store = { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, v) };
+  CORE.saveMode(store, 'repeat'); assert.equal(m.get('sgx-music-mode'), 'repeat'); assert.equal(CORE.readMode(store), 'repeat');
+  CORE.saveMode(store, 'bogus'); assert.equal(m.get('sgx-music-mode'), 'seq');
+  assert.deepEqual(CORE.MODES, ['seq', 'repeat', 'shuffle']);
+  assert.equal(CORE.nextMode('seq'), 'repeat');
+  assert.equal(CORE.nextMode('repeat'), 'shuffle');
+  assert.equal(CORE.nextMode('shuffle'), 'seq');
+  assert.equal(CORE.nextMode('x'), 'repeat', '不认识的当顺序');
+});
+
+test('列表循环：末首放完（ended）接第一首、不停；末首点下一首绕到第一首；首首点上一首绕到最后一首', async () => {
+  const { p, audio, log } = make({ n: 3 });
+  p.setMode('repeat');
+  assert.equal(p.mode(), 'repeat');
+  await p.playFrom(1, 1);
+  audio.emit('ended'); await tick();
+  assert.equal(p.state.i, 2);
+  audio.emit('ended'); await tick();
+  assert.equal(p.state.i, 0, '末首放完接第一首');
+  assert.ok(!log.includes('stop'), '列表循环不停');
+  await p.playFrom(1, 2);
+  await p.next();
+  assert.equal(p.state.i, 0, '末首的下一首 = 第一首');
+  audio.currentTime = 0;
+  await p.prev();
+  assert.equal(p.state.i, 2, '首首的上一首 = 最后一首');
+});
+
+test('顺序（不是列表循环）：末首点下一首不动、首首点上一首不动；三档切换互斥', async () => {
+  const { p, audio } = make({ n: 3 });
+  p.setMode('seq');
+  await p.playFrom(1, 2);
+  await p.next();
+  assert.equal(p.state.i, 2, '顺序到尾不绕');
+  await p.playFrom(1, 0);
+  audio.currentTime = 0;
+  await p.prev();
+  assert.equal(p.state.i, 0, '顺序在头不绕');
+  p.setMode('repeat'); assert.equal(p.state.repeat, true); assert.equal(p.state.shuffle, false);
+  p.setMode('shuffle'); assert.equal(p.state.repeat, false); assert.equal(p.state.shuffle, true); assert.equal(p.mode(), 'shuffle');
+  p.setMode('seq'); assert.equal(p.mode(), 'seq');
+  p.setMode('repeat'); p.setShuffle(true); assert.equal(p.mode(), 'shuffle', 'setShuffle(true) 顶掉列表循环');
+});
+
 test('默认顺序（奇趣页不调 setShuffle）：放完停，同 2a', async () => {
   const { p, audio, log } = make({ n: 2 });
   await p.playFrom(1, 0);

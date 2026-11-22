@@ -79,6 +79,7 @@ js:
     showLyrics: Show all lyrics
     hideLyrics: Show one line
     singles: Singles
+    modeRepeat: Repeat list
     modeSeq: In order
     modeShuffle: Shuffle
     moreAlbum: 'Album: '

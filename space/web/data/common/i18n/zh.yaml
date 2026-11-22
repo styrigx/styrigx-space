@@ -75,6 +75,7 @@ js:
     showLyrics: 展开全部歌词
     hideLyrics: 收起歌词
     singles: 单曲
+    modeRepeat: 列表循环
     modeSeq: 顺序播放
     modeShuffle: 随机播放
     moreAlbum: 专辑：
