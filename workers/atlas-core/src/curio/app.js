@@ -22,6 +22,7 @@ import * as musicRoutes from '../music/routes.js';
 import { GUARDS, v6Of } from './api/_auth.js';
 import { rebuildSearchIndex, isContentMutation } from './search-index.js';
 import { sweepPhotos, isSweepHour } from './photo-sweep.js';
+import { runMusicJanitor } from '../music/janitor.js';
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 const NO_STORE = 'private, no-store';
@@ -138,12 +139,16 @@ export async function handle(request, env, ctx) {
 
 /**
  * 每小时任务（2026-11-10 起由 styrigx-status 的 Cron 经服务绑定调 rpc/hourly-job.js，本 Worker 不再自带 Cron；scheduled 保留给手动 / 本地触发）。
- * 兜底重建：内容和 KV 里那份一样就不写（省账号共享的 KV 写额度）；清扫时段顺带清照片。
+ * 兜底重建：内容和 KV 里那份一样就不写（省账号共享的 KV 写额度）；清扫时段顺带清照片、跑音乐空记录清理
+ * （../music/janitor.js；开关 env.MUSIC_JANITOR，缺省 report 只报不删）。
  * @param {Record<string, any>} env @param {number} at
  */
 export function runHourly(env, at) {
   const jobs = [rebuildSearchIndex(env, Date.now(), { skipUnchanged: true })];
-  if (isSweepHour(at)) jobs.push(sweepPhotos(env, at).catch(() => {}));
+  if (isSweepHour(at)) {
+    jobs.push(sweepPhotos(env, at).catch(() => {}));
+    jobs.push(runMusicJanitor(env, at).catch(() => {}));
+  }
   return Promise.all(jobs);
 }
 
