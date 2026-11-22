@@ -999,6 +999,8 @@ test('M3 原子性（失败路径）：单曲改名 + 年份 + 歌手时 D1 写�
 /* ================= M4（音乐 v1.19 7.5 / 十二 M4）：歌手页的后端——改歌手、合并、删、头像 ================= */
 
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1]);
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d, 0x49, 0x48, 0x44, 0x52]);
+const GIF = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0]);
 const artistId = (e, name) => (e.db.raw.prepare('SELECT id FROM music_artists WHERE name = ?').get(name) || {}).id;
 const upAvatar = (e, id, body = JPEG, who = 'owner') => call(e, `/music/api/music-upload?artist=${id}&kind=avatar`, { who, method: 'POST', body, type: 'image/jpeg' });
 const postAs = (e, who, body) => call(e, '/music/api/music', { who, method: 'POST', body });
@@ -1018,6 +1020,8 @@ test('M4 校验：artist.edit {id, name?, bio?, style?}；artist.merge {id, into
   assert.deepEqual(MU.parseMusicOp({ op: 'artist.del', id: 3 }), { op: 'artist.del', id: 3 });
   assert.deepEqual(MU.parseMusicOp({ op: 'artist.del' }), { error: 'bad-id' });
   assert.equal(MU.avatarKey(7, 123), 'music/artist/7/avatar-123.jpg', '十二 M4 第 2 条');
+  assert.equal(MU.avatarKey(7, 123, 'png'), 'music/artist/7/avatar-123.png', '6.5b：扩展名跟类型走');
+  assert.deepEqual(['music/artist/1/avatar-1.jpg', 'x/avatar-2.PNG', 'x/avatar-3.webp', 'x/avatar-4.jpeg', 'x/avatar-5.gif', ''].map(MU.avatarExtOf), ['jpg', 'png', 'webp', 'jpg', 'jpg', 'jpg']);
 });
 
 test('M4 歌单：专辑 / 曲目带 artist_id（对不上歌手表 → 0），回答带歌手表（含名下没作品的）；访客也有', async () => {
@@ -1252,13 +1256,14 @@ test('M4 artist.del 并发：读完到写之间有人把作品挂上来 → 删�
   assert.equal(e.r2m.m.size, 1);
 });
 
-test('M4 头像：music-upload kind=avatar（music-manage，只收 jpeg、3 MB）→ music/artist/<id>/avatar-<时间>.jpg；换头像删旧的；music-cover?artist= 公开读；D1 写失败不留孤儿', async () => {
+test('M4 头像：music-upload kind=avatar（music-manage，收 jpeg / png / webp、3 MB）→ music/artist/<id>/avatar-<时间>.jpg；换头像删旧的；music-cover?artist= 公开读；D1 写失败不留孤儿', async () => {
   const e = makeEnv();
   await album(e, { artist: '周杰伦' });
   const jay = artistId(e, '周杰伦');
   assert.equal((await call(e, `/music/api/music-cover?artist=${jay}`)).status, 404, '没头像 404（前端用默认图标）');
   assert.equal((await upAvatar(e, jay, JPEG, 'noscope')).status, 403);
-  assert.equal((await upAvatar(e, jay, WEBP)).status, 400, '只收 jpeg（浏览器先裁成 jpeg）');
+  assert.equal((await upAvatar(e, jay, GIF)).status, 400, '只收 jpeg / png / webp（看字节，gif 不收）');
+  assert.equal((await upAvatar(e, jay, new Uint8Array(20))).status, 400, '不是图片');
   assert.equal((await upAvatar(e, 999)).status, 404);
   assert.equal((await call(e, `/music/api/music-upload?artist=${jay}&album=1&kind=avatar`, { who: 'owner', method: 'POST', body: JPEG, type: 'image/jpeg' })).status, 400);
   assert.equal((await upAvatar(e, jay, new Uint8Array(3 * 1024 * 1024 + 1).fill(0xff))).status, 413);
@@ -1285,6 +1290,66 @@ test('M4 头像：music-upload kind=avatar（music-manage，只收 jpeg、3 MB�
   e.db.prepare = prep;
   assert.deepEqual([...e.r2m.m.keys()], [k2]);
   assert.equal(rowOf(e, 'music_artists', jay).avatar, k2);
+});
+
+test('6.5b 封面 / 头像收 png / webp / jpeg：看字节存对的 contentType 和扩展名，读回原样带回；老数据（.jpg 没元数据）照样能读', async () => {
+  const e = makeEnv();
+  const id = await album(e, { artist: '周杰伦' });
+  const jay = artistId(e, '周杰伦');
+  const upCv = (body, type = 'application/octet-stream') => call(e, `/music/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body, type });
+  const upAv = (body) => call(e, `/music/api/music-upload?artist=${jay}&kind=avatar`, { who: 'owner', method: 'POST', body, type: 'image/jpeg' });
+  for (const [body, type, ext] of [[PNG, 'image/png', 'png'], [WEBP, 'image/webp', 'webp'], [JPEG, 'image/jpeg', 'jpg']]) {
+    await new Promise((r) => setTimeout(r, 2));
+    /* 请求头的 Content-Type 故意给错：只认字节 */
+    assert.equal((await upCv(body)).status, 200, 'cover ' + type);
+    const ck = rowOf(e, 'music_albums', id).cover;
+    assert.match(ck, new RegExp(`^music/${id}/cover-\\d+\\.${ext}$`));
+    assert.equal(e.r2m.m.get(ck).httpMetadata.contentType, type);
+    const cv = await call(e, `/music/api/music-cover?album=${id}`);
+    assert.equal(cv.status, 200);
+    assert.equal(cv.headers.get('Content-Type'), type);
+    assert.equal(cv.headers.get('X-Content-Type-Options'), 'nosniff');
+    assert.deepEqual(new Uint8Array(await cv.arrayBuffer()), body);
+    assert.equal((await upAv(body)).status, 200, 'avatar ' + type);
+    const ak = rowOf(e, 'music_artists', jay).avatar;
+    assert.match(ak, new RegExp(`^music/artist/${jay}/avatar-\\d+\\.${ext}$`));
+    assert.equal(e.r2m.m.get(ak).httpMetadata.contentType, type);
+    const av = await call(e, `/music/api/music-cover?artist=${jay}`);
+    assert.equal(av.headers.get('Content-Type'), type);
+    assert.deepEqual(new Uint8Array(await av.arrayBuffer()), body);
+  }
+  assert.equal([...e.r2m.m.keys()].filter((k) => /cover-|avatar-/.test(k)).length, 2, '换图删旧的，各剩一张');
+  assert.equal((await upCv(GIF)).status, 400, '封面也不收 gif');
+  assert.equal((await upCv(new Uint8Array(3 * 1024 * 1024 + 1).fill(0x89))).status, 413, '封面上限照旧 3 MB');
+  /* 老数据：R2 对象没有 contentType → 按 key 扩展名推（.jpg → jpeg、.png → png），推不出 → 专辑 webp / 头像 jpeg（同改之前） */
+  for (const [key, col, table, q, want] of [
+    ['music/1/cover-1.jpg', 'cover', 'music_albums', `album=${id}`, 'image/jpeg'],
+    ['music/1/cover-2.png', 'cover', 'music_albums', `album=${id}`, 'image/png'],
+    ['music/1/cover-3', 'cover', 'music_albums', `album=${id}`, 'image/webp'],
+    ['music/artist/1/avatar-1.jpg', 'avatar', 'music_artists', `artist=${jay}`, 'image/jpeg'],
+    ['music/artist/1/avatar-2.webp', 'avatar', 'music_artists', `artist=${jay}`, 'image/webp'],
+    ['music/artist/1/avatar-3', 'avatar', 'music_artists', `artist=${jay}`, 'image/jpeg'],
+  ]) {
+    e.r2m.m.set(key, { bytes: JPEG, httpMetadata: {}, uploaded: new Date(0) });
+    e.db.raw.prepare(`UPDATE ${table} SET ${col} = ? WHERE id = ?`).run(key, col === 'cover' ? id : jay);
+    const r = await call(e, `/music/api/music-cover?${q}`);
+    assert.equal(r.status, 200, key);
+    assert.equal(r.headers.get('Content-Type'), want, key);
+  }
+});
+
+test('6.5b 合并歌手：png 头像搬过去还是 .png、contentType 不变', async () => {
+  const e = makeEnv();
+  await album(e, { artist: 'Jay Chou' });
+  await album(e, { title: '叶惠美', artist: '周杰伦' });
+  const from = artistId(e, 'Jay Chou');
+  const into = artistId(e, '周杰伦');
+  assert.equal((await upAvatar(e, from, PNG)).status, 200);
+  assert.equal((await musicPost(e, { op: 'artist.merge', id: from, into })).status, 200);
+  const moved = rowOf(e, 'music_artists', into).avatar;
+  assert.match(moved, new RegExp('^music/artist/' + into + '/avatar-\\d+\\.png$'));
+  assert.equal(e.r2m.m.get(moved).httpMetadata.contentType, 'image/png');
+  assert.equal((await call(e, `/music/api/music-cover?artist=${into}`)).headers.get('Content-Type'), 'image/png');
 });
 
 test('M4 权限走真路由表：artist.edit = music-manage；artist.merge / artist.del = root（同 album.del，一次性票的 action 绑 body 里的 op）', async () => {

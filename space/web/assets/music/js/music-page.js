@@ -1676,7 +1676,7 @@ $('#mu-ar-save').addEventListener('click', function(){
     if (j) list = j.albums;
     if (!file) return null;
     arMsg(T.avatarUp);
-    return cropAvatar(file).then(function(blob){ return req('POST', '/music/api/music-upload?artist=' + r.id + '&kind=avatar', blob, 'image/jpeg'); })
+    return cropAvatar(file).then(function(blob){ return req('POST', '/music/api/music-upload?artist=' + r.id + '&kind=avatar', blob, blob.type || 'image/jpeg'); })
       .then(function(){ coverVer = Date.now(); return req('GET', '/music/api/music'); }).then(function(j2){ list = j2.albums; });
   }).then(function(){
     if (list) refresh(list);
