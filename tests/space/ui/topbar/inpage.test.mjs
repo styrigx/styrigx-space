@@ -90,8 +90,11 @@ test('子站接入（对齐 PR-C2）：奇趣五个分区页同一个页头（�
   for (const id of ['devices', 'games', 'movies']) {
     assert.match(rd(`space/web/layouts/curio/${id}.html`), new RegExp(`partial "curio/page-head\\.html" \\(dict "page" \\. "id" "${id}"`), id);
   }
-  /* music 搬家第 3 步：音乐页搬到第四个子站 layouts/music/section.html，页头照旧借奇趣的（tab 里 music/ 是当前项，外观不变） */
-  assert.match(rd('space/web/layouts/music/section.html'), /partial "curio\/page-head\.html" \(dict "page" \. "id" "music"/);
+  /* 打磨 6.1：音乐页（layouts/music/section.html）用自己的页头：共享外壳 page-head「ls music/」，不再借奇趣的（没有奇趣 tab、grep） */
+  const mu = rd('space/web/layouts/music/section.html');
+  assert.match(mu, /partial "common\/frame\/page-head\.html" \(dict "cmd" "ls music\/"/);
+  assert.doesNotMatch(mu, /partial "curio\/page-head\.html"/);
+  assert.doesNotMatch(mu, /sgx-segtabs|sgx-entries|data-cu-grep/);
   assert.match(rd('space/web/layouts/partials/curio/finds-main.html'), /partial "curio\/page-head\.html" \(dict "page" \$p "id" "finds"/);
   for (const f of ['finds.html', 'section.html']) assert.match(rd('space/web/layouts/curio/' + f), /partial "curio\/finds-main\.html"/, f);
   for (const id of ['finds', 'devices', 'games', 'movies']) for (const f of [`${id}.md`, `${id}.zh.md`]) assert.match(rd(`space/web/content/curio/${f}`), /^description: '.+'$/m, f);

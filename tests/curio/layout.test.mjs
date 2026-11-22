@@ -159,7 +159,7 @@ test('设备 / 游戏子页：各自只有自己的面板和编辑弹层；条�
   }
 });
 
-test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js → curio-list.js → curio-items.js（借裁剪 / 条目文案）→ curio-movies.js；音乐 curio.js → music-core.js → music-tags.js → music-page.js，只看模式的锁标、上传上限说明，上传是页头命令；音乐页不出声', () => {
+test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js → curio-list.js → curio-items.js（借裁剪 / 条目文案）→ curio-movies.js；音乐 music-ui.js → music-core.js → music-tags.js → music-page.js（打磨 6.2 不再加载 curio.js），只看模式的锁标、上传上限说明，上传是页头命令；音乐页不出声', () => {
   for (const id of ['mv-list', 'mv-empty', 'mv-fab', 'mv-edit-wrap', 'mv-photo', 'mv-photo-prev', 'mv-title', 'mv-original', 'mv-year', 'mv-director', 'mv-watched', 'mv-rating', 'mv-review', 'mv-del', 'mv-save']) {
     assert.ok(hasId(movies, id), id);
   }
@@ -174,7 +174,14 @@ test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js �
   /* 搬家设计稿 v1.1 3.3：播放条、<audio>、同步歌词条删了 */
   for (const id of ['mu-player', 'mu-lyrics', 'mu-seek', 'mu-speed', 'mu-shuffle', 'mu-prev', 'mu-toggle', 'mu-next', 'mu-audio']) assert.ok(!hasId(music, id), '没有 ' + id);
   assert.doesNotMatch(music.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, ''), /<audio\b/);
-  assert.match(music, /"grep" false "cmds" \(slice \(dict "id" "mu-upload" "k" "cp \*\.flac music\/ \+"/);
+  /* 打磨 6.1：音乐自己的页头（共享外壳 page-head，站名 / 一句话取本站 data/music/i18n site），不再借奇趣的页头；命令链只有「上传专辑」，没有 su 那一条（#cu-signin） */
+  assert.match(music, /partial "common\/frame\/page-head\.html" \(dict "cmd" "ls music\/" "title" \$tr\.site\.name "desc" \$tr\.site\.description/);
+  assert.doesNotMatch(music, /partial "curio\/page-head\.html"/);
+  assert.match(music, /<button type="button" class="sgx-cmd hidden" id="mu-upload"><span class="sgx-cmd-k" translate="no">cp \*\.flac music\/ \+<\/span>/);
+  assert.ok(!hasId(music, 'cu-signin'), '没有 su 那一条（Gray 2026-11-22：访客不提示 su）');
+  assert.doesNotMatch(music, /\$cu\b/);
+  assert.doesNotMatch(musicBase, /\$cu\b|ns" "curio"/);
+  assert.match(musicBase, /<title>\{\{ if eq \$docTitle \$tr\.site\.name \}\}/);
   /* M2：分段「单首 | 批量」，默认单首（音频单选，批量时 JS 改成多选） */
   assert.match(music, /id="mu-up-kind"[\s\S]*data-kind="one" aria-selected="true"[\s\S]*data-kind="batch" aria-selected="false"/);
   assert.doesNotMatch(music, /id="mu-up-audio"[^>]*multiple/);
@@ -184,7 +191,11 @@ test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js �
   assert.match(music, /id="mu-app" class="hidden"/);
   // 2026-11 第 7 步：共用核进 Platform（assets/common/js/music/，对外 /js/music/）
   assert.match(music, /resources\.Get "common\/js\/music\/music-core\.js" \| resources\.Copy "js\/music\/music-core\.js"/);
-  assert.ok(music.indexOf('js/curio.js') > 0 && music.indexOf('js/curio.js') < music.indexOf('js/music/music-core.js'), '共用核在 curio.js 之后（curio.js 照旧借，技术债）');
+  /* 打磨 6.2：确认框、提示条、sudo / sudoTicket 在本站 music-ui.js（+ partials/music/common.html），不再加载奇趣的 curio.js */
+  assert.ok(music.indexOf('js/curio.js') < 0, '不再加载 curio.js');
+  assert.doesNotMatch(music, /partial "curio\/common\.html"/);
+  assert.match(music, /partial "music\/common\.html"/);
+  assert.ok(music.indexOf('music/js/music-ui.js') > 0 && music.indexOf('music/js/music-ui.js') < music.indexOf('js/music/music-core.js'), 'music-ui.js 在共用核之前');
   assert.ok(music.indexOf('js/music/music-core.js') < music.indexOf('music/js/music-page.js'), '共用核在 music-page.js 之前');
   assert.ok(music.indexOf('music/js/music-tags.js') > 0 && music.indexOf('music/js/music-tags.js') < music.indexOf('music/js/music-page.js'), '上传预填（M2）在 music-page.js 之前');
   assert.match(read('space/web/content/music/_index.md'), /^outputs: \[HTML, musicsitemap\]$/m);
@@ -261,4 +272,12 @@ test('测试构建不问新加的读接口（对齐 PR-C2）：SGX_TEST_NO_WEATH
   assert.match(base, /\{\{ if eq \(getenv "SGX_TEST_NO_WEATHER"\) "1" \}\} data-sgx-test-no-api\{\{ end \}\}>/);
   const js = read('space/web/assets/curio/js/curio-list.js');
   assert.match(js, /hasAttribute\('data-sgx-test-no-api'\) && !G\.__sgxCurioApi\) return;/);
+});
+
+test('打磨 6.2：音乐样式不再 @import curio-tail.css（只在奇趣 main.css 里引一次，奇趣那份先引）；歌词框等宽这条排在后面、同权重，所以生效', () => {
+  const muCss = read('space/web/assets/music/css/input.css');
+  assert.doesNotMatch(muCss.replace(/\/\*[\s\S]*?\*\//g, ''), /@import\s+["'][^"']*curio-tail\.css/);
+  assert.match(muCss, /^\.mu-ed-lrc textarea \{ min-height: 9\.5em; font-family: var\(--sgx-font-mono\); font-size: 14px;[^}]*\}$/m);
+  assert.match(read('space/web/assets/curio/css/input.css'), /^@import "\.\/curio-tail\.css";$/m);
+  assert.ok(musicBase.indexOf('"curio/css/main.css"') > 0 && musicBase.indexOf('"curio/css/main.css"') < musicBase.indexOf('"music/css/main.css"'), '奇趣 main.css 在音乐 main.css 之前');
 });

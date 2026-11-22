@@ -31,36 +31,8 @@
     {
       "rule": 24,
       "file": "space/web/layouts/music/section.html",
-      "ref": "curio/page-head.html",
-      "reason": "music 搬家第 3 步：3.1 第 2 条「外观不变」——音乐页照旧用奇趣的页头（站名、tab、su 那一条）/ 确认框 / 图标，和它们的样式；技术债，随 curio.js 一起挪进 common 后删这条。",
-      "since": "2026-11-21 music 搬家第 3 步"
-    },
-    {
-      "rule": 24,
-      "file": "space/web/layouts/music/section.html",
       "ref": "curio/icon.html",
       "reason": "music 搬家第 3 步：3.1 第 2 条「外观不变」——音乐页照旧用奇趣的页头（站名、tab、su 那一条）/ 确认框 / 图标，和它们的样式；技术债，随 curio.js 一起挪进 common 后删这条。",
-      "since": "2026-11-21 music 搬家第 3 步"
-    },
-    {
-      "rule": 24,
-      "file": "space/web/layouts/music/section.html",
-      "ref": "curio/common.html",
-      "reason": "music 搬家第 3 步：3.1 第 2 条「外观不变」——音乐页照旧用奇趣的页头（站名、tab、su 那一条）/ 确认框 / 图标，和它们的样式；技术债，随 curio.js 一起挪进 common 后删这条。",
-      "since": "2026-11-21 music 搬家第 3 步"
-    },
-    {
-      "rule": 24,
-      "file": "space/web/layouts/music/section.html",
-      "ref": "curio/js/curio.js",
-      "reason": "music 搬家第 3 步：搬家设计稿 v1.1 3.1 第 3 条（Gray 2026-11-21 14:17 定）——确认框、提示条、弹层开关、sudo / sudoTicket 照旧借奇趣的 curio.js（window.SgxCurioUI），搬家不改行为；技术债，搬完后挪进 common 再删这条。",
-      "since": "2026-11-21 music 搬家第 3 步"
-    },
-    {
-      "rule": 24,
-      "file": "space/web/assets/music/css/input.css",
-      "ref": "space/web/assets/curio/css/curio-tail.css",
-      "reason": "music 搬家第 3 步：外观不变（3.1 第 2 条）——搬家前 mu- 规则夹在奇趣样式中间，后半段（curio-tail.css）同权重时压过它们；音乐页先引奇趣 main.css 再引音乐 main.css，音乐那份在 mu- 规则后再 @import 一次后半段，层叠顺序和搬家前一样。技术债，随 curio.js 一起挪进 common 时收拾。",
       "since": "2026-11-21 music 搬家第 3 步"
     }
   ]
