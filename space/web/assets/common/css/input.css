@@ -5712,6 +5712,19 @@ html:not([data-sgx-account-session="out"]) .sgx-envps-g, html:not([data-sgx-acco
 .mu-track-dur { flex-shrink: 0; font-size: 13px; color: var(--sgx-text-secondary); font-variant-numeric: tabular-nums; }
 .mu-track.on { color: var(--sgx-primary); font-weight: 700; }
 .mu-track:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+/* 右下角 AI 浮钮（.sgx-tb-ai，fixed、56 宽、离右 --sgx-ai-fab-m）不挡曲目 / 单曲行右端的时长和「⋯」/ 删除键（polish 6.5a，412 宽首屏第一首的时长被盖住）：
+   列表行右侧让出一条 --mu-fab-gut = 浮钮离右 + 56 + 8 间隙 − 列表离右（内容栏页边距）的空（412 宽 = 16 + 64 − 12 = 68px；桌面 = 32 + 64 − 28 = 68px），滚到哪一行都碰不到。
+   手机布局一直让；桌面布局只在窄窗口让：1080 内容栏居中、浮钮离右 32px，内容区窄于 1272px（1080 + 2 × 96）时栏右端会伸到浮钮底下
+   （1024 宽首屏第一首的「⋯」被盖住）。媒体查询宽度含经典滚动条（≤ 17px），所以阈值取 1288px；1136–1288 之间栏离右其实比页边距大，按页边距算只是多让一点。
+   外壳不用 100vw（顶栏规则），所以按窗口宽分两档而不是连续算。1440 宽不进这条，外观不变；/music/player/ 的 560 栏离浮钮远，让出的空也只落在栏内右侧。
+   带「⋯」/ 删除的行（li.mu-track-row / .mu-single-row，分隔线画在 li 上）垫在 li 上；普通行（分隔线画在按钮上）把按钮原来 16px 的右内边距放大到同一宽度，分隔线照旧通栏。
+   音乐页、/music/player/ 同一份。 */
+:root:not([data-sgx-layout="desktop"]) .mu-tracks { --mu-fab-gut: calc(max(var(--sgx-ai-fab-m), env(safe-area-inset-right, 0px)) + 64px - max(var(--sgx-page-m), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))); }
+@media (max-width: 1288px) {
+  :root[data-sgx-layout="desktop"] .mu-tracks { --mu-fab-gut: calc(max(var(--sgx-ai-fab-m), env(safe-area-inset-right, 0px)) + 64px - max(var(--sgx-page-m), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))); }
+}
+.mu-tracks > li.mu-track-row, .mu-tracks > li.mu-single-row { padding-right: max(0px, var(--mu-fab-gut, 0px)); }
+.mu-tracks > li:not(.mu-track-row):not(.mu-single-row) > :is(.mu-track, .mu-single) { padding-right: max(16px, var(--mu-fab-gut, 0px)); }
 .mu-album-acts { display: flex; justify-content: center; padding: 14px 0 4px; }
 .mu-album-acts .mu-del-btn { color: var(--sgx-danger); }  /* 加一级：frame.css 先于奇趣 .cu-btn-text 引入，同权重会被压掉 */
 .reduced-motion .mu-cover { transition: none; }

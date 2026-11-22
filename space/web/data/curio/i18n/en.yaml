@@ -17,9 +17,6 @@ entries:
   movies:
     title: Movies
     sub: Films I love, with a line or two
-  music:
-    title: Music
-    sub: Private albums, only me
 notFound:
   pageNotFound: Page not found
   thePageYoureLooking: The page you're looking for doesn't exist or has been moved.

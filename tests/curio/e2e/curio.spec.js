@@ -1,5 +1,5 @@
 // 奇趣（手机）：接口用 page.route 假数据，不碰线上。2026-11 对齐 PR-C2（设计稿 pg=curio / citem）：首页 /curio/ 就是「发现」，
-//   分区 /curio/finds/、/devices/、/games/、/movies/（中文 /curio/zh/…）和音乐（music 搬家第 3 步起是第四个子站 /music/，tab 照旧在）是页头的下划线 tab（#cu-tabs）。电影、音乐的用例在 curio-movies-music.spec.js。
+//   分区 /curio/finds/、/devices/、/games/、/movies/（中文 /curio/zh/…）是页头的下划线 tab（#cu-tabs）；音乐是自己的子站 /music/，Gray 2026-11-22 起奇趣 tab 行不再有 music/。电影、音乐的用例在 curio-movies-music.spec.js。
 // - 顶栏：字标 · 页名胶囊（首页 = 奇趣，子页 = 子页名）· 外观 · 盾牌 · >_ · 头像；页头 tab 带计数，音乐 tab 仅本人可见
 // - 账号没登录（canManage=false）：命令链里没有「收藏 / 管理分类 / 导入 / 导出」，只有「su · su 登录后可编辑」打开顶栏终端预填 su （2c，v6 割接）；封面卡点开新标签页；图标取不到显示首字母
 // - 分类 chips 筛选 + hash；grep 行内过滤；排序；分页条；旧 hash 地址（#devices、#games）在首页转到子页（#c/<分类> 就地生效）；左右滑切分区已删
@@ -108,12 +108,13 @@ test('组权限 v1.1：只有 curio-use（showPrivate true、canManage false）�
 test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab 藏着）；没有收藏 / 管理分类 / 导入 / 导出命令、只看公开、图标取不到显示首字母；快捷面板导航页同主站', async ({ page }) => {
   await mock(page, false);
   await page.goto('/curio/zh/');
-  /* 对齐 PR-C2：首页 = ls curio/，下划线 tab finds/ devices/ games/ movies/ music/（v5 S3 起音乐歌单公开，没登录也显示），当前 finds/ */
+  /* 对齐 PR-C2：首页 = ls curio/，下划线 tab finds/ devices/ games/ movies/（Gray 2026-11-22：music/ 去掉，音乐是自己的子站），当前 finds/ */
   await expect(page.locator('.sgx-ph-cmd')).toHaveText('nobody@space:~$ ls curio/', { useInnerText: true });
-  await expect(page.locator('#cu-tabs .sgx-ctab-a')).toHaveCount(5);
-  await expect(page.locator('#cu-tabs .sgx-ctab-a:visible')).toHaveText([/^finds\/\s*2$/, /^devices\/\s*2$/, /^games\/\s*2$/, /^movies\//, /^music\//]);
+  await expect(page.locator('#cu-tabs .sgx-ctab-a')).toHaveCount(4);
+  await expect(page.locator('#cu-tabs .sgx-ctab-a:visible')).toHaveText([/^finds\/\s*2$/, /^devices\/\s*2$/, /^games\/\s*2$/, /^movies\//]);
+  await expect(page.locator('#cu-tabs [data-ctab="music"], #cu-tabs a[href*="/music/"]')).toHaveCount(0);
   await expect(page.locator('#cu-tabs [data-ctab="finds"]')).toHaveAttribute('aria-current', 'page');
-  for (const [id, href] of [['finds', '/curio/zh/finds/'], ['devices', '/curio/zh/devices/'], ['games', '/curio/zh/games/'], ['movies', '/curio/zh/movies/'], ['music', '/music/zh/'] /* music 搬家第 3 步：第四个子站 */]) {
+  for (const [id, href] of [['finds', '/curio/zh/finds/'], ['devices', '/curio/zh/devices/'], ['games', '/curio/zh/games/'], ['movies', '/curio/zh/movies/']]) {
     await expect(page.locator(`#cu-tabs [data-ctab="${id}"]`)).toHaveAttribute('href', href);
   }
   await expect(page.locator('#cu-entries, #cu-segs, .sgx-ents, .sgx-segs, #cu-menu-btn')).toHaveCount(0);
@@ -327,10 +328,10 @@ test('英文页：tab 提示、分类名、命令说明用英文（英文空时�
   await mock(page, true);
   await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
   await page.goto('/curio/');
-  expect(await page.locator('#cu-tabs .sgx-ctab-a').evaluateAll((els) => els.map((e) => e.getAttribute('title')))).toEqual(['Finds', 'Devices', 'Games', 'Movies', 'Music']);
+  expect(await page.locator('#cu-tabs .sgx-ctab-a').evaluateAll((els) => els.map((e) => e.getAttribute('title')))).toEqual(['Finds', 'Devices', 'Games', 'Movies']);
   await expect(page.locator('.sgx-tb-title')).toHaveText('Curio');
   await expect(page.locator('#cu-tabs [data-ctab="finds"]')).toHaveAttribute('href', '/curio/finds/');
-  await expect(page.locator('#cu-tabs [data-ctab="music"]')).toBeVisible();
+  await expect(page.locator('#cu-tabs [data-ctab="music"]')).toHaveCount(0);
   await page.goto('/curio/finds/');
   await expect(page.locator('.sgx-tb-title')).toHaveText('Finds');
   await expect(page.locator('#cu-chips [data-cat]')).toHaveText([/^All/, /^Dev & Cloud/, /^Network Tests/, /^私房/]);
