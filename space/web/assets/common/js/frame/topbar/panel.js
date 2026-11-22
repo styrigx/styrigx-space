@@ -994,6 +994,14 @@ export const MUSIC_PATH = /\/music\/(?:zh\/)?player\/?$/;
 export const ARTIST_URL = /^\/music\/(?:zh\/)?\?artist=\d{1,10}$/;
 /** 音乐页「播放」交过来时肯开的播放器地址（music 搬家第 3 步 3.3）：/music/player/（中文 /music/zh/player/）?album=<数字>&t=<数字>，别的一律不开 */
 export const PLAYER_URL = /^\/music\/(?:zh\/)?player\/\?album=\d{1,10}&t=\d{1,4}$/;
+/** 交接握手等播放器回答的上限（打磨 6.3）：只等第一个回答，到点没人答当没开 */
+export const HANDOFF_WAIT_MS = 300;
+/** 音乐页交过来的 cmd 只认 play：{cmd:'play', i, album} 或 {cmd:'play', i, queue:[记录 id…]}；别的一律不发 @param {any} c */
+export function playCmdOk(c) {
+  if (!c || typeof c !== 'object' || c.cmd !== 'play' || !Number.isInteger(c.i) || c.i < 0) return false;
+  if (Array.isArray(c.queue)) return c.queue.length > 0 && c.queue.length <= 1000 && c.queue.every(function (/** @type {any} */ x) { return Number.isInteger(x) && x > 0; });
+  return Number.isInteger(c.album) && c.album > 0;
+}
 
 /**
  * 顶栏音乐图标点开播放器（音乐分层方案 v1.13 第二步 2c）：图标是链接（href = 播放器页，当前语言），没 JS / 中键 / Ctrl / ⌘ / Shift / Alt 照旧按链接走。
@@ -1009,10 +1017,16 @@ export const PLAYER_URL = /^\/music\/(?:zh\/)?player\/\?album=\d{1,10}&t=\d{1,4}
  * 歌手页（M4，音乐 v1.19 十二 M4 第 3 条「弹出播放器经 BroadcastChannel 通知主窗口切过去，播放器不跳走」）：播放器点了歌手名发 artist-ask，
  * 每个主窗口（本页不是播放器）答 artist-here（带本页最近一次用过的时间 at），播放器挑一个发 artist-go 只给它（to = 本页的 id）；
  * 挑中的页先发可取消的 sgx-music-artist 事件（音乐页接住就在页内换视图），没人接就整页跳到歌手页（地址只认音乐页 ?artist=<数字>）。
- * 音乐页点播放（music 搬家第 3 步 3.3，音乐页不再出声）：音乐页在点击里同步发可取消的 sgx-music-open {url}，这里接住、用同一个 go() 开 / 切播放器
- * （同名单窗口；已开只切过去、不重新加载；没开开 url = /music/player/?album=&t=，手机新标签页，被拦整页跳；地址只认 PLAYER_URL）。
- * 「开着就发 remote-cmd play」由音乐页自己发（它也听 player-state / player-bye），这里只管开窗。
- * @param {Document} [d] @param {{ open?: (url: string, name: string, features: string) => any, navigate?: (url: string) => void, channel?: any, path?: string }} [o] 测试注入
+ * 交接先握手（打磨 6.3，Gray 2026-11-22）：音乐页点播放发可取消的 sgx-music-open {url, cmd}，顶栏音乐图标、遥控层「播放器」钮也一样，都走 reach(url, cmd)：
+ * - 频道上发 {type:'player-hello', req, from: 本页 id}；开着的播放器（不管是顶栏开的还是手动开的）答 {type:'player-state', id, req, mine}，
+ *   mine = 那个播放器的 opener 就是问的这一页（本页 id 挂在 window.sgxMusicPageId 上，播放器读 opener 的）。只等第一个回答，最多 HANDOFF_WAIT_MS。
+ *   本页加载时就握一次手，播放器平时广播状态也带 id 和 by（它 opener 的页 id）：点的时候多半已经知道，不用再等——
+ *   等完再 window.open 的新窗口 Chromium 不让自动播放（e2e 实测），所以只有「刚加载 300ms 内就点」才真的等。
+ * - 有人答：cmd 照发 remote-cmd（带 to = 它的 id，播放器只认给自己的；不带 to 的照旧都认）；切到前面：mine → go()（window.open('', 窗口名) 找得到它）；
+ *   不是本页开的（手动开的、别的标签页开的）→ 发 {type:'player-focus', to}，播放器自己 focus()（浏览器不一定让，尽力）。不再开第二个窗口。
+ * - 没人答：照旧 go(url) 开（url 带 ?album=&t=，新窗口自己从那首放；被拦整页跳）。地址只认 PLAYER_URL（顶栏图标 / 遥控层用图标的 href）。
+ * - 没有频道（老浏览器）：直接 go()，同步，还在点击的激活期里。真要等的那 300ms 也还在弹窗的激活期里（Chrome / Firefox 约 5 秒，Safari 约 1 秒），被拦照旧整页跳。
+ * @param {Document} [d] @param {{ open?: (url: string, name: string, features: string) => any, navigate?: (url: string) => void, channel?: any, path?: string, wait?: number }} [o] 测试注入
  */
 export function mountMusic(d, o) {
   const doc = d || document;
@@ -1041,6 +1055,14 @@ export function mountMusic(d, o) {
   };
   /** 播放器最近一次答的状态；null = 没答 / 已关 @type {{ on: boolean, playing: boolean, title: string, artist: string }|null} */
   let state = null;
+  /** 正在等回答的握手：req → 收尾函数 @type {Record<string, (a: {id: string, mine: boolean}|null) => void>} */
+  const waits = {};
+  /** 本页发过的握手 req（别的页的握手回答里的 mine 是对那页说的，不算） @type {Set<string>} */
+  const mineReqs = new Set();
+  /** 答过的播放器：id → {mine, at}（player-bye 删掉） @type {Map<string, {mine: boolean, at: number}>} */
+  const known = new Map();
+  /** 上一次加载时握手的时间：过了 HANDOFF_WAIT_MS 还没人答 = 没开 */
+  let helloAt = 0;
   const onPlayer = MUSIC_PATH.test(opt.path != null ? opt.path : ((doc.defaultView && doc.defaultView.location && doc.defaultView.location.pathname) || ''));
   const dlg = typeof doc.getElementById === 'function' ? doc.getElementById('sgx-mu') : null;
   let ch = opt.channel || null;
@@ -1068,6 +1090,8 @@ export function mountMusic(d, o) {
   const post = function (m) { if (ch) { try { ch.postMessage(m); } catch (e) {} } };
   /* 歌手页（M4）：本页的 id 和最近一次用过的时间（播放器按它挑主窗口） */
   const pageId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  /* 打磨 6.3：播放器读 opener 的这个值，判断「问的这一页是不是开我的那一页」（mine） */
+  if (typeof window !== 'undefined' && doc.defaultView === window) { try { /** @type {any} */ (window).sgxMusicPageId = pageId; } catch (e) {} }
   let lastActive = Date.now();
   const touch = function () { lastActive = Date.now(); };
   if (doc.defaultView) doc.defaultView.addEventListener('focus', touch);
@@ -1092,22 +1116,85 @@ export function mountMusic(d, o) {
     if (typeof prevMsg === 'function') { try { prevMsg.call(ch, ev); } catch (e) {} }
     const m = ev && ev.data;
     if (!m) return;
-    if (m.type === 'player-state') state = { on: !!m.on, playing: !!m.playing, title: String(m.title || ''), artist: String(m.artist || '') };
-    else if (m.type === 'player-bye') state = null;
+    if (m.type === 'player-state') {
+      state = { on: !!m.on, playing: !!m.playing, title: String(m.title || ''), artist: String(m.artist || '') };
+      if (typeof m.id === 'string' && m.id) {
+        /* mine：答本页的握手看 mine；别的（播放器自己广播、答别的页的握手）看 by（它的 opener 的页 id） */
+        const ours = typeof m.req === 'string' && mineReqs.has(m.req);
+        const a = { id: m.id, mine: ours ? m.mine === true : m.by === pageId };
+        known.set(m.id, { mine: a.mine, at: Date.now() });
+        if (ours && waits[m.req]) waits[m.req](a);
+      }
+    }
+    else if (m.type === 'player-bye') { state = null; if (typeof m.id === 'string') known.delete(m.id); else known.clear(); }
     else { onArtist(m); return; }
     paint();
   };
-  post({ type: 'player-hello' });
-  if (doc.defaultView) doc.defaultView.addEventListener('pageshow', function (e) { if (/** @type {PageTransitionEvent} */ (e).persisted) { state = null; paint(); post({ type: 'player-hello' }); } });
-  /* 音乐页的「播放」交接（music 搬家第 3 步 3.3）：页面在点击里发 sgx-music-open，这里同步调 go()，还在那次点击的激活期里 */
+  const waitMs = typeof opt.wait === 'number' ? opt.wait : HANDOFF_WAIT_MS;
+  /** 发一次握手 player-hello {req, from}，记下 req（只信答本页握手的 mine）；回 req */
+  const hello = function () {
+    const req = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    mineReqs.add(req);
+    post({ type: 'player-hello', req: req, from: pageId });
+    return req;
+  };
+  /* 加载时就握一次手：开着的播放器先答，点播放时多半已经知道有没有（不用再等，window.open 还在点击里同步，新窗口能自动播放） */
+  hello();
+  helloAt = Date.now();
+  if (doc.defaultView) doc.defaultView.addEventListener('pageshow', function (e) { if (/** @type {PageTransitionEvent} */ (e).persisted) { state = null; known.clear(); paint(); hello(); helloAt = Date.now(); } });
+  /** 握手等第一个回答，最多 waitMs；没人答回 null @returns {Promise<{id: string, mine: boolean}|null>} */
+  const ask = function () {
+    return new Promise(function (resolve) {
+      const req = hello();
+      const timer = setTimeout(function () { if (waits[req]) { delete waits[req]; resolve(null); } }, waitMs);
+      waits[req] = function (a) { delete waits[req]; clearTimeout(timer); resolve(a); };
+    });
+  };
+  /** 最近答过的播放器 @returns {{id: string, mine: boolean}|null} */
+  const live = function () {
+    let best = null, at = -1;
+    known.forEach(function (v, id) { if (v.at > at) { at = v.at; best = { id: id, mine: v.mine }; } });
+    return best;
+  };
+  /**
+   * 交给播放器（打磨 6.3）：握手问开着的播放器，有人答就发 cmd（to = 它）并切过去，没人答才 go(url) 开。
+   * 回答多半在点之前就到了（加载时握过手、播放器状态一变就广播）：
+   * - 已经知道有播放器：同步发 cmd、切过去（mine → go()；不是 → player-focus），再握一次手确认它还在，到点没人答（崩了没发 bye）才开窗；
+   * - 加载时握的手已过 HANDOFF_WAIT_MS 没人答：当没开，同步 go()（还在点击里，新窗口能自动播放）；
+   * - 刚加载就点（还没到点）：等第一个回答，最多到点。
+   * @param {string} url 没开时开的地址 @param {any} [cmd] remote-cmd 的内容（{cmd:'play', …}），null = 只切过去
+   * @returns {Promise<'opened'|'focused'|'navigated'|'asked'>} asked = 发了 player-focus，切不切得过去看浏览器
+   */
+  const reach = function (url, cmd) {
+    if (!ch) return Promise.resolve(go(url));
+    /** @param {{id: string, mine: boolean}} a */
+    const hand = function (a) {
+      if (cmd) post(Object.assign({}, cmd, { type: 'remote-cmd', to: a.id }));
+      if (a.mine) return go(url);
+      post({ type: 'player-focus', to: a.id });
+      return 'asked';
+    };
+    const k = live();
+    if (k) {
+      const r = hand(k);
+      if (k.mine) return Promise.resolve(r);
+      return ask().then(function (a) { if (a) return r; known.delete(k.id); return go(url); });
+    }
+    if (Date.now() - helloAt >= waitMs) return Promise.resolve(go(url));
+    return ask().then(function (a) { return a ? hand(a) : go(url); });
+  };
+  /* 音乐页的「播放」交接（music 搬家第 3 步 3.3；打磨 6.3 起带 cmd、先握手）：页面在点击里发 sgx-music-open {url, cmd}，这里接住走 reach() */
   if (typeof doc.addEventListener === 'function') doc.addEventListener('sgx-music-open', function (/** @type {any} */ e) {
     const u = e && e.detail && e.detail.url;
+    const c = e && e.detail && e.detail.cmd;
     if (onPlayer || typeof u !== 'string' || !PLAYER_URL.test(u)) return;
     e.preventDefault();
     /* 绝对地址：go() 可能把它写进另一个窗口的 location（相对地址按调用方解析，写成绝对的不用想） */
     let abs = u;
     try { abs = new URL(u, doc.baseURI || undefined).href; } catch (x) { abs = u; }
-    go(abs);
+    /** @type {any} */ let cm = null;
+    if (playCmdOk(c)) { cm = { cmd: 'play', i: c.i }; if (Array.isArray(c.queue)) cm.queue = c.queue.slice(); else cm.album = c.album; }
+    reach(abs, cm);
   });
   /* 先于 mountTopbar 的 wire 注册：遥控层能用就放行（wire 开 #sgx-mu），不能用就开 / 切播放器并拦住 wire */
   btn.addEventListener('click', function (e) {
@@ -1115,13 +1202,13 @@ export function mountMusic(d, o) {
     if (remoteOn()) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    go(btn.href);
+    reach(btn.href, null);
   });
   if (dlg) dlg.addEventListener('click', function (e) {
     const b = /** @type {HTMLElement|null} */ (e.target && /** @type {Element} */ (e.target).closest ? /** @type {Element} */ (e.target).closest('[data-mu]') : null);
     if (!b) return;
     const k = b.getAttribute('data-mu');
-    if (k === 'open') { go(btn.href); return; }
+    if (k === 'open') { reach(btn.href, null); return; }
     post({ type: 'remote-cmd', cmd: k });
     /* 等播放器回新状态再画；先把按钮翻过去，别让人以为没点上 */
     if (k === 'toggle' && state) { state.playing = !state.playing; paint(); }
@@ -1130,6 +1217,8 @@ export function mountMusic(d, o) {
   const api = /** @type {any} */ (go);
   api.state = function () { return state; };
   api.remoteOn = remoteOn;
+  api.reach = reach;
+  api.pageId = pageId;
   return go;
 }
 

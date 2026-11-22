@@ -25,7 +25,9 @@
  *   单曲 album = 那条单曲记录（t = 0），从单曲组里它那一首开始、单曲组当播放列表。新开的窗口没有用户手势，浏览器拦了自动播放就停在那首、
  *   播放键亮着，点一下就放（共用核 start 吞掉 play() 的拒绝，不另想绕法）。只看模式照旧只提示「登录」，不放。
  * 音乐页点播放（第 3 步 3.3）：开着的播放器收 remote-cmd {cmd:'play', album, i}（单曲 {cmd:'play', queue, i}），换到那张、从第 i 首放
- *   （歌单里没有这张就重取一次歌单再找：音乐页刚传的新专辑）；切到前面靠音乐页那边同一次点击里的 window.open('', 窗口名)，这边能 focus 也 focus 一下。
+ *   （歌单里没有这张就重取一次歌单再找：音乐页刚传的新专辑；纯函数 playCmdWith）；切到前面靠音乐页那边同一次点击里的 window.open('', 窗口名)，这边能 focus 也 focus 一下。
+ * 交接握手（打磨 6.3）：顶栏 reach() 发 player-hello {req, from}，本窗口答 player-state {…, id, req, mine}（mine = opener 就是问的那页）；
+ *   之后的 remote-cmd 带 to = 本窗口 id，不是给自己的不认（不带 to 的照旧认）；收到给自己的 player-focus 就 focus()（尽力）。手动开的播放器也接得到。
  * 歌手页（M4，音乐 v1.19 7.5 / 十二 M4）：正在播的歌手名可点；点了不在播放器里跳走（播放会断），经 BroadcastChannel 让主窗口打开歌手页
  *   （共用核 ARTIST_MSG 三步：artist-ask → 主窗口 artist-here → 挑最近用过的那个 artist-go；没人答退回 window.opener，再不行开新标签页）。
  *   单曲没封面：封面空 → 歌手头像 → 默认图（共用核 coverOf，正在播的封面和 Media Session 一样）。
@@ -98,6 +100,38 @@ function groupsOf(list, label){
   if (sg.length) al.push({ singles: true, id: -1, title: label || '', artist: '', cover: false, items: sg, tracks: sg.map(function(a){ var t = a.tracks[0]; return { id: t.id, no: 0, title: a.title, duration: t.duration }; }) });
   return al;
 }
+/**
+ * 收到 remote-cmd play 怎么办（第 3 步 3.3；打磨 6.3 拆成纯函数好测）：专辑 {album, i} 换到那张从第 i 首放；单曲 {queue:[记录 id…], i} 单曲组当前、按这一列放。
+ * 歌单里没有这张 / 这几条（音乐页刚传的）就重取一次歌单再找，还没有就不动、也不再重取（again = 已经重取过）。
+ * env：viewOnly、groups()（当前专辑列表，groupsOf 的）、has(id)（全部记录里有没有）、reload()（重取歌单，回 Promise）、locked()、
+ *   select(k)（换到第 k 项）、playQueue(q, i)、playFrom(id, i)、focus()。
+ * @returns {'locked'|'reload'|'skip'|'queue'|'album'|'none'} 做了什么（测试用）
+ */
+function playCmdWith(m, env, again){
+  if (env.viewOnly) { env.locked(); return 'locked'; }
+  var i = Number(m.i), k = -1, gs = env.groups(), n;
+  var retry = function(){ if (again) return 'none'; env.reload().then(function(){ playCmdWith(m, env, true); }); return 'reload'; };
+  if (Array.isArray(m.queue)) {
+    var q = m.queue.map(Number).filter(function(x){ return x > 0; });
+    if (!(i >= 0 && i < q.length)) return 'skip';
+    if (!q.every(function(id){ return env.has(id); })) return retry();
+    for (n = 0; n < gs.length; n++) if (gs[n].singles) { k = n; break; }
+    if (k >= 0) env.select(k);
+    env.playQueue(q, i);
+    env.focus();
+    return 'queue';
+  }
+  var id = Number(m.album);
+  for (n = 0; n < gs.length; n++) if (!gs[n].singles && gs[n].id === id) { k = n; break; }
+  if (k < 0) return retry();
+  if (!(i >= 0 && i < gs[k].tracks.length)) return 'skip';
+  env.select(k);
+  env.playFrom(id, i);
+  env.focus();
+  return 'album';
+}
+/** 这条 remote-cmd 给不给本窗口（打磨 6.3）：带 to 的只认自己的 id，不带 to 的（遥控层 prev / toggle / next）照旧都认 */
+function cmdForMe(m, id){ return !m || m.to == null || m.to === id; }
 function remoteState(st, playing, albums){
   var t = st && st.i >= 0 ? st.list[st.i] : null;
   var a = null;
@@ -105,7 +139,7 @@ function remoteState(st, playing, albums){
   return { type: 'player-state', on: !!t, playing: !!t && !!playing, title: t ? String(t.title || '') : '', artist: t ? String((a && a.artist) || '') : '' };
 }
 
-var pure = { albumOf: albumOf, trackOf: trackOf, startOf: startOf, failKind: failKind, artworkOf: artworkOf, remoteState: remoteState, groupsOf: groupsOf, musicPathOf: musicPathOf };
+var pure = { playCmdWith: playCmdWith, cmdForMe: cmdForMe, albumOf: albumOf, trackOf: trackOf, startOf: startOf, failKind: failKind, artworkOf: artworkOf, remoteState: remoteState, groupsOf: groupsOf, musicPathOf: musicPathOf };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxMusicPlayer = pure;
 
@@ -243,20 +277,34 @@ function syncState(){
    单开一个频道对象：共用核那个的 onmessage 管防同时响，两边互不干扰（同一页的两个频道对象也互相收得到，核只认 type=playing） */
 var rc = null;
 try { if (typeof G.BroadcastChannel === 'function') rc = new G.BroadcastChannel(CORE.CHANNEL); } catch (e) { rc = null; }
-function tell(){ if (rc) { try { rc.postMessage(remoteState(P.state, P.playing(), all)); } catch (e) {} } }
+/* 打磨 6.3 交接握手：本窗口的 id；问的页带 req + from（那页的 window.sgxMusicPageId）时答 {…状态, id, req, mine}，
+   mine = 开本窗口的那一页（opener）就是问的那页（它能 window.open('', 窗口名) 切过来；不是的话它发 player-focus 让这边自己 focus） */
+var PID = Math.random().toString(36).slice(2) + Date.now().toString(36);
+function tell(extra){
+  if (!rc) return;
+  var m = remoteState(P.state, P.playing(), all);
+  /* 每次都带 id 和 by（opener 那页的 id）：各页平时就知道有没有播放器、是不是自己开的，点播放不用再等回答 */
+  m.id = PID; m.by = openerId();
+  if (extra) for (var k in extra) m[k] = extra[k];
+  try { rc.postMessage(m); } catch (e) {}
+}
+function openerId(){ try { var v = G.opener && !G.opener.closed ? G.opener.sgxMusicPageId : ''; return typeof v === 'string' ? v : ''; } catch (e) { return ''; } }
+function openerIs(from){ return typeof from === 'string' && !!from && openerId() === from; }
 if (rc) rc.onmessage = function(ev){
   var m = ev && ev.data;
   if (!m) return;
-  if (m.type === 'player-hello') tell();
+  if (m.type === 'player-hello') tell(typeof m.req === 'string' ? { id: PID, req: m.req, mine: openerIs(m.from) } : null);
+  else if (m.type === 'player-focus') { if (m.to === PID) { try { G.focus(); } catch (e) {} } }
   else if (m.type === CORE.ARTIST_MSG.here && artistWait && m.req === artistWait.req && typeof m.from === 'string') artistWait.replies.push({ from: m.from, at: Number(m.at) || 0 });
   else if (m.type === 'remote-cmd') {
+    if (!cmdForMe(m, PID)) return;
     if (m.cmd === 'toggle') { if (viewOnly) { note('locked'); return; } if (!P.toggle()) playFrom(0); }
     else if (m.cmd === 'prev') P.prev();
     else if (m.cmd === 'next') P.next();
     else if (m.cmd === 'play') playCmd(m);
   }
 };
-G.addEventListener('pagehide', function(){ if (rc) { try { rc.postMessage({ type: 'player-bye' }); } catch (e) {} } });
+G.addEventListener('pagehide', function(){ if (rc) { try { rc.postMessage({ type: 'player-bye', id: PID }); } catch (e) {} } });
 
 /* ---------- 歌手名 → 主窗口打开歌手页（M4，十二 M4 第 3 条）：播放器不跳走 ---------- */
 var artistWait = null;
@@ -315,30 +363,19 @@ function playFrom(i){
   if (a.singles) { P.playQueue(a.items.map(function(x){ return x.id; }), i); return; }
   P.playFrom(a.id, i);
 }
-/**
- * 音乐页交过来的 remote-cmd play（第 3 步 3.3）：专辑 {album, i} 换到那张从第 i 首放；单曲 {queue:[记录 id…], i} 单曲组当前、按这一列放。
- * 歌单里没有这张（音乐页刚传的）就重取一次歌单再找，还没有就不动。能 focus 就把自己切到前面（多半要靠音乐页那边的 window.open 才切得过来）。
- * @param {{album?: number, queue?: number[], i?: number}} m @param {boolean} [again] 已经重取过一次
- */
-function playCmd(m, again){
-  if (viewOnly) { note('locked'); return; }
-  var i = Number(m.i), k = -1;
-  if (Array.isArray(m.queue)) {
-    var q = m.queue.map(Number).filter(function(x){ return x > 0; });
-    if (!(i >= 0 && i < q.length)) return;
-    if (!q.every(function(id){ return !!albumById(id); })) { if (!again) reload().then(function(){ playCmd(m, true); }); return; }
-    k = singlesIdx();
-    if (k >= 0 && k !== cur) { cur = k; renderTracks(); }
-    P.playQueue(q, i);
-  } else {
-    var id = Number(m.album);
-    for (var n = 0; n < albums.length; n++) if (!albums[n].singles && albums[n].id === id) { k = n; break; }
-    if (k < 0) { if (!again) reload().then(function(){ playCmd(m, true); }); return; }
-    if (!(i >= 0 && i < albums[k].tracks.length)) return;
-    if (k !== cur) { cur = k; renderTracks(); }
-    P.playFrom(id, i);
-  }
-  try { G.focus(); } catch (e) {}
+/** 音乐页交过来的 remote-cmd play：逻辑在纯函数 playCmdWith（歌单里没有先重取一次，重取后还没有就不动） @param {any} m */
+function playCmd(m){
+  return playCmdWith(m, {
+    viewOnly: viewOnly,
+    groups: function(){ return albums; },
+    has: function(id){ return !!albumById(id); },
+    reload: reload,
+    locked: function(){ note('locked'); },
+    select: function(k){ if (k !== cur) { cur = k; renderTracks(); } },
+    playQueue: function(q, i){ P.playQueue(q, i); },
+    playFrom: function(id, i){ P.playFrom(id, i); },
+    focus: function(){ try { G.focus(); } catch (e) {} },
+  }, false);
 }
 $('#mp-tracks').addEventListener('click', function(e){ var b = e.target.closest('[data-t]'); if (b) playFrom(Number(b.dataset.t)); });
 $('#mp-toggle').addEventListener('click', function(){

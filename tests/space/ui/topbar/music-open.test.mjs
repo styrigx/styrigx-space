@@ -5,10 +5,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { mountMusic, MUSIC_WIN, MUSIC_FEATURES, MUSIC_PATH, PLAYER_URL, ARTIST_URL } from '../../../../space/web/assets/common/js/frame/topbar/panel.js';
+import { mountMusic, MUSIC_WIN, MUSIC_FEATURES, MUSIC_PATH, PLAYER_URL, ARTIST_URL, HANDOFF_WAIT_MS, playCmdOk } from '../../../../space/web/assets/common/js/frame/topbar/panel.js';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
 const URL_EN = 'https://styrigx.com/music/player/';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/* 打磨 6.3：有频道时开 / 切播放器要先握手，测试里把等待缩到 W（有一条用真的 HANDOFF_WAIT_MS） */
+const W = 20;
 
 function fakeDoc() {
   const btn = { href: URL_EN, h: null, addEventListener(t, f) { if (t === 'click') this.h = f; } };
@@ -116,7 +119,7 @@ function el(attrs) {
   const a = Object.assign({}, attrs || {});
   return { textContent: '', hidden: false, title: '', classList: cls(), getAttribute: (k) => (k in a ? a[k] : null), setAttribute: (k, v) => { a[k] = String(v); }, a };
 }
-function remoteSetup(path) {
+function remoteSetup(path, wait) {
   const btn = { href: URL_EN, hs: [], classList: cls(), addEventListener(t, f) { if (t === 'click') this.hs.push(f); } };
   const parts = { '[data-mu-title]': el(), '[data-mu-artist]': el(), '[data-mu="toggle"]': el({ 'data-l-play': 'Play', 'data-l-pause': 'Pause' }) };
   const dlg = Object.assign(el(), { h: null, querySelector: (s) => parts[s] || null, addEventListener(t, f) { if (t === 'click') this.h = f; } });
@@ -125,18 +128,31 @@ function remoteSetup(path) {
   const sent = [];
   const ch = { onmessage: null, postMessage: (m) => sent.push(m) };
   const opened = [];
-  const go = mountMusic(doc, { channel: ch, path: path || '/zh/status/', open: (u, n) => { opened.push(n); return win(URL_EN, '/music/player/'); }, navigate: () => {} });
+  const go = mountMusic(doc, { channel: ch, path: path || '/zh/status/', wait: wait == null ? W : wait, open: (u, n) => { opened.push(n); return win(URL_EN, '/music/player/'); }, navigate: () => {} });
   const say = (m) => ch.onmessage({ data: m });
   const click = () => { const e = { button: 0, defaultPrevented: false, prevented: 0, stopped: 0, preventDefault() { this.prevented++; }, stopImmediatePropagation() { this.stopped++; } }; btn.hs.forEach((f) => f(e)); return e; };
   return { btn, dlg, parts, doc, ch, sent, opened, go, say, click, events };
 }
 
-test('遥控：加载先问 player-hello；播放器没答 → 点图标照旧开播放器、拦住遥控层', () => {
-  const r = remoteSetup();
-  assert.deepEqual(r.sent, [{ type: 'player-hello' }]);
+test('遥控：加载先握手 player-hello {req, from}；刚加载就点（还没到点）→ 等满 HANDOFF_WAIT_MS 没人答才开播放器、拦住遥控层', async () => {
+  assert.equal(HANDOFF_WAIT_MS, 300);
+  const r = remoteSetup(undefined, HANDOFF_WAIT_MS);
+  assert.equal(r.sent.length, 1);
+  assert.deepEqual(r.sent[0], { type: 'player-hello', req: r.sent[0].req, from: r.go.pageId });
+  assert.equal(typeof r.sent[0].req, 'string');
+  const t0 = Date.now();
   const e = r.click();
   assert.equal(e.prevented, 1); assert.equal(e.stopped, 1);
+  assert.equal(r.sent.length, 2);
+  assert.equal(r.sent[1].type, 'player-hello');
+  assert.equal(typeof r.sent[1].req, 'string');
+  assert.equal(r.sent[1].from, r.go.pageId);
+  assert.deepEqual(r.opened, [], '还在等回答');
+  await sleep(HANDOFF_WAIT_MS - 100);
+  assert.deepEqual(r.opened, []);
+  await sleep(200);
   assert.deepEqual(r.opened, [MUSIC_WIN]);
+  assert.ok(Date.now() - t0 >= HANDOFF_WAIT_MS - 5);
 });
 
 test('遥控：播放器答了在播 → 放行给遥控层，画歌名 / 歌手 / 暂停钮，图标亮小点', () => {
@@ -174,7 +190,7 @@ test('遥控：播放器关窗（player-bye）→ 回到只开播放器，并通
   assert.equal(r.click().prevented, 1);
 });
 
-test('遥控层按钮：上一曲、播放/暂停、下一曲发 remote-cmd；「播放器」切到播放器窗', () => {
+test('遥控层按钮：上一曲、播放/暂停、下一曲发 remote-cmd；「播放器」切到播放器窗', async () => {
   const r = remoteSetup();
   r.say({ type: 'player-state', on: true, playing: true, title: 'A', artist: 'B' });
   const hit = (k) => r.dlg.h({ target: { closest: (s) => (s === '[data-mu]' ? { getAttribute: () => k } : null) } });
@@ -186,6 +202,8 @@ test('遥控层按钮：上一曲、播放/暂停、下一曲发 remote-cmd；�
   hit('next');
   assert.deepEqual(r.sent.at(-1), { type: 'remote-cmd', cmd: 'next' });
   hit('open');
+  assert.deepEqual(r.opened, [], '先握手');
+  await sleep(W + 30);
   assert.deepEqual(r.opened, [MUSIC_WIN]);
 });
 
@@ -265,45 +283,177 @@ test('歌手页：播放器 / 共用核 / 音乐页三边接上（消息名同�
 });
 
 /* ---------- 音乐页「播放」交接（music 搬家第 3 步 3.3）：音乐页发可取消的 sgx-music-open {url}，mountMusic 用同一个 go() 开 / 切播放器 ---------- */
-function openSetup(path, w) {
+/** answer：频道上收到 player-hello {req} 时播放器怎么答（不给 = 没开播放器，不答；数组 = 几个播放器先后答） */
+function openSetup(path, w, answer) {
   const btn = { href: URL_EN, addEventListener() {} };
   const hs = {};
   const doc = { baseURI: 'https://styrigx.com/music/', querySelector: (s) => (s === '.sgx-tb-music' ? btn : null), addEventListener: (t, f) => { hs[t] = f; } };
-  const calls = [], nav = [];
-  mountMusic(doc, { channel: { onmessage: null, postMessage() {} }, path, open: (u, n, f) => { calls.push([u, n, f]); return typeof w === 'function' ? w() : w; }, navigate: (u) => nav.push(u) });
-  const fire = (url) => { const e = { detail: { url }, prevented: 0, preventDefault() { this.prevented++; } }; hs['sgx-music-open'](e); return e; };
-  return { fire, calls, nav, hs };
+  const calls = [], nav = [], sent = [];
+  const ch = { onmessage: null, postMessage(m) {
+    sent.push(m);
+    if (m.type === 'player-hello' && m.req && answer) {
+      for (const a of [].concat(answer)) {
+        const { after, ...rest } = a;
+        setTimeout(() => ch.onmessage({ data: Object.assign({ type: 'player-state', on: true, playing: true, title: 'A', artist: 'B', req: m.req }, rest) }), after || 1);
+      }
+    }
+  } };
+  const api = mountMusic(doc, { channel: ch, path, wait: W, open: (u, n, f) => { calls.push([u, n, f]); return typeof w === 'function' ? w() : w; }, navigate: (u) => nav.push(u) });
+  const fire = (url, cmd) => { const e = { detail: cmd === undefined ? { url } : { url, cmd }, prevented: 0, preventDefault() { this.prevented++; } }; hs['sgx-music-open'](e); return e; };
+  const cmds = () => sent.filter((m) => m.type !== 'player-hello');
+  return { fire, calls, nav, hs, sent, cmds, api, ch };
 }
 
-test('交接：没开播放器 → 同名窗口开 /music/player/?album=&t=（绝对地址），接住事件', () => {
+test('交接：没开播放器（握手没人答）→ 同名窗口开 /music/player/?album=&t=（绝对地址），接住事件，不发 remote-cmd', async () => {
   const w = win('about:blank', 'blank');
   const o = openSetup('/music/', w);
-  const e = o.fire('/music/player/?album=3&t=2');
+  const e = o.fire('/music/player/?album=3&t=2', { cmd: 'play', album: 3, i: 2 });
   assert.equal(e.prevented, 1);
+  assert.deepEqual(o.calls, [], '先握手');
+  await sleep(W + 30);
   assert.deepEqual(o.calls, [['', MUSIC_WIN, MUSIC_FEATURES]]);
+  assert.deepEqual(o.cmds(), [], '没人答就不发 remote-cmd（新窗口靠地址里的 ?album=&t= 放）');
   assert.equal(w.location.href, 'https://styrigx.com/music/player/?album=3&t=2');
   assert.equal(w.focused, 1);
 });
 
-test('交接：播放器已开 → 只切过去、不改地址（靠音乐页发的 remote-cmd play 换曲）', () => {
+test('交接：本页开的播放器答了（mine）→ remote-cmd play 带 to 发给它，go() 切过去、不改地址', async () => {
   const w = win(URL_EN + '?album=1', '/music/player/');
-  const o = openSetup('/music/zh/', w);
-  assert.equal(o.fire('/music/zh/player/?album=3&t=0').prevented, 1);
+  const o = openSetup('/music/zh/', w, { id: 'p1', mine: true });
+  assert.equal(o.fire('/music/zh/player/?album=3&t=0', { cmd: 'play', album: 3, i: 0 }).prevented, 1);
+  await sleep(10);
+  assert.deepEqual(o.cmds(), [{ cmd: 'play', i: 0, album: 3, type: 'remote-cmd', to: 'p1' }]);
+  assert.deepEqual(o.calls, [['', MUSIC_WIN, MUSIC_FEATURES]]);
   assert.equal(w.location.href, URL_EN + '?album=1');
   assert.equal(w.focused, 1);
+  await sleep(W + 20);
+  assert.equal(o.calls.length, 1, '到点也不再开');
 });
 
-test('交接：被拦 → 本页整页跳到播放器地址', () => {
+test('交接：手动开的播放器答了（不是本页开的）→ cmd 带 to 发给它，再发 player-focus，不开窗（不会多出第二个播放器）', async () => {
+  const o = openSetup('/music/', win('about:blank', 'blank'), { id: 'manual', mine: false });
+  o.fire('/music/player/?album=1&t=2', { cmd: 'play', album: 1, i: 2 });
+  await sleep(W + 30);
+  assert.deepEqual(o.cmds(), [{ cmd: 'play', i: 2, album: 1, type: 'remote-cmd', to: 'manual' }, { type: 'player-focus', to: 'manual' }]);
+  assert.deepEqual(o.calls, [], '不 window.open');
+  assert.deepEqual(o.nav, []);
+});
+
+test('交接：单曲队列照发；只认第一个回答；别人的 req 不算', async () => {
+  const o = openSetup('/music/', win('about:blank', 'blank'), [{ id: 'x', mine: false, req: 'someone-else' }, { id: 'p1', mine: false, after: 3 }, { id: 'p2', mine: false, after: 6 }]);
+  o.fire('/music/player/?album=31&t=0', { cmd: 'play', queue: [31, 32], i: 1 });
+  await sleep(W + 30);
+  assert.deepEqual(o.cmds(), [{ cmd: 'play', i: 1, queue: [31, 32], type: 'remote-cmd', to: 'p1' }, { type: 'player-focus', to: 'p1' }]);
+  assert.deepEqual(o.calls, []);
+});
+
+test('交接：cmd 白名单（只认 play + 整数 i + album 或 queue）；不合格的 cmd 不发，只切 / 开', async () => {
+  assert.ok(playCmdOk({ cmd: 'play', album: 3, i: 0 }));
+  assert.ok(playCmdOk({ cmd: 'play', queue: [1, 2], i: 1 }));
+  for (const c of [null, 'play', { cmd: 'next', album: 3, i: 0 }, { cmd: 'play', album: '3', i: 0 }, { cmd: 'play', album: 3, i: -1 }, { cmd: 'play', album: 3 }, { cmd: 'play', queue: [], i: 0 }, { cmd: 'play', queue: [1, 'x'], i: 0 }, { cmd: 'play', album: 0, i: 0 }]) assert.ok(!playCmdOk(c), JSON.stringify(c));
+  const o = openSetup('/music/', win('about:blank', 'blank'), { id: 'p1', mine: false });
+  o.fire('/music/player/?album=3&t=0', { cmd: 'play', album: 3, i: 0, evil: 1, to: 'zz' });
+  await sleep(W + 30);
+  o.fire('/music/player/?album=3&t=0', { cmd: 'toggle' });
+  await sleep(W + 30);
+  assert.deepEqual(o.cmds(), [{ cmd: 'play', i: 0, album: 3, type: 'remote-cmd', to: 'p1' }, { type: 'player-focus', to: 'p1' }, { type: 'player-focus', to: 'p1' }], '多余字段丢掉；不合格的只切过去');
+});
+
+test('交接：被拦 → 本页整页跳到播放器地址', async () => {
   const o = openSetup('/music/', null);
-  o.fire('/music/player/?album=3&t=0');
+  o.fire('/music/player/?album=3&t=0', { cmd: 'play', album: 3, i: 0 });
+  await sleep(W + 30);
   assert.deepEqual(o.nav, ['https://styrigx.com/music/player/?album=3&t=0']);
 });
 
-test('交接：不在白名单的地址不接（不 preventDefault、不开窗）；播放器页自己不接', () => {
+test('交接：没有频道（老浏览器）→ 不等，同步 go()（还在点击的激活期里）', () => {
+  const btn = { href: URL_EN, addEventListener() {} };
+  const hs = {};
+  const doc = { baseURI: 'https://styrigx.com/music/', querySelector: (s) => (s === '.sgx-tb-music' ? btn : null), addEventListener: (t, f) => { hs[t] = f; } };
+  const calls = [];
+  mountMusic(doc, { path: '/music/', open: (u, n) => { calls.push(n); return win('about:blank', 'blank'); }, navigate() {} });
+  hs['sgx-music-open']({ detail: { url: '/music/player/?album=3&t=0', cmd: { cmd: 'play', album: 3, i: 0 } }, preventDefault() {} });
+  assert.deepEqual(calls, [MUSIC_WIN]);
+});
+
+test('顶栏图标：播放器答了（手动开的）→ 只发 player-focus，不开窗、不发 remote-cmd', async () => {
+  const r = remoteSetup();
+  const e = r.click();
+  assert.equal(e.prevented, 1);
+  const hello = r.sent.at(-1);
+  r.say({ type: 'player-state', on: false, playing: false, title: '', artist: '', id: 'manual', req: hello.req, mine: false });
+  await sleep(W + 20);
+  assert.deepEqual(r.opened, []);
+  assert.deepEqual(r.sent.at(-1), { type: 'player-focus', to: 'manual' });
+  assert.ok(!r.sent.some((m) => m.type === 'remote-cmd'), '图标不带 cmd');
+});
+
+test('加载时握的手已到点没人答 → 点了不再等，同步 go()（新窗口还在点击里开，能自动播放）', async () => {
+  const o = openSetup('/music/', win('about:blank', 'blank'));
+  await sleep(W + 10);
+  o.fire('/music/player/?album=3&t=1', { cmd: 'play', album: 3, i: 1 });
+  assert.deepEqual(o.calls, [['', MUSIC_WIN, MUSIC_FEATURES]], '同步开');
+  assert.equal(o.sent.filter((m) => m.type === 'player-hello').length, 1, '不再握手');
+  assert.deepEqual(o.cmds(), []);
+});
+
+test('平时广播里已经知道有播放器（by = 本页 → mine）：同步发 cmd（to）+ go() 切过去，不再等', async () => {
+  const w = win(URL_EN, '/music/player/');
+  const o = openSetup('/music/', w);
+  await sleep(W + 10);
+  o.sent.length = 0;
+  /* 播放器开着、状态一变广播（不带 req），by = 开它的那页 */
+  const pid = o.api.pageId;
+  {
+    o.ch.onmessage({ data: { type: 'player-state', on: true, playing: true, title: 'A', artist: 'B', id: 'p9', by: pid } });
+    o.fire('/music/player/?album=3&t=0', { cmd: 'play', album: 3, i: 0 });
+    assert.deepEqual(o.cmds(), [{ cmd: 'play', i: 0, album: 3, type: 'remote-cmd', to: 'p9' }]);
+    assert.deepEqual(o.calls, [['', MUSIC_WIN, MUSIC_FEATURES]]);
+    assert.equal(w.focused, 1);
+    assert.equal(w.location.href, URL_EN, '不改地址');
+  }
+});
+
+test('已知的播放器不是本页开的：同步发 cmd + player-focus；再握手确认，到点没人答（崩了没发 bye）才开窗', async () => {
+  const o = openSetup('/music/', win('about:blank', 'blank'));
+  await sleep(W + 10);
+  o.ch.onmessage({ data: { type: 'player-state', on: false, playing: false, title: '', artist: '', id: 'gone', by: 'other-page' } });
+  o.fire('/music/player/?album=3&t=0', { cmd: 'play', album: 3, i: 0 });
+  assert.deepEqual(o.cmds(), [{ cmd: 'play', i: 0, album: 3, type: 'remote-cmd', to: 'gone' }, { type: 'player-focus', to: 'gone' }]);
+  assert.deepEqual(o.calls, []);
+  await sleep(W + 20);
+  assert.deepEqual(o.calls, [['', MUSIC_WIN, MUSIC_FEATURES]], '确认不在了才开');
+  /* 它已经从已知里删掉：下一次直接同步开 */
+  o.fire('/music/player/?album=3&t=0', { cmd: 'play', album: 3, i: 0 });
+  assert.equal(o.calls.length, 2);
+});
+
+test('player-bye 带 id：只删那一个；别的页握手回答里的 mine 不算本页的', async () => {
+  const o = openSetup('/music/', win('about:blank', 'blank'));
+  await sleep(W + 10);
+  o.ch.onmessage({ data: { type: 'player-state', on: true, playing: true, title: 'A', artist: 'B', id: 'p1', req: 'not-mine', mine: true, by: 'x' } });
+  o.ch.onmessage({ data: { type: 'player-bye', id: 'p1' } });
+  o.fire('/music/player/?album=3&t=0', { cmd: 'play', album: 3, i: 0 });
+  assert.deepEqual(o.calls, [['', MUSIC_WIN, MUSIC_FEATURES]], 'bye 之后当没开');
+  const o2 = openSetup('/music/', win(URL_EN, '/music/player/'));
+  await sleep(W + 10);
+  o2.ch.onmessage({ data: { type: 'player-state', on: true, playing: true, title: 'A', artist: 'B', id: 'p1', req: 'not-mine', mine: true, by: 'x' } });
+  o2.fire('/music/player/?album=3&t=0', { cmd: 'play', album: 3, i: 0 });
+  assert.deepEqual(o2.cmds(), [{ cmd: 'play', i: 0, album: 3, type: 'remote-cmd', to: 'p1' }, { type: 'player-focus', to: 'p1' }], '别人的 mine 不算：发 player-focus，不 go()');
+  assert.deepEqual(o2.calls, []);
+});
+
+test('本页 id 挂在 window.sgxMusicPageId 上（播放器读 opener 的判断 mine）', () => {
+  assert.match(rd('space/web/assets/common/js/frame/topbar/panel.js'), /\(window\)\.sgxMusicPageId = pageId/);
+});
+
+test('交接：不在白名单的地址不接（不 preventDefault、不开窗）；播放器页自己不接', async () => {
   const o = openSetup('/music/', win('about:blank', 'blank'));
   for (const u of ['https://evil.com/', '/music/player/?album=3&t=0&x=1', '/curio/music/player/?album=3&t=0', 42]) assert.equal(o.fire(/** @type {any} */ (u)).prevented, 0, String(u));
   assert.deepEqual(o.calls, []);
   const p = openSetup('/music/player/', win('about:blank', 'blank'));
   assert.equal(p.fire('/music/player/?album=3&t=0').prevented, 0);
+  await sleep(W + 20);
+  assert.deepEqual(o.calls, []);
   assert.deepEqual(p.calls, []);
 });
