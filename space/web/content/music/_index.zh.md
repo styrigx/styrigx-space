@@ -3,5 +3,5 @@
 url: /music/zh/
 outputs: [HTML]
 title: 音乐
-description: '私人专辑，仅自己可见'
+description: 'Sloan Gray 的音乐：一张张收好的专辑，在弹出的播放器里听'
 ---

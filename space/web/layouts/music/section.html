@@ -1,6 +1,6 @@
 {{ define "main" }}
 {{ $lang := .Lang }}{{ $tr := partialCached "common/tr.html" (dict "lang" $lang "ns" "music") (printf "music-%s" $lang) }}
-{{/* 页头 / 确认框 / su 那一条借奇趣的部件和文案（外观不变，搬家设计稿 v1.1 3.1 第 3 条） */}}{{ $cu := partialCached "common/tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
+{{/* 确认框借奇趣的部件和文案（curio/common.html + curio.js；打磨 6.1 起页头是本站自己的） */}}{{ $cu := partialCached "common/tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
 {{/* 音乐（/music/，中文 /music/zh/；music 搬家第 3 步起是第四个子站，原奇趣 › 音乐 /curio/music/）：数字专辑，music-page.js 画。
    三层（v5 S3；接口档在 workers/atlas-core/src/curio/routes.js ROUTE_ACCESS）：歌单 / 封面谁都能看（GET /music/api/music 不带任何音频地址）；
    听要进站（没进站 = 只看模式：播放键是锁，点播放发 sgx:sudo，顶栏终端预填 su ，不开播放器）；
@@ -9,7 +9,12 @@
    点「播放整张」/ 点曲目 = 交给弹出播放器 /music/player/（开着就经 BroadcastChannel 发 remote-cmd play，没开就开 ?album=&t=）。
    上传：「上传专辑」弹层，分段「单首 | 批量」（M2）：歌名 / 歌手按音频标签、没有再按文件名预填；可选封面 + 可选 .lrc 歌词，浏览器直传（单个音频 ≤ 95 MB）。 */}}
 <main id="cu-main" class="cu-wrap mu-wrap" data-cu-page="music">
-{{ partial "curio/page-head.html" (dict "page" . "id" "music" "tr" $cu "lang" $lang "grep" false "cmds" (slice (dict "id" "mu-upload" "k" "cp *.flac music/ +" "d" $tr.cmd.upload))) }}
+{{/* 页头（打磨 6.1，搬家设计稿 v1.1 §六，Gray 2026-11-21 15:42）：音乐自己的页头——共享外壳 sgx-ph「ls music/」· 音乐_ · 本站一句话（data/music/i18n site），
+   不再借奇趣的页头（没有奇趣的 tab 行 finds/ devices/ games/ movies/ music/，没有 grep）；下面一行命令链只有「上传专辑」（能写才显示，music-page.js 按 canManage 开） */}}
+{{ partial "common/frame/page-head.html" (dict "cmd" "ls music/" "title" $tr.site.name "desc" $tr.site.description "path" .File.Path) }}
+<div class="sgx-cmds" id="cu-cmds">
+  <button type="button" class="sgx-cmd hidden" id="mu-upload"><span class="sgx-cmd-k" translate="no">cp *.flac music/ +</span><i>{{ $tr.cmd.upload }}</i></button>
+</div>
   <section id="cu-pane-music" class="cu-pane" aria-label="{{ $tr.music.music }}">
     <div id="mu-app" class="hidden">
       {{/* 音乐页本身（专辑 / 单曲）；歌手页视图（?artist=<id>，M4）时收起 */}}

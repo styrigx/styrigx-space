@@ -17,10 +17,11 @@
 <meta name="color-scheme" content="{{ .mode }}">
 <meta name="theme-color" content="{{ .tokens.background }}">
 {{- end }}{{ end }}
-{{/* 标签页标题（Gray 2026-11-07 定，四站统一）：「页名 | 站名」。搬家只换地址、外观不变：站名仍取奇趣的（「Music | Curio」「音乐 | 奇趣」，同搬家前） */}}
+{{/* 标签页标题（Gray 2026-11-07 定，四站统一）：「页名 | 站名」，首页 = 站名本身（同 daymark「Daymark」、curio「Curio」）。
+   打磨 6.1：站名 / 一句话取本站的 data/music/i18n site（「Music」「音乐」），不再是奇趣的「Music | Curio」「音乐 | 奇趣」 */}}
 {{ $docTitle := .Title }}
-<title>{{ if eq $docTitle $cu.site.name }}{{ $docTitle }}{{ else }}{{ $docTitle }} | {{ $cu.site.name }}{{ end }}</title>
-<meta name="description" content="{{ $cu.site.description }}">
+<title>{{ if eq $docTitle $tr.site.name }}{{ $docTitle }}{{ else }}{{ $docTitle }} | {{ $tr.site.name }}{{ end }}</title>
+<meta name="description" content="{{ $tr.site.description }}">
 {{/* P4-3 PR-4c：canonical + hreflang（英文默认、不带前缀 = x-default；中文 /music/zh/），地址来自 Hugo 的语言版本 */}}
 <link rel="canonical" href="{{ .Permalink }}">
 {{ range .AllTranslations }}<link rel="alternate" hreflang="{{ .Language.Lang }}" href="{{ .Permalink }}">
