@@ -97,9 +97,12 @@ test('首页（2026-11 对齐 PR-C2，设计稿 pg=curio）：就是「发现」
   assert.doesNotMatch(index, /curio-items|curio-tabs/);
   const head = part('page-head');
   assert.match(head, /cond \(\.home \| default false\) "ls curio\/" \(printf "ls curio\/%s\/" \$cur\)/, '首页命令 ls curio/，子页 ls curio/<分区>/');
-  assert.match(head, /range \(slice "finds" "devices" "games" "movies" "music"\)/, '五个 tab，音乐最后');
-  /* music 搬家第 3 步：music/ tab 链到第四个子站 /music/（中文 /music/zh/），其余 /curio/<分区>/ */
-  assert.match(head, /href="\{\{ partial "common\/lang-path\.html" \(dict "path" \(cond \(eq \. "music"\) "\/music\/" \(printf "\/curio\/%s\/" \.\)\) "lang" \$lang\) \}\}"/, 'tab 地址走 sgx-lang-path');
+  assert.match(head, /range \(slice "finds" "devices" "games" "movies"\)/, '四个 tab（Gray 2026-11-22：音乐是自己的子站，奇趣 tab 行去掉 music/）');
+  assert.doesNotMatch(head.replace(/\{\{-? ?\/\*[\s\S]*?\*\/ ?-?\}\}/g, ''), /music/, '页头不再有 music');
+  assert.match(head, /href="\{\{ partial "common\/lang-path\.html" \(dict "path" \(printf "\/curio\/%s\/" \.\) "lang" \$lang\) \}\}"/, 'tab 地址走 sgx-lang-path');
+  for (const l of ['en', 'zh']) assert.doesNotMatch(read(`space/web/data/curio/i18n/${l}.yaml`), /^  music:/m, '奇趣 entries 没有 music（' + l + '）');
+  /* 旧 /curio/music/ → /music/ 的 301 照旧 */
+  assert.match(read('space/web/static/_redirects'), /^\/curio\/music\/?\*?\s+\/music\//m);
   const css = read('space/web/assets/curio/css/input.css');
   assert.doesNotMatch(css, /cu-music-ok|mu-denied/, 'v5 S3：音乐歌单公开，tab 不按权限藏，没有「仅本人可见」卡');
   assert.doesNotMatch(css, /\.cu-fab|\.it-view|\.cu-tile|\.it-card|\.sgx-ent|#cu-segs/, '旧浮动按钮 / 详情弹层 / 格子 / 旧卡片 / 入口 / 段式标签样式删除');
