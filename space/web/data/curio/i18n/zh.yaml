@@ -15,9 +15,6 @@ entries:
   movies:
     title: 电影
     sub: 喜欢的电影和短评
-  music:
-    title: 音乐
-    sub: 私人专辑，仅自己可见
 notFound:
   pageNotFound: 页面不存在
   thePageYoureLooking: 你要找的页面不存在或已被移动。

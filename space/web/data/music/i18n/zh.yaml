@@ -1,4 +1,8 @@
 # 音乐子站字符串表（中文；英文表 en.yaml 是源文本，缺键回退英文）。music 搬家第 3 步从 data/curio/i18n/zh.yaml 搬来。
+# 站名 / 一句话（打磨 6.1）：页头大标题、标签页标题（首页 = 站名，同 daymark / curio）、meta description
+site:
+  name: 音乐
+  description: Sloan Gray 的音乐：一张张收好的专辑，在弹出的播放器里听
 music:
   music: 音乐
   albums: 专辑

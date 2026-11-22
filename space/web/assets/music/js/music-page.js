@@ -5,15 +5,14 @@
  * 三层（v5 S3；接口档在账号 Worker core/route-access.js 与 workers/atlas-core/src/curio/routes.js ROUTE_ACCESS）：
  *   - 看：GET /music/api/music 谁都能调（只有专辑 / 曲目元数据，没有音频地址）；回 canManage（music-manage）才显示上传 / 删除专辑。
  *   - 听：要进站。没进站（网关标记 <html data-sgx-lock-session="locked">，或接口回 401）= 只看模式（html.mu-view-only）：
- *     「播放整张」是锁；点播放、点曲目都发 sgx:sudo（经 curio.js SgxCurioUI.sudo；= common/js/auth/sudo.js SUDO_EVENT），顶栏终端预填 su ，不开播放器。
+ *     「播放整张」是锁；点播放、点曲目都发 sgx:sudo（经 music-ui.js SgxMusicUI.sudo；= common/js/auth/sudo.js SUDO_EVENT），顶栏终端预填 su ，不开播放器。
  *   - 写的接口 401 同样按没进站处理。
  * 播放 = 交给弹出播放器（3.3）：
  *   - 封面横滑切专辑（scroll-snap，停下来的那张是当前专辑；点封面也能切），下面是这张的曲目（按曲序）。
  *   - 「播放整张」= 从第 1 首；点某一首 = 从那首。单曲区 / 歌手页单曲区 = 那一列单曲当播放列表（queue）。
- *   - 播放器开着：BroadcastChannel「sgx-music」发 remote-cmd {cmd:'play', album, i}（单曲 {cmd:'play', queue:[单曲记录 id…], i}），播放器换到那张、从第 i 首放。
- *     本页不等 player-hello 的回答，点一下总是发（没开就没人收；刚加载就点也不会漏，见 handOff）。
- *   - 然后发可取消的 sgx-music-open {url}，顶栏 mountMusic（common/js/frame/topbar/panel.js）用开顶栏音乐图标同一套 go()：
- *     同名单窗口 sgx-music-player，已开就只切过去（不重新加载），没开就开 /music/player/?album=<id>&t=<i>（手机新标签页，被拦整页跳）。
+ *   - 本页只发可取消的 sgx-music-open {url, cmd}（打磨 6.3 起本页不再自己发 remote-cmd）：cmd = {cmd:'play', album, i}（单曲 {cmd:'play', queue:[单曲记录 id…], i}），
+ *     url = /music/player/?album=<id>&t=<i>。顶栏 mountMusic（common/js/frame/topbar/panel.js）的 reach() 先在 BroadcastChannel「sgx-music」上握手：
+ *     开着的播放器（顶栏开的、手动开的都算）答了就把 cmd 发给它（带 to）并切过去，不开第二个窗口；没人答才开 url（手机新标签页，被拦整页跳）。
  *     没有顶栏接（不该发生）就本页直接跳过去。新开的播放器没有用户手势、自动播放被拦时停在那首、播放键亮着（不另想绕法）。
  *   - 不在本页标出正在播的曲目（Gray 2026-11-21 14:17）。
  * 上传（M2 PR-a 起，见「上传」一节）：分段「单首 | 批量」；歌名 / 歌手按音频标签（music-tags.js）、没有再按文件名预填；单首选「不划 / 新建 / 已有专辑」，
@@ -31,7 +30,7 @@
  *     合并到另一个歌手（artist.merge）、删歌手（artist.del，名下没作品才能删）都是 root 档：先确认，再领一次性票（同删专辑）。
  *   - 单曲没封面：封面空 → 歌手头像 → 默认图（共用核 coverOf）。
  *   - 歌手栏联想（7.5「输入带联想」）：上传 / 编辑 / 批量改的歌手栏挂同一个 <datalist>（已有歌手）；输入和已有歌手只差大小写 / 空格时提示一句，可点一下换成已有的。
- * 确认框、提示条、弹层开关、sudo / sudoTicket 借 curio.js 的（window.SgxCurioUI）——技术债（3.1 第 3 条）：搬家做完再挪进 common。
+ * 确认框、提示条、sudo / sudoTicket 在本站 music-ui.js（window.SgxMusicUI；打磨 6.2 从奇趣 curio.js 拆来，本页不再加载 curio.js）。
  */
 (function(){
 "use strict";
@@ -340,9 +339,9 @@ var PLAYER_WIN = 'sgx-music-player';
 function playerPathOf(pathname){ return String(pathname || '/music/').replace(/[^/]*$/, '') + 'player/'; }
 /** 没开播放器时开的地址：播放器页 ?album=<记录 id>&t=<第几首（从 0 起）>；单曲 album = 那条单曲记录、t = 0（播放器从单曲组里它那一首开始） */
 function playerUrl(pathname, albumId, i){ return playerPathOf(pathname) + '?album=' + Number(albumId) + '&t=' + Number(i); }
-/** 发给开着的播放器的 remote-cmd：专辑 {cmd:'play', album, i}；单曲列表 {cmd:'play', queue:[单曲记录 id…], i} @param {{album?: number, queue?: number[], i: number}} o */
+/** sgx-music-open 带的 cmd（顶栏 reach() 握手到播放器后包成 remote-cmd 发给它）：专辑 {cmd:'play', album, i}；单曲列表 {cmd:'play', queue:[单曲记录 id…], i} @param {{album?: number, queue?: number[], i: number}} o */
 function playCmd(o){
-  var m = { type: 'remote-cmd', cmd: 'play', i: Number(o.i) };
+  var m = { cmd: 'play', i: Number(o.i) };
   if (o.queue) m.queue = o.queue.slice(); else m.album = Number(o.album);
   return m;
 }
@@ -383,7 +382,8 @@ G.SgxMusicPage = pure;
 
 var doc = G.document;
 if (!doc.getElementById('cu-pane-music')) return;
-var UI = G.SgxCurioUI;
+/* 确认框、提示条、sudo / sudoTicket：本站 music-ui.js（打磨 6.2，原借奇趣 curio.js 的 SgxCurioUI） */
+var UI = G.SgxMusicUI;
 var $ = function(s){ return doc.querySelector(s); };
 /* 界面文案（语言包化第二部分 2026-11-07）：页面里的 #sgx-i18n-musicPage，模板从字符串表 data/music/i18n/<语言>.yaml 的 js.musicPage 输出，
    已经是「英文表 ← 页面语言表」的合并（缺键回退英文）；本文件不再认识任何语言。带数字的文案走 tr（复数按 Intl.PluralRules）。 */
@@ -430,12 +430,12 @@ function toast(m){ if (UI) UI.toast(m); }
 var viewOnly = doc.documentElement.getAttribute('data-sgx-lock-session') === 'locked';
 /** 写的权限（GET /api/music 回的 canManage：music-manage） */
 var canManage = false;
-/** 请人进站：顶栏终端预填 su （curio.js SgxCurioUI.sudo → sgx:sudo，topbar/panel.js 接） */
+/** 请人进站：顶栏终端预填 su （music-ui.js SgxMusicUI.sudo → sgx:sudo，topbar/panel.js 接） */
 function askSudo(){ if (UI && UI.sudo) UI.sudo(); }
 /** 本页接口：401 = 没进站（切到只看模式 + 请人进站，抛 sgxLocked，调用方不再报错）；其它错误带 code 抛出 */
 function req(method, url, body, type, ticket){
   var h = body === undefined ? {} : { 'Content-Type': type || 'application/json' };
-  if (ticket) h['X-Sgx-Sudo'] = ticket; /* D-3 a′：album.del 的一次性票（curio.js SgxCurioUI.sudoTicket） */
+  if (ticket) h['X-Sgx-Sudo'] = ticket; /* D-3 a′：album.del 的一次性票（music-ui.js SgxMusicUI.sudoTicket） */
   return fetch(url, {
     method: method, credentials: 'same-origin', cache: 'no-store',
     headers: h,
@@ -613,21 +613,15 @@ function setViewOnly(v){
 }
 
 /* ---------- 播放 = 交给弹出播放器（music 搬家第 3 步 3.3；本页不出声） ---------- */
-/* 本页只发不收：remote-cmd 走 BroadcastChannel「sgx-music」（同页顶栏 mountMusic 也有一个频道对象，它不认 remote-cmd） */
-var mc = null;
-try { if (typeof G.BroadcastChannel === 'function') mc = new G.BroadcastChannel(CORE.CHANNEL); } catch (e) { mc = null; }
 /**
- * 交给播放器（要在这次点击里同步调用：window.open 要用户手势）：
- *   1. 发 remote-cmd play。开着的播放器收到就换到那张、从第 i 首放；没开就没人收，白发一次。
- *      不先等 player-hello 的回答再决定发不发：刚加载就点，回答还没到，会把开着的播放器当成没开（只切过去不放）——总是发，结果一样、没有这个空档。
- *   2. 发可取消的 sgx-music-open {url}：顶栏 mountMusic 用开音乐图标同一套 go()——同名单窗口已开 = 只切过去（不重新加载，靠第 1 步放）；
- *      没开 = 开 url（?album=&t=，新窗口自己从那首放），手机新标签页，被拦整页跳。
+ * 交给播放器（要在这次点击里同步调用：顶栏 reach() 握手不到人时 window.open 还要用这次点击的激活期）：
+ * 发可取消的 sgx-music-open {url, cmd}，顶栏 mountMusic 的 reach() 接住——开着的播放器答了 = cmd 发给它（to = 它）并切过去；
+ * 没人答 = 开 url（?album=&t=，新窗口自己从那首放），手机新标签页，被拦整页跳。本页不再自己发 remote-cmd（打磨 6.3）。
  * @param {{album?: number, queue?: number[], i: number}} o @param {number} openAlbum 没开时地址里的 album @param {number} openI 地址里的 t
  */
 function handOff(o, openAlbum, openI){
-  if (mc) { try { mc.postMessage(playCmd(o)); } catch (e) {} }
   var url = playerUrl(G.location.pathname, openAlbum, openI), ev = null;
-  try { ev = new CustomEvent('sgx-music-open', { detail: { url: url }, cancelable: true }); } catch (e) { ev = null; }
+  try { ev = new CustomEvent('sgx-music-open', { detail: { url: url, cmd: playCmd(o) }, cancelable: true }); } catch (e) { ev = null; }
   if (ev && !doc.dispatchEvent(ev)) return;
   /* 没有顶栏接：本页直接跳过去（同顶栏 go() 被拦时的退路） */
   G.location.href = url;

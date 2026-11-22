@@ -86,12 +86,15 @@ test('共享外壳：frame/page-head.html 只有主站一份（2026-11 合站后
   }
 });
 
-test('子站接入（对齐 PR-C2）：奇趣五个分区页同一个页头（页头 + 下划线 tab + grep + 命令链），日刻拾录 / 百味各一个页头 + cd ..；博客首页 / 目录页 / 标签页用 sgx-ph；都不用段式标签 / 平铺入口', () => {
+test('子站接入（对齐 PR-C2）：奇趣四个分区页同一个页头（页头 + 下划线 tab + grep + 命令链），日刻拾录 / 百味各一个页头 + cd ..；博客首页 / 目录页 / 标签页用 sgx-ph；都不用段式标签 / 平铺入口', () => {
   for (const id of ['devices', 'games', 'movies']) {
     assert.match(rd(`space/web/layouts/curio/${id}.html`), new RegExp(`partial "curio/page-head\\.html" \\(dict "page" \\. "id" "${id}"`), id);
   }
-  /* music 搬家第 3 步：音乐页搬到第四个子站 layouts/music/section.html，页头照旧借奇趣的（tab 里 music/ 是当前项，外观不变） */
-  assert.match(rd('space/web/layouts/music/section.html'), /partial "curio\/page-head\.html" \(dict "page" \. "id" "music"/);
+  /* 打磨 6.1：音乐页（layouts/music/section.html）用自己的页头：共享外壳 page-head「ls music/」，不再借奇趣的（没有奇趣 tab、grep） */
+  const mu = rd('space/web/layouts/music/section.html');
+  assert.match(mu, /partial "common\/frame\/page-head\.html" \(dict "cmd" "ls music\/"/);
+  assert.doesNotMatch(mu, /partial "curio\/page-head\.html"/);
+  assert.doesNotMatch(mu, /sgx-segtabs|sgx-entries|data-cu-grep/);
   assert.match(rd('space/web/layouts/partials/curio/finds-main.html'), /partial "curio\/page-head\.html" \(dict "page" \$p "id" "finds"/);
   for (const f of ['finds.html', 'section.html']) assert.match(rd('space/web/layouts/curio/' + f), /partial "curio\/finds-main\.html"/, f);
   for (const id of ['finds', 'devices', 'games', 'movies']) for (const f of [`${id}.md`, `${id}.zh.md`]) assert.match(rd(`space/web/content/curio/${f}`), /^description: '.+'$/m, f);
@@ -99,7 +102,7 @@ test('子站接入（对齐 PR-C2）：奇趣五个分区页同一个页头（�
   const head = rd('space/web/layouts/partials/curio/page-head.html');
   assert.match(head, /partial "common\/frame\/page-head\.html"/);
   assert.match(head, /<div class="sgx-ctab" id="cu-tabs">/);
-  assert.match(head, /range \(slice "finds" "devices" "games" "movies" "music"\)/);
+  assert.match(head, /range \(slice "finds" "devices" "games" "movies"\)/, 'Gray 2026-11-22：奇趣 tab 行去掉 music/');
   assert.match(head, /data-ctab="\{\{ \. \}\}"[^>]*\{\{ if eq \. \$cur \}\} aria-current="page"\{\{ end \}\}/);
   assert.match(head, /<i data-cu-count="\{\{ \. \}\}"><\/i>/);
   assert.match(head, /class="sgx-grep" data-cu-grep/);

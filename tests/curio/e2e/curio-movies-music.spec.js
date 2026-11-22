@@ -1,6 +1,6 @@
 // 奇趣拆页（P4-3）新增的两个子页（手机）：电影 /curio/movies/、私人音乐（music 搬家第 3 步起是第四个子站 /music/，中文 /music/zh/）。接口用 page.route 假数据，不碰线上。
 // - 电影：无权限（canManage=false）只读，没有「电影」按钮、详情没有编辑；有权限：添加（海报「移动和缩放」→ 2:3、长边 ≤1600、webp 上传 kind=movie）、编辑、删除要确认
-// - 音乐（v5 S3 三层；接口 /music/api/*）：歌单谁都能看（奇趣的 tab 一直在，链到 /music/）；访客（没进站）= 只看模式：「播放整张」是锁，点播放 / 曲目打开终端预填 su 、不开播放器；
+// - 音乐（v5 S3 三层；接口 /music/api/*）：歌单谁都能看（音乐是自己的子站 /music/；Gray 2026-11-22 起奇趣 tab 行不再有 music/）；访客（没进站）= 只看模式：「播放整张」是锁，点播放 / 曲目打开终端预填 su 、不开播放器；
 //   进站了能听，没账号 + music-manage 看不到上传 / 删除；有权限：封面横滑切专辑；上传专辑（album.add → 音频按文件名排序逐个直传、曲序 / 曲名取自文件名 → .lrc 按文件名对上 track.edit）。
 //   第 3 步起音乐页不出声：点播放 = 交给弹出播放器（没开就开 /music/zh/player/?album=<id>&t=<i>，开着发 remote-cmd play），见 curio-music-handoff.spec.js；
 //   本文件下半是播放器本身（/music/zh/player/）。
@@ -223,12 +223,12 @@ async function mockMusic(page, who) {
   return calls;
 }
 
-test('音乐（访客，没进站）：奇趣 tab 在、链到 /music/zh/；歌单 / 封面照常；只看模式——播放键是锁；点播放 / 曲目不签令牌、不开播放器，打开终端预填 su ；没有上传 / 删除；页面没有播放条', async ({ page }) => {
+test('音乐（访客，没进站）：奇趣 tab 行没有 music/；歌单 / 封面照常；只看模式——播放键是锁；点播放 / 曲目不签令牌、不开播放器，打开终端预填 su ；没有上传 / 删除；页面没有播放条', async ({ page }) => {
   const calls = await mockMusic(page, 'visitor');
   await asVisitor(page);
   await page.goto('/curio/zh/');
-  await expect(page.locator('#cu-tabs .sgx-ctab-a')).toHaveText([/^finds\//, /^devices\//, /^games\//, /^movies\//, /^music\//]);
-  await expect(page.locator('#cu-tabs [data-ctab="music"]')).toHaveAttribute('href', '/music/zh/');
+  await expect(page.locator('#cu-tabs .sgx-ctab-a')).toHaveText([/^finds\//, /^devices\//, /^games\//, /^movies\//]);
+  await expect(page.locator('#cu-tabs [data-ctab="music"]')).toHaveCount(0);
   await page.goto('/music/zh/');
   await expect(page.locator('html')).toHaveClass(/mu-view-only/);
   await expect(page.locator('.mu-cover')).toHaveCount(2);
@@ -269,12 +269,12 @@ test('音乐（进站了，没账号写权限）：没有上传 / 删除专辑�
   await expect.poll(() => calls.filter((c) => c.play === 1).length).toBe(1);
 });
 
-test('音乐（有权限）：奇趣首页有 music/ tab、点了到 /music/zh/；封面横滑切专辑；胶囊 = 音乐；上传 / 删除专辑都在', async ({ page }) => {
+test('音乐（有权限）：奇趣首页没有 music/ tab，直接开 /music/zh/；封面横滑切专辑；胶囊 = 音乐；上传 / 删除专辑都在', async ({ page }) => {
   await mockMusic(page, 'owner');
   await page.goto('/curio/zh/');
-  await expect(page.locator('#cu-tabs [data-ctab="music"]')).toBeVisible();
-  await page.locator('#cu-tabs [data-ctab="music"]').click();
-  await expect(page).toHaveURL(/\/music\/zh\/$/);
+  await expect(page.locator('#cu-tabs .sgx-ctab-a')).toHaveCount(4);
+  await expect(page.locator('#cu-tabs [data-ctab="music"]')).toHaveCount(0);
+  await page.goto('/music/zh/');
   await expect(page.locator('.sgx-tb-title')).toHaveText('音乐');
   await expect(page.locator('.mu-cover')).toHaveCount(2);
   await expect(page.locator('#mu-album-title')).toHaveText('Blue');
