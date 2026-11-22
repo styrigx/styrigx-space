@@ -194,11 +194,14 @@ async function mockMusic(page, who) {
     if (!can) return deny(r);
     const req = r.request();
     const u = new URL(req.url());
-    calls.push({ upload: u.searchParams.get('kind'), no: Number(u.searchParams.get('no')), title: u.searchParams.get('title'), type: req.headers()['content-type'], size: (req.postDataBuffer() || Buffer.alloc(0)).length });
+    const call = { upload: u.searchParams.get('kind'), no: Number(u.searchParams.get('no')), title: u.searchParams.get('title'), type: req.headers()['content-type'], size: (req.postDataBuffer() || Buffer.alloc(0)).length };
+    calls.push(call);
     if (u.searchParams.get('kind') === 'track') {
       const a = albums.find((x) => x.id === Number(u.searchParams.get('album')));
       const tid = 900 + a.tracks.length;
+      call.id = tid;
       a.tracks.push({ id: tid, no: Number(u.searchParams.get('no')), title: u.searchParams.get('title'), duration: Number(u.searchParams.get('duration')), lrc: false });
+      a.tracks.sort((x, y) => x.no - y.no); /* 同后端：曲目按曲序返回 */
       return r.fulfill({ json: { ok: true, id: tid } });
     }
     return r.fulfill({ json: { ok: true } });
@@ -317,13 +320,15 @@ test('音乐（有权限）：批量上传到新建专辑（M2）——音频按
   await expect(page.locator('#bk-toast')).toHaveText('已上传');
   expect(calls.find((c) => c.op === 'album.add')).toMatchObject({ title: 'Court and Spark', artist: 'Joni Mitchell', year: 1974 });
   const ups = calls.filter((c) => c.upload === 'track');
-  expect(ups.map((u) => [u.no, u.title])).toEqual([[1, 'Court and Spark'], [2, 'Help Me'], [10, 'Twisted']]);
+  /* 并发 2 直传（PR-b）：到达顺序不定，按曲序比、曲目 id 按歌名对 */
+  expect(ups.map((u) => [u.no, u.title]).sort((a, b) => a[0] - b[0])).toEqual([[1, 'Court and Spark'], [2, 'Help Me'], [10, 'Twisted']]);
   expect(ups.every((u) => u.type === 'audio/wav' && u.size === WAV.length)).toBe(true);
-  expect(calls.filter((c) => c.op === 'track.edit')).toEqual([
-    { op: 'track.edit', id: 900, artist: 'Joni Mitchell' },
-    { op: 'track.edit', id: 901, artist: 'Joni Mitchell', lrc: '[00:01.00]Help me' },
-    { op: 'track.edit', id: 902, artist: 'Joni Mitchell' },
-  ]);
+  const idOf = (t) => ups.find((u) => u.title === t).id;
+  expect(calls.filter((c) => c.op === 'track.edit').sort((a, b) => a.id - b.id)).toEqual([
+    { op: 'track.edit', id: idOf('Court and Spark'), artist: 'Joni Mitchell' },
+    { op: 'track.edit', id: idOf('Help Me'), artist: 'Joni Mitchell', lrc: '[00:01.00]Help me' },
+    { op: 'track.edit', id: idOf('Twisted'), artist: 'Joni Mitchell' },
+  ].sort((a, b) => a.id - b.id));
   /* 新专辑成了当前专辑 */
   await expect(page.locator('#mu-album-title')).toHaveText('Court and Spark');
   await expect(page.locator('#mu-tracks .mu-track-title')).toHaveText(['Court and Spark', 'Help Me', 'Twisted']);
