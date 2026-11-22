@@ -15,7 +15,7 @@ import { whoAuth } from '../_v6who.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const SRC = REPO + '/workers/atlas-core/src';
-const worker = (await import(SRC + '/app.js')).default;
+const worker = (await import(SRC + '/curio/app.js')).default;
 const GR = await import(SRC + '/games/routes.js');
 
 function makeD1(db = new DatabaseSync(':memory:')) {
