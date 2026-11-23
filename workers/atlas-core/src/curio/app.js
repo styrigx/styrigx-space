@@ -7,7 +7,9 @@
  *
  * 请求顺序（下面的 /api/* 都是去掉 /curio 前缀后的路径，公开地址是 styrigx.com/curio/api/*；
  * 音乐是 styrigx.com/music/api/*（music 搬家第 2 步加；handler 同一份，在 api/music*.js，路由表在 ../music/routes.js；
- * 第 4 步删掉旧路径 /curio/api/music*，不留别名：旧路径在奇趣表里查不到 = 表外路径）：
+ * 第 4 步删掉旧路径 /curio/api/music*，不留别名：旧路径在奇趣表里查不到 = 表外路径）；
+ * 游戏是 styrigx.com/games/api/*（奇趣重组设计稿 v1.0 第三节 PR 1：路由表在 ../games/routes.js，handler 复用 api/_items.js、_items-post.js、_photo.js；
+ * 旧 /curio/api/items、/curio/api/photo 照常）：
  *   1. 访问档（v5 S3）：routes.js ROUTE_ACCESS 按「方法 + 路径」给出 public / entry / music（不在表里 = entry），
  *      在这里套上那一档的守卫（api/_auth.js GUARDS：publicRead / requireEntry / requireMusic），entry / music 档在守卫里经网关 SpaceVerifier.admit 问 v6 会话的档，
  *      public 档要私密行 / canManage 的 handler 调公用 visibility()（common/visibility.js，分别问 action private / manage）；每个请求每个 action 最多问一次。没有 v6 身份 → 401 unauthorized（不 302，fetch 不跟跳转），档不够 → 403 forbidden。
@@ -19,6 +21,7 @@
  */
 import * as curioRoutes from './routes.js';
 import * as musicRoutes from '../music/routes.js';
+import * as gamesRoutes from '../games/routes.js';
 import { GUARDS, v6Of } from './api/_auth.js';
 import { rebuildSearchIndex, isContentMutation } from './search-index.js';
 import { sweepPhotos, isSweepHour } from './photo-sweep.js';
@@ -50,9 +53,11 @@ function json(status, body) {
   });
 }
 
-/** 前缀 → 那张路由表（/curio → 奇趣 routes.js，/music → ../music/routes.js） @param {string} base */
+/** 前缀 → 那张路由表（/curio → 奇趣 routes.js，/music → ../music/routes.js，/games → ../games/routes.js） @param {string} base */
 export function tableOf(base) {
-  return base === MUSIC_BASE ? musicRoutes : curioRoutes;
+  if (base === MUSIC_BASE) return musicRoutes;
+  if (base === GAMES_BASE) return gamesRoutes;
+  return curioRoutes;
 }
 
 /** 找处理模块：{ mod, params, functionPath } 或 null（base 缺省 = 奇趣） @param {string} pathname @param {string} [base] */
@@ -94,18 +99,22 @@ function tag(res) {
 export const BASE = '/curio';
 /** 音乐的前缀（music 搬家设计稿 v1.0 第 2 步；第 4 步起是音乐唯一的接口地址）：/music/api/* 只查 ../music/routes.js，handler 同一份 */
 export const MUSIC_BASE = '/music';
+/** 游戏的前缀（奇趣重组设计稿 v1.0 第三节 PR 1）：/games/api/* 只查 ../games/routes.js，handler 复用奇趣的数据层与照片规则 */
+export const GAMES_BASE = '/games';
 
-/** 公开地址 → 路由表里的路径（/curio/api/x、/music/api/x → /api/x）；不是本站接口返回 '' */
+/** 公开地址 → 路由表里的路径（/curio/api/x、/music/api/x、/games/api/x → /api/x）；不是本站接口返回 '' */
 export function apiPath(pathname) {
   if (pathname.startsWith(BASE + '/api/')) return pathname.slice(BASE.length);
   if (pathname.startsWith(MUSIC_BASE + '/api/')) return pathname.slice(MUSIC_BASE.length);
+  if (pathname.startsWith(GAMES_BASE + '/api/')) return pathname.slice(GAMES_BASE.length);
   return '';
 }
 
-/** 这个公开地址走的是哪个前缀（'/curio' 或 '/music'；不是本站接口 → ''） @param {string} pathname */
+/** 这个公开地址走的是哪个前缀（'/curio'、'/music' 或 '/games'；不是本站接口 → ''） @param {string} pathname */
 export function baseOf(pathname) {
   if (pathname.startsWith(BASE + '/api/')) return BASE;
   if (pathname.startsWith(MUSIC_BASE + '/api/')) return MUSIC_BASE;
+  if (pathname.startsWith(GAMES_BASE + '/api/')) return GAMES_BASE;
   return '';
 }
 
@@ -115,7 +124,7 @@ export async function handle(request, env, ctx) {
   if (!path) return json(404, { ok: false, error: 'not-found' });
   const base = baseOf(url.pathname);
 
-  /* 两个前缀各查各的表：/music/api/* 只有音乐的行，/curio/api/* 只有奇趣的行（第 4 步起旧 /curio/api/music* 在这里就是表外路径：
+  /* 三个前缀各查各的表：/music/api/* 只有音乐的行，/games/api/* 只有游戏的行，/curio/api/* 只有奇趣的行（第 4 步起旧 /curio/api/music* 在这里就是表外路径：
      entry 档 → 账号 Worker 表里也没有 → 一律 401），谁都不能从另一个前缀绕进去 */
   const table = tableOf(base);
   const row = table.routeOf(request.method, path);

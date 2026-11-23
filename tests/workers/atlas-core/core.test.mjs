@@ -92,6 +92,8 @@ const req = (p, init = {}) => new Request('https://styrigx.com' + p, init);
 test('分流：前缀定产品；奇趣、日刻读在同一个库上照常工作，运行标记各自不变，另加 X-Atlas-Runtime', async () => {
   assert.equal(app.productOf('/curio/api/links'), 'curio');
   assert.equal(app.productOf('/daymark/api/today'), 'daymark');
+  assert.equal(app.productOf('/music/api/music'), 'music');
+  assert.equal(app.productOf('/games/api/games'), 'games', '奇趣重组 PR 1');
   for (const p of ['/', '/curio', '/curio/api', '/daymark/x', '/blog/api/x', '/atlas/api/x']) assert.equal(app.productOf(p), '', p);
 
   const { env } = atlasEnv();
@@ -107,6 +109,10 @@ test('分流：前缀定产品；奇趣、日刻读在同一个库上照常工�
   }
   const m = await worker.fetch(req('/music/api/music'), env, CTX);
   assert.equal(m.status, 200);
+  const g = await worker.fetch(req('/games/api/games'), env, CTX);
+  assert.equal(g.status, 200, '奇趣重组 PR 1：/games/api/games 交给 curio/app.js');
+  assert.equal(g.headers.get('X-Atlas-Runtime'), 'worker');
+  assert.deepEqual(Object.keys(await g.json()).sort(), ['canManage', 'games', 'ok', 'showPrivate'], '只回游戏，不回设备');
 });
 
 test('分流：不是两个产品的路径 404，带 Atlas 运行标记和安全头，不问网关', async () => {
@@ -168,14 +174,14 @@ function bindings(toml, block) {
   return out;
 }
 
-test('wrangler.toml：挂 /curio/api/*、/daymark/api/*、/music/api/*（music 搬家第 2 步）三条路由 / 不开 workers.dev / 无 Cron；绑定名沿用旧两个 Worker 的，D1、R2 各一个叫 styrigx-atlas-core', () => {
+test('wrangler.toml：挂 /curio/api/*、/daymark/api/*、/music/api/*（music 搬家第 2 步）、/games/api/*（奇趣重组 PR 1）四条路由 / 不开 workers.dev / 无 Cron；绑定名沿用旧两个 Worker 的，D1、R2 各一个叫 styrigx-atlas-core', () => {
   const t = readFileSync(A + '/wrangler.toml', 'utf8');
   assert.match(t, /^name = "styrigx-atlas-core"$/m);
   assert.match(t, /^main = "src\/index.js"$/m);
   assert.match(t, /^workers_dev = false$/m);
   assert.match(t, /^preview_urls = false$/m);
-  assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/curio/api/*', 'styrigx.com/daymark/api/*', 'styrigx.com/music/api/*']);
-  assert.equal([...t.matchAll(/^zone_name = "styrigx\.com"$/gm)].length, 3);
+  assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/curio/api/*', 'styrigx.com/daymark/api/*', 'styrigx.com/music/api/*', 'styrigx.com/games/api/*']);
+  assert.equal([...t.matchAll(/^zone_name = "styrigx\.com"$/gm)].length, 4);
   assert.match(t, /^crons = \[\]$/m);
 
   /* 绑定名沿用旧两个 Worker 的（业务代码按这些名字取） */

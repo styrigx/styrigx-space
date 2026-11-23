@@ -6,7 +6,8 @@
  *   特殊组 SPECIAL_GROUPS：wheel（可 su root）、sudoers（可 sudo）；
  *   产品组，每个产品一对 `<产品>-use` / `<产品>-manage`：use = 用这个产品（听歌、AI 窗口、状态卡、看这个产品的私密行），
  *   manage = 管这个产品的内容（上传、新增、编辑、单条删除）；manage 包含 use（permits 第 3 步一处实现，不靠同时加两个组）。
- *   USE_GROUPS：music-use、curio-use、daymark-use、status-use、ai-use；MANAGE_GROUPS：music-manage、curio-manage、daymark-manage。
+ *   USE_GROUPS：music-use、curio-use、daymark-use、status-use、ai-use、games-use；MANAGE_GROUPS：music-manage、curio-manage、daymark-manage、games-manage
+ *   （games-use / games-manage：奇趣重组设计稿 v1.0 第三节 PR 1，游戏拆成第五个子站，新产品缀在最后）。
  *   删除不做组：批量 / 结构删除只属 root。（v1.1 前的旧名 listen / ai / status / curio-write / daymark-write 已不认，见 ADR-0007。）
  * - fail-closed：新用户默认无组；styrigx 的默认组 = STYRIGX_DEFAULT_GROUPS（= 全部组）。
  * - 普通用户（uid 1001 起，含临时用户）永不进特殊组、manage 组（canJoinGroup 拒绝，代码级，不靠 root 自觉；v1.1 §四「manage 不放权」）。
@@ -32,9 +33,9 @@ export const USER_NAME_RE = /^[a-z][a-z0-9-]{1,31}$/;
 /** 特殊组：可 su root / sudo（只有站长） */
 export const SPECIAL_GROUPS = Object.freeze(['wheel', 'sudoers']);
 /** use 组：用这个产品（含看这个产品的私密行；root 可授给任何人） */
-export const USE_GROUPS = Object.freeze(['music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use']);
+export const USE_GROUPS = Object.freeze(['music-use', 'curio-use', 'daymark-use', 'status-use', 'ai-use', 'games-use']);
 /** manage 组：管这个产品的内容——上传、新增、编辑、单条删除（只有站长） */
-export const MANAGE_GROUPS = Object.freeze(['music-manage', 'curio-manage', 'daymark-manage']);
+export const MANAGE_GROUPS = Object.freeze(['music-manage', 'curio-manage', 'daymark-manage', 'games-manage']);
 /** 全部组（顺序 = 展示顺序） */
 export const GROUPS = Object.freeze([...SPECIAL_GROUPS, ...USE_GROUPS, ...MANAGE_GROUPS]);
 /** styrigx 的默认组（v1.1 §四：wheel、sudoers、全部 -use、全部 -manage） */

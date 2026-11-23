@@ -6,7 +6,7 @@
 //   games    游戏：名字、平台、关联设备（device_id，可空）、版本、状态（想玩 / 在玩 / 通关 / 搁置）、评分 0–5、评价、封面（R2 key）、私密、排序
 // 只存一种语言（站点作者自己写的话），不像收藏那样分中英文。
 // 私密：看不到私密的（没有 curio-use）看不到私密的条目；游戏关联的设备是私密的，看不到私密的人拿到的游戏里 device_id 置 0（不泄露那台设备）。
-// 照片的上传 / 读取 / 删除在 src/api/photo.js；删条目时顺手删 R2 里的照片（applyItemOp 返回 {removed} 交给调用方删）。
+// 照片的上传 / 读取 / 删除在 _photo.js（奇趣 /curio/api/photo、游戏 /games/api/cover 共用）；写操作的接口共用部分在 _items-post.js；删条目时顺手删 R2 里的照片（applyItemOp 返回 {removed} 交给调用方删）。
 
 import { filterPrivate } from '../../common/visibility.js';
 
@@ -197,6 +197,16 @@ export async function listItems(db, showPrivate) {
   const games = filterPrivate(gs.results || [], showPrivate).map(rowGame);
   for (const g of games) if (g.device_id && !seen.has(g.device_id)) g.device_id = 0;
   return { devices, games };
+}
+
+/**
+ * 只读游戏（游戏子站 GET /games/api/games，奇趣重组 PR 1）：{games:[...]}，规则同 listItems（私密的按 showPrivate 过滤；
+ * device_id 指向看不到的设备置 0），不回设备。设备表到奇趣重组 PR 3 才删，在那之前照旧一起读一个 batch。
+ * @param {any} db  D1_GAMES（同一个库，batch 同时读 devices、games）
+ * @param {boolean} showPrivate
+ */
+export async function listGames(db, showPrivate) {
+  return { games: (await listItems(db, showPrivate)).games };
 }
 
 async function one(db, sql, ...args) {

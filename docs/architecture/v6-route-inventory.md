@@ -29,7 +29,7 @@
 
 | 档 | 路由数 |
 |---|---|
-| public | 24 |
+| public | 26 |
 | user | 1 |
 | ai-use | 2 |
 | status-use | 1 |
@@ -37,17 +37,19 @@
 | music-manage | 2 |
 | curio-manage | 6 |
 | daymark-manage | 6 |
+| games-manage | 3 |
 | webmaster | 5 |
 | root | 5 |
-| **合计** | **55**（另有 11 个只经服务绑定 / RPC 的入口；P2c 加 AccountJanitor，P4 删 ShareJanitor） |
+| **合计** | **60**（另有 11 个只经服务绑定 / RPC 的入口；P2c 加 AccountJanitor，P4 删 ShareJanitor） |
 
-按 Worker：站点核心 6、账号 11、奇趣 13、音乐 7（奇趣、音乐、日刻都在 atlas-core）、日刻 13、代理 6（P4 删旧入口 20 条、应用授权与数字健康之后；music 搬家第 4 步后）。有 action 另定档的接口 11 个（`POST /music/api/music`、identity；割接加的 `private`：curio items / links / movies / photo / icon、music、daymark quotes / collections 的 GET，组权限 v1.1 起这 8 个 GET 另有 `manage`；2c 加 `POST /api/ai` 的 `private`）。
+按 Worker：站点核心 6、账号 11、奇趣 13、音乐 7（奇趣、音乐、日刻都在 atlas-core）、日刻 13、游戏 5、代理 6（P4 删旧入口 20 条、应用授权与数字健康之后；music 搬家第 4 步后；奇趣重组 PR 1 加游戏 5）。有 action 另定档的接口 11 个（`POST /music/api/music`、identity；割接加的 `private`：curio items / links / movies / photo / icon、music、daymark quotes / collections 的 GET，组权限 v1.1 起这 8 个 GET 另有 `manage`；2c 加 `POST /api/ai` 的 `private`）。
 
 组权限 v1.1 变更（2026-11-21，《v6 组权限重设计 v1.1》定稿 + 《music 搬家设计稿 v1.0》第 1 步；ADR-0007）：
 - 组改名：`listen` → `music-use`、`ai` → `ai-use`、`status` → `status-use`、`curio-write` → `curio-manage`、`daymark-write` → `daymark-manage`；新增 `curio-use`、`daymark-use`、`music-manage`（音乐的写权限从 `curio-write` 拆出）。路由数不变（55）。
 - 音乐仍在旧路径 `/curio/api/music*`，只换档：GET `music` 的 `private` / `manage` → `music-use` / `music-manage`；POST `music`、`music-upload` → `music-manage`；`music-play`、`music-stream`（GET / HEAD）→ `music-use`；`album.del`、`artist.merge`、`artist.del`（root）与 sudoTicket 不变。`/music/api/*` 是搬家第 2 步。
 - 搬家第 2 步（2026-11-21）：加 `/music/api/*` 7 行，档与旧 7 行逐条一致（表自检兜住）；同一个 Worker（atlas-core）、同一份 handler，只认 product `music` 的行；旧 `/curio/api/music*` 照常，第 4 步再删（62 条）。
 - 搬家第 4 步（2026-11-21，《music 搬家设计稿 v1.1》§三 第 4 步）：删旧 `/curio/api/music*` 7 行，不留别名（62 → 55 条；public 26 → 24、music-manage 4 → 2、music-use 6 → 3）。atlas-core 的音乐路由表拆成 `workers/atlas-core/src/music/routes.js`（handler 仍在 `src/curio/api/music*.js`），奇趣表只剩 product `curio` 的行；旧地址仍落在 `styrigx.com/curio/api/*` 这条 Worker 路由上，按表外路径处理：账号 Worker admit 回 not-listed，atlas-core 一律 401 `unauthorized`（不分有没有登录）。页面地址的 301（`static/_redirects`）不动。
+- 奇趣重组 PR 1（2026-11-22，《奇趣重组设计稿 v1.0》第三节）：加 `/games/api/*` 5 行（55 → 60 条；public 24 → 26、新 `games-manage` 3），product `games`，组 `games-use` / `games-manage` 由 product 推出（`USE_GROUPS` / `MANAGE_GROUPS` 各缀一个）；同一个 Worker（atlas-core），数据与旧 `/curio/api/items`、`/curio/api/photo` 的游戏同一张表、同一份封面，旧行照常（PR 3 再删）。
 - 奇趣 / 日刻公开读的 8 个 GET：`private` 由写组改为 `<产品>-use`，另加 `manage` = `<产品>-manage`；atlas-core 的 `visibility()` 两档分开问。
 - 部署后旧组名在会话读组时被过滤掉（`identity-session.js` 只认 `GROUPS`）；站长 `sudo usermod -aG …` 重新授组并重新登录；旧名的库行用 `usermod -rG` 清理（`-rG` 允许删不在 `GROUPS` 里的名字，不允许加）。
 
@@ -173,6 +175,16 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | GET | `/music/api/music-stream` | **music-use** |  |  | 新增（搬家第 2 步） | 取音频（令牌 + Range） |  |
 | HEAD | `/music/api/music-stream` | **music-use** |  |  | 新增（搬家第 2 步） | 同上 |  |
 | POST | `/music/api/music-upload` | **music-manage** |  |  | 新增（搬家第 2 步） | 上传音轨 / 封面 / 歌手头像（kind=avatar，M4） |  |
+
+### 游戏接口 styrigx-atlas-core（styrigx.com/games/api/*，不经网关；路由表 workers/atlas-core/src/games/routes.js，handler 在 src/games/api/，复用 src/curio/api/_items.js、_items-post.js、_photo.js）
+
+| 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
+|---|---|---|---|---|---|---|---|
+| GET | `/games/api/games` | **public** | `private` → games-use、`manage` → games-manage |  | 新增（奇趣重组 PR 1） | 游戏列表（私密行给 games-use，管理提示给 games-manage；不回设备） |  |
+| POST | `/games/api/games` | **games-manage** |  | 单条 → manage 组 | 新增（奇趣重组 PR 1） | game.add / edit / order；game.del 是单条 |  |
+| GET | `/games/api/cover` | **public** | `private` → games-use、`manage` → games-manage |  | 新增（奇趣重组 PR 1） | 游戏封面（私密游戏的封面只给 games-use，看不到 = 404） |  |
+| POST | `/games/api/cover` | **games-manage** |  |  | 新增（奇趣重组 PR 1） | 上传 / 换游戏封面 |  |
+| DELETE | `/games/api/cover` | **games-manage** |  | 单条 → manage 组 | 新增（奇趣重组 PR 1） | 删一张游戏封面 |  |
 
 ### 日刻接口 styrigx-atlas-core（styrigx.com/daymark/api/*，不经网关）
 

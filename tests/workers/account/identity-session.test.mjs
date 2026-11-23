@@ -58,7 +58,7 @@ test('styrigx 会话：一次查询、不写库；身份 = styrigx + 默认组',
   const a = await S.admitSession(env, t, NOW);
   assert.equal(a.ok, true);
   assert.equal(a.sessionId, id);
-  assert.deepEqual(a.identity, { uid: 1000, name: 'styrigx', groups: ['ai-use', 'curio-manage', 'curio-use', 'daymark-manage', 'daymark-use', 'music-manage', 'music-use', 'status-use', 'sudoers', 'wheel'], rescue: false });
+  assert.deepEqual(a.identity, { uid: 1000, name: 'styrigx', groups: ['ai-use', 'curio-manage', 'curio-use', 'daymark-manage', 'daymark-use', 'games-manage', 'games-use', 'music-manage', 'music-use', 'status-use', 'sudoers', 'wheel'], rescue: false });
   assert.equal(a.via, null);
   assert.equal(a.renew, false);
   assert.equal(env.D1_ACCOUNT.statements.length, 1, '一次 D1 查询');

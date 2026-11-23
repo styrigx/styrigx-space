@@ -143,7 +143,7 @@ test('路由表：action private 挂在奇趣 / 日刻 / 音乐公开 GET 上（
   const withPrivate = RA.ROUTE_ACCESS.filter((r) => r.actions && Object.prototype.hasOwnProperty.call(r.actions, 'private'));
   assert.deepEqual(withPrivate.map((r) => r.method + ' ' + r.path).sort(), [
     'GET /curio/api/icon', 'GET /curio/api/items', 'GET /curio/api/links', 'GET /curio/api/movies', 'GET /curio/api/photo',
-    'GET /daymark/api/collections', 'GET /daymark/api/quotes', 'GET /music/api/music', 'POST /api/ai',
+    'GET /daymark/api/collections', 'GET /daymark/api/quotes', 'GET /games/api/cover', 'GET /games/api/games', 'GET /music/api/music', 'POST /api/ai',
   ]);
   for (const r of withPrivate) {
     if (r.path === '/api/ai') {
@@ -156,7 +156,7 @@ test('路由表：action private 挂在奇趣 / 日刻 / 音乐公开 GET 上（
     }
     assert.deepEqual(Object.keys(r.actions).sort(), ['manage', 'private'], r.path);
     assert.equal(r.level, 'public', r.path);
-    const product = r.path.startsWith('/music/') ? 'music' : r.path.startsWith('/curio/') ? 'curio' : 'daymark';
+    const product = r.path.startsWith('/music/') ? 'music' : r.path.startsWith('/games/') ? 'games' : r.path.startsWith('/curio/') ? 'curio' : 'daymark';
     assert.equal(r.product, product, r.path);
     assert.equal(r.actions.private, product + '-use', r.path);
     assert.equal(r.actions.manage, product + '-manage', r.path);

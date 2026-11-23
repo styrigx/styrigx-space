@@ -21,6 +21,7 @@ const V = await import(SRC + 'common/visibility.js');
 const CR = await import(SRC + 'curio/routes.js');
 const DR = await import(SRC + 'daymark/routes.js');
 const MR = await import(SRC + 'music/routes.js');
+const GR = await import(SRC + 'games/routes.js');
 const RA = await import(REPO + '/workers/account/src/core/route-access.js');
 
 const ctxOf = (route, answers, log = []) => ({
@@ -71,20 +72,20 @@ test('privateNotFound：公开条目不问；私密且看不到 → 404 not-foun
 
 test('两份 _auth.js 的 readAccess 已删，公开读接口都只调 common/visibility.js；atlas-core 不写组名', () => {
   for (const p of ['curio/api/_auth.js', 'daymark/api/_auth.js']) assert.doesNotMatch(readFileSync(SRC + p, 'utf8'), /readAccess/, p);
-  for (const p of ['curio/api/items.js', 'curio/api/links.js', 'curio/api/movies.js', 'curio/api/music.js', 'daymark/api/quotes.js', 'daymark/api/collections.js']) {
+  for (const p of ['curio/api/items.js', 'curio/api/links.js', 'curio/api/movies.js', 'curio/api/music.js', 'daymark/api/quotes.js', 'daymark/api/collections.js', 'games/api/games.js']) {
     assert.match(readFileSync(SRC + p, 'utf8'), /import \{[^}]*\bvisibility\b[^}]*\} from '\.\.\/\.\.\/common\/visibility\.js'/, p);
   }
-  for (const p of ['curio/api/photo.js', 'curio/api/icon.js']) assert.match(readFileSync(SRC + p, 'utf8'), /privateNotFound/, p);
+  for (const p of ['curio/api/_photo.js', 'curio/api/icon.js']) assert.match(readFileSync(SRC + p, 'utf8'), /privateNotFound/, p);
   /* 组名只在账号 Worker（permits 唯一判断）；atlas-core 代码（去掉注释）不出现任何组名 */
   const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
   const G = /'(?:[a-z]+-(?:use|manage)|wheel|sudoers|listen|curio-write|daymark-write)'/;
-  for (const p of ['common/visibility.js', 'curio/api/_auth.js', 'daymark/api/_auth.js', 'curio/app.js', 'daymark/index.js', 'curio/routes.js', 'daymark/routes.js', 'music/routes.js']) {
+  for (const p of ['common/visibility.js', 'curio/api/_auth.js', 'daymark/api/_auth.js', 'curio/app.js', 'daymark/index.js', 'curio/routes.js', 'daymark/routes.js', 'music/routes.js', 'games/routes.js', 'games/api/games.js', 'games/api/cover.js', 'curio/api/_photo.js', 'curio/api/_items-post.js']) {
     assert.doesNotMatch(strip(readFileSync(SRC + p, 'utf8')), G, p);
   }
 });
 
 test('atlas-core 路由表每一行都有 product，与账号 Worker 路由表同一条路由的 product 一致（音乐搬家第 4 步：音乐只在 /music/api/*，product 是 music；奇趣表只有 curio）', () => {
-  for (const [base, R] of [['/curio', CR], ['/daymark', DR], ['/music', MR]]) {
+  for (const [base, R] of [['/curio', CR], ['/daymark', DR], ['/music', MR], ['/games', GR]]) {
     for (const r of R.ROUTE_ACCESS) {
       assert.ok(typeof r.product === 'string' && r.product, base + r.path);
       const acc = RA.ruleOf(r.method, base + r.path);
@@ -96,4 +97,5 @@ test('atlas-core 路由表每一行都有 product，与账号 Worker 路由表�
   }
   assert.ok(MR.ROUTE_ACCESS.length === 7 && MR.ROUTE_ACCESS.every((r) => r.product === 'music'));
   assert.ok(CR.ROUTE_ACCESS.every((r) => r.product === 'curio'), '奇趣表里没有音乐的行了');
+  assert.ok(GR.ROUTE_ACCESS.length === 5 && GR.ROUTE_ACCESS.every((r) => r.product === 'games'), '奇趣重组 PR 1：游戏表只有 games');
 });
