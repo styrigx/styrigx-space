@@ -113,7 +113,8 @@ test('ticketTarget：root 档才发；带 action 的按 action；账号自己的
   assert.equal(T.ticketTarget({ method: 'POST', path: '/music/api/music', action: 'nope' }).error, 'action');
   assert.equal(T.ticketTarget({ method: 'POST', path: '/curio/api/music', action: 'album.del' }).ok, false, 'music 搬家第 4 步：旧路径删掉，不发票');
   assert.equal(T.ticketTarget({ method: 'POST', path: '/api/account/proxy' }).error, 'not-here', '账号自己的 root 接口走 sudo，不发票');
-  assert.equal(T.ticketTarget({ method: 'POST', path: '/curio/api/items' }).error, 'not-here');
+  assert.equal(T.ticketTarget({ method: 'POST', path: '/curio/api/links' }).error, 'not-here', '写组档不发票');
+  assert.equal(T.ticketTarget({ method: 'POST', path: '/curio/api/items' }).error, 'not-here', '奇趣重组 PR 3：旧路径删掉，不在表里');
   assert.equal(T.ticketTarget({ method: 'GET', path: '/curio/api/export?lang=en' }).ok, false, '票不绑查询串');
   assert.equal(T.ticketTarget({ method: 'PATCH', path: '/curio/api/export' }).ok, false);
 });

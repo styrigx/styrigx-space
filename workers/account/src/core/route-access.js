@@ -140,15 +140,8 @@ export const ROUTE_ACCESS = Object.freeze([
   /* v6 P4：数字健康 POST / GET /api/wellbeing 随数字健康整套删除（定稿 v5.5 §四、§五） */
 
   /* ---------- 奇趣接口 styrigx-atlas-core（styrigx.com/curio/api/*，不经网关；workers/atlas-core/src/curio/routes.js；2026-11-14 由 curio-core 合并进 atlas-core） ---------- */
-  R({ method: 'GET', path: '/curio/api/items', product: 'curio', kind: 'read', worker: 'atlas-core', why: '设备 / 游戏列表（私密行给 curio-use，管理提示给 curio-manage，见 decided）', decided: 'Gray 2026-11-11 定 public；组权限 v1.1 §七（Gray 2026-11-20 23:33 定 A）：私密行给 curio-use' }),
-  R({ method: 'POST', path: '/curio/api/items', product: 'curio', kind: 'manage', worker: 'atlas-core', why: 'device.* / game.*：add / edit / order；del 是单条', del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/links', product: 'curio', kind: 'read', worker: 'atlas-core', why: '收藏列表（私密行同上）', decided: 'Gray 2026-11-11 定 public；组权限 v1.1 §七：私密行给 curio-use' }),
+  R({ method: 'GET', path: '/curio/api/links', product: 'curio', kind: 'read', worker: 'atlas-core', why: '收藏列表（私密行给 curio-use，管理提示给 curio-manage）', decided: 'Gray 2026-11-11 定 public；组权限 v1.1 §七：私密行给 curio-use' }),
   R({ method: 'POST', path: '/curio/api/links', product: 'curio', kind: 'manage', worker: 'atlas-core', why: 'cat.* / link.*；link.del 单条；cat.del 只删空分类（非空 409），按单条算', del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/movies', product: 'curio', kind: 'read', worker: 'atlas-core', why: '电影列表（电影表没有 private 列 = 整表公开；showPrivate 只用来选页底那句话）', decided: 'Gray 2026-11-11 定 public；组权限 v1.1 §七：私密档给 curio-use' }),
-  R({ method: 'POST', path: '/curio/api/movies', product: 'curio', kind: 'manage', worker: 'atlas-core', why: 'movie.add / edit / del（单条）', del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/photo', product: 'curio', kind: 'read', worker: 'atlas-core', why: '设备照片 / 海报（私密设备的照片只给 curio-use，看不到 = 404）' }),
-  R({ method: 'POST', path: '/curio/api/photo', product: 'curio', kind: 'manage', worker: 'atlas-core', why: '上传照片 / 海报' }),
-  R({ method: 'DELETE', path: '/curio/api/photo', product: 'curio', kind: 'manage', worker: 'atlas-core', why: '删一张照片', del: 'item' }),
   R({ method: 'GET', path: '/curio/api/icon', product: 'curio', kind: 'read', worker: 'atlas-core', why: '网站图标缓存（私密收藏的图标只给 curio-use，看不到 = 404）' }),
   R({ method: 'GET', path: '/curio/api/preview', product: 'curio', kind: 'manage', worker: 'atlas-core', why: '添加收藏时抓标题 / 图标（算在管理里）' }),
   R({ method: 'GET', path: '/curio/api/export', product: 'curio', level: 'root', worker: 'atlas-core', sudoTicket: true, why: '导出全部收藏（含私密）', decided: 'Gray 2026-11-11 定 root：导出全部收藏含私密' }),
@@ -165,7 +158,8 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'POST', path: '/music/api/music-upload', product: 'music', kind: 'manage', worker: 'atlas-core', why: '上传音轨 / 封面 / 歌手头像（kind=avatar，M4）' }),
 
   /* 游戏（奇趣重组设计稿 v1.0 第三节 PR 1）：styrigx.com/games/api/*，同一个 Worker（atlas-core；workers/atlas-core/src/games/routes.js）；product 'games'
-     （组 games-use / games-manage 由 product 推出）。数据和奇趣 /curio/api/items、/curio/api/photo 的游戏同一张表、同一份封面；旧行 PR 3 再删 */
+     （组 games-use / games-manage 由 product 推出）。奇趣重组 PR 3 删掉了旧行 /curio/api/items（设备 + 游戏）、/curio/api/photo（照片）和电影 /curio/api/movies 共 7 行
+     （不留别名：旧路径不在表里 = 拒绝，同 music 第 4 步） */
   R({ method: 'GET', path: '/games/api/games', product: 'games', kind: 'read', worker: 'atlas-core', why: '游戏列表（私密行给 games-use，管理提示给 games-manage；不回设备）' }),
   R({ method: 'POST', path: '/games/api/games', product: 'games', kind: 'manage', worker: 'atlas-core', why: 'game.add / edit / order；game.del 是单条', del: 'item' }),
   R({ method: 'GET', path: '/games/api/cover', product: 'games', kind: 'read', worker: 'atlas-core', why: '游戏封面（私密游戏的封面只给 games-use，看不到 = 404）' }),

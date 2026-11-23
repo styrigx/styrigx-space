@@ -3,9 +3,9 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-SPEC-004 |
-| 版本 | 0.7 |
-| 日期 | 2026-11-21 |
-| 状态 | 已定（v6 P1，Gray 2026-11-11 定稿 17 条存疑；P2 改名片 PUT 档、加 /api/identity；割接加 action private、其余 Worker 接 v6；P4 删旧入口 20 条；P4 收尾删应用授权；P4-2 删数字健康两条；2026-11-21 组权限重设计 v1.1：组改名 use / manage、行上写 product 推组名、private / manage 两档分开问；music 搬家第 2 步加 /music/api/* 7 行、第 4 步删旧 /curio/api/music* 7 行） |
+| 版本 | 0.8 |
+| 日期 | 2026-11-23 |
+| 状态 | 已定（v6 P1，Gray 2026-11-11 定稿 17 条存疑；P2 改名片 PUT 档、加 /api/identity；割接加 action private、其余 Worker 接 v6；P4 删旧入口 20 条；P4 收尾删应用授权；P4-2 删数字健康两条；2026-11-21 组权限重设计 v1.1：组改名 use / manage、行上写 product 推组名、private / manage 两档分开问；music 搬家第 2 步加 /music/api/* 7 行、第 4 步删旧 /curio/api/music* 7 行；奇趣重组 PR 1 加 /games/api/* 5 行、PR 3 删 /curio/api/items、movies、photo 7 行） |
 
 
 > 状态：P1 定稿（2026-11-11，Gray 已定 17 条存疑），基线 main 05abe443。机器可读的唯一来源是 `workers/account/src/core/route-access.js` 的 `ROUTE_ACCESS`；
@@ -29,20 +29,20 @@
 
 | 档 | 路由数 |
 |---|---|
-| public | 26 |
+| public | 23 |
 | user | 1 |
 | ai-use | 2 |
 | status-use | 1 |
 | music-use | 3 |
 | music-manage | 2 |
-| curio-manage | 6 |
+| curio-manage | 2 |
 | daymark-manage | 6 |
 | games-manage | 3 |
 | webmaster | 5 |
 | root | 5 |
-| **合计** | **60**（另有 11 个只经服务绑定 / RPC 的入口；P2c 加 AccountJanitor，P4 删 ShareJanitor） |
+| **合计** | **53**（另有 11 个只经服务绑定 / RPC 的入口；P2c 加 AccountJanitor，P4 删 ShareJanitor） |
 
-按 Worker：站点核心 6、账号 11、奇趣 13、音乐 7（奇趣、音乐、日刻都在 atlas-core）、日刻 13、游戏 5、代理 6（P4 删旧入口 20 条、应用授权与数字健康之后；music 搬家第 4 步后；奇趣重组 PR 1 加游戏 5）。有 action 另定档的接口 11 个（`POST /music/api/music`、identity；割接加的 `private`：curio items / links / movies / photo / icon、music、daymark quotes / collections 的 GET，组权限 v1.1 起这 8 个 GET 另有 `manage`；2c 加 `POST /api/ai` 的 `private`）。
+按 Worker：站点核心 6、账号 11、奇趣 6、音乐 7（奇趣、音乐、日刻、游戏都在 atlas-core）、日刻 13、游戏 5、代理 6（P4 删旧入口 20 条、应用授权与数字健康之后；music 搬家第 4 步后；奇趣重组 PR 1 加游戏 5、PR 3 奇趣删 7）。有 action 另定档的接口 10 个（`POST /music/api/music`、identity；割接加的 `private`：curio links / icon、music、daymark quotes / collections、games games / cover 的 GET，这些 GET 另有 `manage`；2c 加 `POST /api/ai` 的 `private`）。
 
 组权限 v1.1 变更（2026-11-21，《v6 组权限重设计 v1.1》定稿 + 《music 搬家设计稿 v1.0》第 1 步；ADR-0007）：
 - 组改名：`listen` → `music-use`、`ai` → `ai-use`、`status` → `status-use`、`curio-write` → `curio-manage`、`daymark-write` → `daymark-manage`；新增 `curio-use`、`daymark-use`、`music-manage`（音乐的写权限从 `curio-write` 拆出）。路由数不变（55）。
@@ -50,6 +50,7 @@
 - 搬家第 2 步（2026-11-21）：加 `/music/api/*` 7 行，档与旧 7 行逐条一致（表自检兜住）；同一个 Worker（atlas-core）、同一份 handler，只认 product `music` 的行；旧 `/curio/api/music*` 照常，第 4 步再删（62 条）。
 - 搬家第 4 步（2026-11-21，《music 搬家设计稿 v1.1》§三 第 4 步）：删旧 `/curio/api/music*` 7 行，不留别名（62 → 55 条；public 26 → 24、music-manage 4 → 2、music-use 6 → 3）。atlas-core 的音乐路由表拆成 `workers/atlas-core/src/music/routes.js`（handler 仍在 `src/curio/api/music*.js`），奇趣表只剩 product `curio` 的行；旧地址仍落在 `styrigx.com/curio/api/*` 这条 Worker 路由上，按表外路径处理：账号 Worker admit 回 not-listed，atlas-core 一律 401 `unauthorized`（不分有没有登录）。页面地址的 301（`static/_redirects`）不动。
 - 奇趣重组 PR 1（2026-11-22，《奇趣重组设计稿 v1.0》第三节）：加 `/games/api/*` 5 行（55 → 60 条；public 24 → 26、新 `games-manage` 3），product `games`，组 `games-use` / `games-manage` 由 product 推出（`USE_GROUPS` / `MANAGE_GROUPS` 各缀一个）；同一个 Worker（atlas-core），数据与旧 `/curio/api/items`、`/curio/api/photo` 的游戏同一张表、同一份封面，旧行照常（PR 3 再删）。
+- 奇趣重组 PR 3（2026-11-23，《奇趣重组设计稿 v1.0》第三节 PR 3）：删 `/curio/api/items`（GET / POST，设备 + 游戏）、`/curio/api/movies`（GET / POST）、`/curio/api/photo`（GET / POST / DELETE）7 行，不留别名（60 → 53 条；public 26 → 23、curio-manage 6 → 2；带 `decided` 的 14 → 12）。游戏只走 `/games/api/*`，设备、电影整块删；旧地址仍落在 `styrigx.com/curio/api/*` 这条 Worker 路由上，按表外路径处理（同 music 第 4 步：admit 回 not-listed，atlas-core 一律 401）。页面 `/curio/movies/`、`/curio/devices/`（含中文）不跳转，直接 404。
 - 奇趣 / 日刻公开读的 8 个 GET：`private` 由写组改为 `<产品>-use`，另加 `manage` = `<产品>-manage`；atlas-core 的 `visibility()` 两档分开问。
 - 部署后旧组名在会话读组时被过滤掉（`identity-session.js` 只认 `GROUPS`）；站长 `sudo usermod -aG …` 重新授组并重新登录；旧名的库行用 `usermod -rG` 清理（`-rG` 允许删不在 `GROUPS` 里的名字，不允许加）。
 
@@ -99,7 +100,7 @@ P4-2（2026-11-11，定稿 v5.5 §四、§五）：数字健康整套删除—�
 
 ### 已定（Gray 2026-11-11）
 
-盘点时拿不准的 17 条，Gray 2026-11-11 定稿；表里「已定」列与 `ROUTE_ACCESS` 的 `decided` 字段一致（P4 删 `lock-all-devices` 后剩 16 条，P4-2 删数字健康两条后剩 14 条）。改了档的两处：P1 `GET /curio/api/export` 由 curio-write 改为 **root**；P2（定稿 v4）`PUT /api/profile` 由 root 改为 **webmaster** = 站长（styrigx）+ root（root 由 permits 放行），其余一律拒。其余按原拟定值定稿。
+盘点时拿不准的 17 条，Gray 2026-11-11 定稿；表里「已定」列与 `ROUTE_ACCESS` 的 `decided` 字段一致（P4 删 `lock-all-devices` 后剩 16 条，P4-2 删数字健康两条后剩 14 条，奇趣重组 PR 3 删 `GET /curio/api/items`、`movies` 后剩 12 条）。改了档的两处：P1 `GET /curio/api/export` 由 curio-write 改为 **root**；P2（定稿 v4）`PUT /api/profile` 由 root 改为 **webmaster** = 站长（styrigx）+ root（root 由 permits 放行），其余一律拒。其余按原拟定值定稿。
 
 | 路由 | 定稿 | 理由 |
 |---|---|---|
@@ -109,7 +110,7 @@ P4-2（2026-11-11，定稿 v5.5 §四、§五）：数字健康整套删除—�
 | `GET /api/profile` | public | 资料本身是公开数据（主页名片） |
 | `PUT /api/profile` | **webmaster**（P2 定稿 v4；P1 为 root） | 站长（styrigx）+ root（root 由 permits 放行），其余一律拒；名片只有一份，属于站长 |
 | `GET` / `POST /api/prefs` | user；POST → **webmaster**（P4-3） | P2 加 uid；P4-3 按定稿 v5.5 §五 / §七改为一份配置、写入 webmaster，普通用户只能看 |
-| `GET /curio/api/items` / `links` / `movies` | public | 私密行只给写组 curio-write（组权限 v1.1 §七起：私密行给 curio-use） |
+| `GET /curio/api/items` / `links` / `movies` | public | 私密行只给写组 curio-write（组权限 v1.1 §七起：私密行给 curio-use；`items`、`movies` 奇趣重组 PR 3 删除） |
 | `GET /curio/api/export` | **root**（原拟 curio-write） | 导出全部收藏含私密 |
 | `GET /daymark/api/quotes` | public | 私密句子只给写组 daymark-write（组权限 v1.1 §七起：私密句子给 daymark-use） |
 | `DELETE /daymark/api/collections` | root | 删整个专题 = 结构删除 |
@@ -150,15 +151,8 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 
 | 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
-| GET | `/curio/api/items` | **public** | `private` → curio-use、`manage` → curio-manage |  | 保留 | 设备 / 游戏列表（私密行给 curio-use，管理提示给 curio-manage，见 decided） | Gray 2026-11-11 定 public；组权限 v1.1 §七：私密行给 curio-use |
-| POST | `/curio/api/items` | **curio-manage** |  | 单条 → manage 组 | 保留 | device.* / game.*：add / edit / order；del 是单条 |  |
-| GET | `/curio/api/links` | **public** | `private` → curio-use、`manage` → curio-manage |  | 保留 | 收藏列表（私密行同上） | Gray 2026-11-11 定 public；组权限 v1.1 §七：私密行给 curio-use |
+| GET | `/curio/api/links` | **public** | `private` → curio-use、`manage` → curio-manage |  | 保留 | 收藏列表（私密行给 curio-use，管理提示给 curio-manage） | Gray 2026-11-11 定 public；组权限 v1.1 §七：私密行给 curio-use |
 | POST | `/curio/api/links` | **curio-manage** |  | 单条 → manage 组 | 保留 | cat.* / link.*；link.del 单条；cat.del 只删空分类（非空 409），按单条算 |  |
-| GET | `/curio/api/movies` | **public** | `private` → curio-use、`manage` → curio-manage |  | 保留 | 电影列表 | Gray 2026-11-11 定 public；组权限 v1.1 §七：私密行给 curio-use |
-| POST | `/curio/api/movies` | **curio-manage** |  | 单条 → manage 组 | 保留 | movie.add / edit / del（单条） |  |
-| GET | `/curio/api/photo` | **public** | `private` → curio-use、`manage` → curio-manage |  | 保留 | 设备照片 / 海报（私密设备的照片只给 curio-use，看不到 = 404） |  |
-| POST | `/curio/api/photo` | **curio-manage** |  |  | 保留 | 上传照片 / 海报 |  |
-| DELETE | `/curio/api/photo` | **curio-manage** |  | 单条 → manage 组 | 保留 | 删一张照片 |  |
 | GET | `/curio/api/icon` | **public** | `private` → curio-use、`manage` → curio-manage |  | 保留 | 网站图标缓存（私密收藏的图标只给 curio-use，看不到 = 404） |  |
 | GET | `/curio/api/preview` | **curio-manage** |  |  | 保留 | 添加收藏时抓标题 / 图标（算在管理里） |  |
 | GET | `/curio/api/export` | **root** |  |  | 保留 | 导出全部收藏（含私密） | Gray 2026-11-11 定 root：导出全部收藏含私密 |
