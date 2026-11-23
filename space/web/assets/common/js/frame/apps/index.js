@@ -1,8 +1,9 @@
 /**
- * @fileoverview 主页（/，中文 /zh/）四节和首屏里要运行时取数的部分（2026-11 对齐 PR-B，设计稿 tb4.html；2026-11-21 重排 博客 / 日刻 / 音乐 / 奇趣）：
+ * @fileoverview 主页（/，中文 /zh/）五节和首屏里要运行时取数的部分（2026-11 对齐 PR-B，设计稿 tb4.html；2026-11-21 重排 博客 / 日刻 / 音乐 / 奇趣；奇趣重组 PR 2 加 [05] 游戏）：
  * - [02] 日刻 今日一句（apps/daymark-today.js，/daymark/api/today 公开只读）
  * - [03] 音乐 最新 4 张专辑（/music/api/music，只有元数据；封面 /music/api/music-cover 公开）
- * - [04] 奇趣 三个目录卡：计数 + 最近收藏 / 在用 / 在玩（/curio/api/links、/curio/api/items，进门即可读，私密的服务端不给）
+ * - [04] 奇趣 最新 4 条收藏（/curio/api/links，进门即可读，私密的服务端不给；奇趣重组 PR 2 起奇趣 = 发现，原 finds / devices / games 三个目录卡删了）
+ * - [05] 游戏 最新 4 个游戏（/games/api/games，同上；封面 /games/api/cover?id= 公开）
  * - 首屏状态胶囊：接外壳 topbar/panel.js mountStatus 发的 sgx:status-cells（同一份 /api/status，不另取）
  * - hero：$ 行标语打字轮播（apps/home-typer.js）；# 行签名 motto 空值时整行隐藏（跟 sgx-profile-changed）
  * mountHome() 由 apps/entries/entry-space.js 在加载时调一次（先于 initCore，事件监听在外壳取数之前挂好）。
@@ -15,40 +16,71 @@ import { mountTyper } from './home-typer.js';
 /** 界面文案：页面字符串表 #sgx-i18n-space */
 const tx = i18nTable('space');
 
+/** 主页 [04] 奇趣放几条收藏 */
+export const CURIO_LATEST_N = 4;
 /**
- * 奇趣三个目录的计数与那一条（纯函数，单测看它）。
- * finds = 所有分类的链接数，最近收藏 = id 最大的那条；devices = 设备数，在用 = 没退役（retired_at 空）的第一台（按接口顺序 = 排序位）；
- * games = 游戏数，在玩 = status 为 playing 的第一个。拿不到的部分给 null。
- * @param {any} links /curio/api/links 的结果（{ok, cats:[{links:[{id,name:{zh,en},url}]}]}）或 null
- * @param {any} items /curio/api/items 的结果（{ok, devices:[...], games:[...]}）或 null
- * @param {string} lang 页面语言（名字取 name[lang]，缺了回退另一种 / 域名）
- * @returns {{finds: {n:number, latest:string}|null, devices: {n:number, latest:string}|null, games: {n:number, latest:string}|null}}
+ * 最新几条收藏（纯函数，单测看它）：/curio/api/links 的结果 → 所有分类里的收藏按记录 id 从新到旧的前 n 条，每条带名字和所在分类名。
+ * 名字 / 分类名取页面语言，缺了回退另一种（收藏名再缺就用网址的域名）。链接 = 奇趣首页这个分类（#c/<分类 id>，奇趣首页认这个 hash；本站没有单条收藏的深链）。
+ * @param {any} links GET /curio/api/links 的回答（{ok, cats:[{id, name:{zh,en}, links:[{id, name:{zh,en}, url}]}]}）或 null
+ * @param {string} curioHref 当前语言的奇趣首页地址（/curio/、/curio/zh/）
+ * @param {string} lang 页面语言（zh / en）
+ * @param {number} [n]
+ * @returns {Array<{id:number, name:string, cat:string, href:string}>|null} 拿不到（不是 ok / 没列表）给 null
  */
-export function curioSummary(links, items, lang) {
-  const nm = function (/** @type {any} */ o, /** @type {string} */ url) {
-    const n = o && typeof o === 'object' ? (o[lang] || o.zh || o.en || '') : String(o || '');
-    if (n) return String(n);
-    try { return new URL(url).host; } catch (e) { return ''; }
+export function curioLatest(links, curioHref, lang, n) {
+  if (!links || !links.ok || !Array.isArray(links.cats)) return null;
+  const nm = function (/** @type {any} */ o) {
+    return o && typeof o === 'object' ? String((lang === 'en' ? o.en || o.zh : o.zh || o.en) || '') : String(o || '');
   };
-  let finds = null;
-  if (links && links.ok && Array.isArray(links.cats)) {
-    /** @type {any[]} */
-    const all = [];
-    links.cats.forEach(function (/** @type {any} */ c) { (c && Array.isArray(c.links) ? c.links : []).forEach(function (/** @type {any} */ l) { if (l) all.push(l); }); });
-    const top = all.reduce(function (/** @type {any} */ a, /** @type {any} */ b) { return !a || Number(b.id) > Number(a.id) ? b : a; }, null);
-    finds = { n: all.length, latest: top ? nm(top.name, top.url) : '' };
-  }
-  let devices = null;
-  let games = null;
-  if (items && items.ok) {
-    const ds = Array.isArray(items.devices) ? items.devices : [];
-    const inUse = ds.find(function (/** @type {any} */ d) { return d && !d.retired_at; });
-    devices = { n: ds.length, latest: inUse ? String(inUse.name || '') : '' };
-    const gs = Array.isArray(items.games) ? items.games : [];
-    const playing = gs.find(function (/** @type {any} */ g) { return g && g.status === 'playing'; });
-    games = { n: gs.length, latest: playing ? String(playing.title || '') : '' };
-  }
-  return { finds: finds, devices: devices, games: games };
+  const host = function (/** @type {string} */ url) { try { return new URL(url).host; } catch (e) { return ''; } };
+  const base = String(curioHref || '/curio/');
+  /** @type {Array<{l:any, c:any}>} */
+  const all = [];
+  links.cats.forEach(function (/** @type {any} */ c) {
+    (c && Array.isArray(c.links) ? c.links : []).forEach(function (/** @type {any} */ l) { if (l && Number(l.id) > 0) all.push({ l: l, c: c }); });
+  });
+  return all
+    .sort(function (a, b) { return Number(b.l.id) - Number(a.l.id); })
+    .slice(0, n || CURIO_LATEST_N)
+    .map(function (x) {
+      const cid = Number(x.c.id) || 0;
+      return {
+        id: Number(x.l.id),
+        name: nm(x.l.name) || host(String(x.l.url || '')),
+        cat: nm(x.c.name),
+        href: cid > 0 ? base + '#c/' + cid : base,
+      };
+    });
+}
+
+/** 主页 [05] 游戏放几个 */
+export const GAMES_LATEST_N = 4;
+/** 游戏状态（同 /games/ 的 chips；文案在 js.space.gameWant / gamePlaying / gameDone / gameShelved） */
+export const GAME_STATUS = Object.freeze(['want', 'playing', 'done', 'shelved']);
+/**
+ * 最新几个游戏（纯函数，单测看它）：/games/api/games 的结果 → 按记录 id 从新到旧的前 n 个（不分状态）。
+ * 链接 = 游戏页直达这一款（?game=<id>，游戏子站的条目页）；封面有才给 /games/api/cover?id=<id>。状态只认四种，别的给空串。
+ * @param {any} j GET /games/api/games 的回答（{ok, games:[{id, title, status, cover}]}）或 null
+ * @param {string} gamesHref 当前语言的游戏页地址（/games/、/games/zh/）
+ * @param {number} [n]
+ * @returns {Array<{id:number, title:string, status:string, cover:string, href:string}>|null} 拿不到（不是 ok / 没列表）给 null
+ */
+export function gamesLatest(j, gamesHref, n) {
+  if (!j || !j.ok || !Array.isArray(j.games)) return null;
+  const base = String(gamesHref || '/games/');
+  return j.games
+    .filter(function (/** @type {any} */ g) { return g && Number(g.id) > 0; })
+    .sort(function (/** @type {any} */ a, /** @type {any} */ b) { return Number(b.id) - Number(a.id); })
+    .slice(0, n || GAMES_LATEST_N)
+    .map(function (/** @type {any} */ g) {
+      return {
+        id: Number(g.id),
+        title: String(g.title || ''),
+        status: GAME_STATUS.indexOf(g.status) >= 0 ? String(g.status) : '',
+        cover: g.cover ? '/games/api/cover?id=' + Number(g.id) : '',
+        href: base + '?game=' + Number(g.id),
+      };
+    });
 }
 
 /** 主页 [03] 音乐放几张 */
@@ -196,24 +228,59 @@ export function mountHome(o) {
     });
   } else if (muWait) muWait.hidden = true;
 
-  /* [04] 奇趣：CI 静态测试构建（SGX_TEST_NO_WB）没有接口，加载时不问（404 会进控制台，Lighthouse errors-in-console）；
-     e2e 要测时先设 window.__sgxCurioApi = true（只在测试构建里有这个分支，生产构建整段按常量摇掉） */
-  const cu = document.querySelector('[data-home-curio]');
+  /* [04] 奇趣：最新几条收藏。CI 静态测试构建（SGX_TEST_NO_WB）没有接口，加载时不问（404 会进控制台，Lighthouse errors-in-console）；
+     e2e 要测时先设 window.__sgxCurioApi = true（只在测试构建里有这个分支，生产构建整段按常量摇掉）。拿不到 / 没收藏保持「—」占位 */
+  const cu = /** @type {HTMLElement|null} */ (document.querySelector('[data-home-curio]'));
   const noApi = typeof SGX_TEST_NO_WB !== 'undefined' && SGX_TEST_NO_WB && !(/** @type {any} */ (window).__sgxCurioApi);
   if (cu && !noApi && typeof fetch === 'function') {
-    Promise.all([getJSON('/curio/api/links'), getJSON('/curio/api/items')]).then(function (r) {
-      const sum = /** @type {Record<string, {n:number, latest:string}|null>} */ (curioSummary(r[0], r[1], lang));
-      ['finds', 'devices', 'games'].forEach(function (k) {
-        const a = cu.querySelector('[data-curio="' + k + '"]');
-        const v = sum[k];
-        if (!a || !v) return;
-        const c = a.querySelector('[data-curio-count]');
-        const l = a.querySelector('[data-curio-latest]');
-        if (c) c.textContent = String(v.n);
-        if (l) l.textContent = v.latest || '—';
+    getJSON('/curio/api/links').then(function (j) {
+      const list = curioLatest(j, cu.getAttribute('data-curio-href') || '/curio/', lang);
+      if (!list || !list.length) return;
+      Array.from(cu.querySelectorAll('[data-cu-slot]')).forEach(function (el, i) {
+        const a = /** @type {HTMLAnchorElement} */ (el);
+        const it = list[i];
+        if (!it) { const li = a.closest('li'); if (li) li.remove(); return; }
+        a.href = it.href;
+        const t = a.querySelector('[data-cu-name]');
+        const c = a.querySelector('[data-cu-cat]');
+        if (t) t.textContent = it.name || '—';
+        if (c) c.textContent = it.cat;
       });
     });
   }
+
+  /* [05] 游戏：最新几个游戏（仿 [03] 音乐）。测试构建同样不问接口（e2e 要测时先设 window.__sgxGamesApi = true）；
+     等的时候「› fetching games…」，有结论就收起；拿不到 / 没游戏保持「—」占位 */
+  const gm = /** @type {HTMLElement|null} */ (document.querySelector('[data-home-games]'));
+  const gmWait = /** @type {HTMLElement|null} */ (document.querySelector('[data-gm-wait]'));
+  const noGmApi = typeof SGX_TEST_NO_WB !== 'undefined' && SGX_TEST_NO_WB && !(/** @type {any} */ (window).__sgxGamesApi);
+  if (gm && !noGmApi && typeof fetch === 'function') {
+    getJSON('/games/api/games').then(function (j) {
+      if (gmWait) gmWait.hidden = true;
+      const list = gamesLatest(j, gm.getAttribute('data-games-href') || '/games/');
+      if (!list || !list.length) return;
+      Array.from(gm.querySelectorAll('[data-gm-slot]')).forEach(function (el, i) {
+        const a = /** @type {HTMLAnchorElement} */ (el);
+        const it = list[i];
+        if (!it) { const li = a.closest('li'); if (li) li.remove(); return; }
+        a.href = it.href;
+        const t = a.querySelector('[data-gm-title]');
+        const st = a.querySelector('[data-gm-status]');
+        if (t) t.textContent = it.title || '—';
+        if (st) st.textContent = it.status ? tx('game' + it.status.charAt(0).toUpperCase() + it.status.slice(1)) : '';
+        if (it.cover) {
+          const c = a.querySelector('.home-alb-c');
+          const img = document.createElement('img');
+          img.alt = '';
+          img.decoding = 'async';
+          img.loading = 'lazy';
+          img.addEventListener('error', function () { img.remove(); });
+          img.src = it.cover;
+          if (c) c.appendChild(img);
+        }
+      });
+    });
+  } else if (gmWait) gmWait.hidden = true;
   return {
     activate() {},
     deactivate() {},

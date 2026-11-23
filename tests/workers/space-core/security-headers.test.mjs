@@ -430,7 +430,7 @@ test('模板：会执行的内联脚本只在 baseof（6 段：P4-3 PR-4c 加了
     const n = gen.inlineScripts(src).length;
     const rel = path.relative(REPO + '/space/web/layouts', f).split(path.sep).join('/');
     /* 2026-11 合站：子站模板（layouts/<站>/、layouts/partials/<站>/）也在这里，子站页面不发主站 CSP（gen-csp 的 SUBSITE_DIRS），不计 */
-    if (n && !/^(partials\/)?(blog|curio|daymark|music)\//.test(rel)) where[rel] = n;
+    if (n && !/^(partials\/)?(blog|curio|daymark|music|games)\//.test(rel)) where[rel] = n; /* 奇趣重组 PR 2：games 是第五个子站 */
     assert.deepEqual(gen.unhashable(src.replace(/\{\{[\s\S]*?\}\}/g, '')), [], f);
   }
   assert.deepEqual(where, { '_default/baseof.html': 6, 'alias.html': 1 });

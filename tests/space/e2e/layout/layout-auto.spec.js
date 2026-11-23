@@ -158,15 +158,15 @@ for (const w of [719, 720, 721]) {
       await expect(page.locator('html')).toHaveClass(new RegExp('\\blayout-' + want + '\\b'));
       await expect(page.locator('#home-hero')).toBeVisible();
       /* 2026-11 PR-2：首页各块（hero、终端、分节）都铺满内容栏，不会窄到 320 以下；
-         对齐 PR-B：[02] 目录卡桌面三栏、手机一栏，每张 ≥ 200（720 宽桌面三栏约 218；[04] 旷野小卡 2026-11-12 随旷野删除） */
+         奇趣重组 PR 2：[04] 奇趣是四张收藏卡（桌面四栏、手机两栏），每张 ≥ 140（720 宽桌面四栏约 160；原三张目录卡 ≥ 200 随目录卡删除） */
       const m = await page.evaluate(() => ({ sw: document.scrollingElement.scrollWidth, iw: innerWidth,
         cards: [...document.querySelectorAll('#home-hero, #about, .home-sec')].filter((e) => e.offsetParent !== null).map((e) => [e.id, e.getBoundingClientRect().width]),
-        minis: [...document.querySelectorAll('.home-dirs > li')].map((e) => e.getBoundingClientRect().width) }));
+        minis: [...document.querySelectorAll('.home-finds > li')].map((e) => e.getBoundingClientRect().width) }));
       expect(m.sw).toBeLessThanOrEqual(m.iw);
       expect(m.cards.length).toBeGreaterThan(0);
       for (const [id, cw] of m.cards) expect(cw, `${id} 宽 ${cw}`).toBeGreaterThanOrEqual(320);
-      expect(m.minis.length).toBe(3); /* 奇趣 3（旷野小卡 2026-11-12 删除） */
-      for (const cw of m.minis) expect(cw, `小卡宽 ${cw}`).toBeGreaterThanOrEqual(200);
+      expect(m.minis.length).toBe(4); /* 奇趣 4 条收藏占位 */
+      for (const cw of m.minis) expect(cw, `小卡宽 ${cw}`).toBeGreaterThanOrEqual(140);
     });
   }
 }
@@ -209,7 +209,7 @@ test('首页收窄：容器 700 / 600 / 330 → 各块跟着收、终端不超�
       const g = document.querySelector('.home-wrap');
       g.style.width = v + 'px';
       const gr = g.getBoundingClientRect();
-      const over = [...g.querySelectorAll('#about, .home-sec, #w-daymark, .home-dir')].filter((e) => e.offsetParent !== null)
+      const over = [...g.querySelectorAll('#about, .home-sec, #w-daymark, .home-find')].filter((e) => e.offsetParent !== null)
         .filter((e) => { const r = e.getBoundingClientRect(); return r.left < gr.left - 1 || r.right > gr.right + 1; }).map((e) => e.id);
       return { over, sw: document.scrollingElement.scrollWidth, iw: innerWidth };
     }, px);

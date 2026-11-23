@@ -230,8 +230,10 @@ test('真实构建：根文件归主站、三站各在前缀下（中文 /<站>/
     const others = SITES.filter((x) => x !== s).map((x) => '/' + x + '/');
     /* music 搬家第 3 步：奇趣首页的「音乐」入口指向第四个子站 /music/（中文 /music/zh/），不是本站前缀；
        2026-11-21 起 /music/ 也是 NAVIGATE 03 / 页脚 3:music（同源相对地址，同另几站的导航项） */
-    const music = s === 'curio' ? ['/music/', '/music/zh/'] : ['/music/'];
+    /* 奇趣重组 PR 2：/games/ 是第五个子站，NAVIGATE 05 / 页脚 5:games（同源相对地址，同音乐） */
+    const music = (s === 'curio' ? ['/music/', '/music/zh/'] : ['/music/']).concat(['/games/']);
     assert.ok(refs.includes('/music/'), s + '：导航 / 页脚里有音乐 /music/');
+    assert.ok(refs.includes('/games/'), s + '：导航 / 页脚里有游戏 /games/');
     assert.deepEqual(refs.filter((r) => !r.startsWith('/' + s + '/') && !others.includes(r) && !music.includes(r) && r !== '/'), [], s + '：站内地址都带 /' + s + '/（另几站和音乐的导航项、logo、奇趣的音乐入口除外）');
     assert.equal([...html.matchAll(/class="?sgx-tb-logo"? href="?([^"\s>]+)/g)].map((m) => m[1]).join(), '/', s + '：logo 回主站首页 /');
     assert.deepEqual(others.filter((o) => !refs.includes(o)), [], s + '：导航页里另两站是相对地址');
@@ -246,7 +248,7 @@ test('真实构建：根文件归主站、三站各在前缀下（中文 /<站>/
       else if (IMG.test(e.name)) imgs.push(rel + e.name);
     }
   };
-  for (const s of ['curio', 'daymark', 'music']) walk(path.join(out, s), s + '/');
+  for (const s of ['curio', 'daymark', 'music', 'games']) walk(path.join(out, s), s + '/');
   assert.deepEqual(imgs, []);
 });
 
@@ -259,4 +261,15 @@ test('真实构建：音乐（music 搬家第 3 步，第四个子站）在 /mus
   const canon = html.match(/<link rel="?canonical"? href="?([^"\s>]+)/);
   assert.equal(canon && canon[1], 'https://styrigx.com/music/');
   assert.match(readFileSync(path.join(PUB, 'music', 'zh', 'index.html'), 'utf8'), /<link rel="?canonical"? href="?https:\/\/styrigx\.com\/music\/zh\/"?/);
+});
+
+test('真实构建：游戏（奇趣重组 PR 2，第五个子站）在 /games/、/games/zh/；旧 /curio/games/、/curio/zh/games/ 不再生成（_redirects 301）；没有 /games/en/、根文件', (t) => {
+  if (!existsSync(path.join(PUB, 'games', 'index.html'))) { t.skip('还没构建（先 npm run build）'); return; }
+  for (const f of ['index.html', 'zh/index.html', 'sitemap.xml']) assert.ok(existsSync(path.join(PUB, 'games', f)), 'games/' + f);
+  for (const d of ['curio/games', 'curio/zh/games', 'zh/games', 'games/en']) assert.equal(existsSync(path.join(PUB, d)), false, d + ' 不该存在');
+  for (const n of ROOT_ONLY) assert.equal(existsSync(path.join(PUB, 'games', n)), false, 'games/' + n);
+  const html = readFileSync(path.join(PUB, 'games', 'index.html'), 'utf8');
+  const canon = html.match(/<link rel="?canonical"? href="?([^"\s>]+)/);
+  assert.equal(canon && canon[1], 'https://styrigx.com/games/');
+  assert.match(readFileSync(path.join(PUB, 'games', 'zh', 'index.html'), 'utf8'), /<link rel="?canonical"? href="?https:\/\/styrigx\.com\/games\/zh\/"?/);
 });

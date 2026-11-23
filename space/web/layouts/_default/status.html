@@ -4,7 +4,7 @@
                    + 免费额度 / 用量 / 近期故障 + 进站凭证使用记录（展开才取 /api/space-audit）。数据 GET /api/status，页面可见时每 60 秒刷新（apps/space-status.js），
                    外壳不另取（#st-root 在页里，接 sgx:status 事件）。
    入口：NAVIGATE STATUS 区的跳转按钮、NAVIGATE 页脚「systemctl status ›」（顶栏 status 参数）。旧地址 /wild/（含 /zh/）在 static/_redirects 301 到这里。
-   不在 NAVIGATE 01–05 里（没有当前项，终端 cwd 为 ~）。noindex（门内页，见 baseof）。 */}}
+   不在 NAVIGATE 00–05 里（没有当前项，终端 cwd 为 ~）。noindex（门内页，见 baseof）。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-space-status.js" }}
 {{ $pageLang := partial "common/page-lang.html" . }}{{ $tr := partialCached "common/tr.html" $pageLang $pageLang }}

@@ -5999,7 +5999,7 @@ html.mu-view-only :is(#mp-prev, #mp-next, #mp-d-prev, #mp-d-next, #mp-speed, #mp
 .home-sec-k { margin: 0; font-size: 12px; letter-spacing: var(--sgx-track-label); color: var(--sgx-text-tertiary); }
 .home-sec-t { margin: 2px 0 0; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 20px; font-weight: 500; color: var(--sgx-text-primary); }
 .home-sec-more { flex: none; font-size: 13px; color: var(--sgx-primary); text-decoration: none; border-radius: 4px; }
-.home-sec-more:focus-visible, .home-post:focus-visible, .home-dir:focus-visible, .home-qt:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+.home-sec-more:focus-visible, .home-post:focus-visible, .home-qt:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) { .home-sec-more:hover { text-decoration: underline; text-underline-offset: 3px; } }
 .home-sec-cmd { margin: 14px 0 10px; font-size: 13px; color: var(--sgx-text-secondary); }
 /* [01] 博客：日期 │ 标题 │ 时长，虚线分隔（稿 .ls） */
@@ -6010,18 +6010,19 @@ html.mu-view-only :is(#mp-prev, #mp-next, #mp-d-prev, #mp-d-next, #mp-speed, #mp
 .home-post i { font-style: normal; color: var(--sgx-text-tertiary); }
 @media (hover: hover) and (pointer: fine) { .home-post:hover b { color: var(--sgx-primary); } }
 :root:not([data-sgx-layout="desktop"]) .home-post { grid-template-columns: 78px minmax(0, 1fr) auto; gap: 10px; }
-/* [04] 奇趣三张细线目录卡（稿 .dir：名字强调色 · 右上计数 · 下面一条），桌面三栏、手机一栏（2026-11-21 重排前是 [02]；旧 [04] 旷野小卡 2026-11-12 随旷野删除） */
-.home-dirs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
-:root:not([data-sgx-layout="desktop"]) .home-dirs { grid-template-columns: minmax(0, 1fr); }
-.home-dir { display: block; box-sizing: border-box; height: 100%; padding: 16px; border: 1px solid var(--sgx-term-line); border-radius: 12px;
-  background: color-mix(in srgb, var(--sgx-surface-container-low) 70%, transparent); color: var(--sgx-text-secondary); text-decoration: none; transition: border-color .15s ease; }
-@media (hover: hover) and (pointer: fine) { .home-dir:hover { border-color: var(--sgx-primary); } }
-.home-dir-n { font-size: 14px; color: var(--sgx-primary); }
-.home-dir-c { float: right; font-size: 12px; color: var(--sgx-text-tertiary); }
-.home-dir-z { display: block; margin-top: 10px; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; line-height: 1.7; color: var(--sgx-text-primary);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.home-dir-z small { display: block; font-family: var(--sgx-font-mono); font-size: 11px; color: var(--sgx-text-tertiary); }
-/* [03] 音乐：最新 4 张专辑一行（2026-11-21）：方形封面（细线框，同奇趣卡的线和底色；没封面 = 音符占位）+ 专辑名一行 + 歌手一行等宽小字。
+/* [04] 奇趣：最新 4 条收藏（奇趣重组 PR 2 起奇趣 = 发现，取代 finds / devices / games 三张目录卡）：细线小卡（线、底色同原目录卡 / 音乐封面框），
+   上一行收藏名（放不下省略号），下一行所在分类等宽小字；桌面四栏、手机两栏。 */
+.home-finds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+:root:not([data-sgx-layout="desktop"]) .home-finds { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.home-find { display: block; box-sizing: border-box; height: 100%; min-width: 0; padding: 14px 16px; border: 1px solid var(--sgx-term-line); border-radius: 12px;
+  background: color-mix(in srgb, var(--sgx-surface-container-low) 70%, transparent); color: var(--sgx-text-primary); text-decoration: none; transition: border-color .15s ease; }
+.home-find:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+.home-find-t { display: block; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; line-height: 1.6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root:not([data-sgx-layout="desktop"]) .home-find-t { font-size: 14px; }
+.home-find-c { display: block; margin-top: 2px; font-family: var(--sgx-font-mono); font-size: 11px; line-height: 1.6; color: var(--sgx-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-find-c:empty { display: none; }
+@media (hover: hover) and (pointer: fine) { .home-find:hover { border-color: var(--sgx-primary); } .home-find:hover .home-find-t { color: var(--sgx-primary); } }
+/* [03] 音乐：最新 4 张专辑一行（2026-11-21；[05] 游戏最新 4 个同一套 .home-albs / .home-alb，封面占位换成手柄、第二行是状态）：方形封面（细线框，同奇趣卡的线和底色；没封面 = 音符占位）+ 专辑名一行 + 歌手一行等宽小字。
    手机四栏铺满（封面约 85px）；桌面按六栏的宽度排、靠左（封面约 165px，不让四张大图压过别的节）；名字放不下省略号。 */
 .home-albs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
 :root:not([data-sgx-layout="desktop"]) .home-albs { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }

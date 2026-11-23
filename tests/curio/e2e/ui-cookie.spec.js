@@ -70,8 +70,9 @@ test('语言：合法 cookie 带 lang=en → 中文页换到英文同一页（�
   await setup(page);
   await setCookie(context, enc({ v: 2, mode: 'light', pal: 'dustyblue', lang: 'en' }));
   /* P4-3 奇趣拆页：分区是子页，hash 只剩发现的 #c/<分类> */
-  await page.goto('/curio/zh/finds/#c/2');
-  await expect(page).toHaveURL(/:\d+\/curio\/finds\/#c\/2$/);
+  /* 奇趣重组 PR 2：/curio/finds/ 不再有页（301 到首页），发现就是奇趣首页 */
+  await page.goto('/curio/zh/#c/2');
+  await expect(page).toHaveURL(/:\d+\/curio\/#c\/2$/);
   await setCookie(context, enc({ v: 3, mode: 'light', lang: 'en' }));
   await page.goto('/curio/zh/');
   await expect(page).toHaveURL(/:\d+\/curio\/zh\/$/);

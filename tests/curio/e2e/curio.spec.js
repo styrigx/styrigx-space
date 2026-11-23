@@ -1,9 +1,10 @@
 // 奇趣（手机）：接口用 page.route 假数据，不碰线上。2026-11 对齐 PR-C2（设计稿 pg=curio / citem）：首页 /curio/ 就是「发现」，
-//   分区 /curio/finds/、/devices/、/games/、/movies/（中文 /curio/zh/…）是页头的下划线 tab（#cu-tabs）；音乐是自己的子站 /music/，Gray 2026-11-22 起奇趣 tab 行不再有 music/。电影、音乐的用例在 curio-movies-music.spec.js。
-// - 顶栏：字标 · 页名胶囊（首页 = 奇趣，子页 = 子页名）· 外观 · 盾牌 · >_ · 头像；页头 tab 带计数，音乐 tab 仅本人可见
+//   分区 /curio/devices/、/movies/（中文 /curio/zh/…）；奇趣重组 PR 2 起页头没有分区 tab 行（#cu-tabs 只剩 grep 一行），/curio/finds/ 301 到首页，
+//   游戏是第五个子站 /games/（用例在 games.spec.js），音乐是自己的子站 /music/。电影、音乐的用例在 curio-movies-music.spec.js。
+// - 顶栏：字标 · 页名胶囊（首页 = 奇趣，子页 = 子页名）· 外观 · 盾牌 · >_ · 头像；页头没有分区 tab
 // - 账号没登录（canManage=false）：命令链里没有「收藏 / 管理分类 / 导入 / 导出」，只有「su · su 登录后可编辑」打开顶栏终端预填 su （2c，v6 割接）；封面卡点开新标签页；图标取不到显示首字母
-// - 分类 chips 筛选 + hash；grep 行内过滤；排序；分页条；旧 hash 地址（#devices、#games）在首页转到子页（#c/<分类> 就地生效）；左右滑切分区已删
-// - 设备 / 游戏：账号没登录只读；条目页 ?id=（取代详情弹层：面包屑、spec 表、换代互链、cd .. / cd ../next）；能编辑时新建（照片缩图后上传）、条目页里编辑、删除；使用天数
+// - 分类 chips 筛选 + hash；grep 行内过滤；排序；分页条；旧 hash 地址 #devices 在首页转到设备子页（#games 奇趣重组 PR 2 起不再跳；#c/<分类> 就地生效）；左右滑切分区已删
+// - 设备：账号没登录只读；条目页 ?id=（取代详情弹层：面包屑、spec 表、换代互链、cd .. / cd ../next）；能编辑时新建（照片缩图后上传）、条目页里编辑、删除；使用天数
 // - 能编辑（canManage + showPrivate）：私密带锁；没有「su 登录后可编辑」；收藏 → 填网址自动补全 → 保存发 link.add；长按卡片编辑、删除要确认；管理分类；导入发原文
 // - 英文页
 const { test, expect } = require('@playwright/test');
@@ -92,7 +93,7 @@ async function mock(page, signedIn) {
 
 test('组权限 v1.1：只有 curio-use（showPrivate true、canManage false）——看得到私密收藏 / 设备，但不画收藏 / 管理分类 / 导入 / 导出，长按 / E 不开编辑', async ({ page }) => {
   await mock(page, 'use');
-  await page.goto('/curio/zh/finds/');
+  await page.goto('/curio/zh/');
   await expect(page.locator('.cu-cc')).toHaveCount(3);
   await expect(page.locator('.cu-lock').first()).toBeVisible();
   for (const id of ['#cu-fab', '#menu-cats', '#menu-import', '#menu-export']) await expect(page.locator(id)).toBeHidden();
@@ -105,18 +106,13 @@ test('组权限 v1.1：只有 curio-use（showPrivate true、canManage false）�
   await expect(page.locator('#dv-fab')).toBeHidden();
 });
 
-test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab 藏着）；没有收藏 / 管理分类 / 导入 / 导出命令、只看公开、图标取不到显示首字母；快捷面板导航页同主站', async ({ page }) => {
+test('账号未登录：首页就是发现（奇趣重组 PR 2：没有分区 tab 行）；没有收藏 / 管理分类 / 导入 / 导出命令、只看公开、图标取不到显示首字母；快捷面板导航页同主站', async ({ page }) => {
   await mock(page, false);
   await page.goto('/curio/zh/');
-  /* 对齐 PR-C2：首页 = ls curio/，下划线 tab finds/ devices/ games/ movies/（Gray 2026-11-22：music/ 去掉，音乐是自己的子站），当前 finds/ */
+  /* 对齐 PR-C2：首页 = ls curio/；奇趣重组 PR 2：下划线分区 tab 行（含计数）去掉，#cu-tabs 只剩 grep 一行 */
   await expect(page.locator('.sgx-ph-cmd')).toHaveText('nobody@space:~$ ls curio/', { useInnerText: true });
-  await expect(page.locator('#cu-tabs .sgx-ctab-a')).toHaveCount(4);
-  await expect(page.locator('#cu-tabs .sgx-ctab-a:visible')).toHaveText([/^finds\/\s*2$/, /^devices\/\s*2$/, /^games\/\s*2$/, /^movies\//]);
-  await expect(page.locator('#cu-tabs [data-ctab="music"], #cu-tabs a[href*="/music/"]')).toHaveCount(0);
-  await expect(page.locator('#cu-tabs [data-ctab="finds"]')).toHaveAttribute('aria-current', 'page');
-  for (const [id, href] of [['finds', '/curio/zh/finds/'], ['devices', '/curio/zh/devices/'], ['games', '/curio/zh/games/'], ['movies', '/curio/zh/movies/']]) {
-    await expect(page.locator(`#cu-tabs [data-ctab="${id}"]`)).toHaveAttribute('href', href);
-  }
+  await expect(page.locator('#cu-tabs .sgx-ctab-a, #cu-tabs [data-ctab], [data-cu-count]')).toHaveCount(0);
+  await expect(page.locator('#cu-tabs [data-cu-grep]')).toBeVisible();
   await expect(page.locator('#cu-entries, #cu-segs, .sgx-ents, .sgx-segs, #cu-menu-btn')).toHaveCount(0);
   await expect(page.locator('#cu-pane-finds')).toBeVisible();
   await expect(page.locator('.sgx-tb-pill .sgx-seg, .sgx-tb-pill [role="tab"]')).toHaveCount(0);
@@ -124,11 +120,6 @@ test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab �
   await expect(page.locator('.sgx-tb-title')).not.toHaveAttribute('data-sgx-titles', /./);
   /* 顶栏 v3 不显示页名（标记留着） */
   await expect(page.locator('.sgx-tb-title')).toBeHidden();
-  await page.locator('#cu-tabs [data-ctab="finds"]').click();
-  await expect(page).toHaveURL(/\/curio\/zh\/finds\/$/);
-  await expect(page.locator('.sgx-tb-title')).toHaveText('发现');
-  await expect(page.locator('.sgx-ph-cmd')).toHaveText('nobody@space:~$ ls curio/finds/', { useInnerText: true });
-  await expect(page.locator('#cu-pane-finds')).toBeVisible();
   await expect(page.locator('#cu-q')).toHaveCount(0);
   await expect(page.locator('#cu-chips [data-cat]')).toHaveText([/^全部\s*2$/, /^开发与云\s*1$/, /^网络检测\s*1$/]);
   await expect(page.locator('.cu-cc')).toHaveCount(2);
@@ -176,11 +167,12 @@ test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab �
   await expect(page.locator('footer')).toHaveCount(1);
   await expect(page.locator('footer.sgx-foot .sgx-foot-win a[aria-current="page"]')).toHaveAttribute('data-win', 'curio');
   await expect(page.getByText('Powered by')).toHaveCount(0);
-  /* NAVIGATE 面板 #sgx-nav（主站共享外壳 nav.json）：00 主页 · 01 博客 · 02 日刻 · 03 音乐 · 04 奇趣（Gray 2026-11-21；旧 05 旷野 2026-11-12 删除），奇趣是当前项；主站项绝对地址，子站之间同源相对；没有搜索框 */
+  /* NAVIGATE 面板 #sgx-nav（主站共享外壳 nav.json）：00 主页 · 01 博客 · 02 日刻 · 03 音乐 · 04 奇趣 · 05 游戏（Gray 2026-11-21；旧 05 旷野 2026-11-12 删除，奇趣重组 PR 2 追加 05 游戏），奇趣是当前项；主站项绝对地址，子站之间同源相对；没有搜索框 */
   await page.locator('.sgx-tb-grid').click();
   await expect(page.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
-  await expect(page.locator('#sgx-nav .sgx-nav-tile .sgx-nav-name')).toHaveText(['主页', '博客', '日刻', '音乐', '奇趣']);
-  await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('04/04');
+  await expect(page.locator('#sgx-nav .sgx-nav-tile .sgx-nav-name')).toHaveText(['主页', '博客', '日刻', '音乐', '奇趣', '游戏']);
+  await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('04/05');
+  await expect(page.locator('#sgx-nav [data-nav="games"]')).toHaveAttribute('href', '/games/zh/');
   await expect(page.locator('#sgx-nav [data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/zh/');
   await expect(page.locator('#sgx-nav [data-nav="curio"]')).toHaveAttribute('href', '/curio/zh/');
   await expect(page.locator('#sgx-nav [data-nav="daymark"]')).toHaveAttribute('href', '/daymark/zh/');
@@ -209,7 +201,7 @@ test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab �
 
 test('分类 chips 筛选并写 hash，刷新还在；grep 行内过滤（Esc 收起）；排序「名称」重排；分页滚动加载更多', async ({ page }) => {
   await mock(page, false);
-  await page.goto('/curio/zh/finds/');
+  await page.goto('/curio/zh/');
   await expect(page.locator('#cu-chips [data-cat]')).toHaveText([/^全部/, /^开发与云/, /^网络检测/]);
   await page.locator('#cu-chips [data-cat="2"]').click();
   await expect(page).toHaveURL(/#c\/2$/);
@@ -244,11 +236,10 @@ test('分页：先显示一页（手机 8 张），分页条滚进视口再加�
   await mock(page, false);
   const many = [{ id: 1, name: { zh: '很多', en: '' }, private: false, links: Array.from({ length: 11 }, (_, i) => ({ id: 200 + i, url: `https://s${i}.example/`, name: { zh: '站' + i, en: '' }, desc: { zh: '', en: '' }, icon: '', private: false })) }];
   await page.route('**/api/links**', (r) => r.fulfill({ json: { ok: true, canManage: false, showPrivate: false, cats: many } }));
-  await page.goto('/curio/zh/finds/');
+  await page.goto('/curio/zh/');
   await expect(page.locator('.cu-cc')).toHaveCount(11);
   await expect(page.locator('.cu-cc:visible')).toHaveCount(8);
   await expect(page.locator('[data-pg-count]')).toHaveText('-- 8 / 11 --');
-  await expect(page.locator('#cu-tabs [data-cu-count="finds"]')).toHaveText('11');
   await page.locator('[data-cu-pager]').scrollIntoViewIfNeeded();
   await expect(page.locator('[data-pg-count]')).toHaveText('-- 11 / 11 --');
   await expect(page.locator('.cu-cc:visible')).toHaveCount(11);
@@ -256,7 +247,7 @@ test('分页：先显示一页（手机 8 张），分页条滚进视口再加�
 
 test('账号已登录（可写）：私密带锁、空分类也在；收藏 → 自动填写 → 保存发 link.add', async ({ page }) => {
   const calls = await mock(page, true);
-  await page.goto('/curio/zh/finds/');
+  await page.goto('/curio/zh/');
   for (const id of ['#cu-fab', '#menu-cats', '#menu-import', '#menu-export']) await expect(page.locator(id)).toBeVisible();
   await expect(page.locator('#cu-fab .sgx-cmd-k')).toHaveText('touch curio/finds/ +');
   await expect(page.locator('#cu-signin')).toBeHidden();
@@ -281,7 +272,7 @@ test('账号已登录（可写）：私密带锁、空分类也在；收藏 → 
 
 test('账号已登录（可写）：长按卡片编辑，删除要确认', async ({ page }) => {
   const calls = await mock(page, true);
-  await page.goto('/curio/zh/finds/');
+  await page.goto('/curio/zh/');
   const tile = page.locator('.cu-cc[data-id="21"]');
   const box = await tile.boundingBox();
   await page.mouse.move(box.x + 20, box.y + 20);
@@ -300,7 +291,7 @@ test('账号已登录（可写）：长按卡片编辑，删除要确认', async
 
 test('账号已登录（可写）：管理分类新建；导入把文件原文发给 /api/import（默认私密）并显示结果', async ({ page }) => {
   const calls = await mock(page, true);
-  await page.goto('/curio/zh/finds/');
+  await page.goto('/curio/zh/');
   await page.locator('#menu-cats').click();
   await expect(page.locator('#cats-list .cu-catrow')).toHaveCount(3);
   await expect(page.locator('#cats-list .cu-catrow[data-id="1"] [data-act="del"]')).toBeDisabled();
@@ -324,16 +315,12 @@ test('账号已登录（可写）：管理分类新建；导入把文件原文�
   await expect(page.locator('.cu-cc[data-id="91"]')).toHaveCount(1);
 });
 
-test('英文页：tab 提示、分类名、命令说明用英文（英文空时退回中文）', async ({ page }) => {
+test('英文页：分类名、命令说明用英文（英文空时退回中文）；没有分区 tab（奇趣重组 PR 2）', async ({ page }) => {
   await mock(page, true);
   await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
   await page.goto('/curio/');
-  expect(await page.locator('#cu-tabs .sgx-ctab-a').evaluateAll((els) => els.map((e) => e.getAttribute('title')))).toEqual(['Finds', 'Devices', 'Games', 'Movies']);
   await expect(page.locator('.sgx-tb-title')).toHaveText('Curio');
-  await expect(page.locator('#cu-tabs [data-ctab="finds"]')).toHaveAttribute('href', '/curio/finds/');
-  await expect(page.locator('#cu-tabs [data-ctab="music"]')).toHaveCount(0);
-  await page.goto('/curio/finds/');
-  await expect(page.locator('.sgx-tb-title')).toHaveText('Finds');
+  await expect(page.locator('#cu-tabs [data-ctab]')).toHaveCount(0);
   await expect(page.locator('#cu-chips [data-cat]')).toHaveText([/^All/, /^Dev & Cloud/, /^Network Tests/, /^私房/]);
   await expect(page.locator('#menu-cats i')).toHaveText('categories');
   await expect(page.locator('.cu-cc[data-id="11"]')).toHaveAttribute('title', /^Code hosting · /);
@@ -343,7 +330,7 @@ test('英文页：tab 提示、分类名、命令说明用英文（英文空时�
 
 /* ================= 子页：设备 / 游戏（P4-3 奇趣拆页） ================= */
 
-test('旧 hash 地址在首页转到子页（客户端兼容，不是 301）：#devices → 设备、#games → 游戏；#c/<分类> 首页就地筛选；子页胶囊 = 子页名，没有左右滑', async ({ page }) => {
+test('旧 hash 地址在首页转到子页（客户端兼容，不是 301）：#devices → 设备；#games 不再跳（奇趣重组 PR 2，游戏是子站 /games/）；#c/<分类> 首页就地筛选；子页胶囊 = 子页名，没有左右滑', async ({ page }) => {
   await mock(page, true);
   await page.goto('/curio/zh/#devices');
   await expect(page).toHaveURL(/\/curio\/zh\/devices\/$/);
@@ -353,17 +340,16 @@ test('旧 hash 地址在首页转到子页（客户端兼容，不是 301）：#
   await expect(page.locator('#dv-fab')).toBeVisible();
   await expect(page.locator('#cu-pane-games, #cu-pane-finds, #gm-fab, #cu-fab, #gm-edit-wrap')).toHaveCount(0);
   await page.goto('/curio/zh/#games');
-  await expect(page).toHaveURL(/\/curio\/zh\/games\/$/);
-  await expect(page.locator('.sgx-tb-title')).toHaveText('游戏');
-  await expect(page.locator('#gm-fab')).toBeVisible();
-  await expect(page.locator('#dv-fab, #dv-edit-wrap')).toHaveCount(0);
+  await expect(page).toHaveURL(/\/curio\/zh\/#games$/);
+  await expect(page.locator('#cu-pane-finds')).toBeVisible();
+  await expect(page.locator('#gm-fab, #gm-edit-wrap')).toHaveCount(0);
   await page.goto('/curio/zh/#c/2');
   await expect(page).toHaveURL(/\/curio\/zh\/#c\/2$/);
   await expect(page.locator('#cu-chips [data-cat="2"]')).toHaveAttribute('aria-selected', 'true');
   await chooseLang(page, 'en');
-  await page.goto('/curio/#games');
-  await expect(page).toHaveURL(/\/curio\/games\/$/);
-  await expect(page.locator('.sgx-tb-title')).toHaveText('Games');
+  await page.goto('/curio/#devices');
+  await expect(page).toHaveURL(/\/curio\/devices\/$/);
+  await expect(page.locator('.sgx-tb-title')).toHaveText('Devices');
   await chooseLang(page, 'system');
   /* 没有 hash / 不认识的 hash：留在首页 */
   await page.goto('/curio/zh/#nope');
@@ -379,7 +365,7 @@ test('旧 hash 地址在首页转到子页（客户端兼容，不是 301）：#
   await expect(page).toHaveURL(/\/curio\/zh\/devices\/$/);
 });
 
-test('账号未登录：设备 / 游戏只读（没有新建命令、条目页没有编辑）；看不到私密设备；退役的标出来；使用天数算到退役日；条目页 ?id= 换代互链、返回键回列表', async ({ page }) => {
+test('账号未登录：设备只读（没有新建命令、条目页没有编辑；游戏只读搬到 games.spec.js）；看不到私密设备；退役的标出来；使用天数算到退役日；条目页 ?id= 换代互链、返回键回列表', async ({ page }) => {
   await mock(page, false);
   await page.goto('/curio/zh/devices/');
   await expect(page.locator('#dv-list .it-name')).toHaveText(['Galaxy S23', 'Galaxy S25 Ultra']);
@@ -424,14 +410,6 @@ test('账号未登录：设备 / 游戏只读（没有新建命令、条目页�
   await expect(page.locator('#cu-item .sgx-item-t')).toHaveText('Galaxy S25 Ultra');
   await page.goto('/curio/zh/devices/?id=3');
   await expect(page.locator('#cu-item .sgx-item-p')).toHaveText('这个条目不存在，或者你看不到它。');
-  await page.goto('/curio/zh/games/');
-  await expect(page.locator('.sgx-tb-title')).toHaveText('游戏');
-  /* 游戏列表默认按「最近」排（编号大的在前，curio-list.js） */
-  await expect(page.locator('#gm-list .it-name')).toHaveText(['Hades II', '塞尔达传说 王国之泪']);
-  await expect(page.locator('#gm-list [data-game="7"] .it-stars-ro')).toHaveText('★★★★★');
-  await page.locator('#gm-chips [data-f="playing"]').click();
-  await expect(page.locator('#gm-list .it-name')).toHaveText(['Hades II']);
-  await expect(page.locator('#gm-fab')).toBeHidden();
 });
 
 test('账号已登录（可写）：添加设备（类型、日期、照片缩图转 webp 上传），详情里编辑成退役并选换成的那台；删除要确认', async ({ page }) => {
@@ -504,100 +482,4 @@ test('账号已登录（可写）：添加设备（类型、日期、照片缩�
   await expect(page.locator('#cu-pane-devices')).toBeVisible();
 });
 
-test('账号已登录（可写）：添加游戏（状态、评分、平台联想、关联设备）', async ({ page }) => {
-  const calls = await mock(page, true);
-  await page.goto('/curio/zh/games/');
-  await page.locator('#gm-fab').click();
-  await expect(page.locator('#gm-edit-title')).toHaveText('添加游戏');
-  await expect(page.locator('#gm-status [aria-checked="true"]')).toHaveText('想玩');
-  await expect(page.locator('#gm-platforms option')).toHaveCount(2);
-  await page.locator('#gm-title').fill('绝区零');
-  await page.locator('#gm-status [data-s="playing"]').click();
-  await page.locator('#gm-platform').fill('Android');
-  await page.locator('#gm-device').selectOption('2');
-  await page.locator('#gm-rating [data-r="4"]').click();
-  await expect(page.locator('#gm-rating .it-star-btn.on')).toHaveCount(4);
-  await page.locator('#gm-rating [data-r="4"]').click();
-  await expect(page.locator('#gm-rating .it-star-btn.on')).toHaveCount(0);
-  await page.locator('#gm-rating [data-r="3"]').click();
-  await page.locator('#gm-review').fill('上头');
-  await page.locator('#gm-save').click();
-  await expect(page.locator('#gm-edit-wrap')).not.toHaveClass(/open/);
-  expect(calls.find((c) => c.op === 'game.add')).toMatchObject({ title: '绝区零', status: 'playing', rating: 3, platform: 'Android', device_id: 2, review: '上头', private: false });
-  expect(calls.some((c) => c.photo)).toBe(false);
-  /* 列表默认按「最近」排（新加的在前，curio-list.js 排序），按名字找这张卡 */
-  const card = page.locator('#gm-list .it-cc').filter({ hasText: '绝区零' });
-  await expect(card).toHaveCount(1);
-  await expect(card.locator('.sgx-cc-m')).toHaveText('games · Android · Galaxy S25 Ultra');
-  await expect(card.locator('.it-status')).toHaveText('在玩');
-});
-
-/* 一张左右两半不同色的图：裁剪后看缩略图左上角的颜色就知道框住了哪一块 */
-async function halves(page, w, h) {
-  const b64 = await page.evaluate(([w, h]) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); g.fillStyle = '#d33'; g.fillRect(0, 0, w / 2, h); g.fillStyle = '#33d'; g.fillRect(w / 2, 0, w / 2, h); return c.toDataURL('image/png').split(',')[1]; }, [w, h]);
-  return Buffer.from(b64, 'base64');
-}
-const frameBox = (page) => page.locator('.cu-crop-frame').boundingBox();
-
-test('账号已登录（可写）：游戏封面「移动和缩放」——框是卡片的 3:4；拖动换位置；取消不改；点缩略图重新调整；Esc 只关裁剪', async ({ page }) => {
-  const calls = await mock(page, true);
-  await page.goto('/curio/zh/games/');
-  await page.locator('#gm-list [data-game="8"]').click();
-  await page.locator('#cu-item [data-item-edit]').click();
-  await expect(page.locator('#gm-photo-prev')).toBeDisabled();
-  const png = await halves(page, 2000, 1000); /* 3:4 框按高盖满：框住 750×1000，只占一半宽 */
-  await page.locator('#gm-photo').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: png });
-  await expect(page.locator('dialog.cu-crop')).toBeVisible();
-  const fb = await frameBox(page);
-  expect(Math.abs(fb.width / fb.height - 3 / 4)).toBeLessThan(0.01);
-  /* 往右拖到头 → 框住左边（红） */
-  const cx = fb.x + fb.width / 2, cy = fb.y + fb.height / 2;
-  await page.mouse.move(cx, cy); await page.mouse.down(); await page.mouse.move(cx + 300, cy, { steps: 6 }); await page.mouse.up();
-  await page.locator('[data-crop-done]').click();
-  await expect(page.locator('dialog.cu-crop')).toBeHidden();
-  const px = (sel) => page.locator(sel).evaluate((i) => new Promise((ok) => {
-    const go = () => { const c = document.createElement('canvas'); c.width = i.naturalWidth; c.height = i.naturalHeight; const g = c.getContext('2d'); g.drawImage(i, 0, 0);
-      const d = g.getImageData(2, 2, 1, 1).data, e = g.getImageData(c.width - 3, 2, 1, 1).data; ok({ size: c.width + 'x' + c.height, left: d[0] > d[2] ? 'red' : 'blue', right: e[0] > e[2] ? 'red' : 'blue' }); };
-    i.complete && i.naturalWidth ? go() : (i.onload = go);
-  }));
-  expect(await px('#gm-photo-prev img')).toEqual({ size: '750x1000', left: 'red', right: 'red' });
-  await expect(page.locator('#gm-photo-prev')).toBeEnabled();
-  await expect(page.locator('#gm-photo-prev')).toHaveAttribute('aria-label', '调整照片');
-  const before = await page.locator('#gm-photo-prev img').getAttribute('src');
-  /* 重新调整：点缩略图回到裁剪，拖到另一头再取消 → 不变 */
-  await page.locator('#gm-photo-prev').click();
-  await expect(page.locator('dialog.cu-crop')).toBeVisible();
-  await page.mouse.move(cx, cy); await page.mouse.down(); await page.mouse.move(cx - 300, cy, { steps: 6 }); await page.mouse.up();
-  await page.getByRole('button', { name: '取消' }).click();
-  await expect(page.locator('dialog.cu-crop')).toBeHidden();
-  expect(await page.locator('#gm-photo-prev img').getAttribute('src')).toBe(before);
-  /* 再点一次，拖到右边，Esc：裁剪关了，编辑弹层还开着，图也不变 */
-  await page.locator('#gm-photo-prev').click();
-  await expect(page.locator('dialog.cu-crop')).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.locator('dialog.cu-crop')).toBeHidden();
-  await expect(page.locator('#gm-edit-wrap')).toHaveClass(/open/);
-  expect(await page.locator('#gm-photo-prev img').getAttribute('src')).toBe(before);
-  /* 第三次：接着上次位置往左拖两下到头（框住右半边）完成 → 全蓝 */
-  await page.locator('#gm-photo-prev').click();
-  await expect(page.locator('dialog.cu-crop')).toBeVisible();
-  for (let i = 0; i < 2; i++) { await page.mouse.move(cx + 100, cy); await page.mouse.down(); await page.mouse.move(cx - 200, cy, { steps: 6 }); await page.mouse.up(); }
-  await page.locator('[data-crop-done]').click();
-  await expect.poll(() => px('#gm-photo-prev img')).toEqual({ size: '750x1000', left: 'blue', right: 'blue' });
-  /* 选新图后取消：还是上一张 */
-  const now = await page.locator('#gm-photo-prev img').getAttribute('src');
-  await page.locator('#gm-photo').setInputFiles({ name: 'other.png', mimeType: 'image/png', buffer: png });
-  await expect(page.locator('dialog.cu-crop')).toBeVisible();
-  await page.locator('[data-crop-cancel]').click();
-  expect(await page.locator('#gm-photo-prev img').getAttribute('src')).toBe(now);
-  /* 保存才上传 */
-  expect(calls.some((c) => c.photo)).toBe(false);
-  await page.locator('#gm-save').click();
-  await expect.poll(() => calls.find((c) => c.photo === 'POST')).toBeTruthy();
-  expect(calls.find((c) => c.photo === 'POST').url).toContain('kind=game&id=8');
-  await expect(page.locator('#gm-list [data-game="8"] .sgx-cc-im img')).toHaveCount(1);
-  await expect(page.locator('#cu-item .sgx-item-im img')).toHaveCount(1);
-  /* 已保存的照片：缩略图不能点（只有刚选、还没保存的图能重新调整） */
-  await page.locator('#cu-item [data-item-edit]').click();
-  await expect(page.locator('#gm-photo-prev')).toBeDisabled();
-});
+/* 游戏的添加 / 封面裁剪用例奇趣重组 PR 2 起在 games.spec.js（/games/、/games/api/*） */

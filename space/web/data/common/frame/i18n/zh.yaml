@@ -76,7 +76,7 @@ nav:
     sub: "风格、安全与作息"
   curio:
     title: "奇趣"
-    sub: "收藏、设备与游戏"
+    sub: "收藏与发现"
   daymark:
     title: "日刻"
     sub: "每天刻下一句"
@@ -86,6 +86,9 @@ nav:
   music:
     title: "音乐"
     sub: "专辑与单曲"
+  games:
+    title: "游戏"
+    sub: "在玩与玩过"
   title: "NAVIGATE"
   status: "STATUS"
   statusPending: "待接入"
@@ -105,6 +108,7 @@ foot:
     curio: "curio"
     daymark: "daymark"
     music: "music"
+    games: "games"
   status: "服务状态"
   clock: "北京时间"
   langs: "语言"

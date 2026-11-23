@@ -1,7 +1,8 @@
 /**
  * 2026-11 对齐 PR-B（设计稿 tb4.html）：主页的纯函数（[04] 旷野小卡 2026-11-12 删除，statusSummary 只给首屏状态胶囊用）。
  * （lib/wb-view.js 的 fmtShort / charBar / termRows / renderWbTerm 用例 v6 P4 随数字健康整套删除，定稿 v5.5 §四）
- * - apps/index.js：musicLatest（[03] 音乐 最新 4 张专辑，2026-11-21）、curioSummary（[04] 奇趣三个目录卡的计数和那一条；2026-11-21 前是 [02]）、statusSummary（外壳六格状态的摘要：up/n、平均延迟、检查时间；首屏胶囊用 up/n）
+ * - apps/index.js：musicLatest（[03] 音乐 最新 4 张专辑，2026-11-21）、curioLatest（[04] 奇趣 最新 4 条收藏；奇趣重组 PR 2 前是三个目录卡的 curioSummary）、
+ *   gamesLatest（[05] 游戏 最新 4 个，奇趣重组 PR 2）、statusSummary（外壳六格状态的摘要：up/n、平均延迟、检查时间；首屏胶囊用 up/n）
  * 运行：node --test tests/space/ui/home/home-summary.test.mjs
  */
 import { test } from 'node:test';
@@ -9,31 +10,58 @@ import assert from 'node:assert/strict';
 import { installI18nDom } from '../../../fixtures/i18n-dom.mjs';
 
 installI18nDom('zh');
-const { curioSummary, statusSummary, musicLatest, MUSIC_LATEST_N } = await import('../../../../space/web/assets/common/js/frame/apps/index.js');
+const { curioLatest, CURIO_LATEST_N, gamesLatest, GAMES_LATEST_N, statusSummary, musicLatest, MUSIC_LATEST_N } = await import('../../../../space/web/assets/common/js/frame/apps/index.js');
 
-test('curioSummary：finds = 全部链接数 + id 最大的那条（按语言取名，缺了回退 / 域名）；devices 在用 = 第一台没退役；games 在玩 = 第一个 playing', () => {
+test('curioLatest：所有分类的收藏按 id 从新到旧取前 4 条；名字 / 分类名按语言取（缺了回退另一种，收藏名再缺用域名）；链接 = 奇趣首页这个分类 #c/<分类 id>', () => {
+  assert.equal(CURIO_LATEST_N, 4);
   const links = { ok: true, cats: [
-    { links: [{ id: 3, name: { zh: '三', en: 'Three' }, url: 'https://a.com' }, { id: 9, name: { en: 'Nine' }, url: 'https://b.com' }] },
-    { links: [{ id: 5, name: '', url: 'https://c.example.org/x' }, null] },
+    { id: 1, name: { zh: '工具', en: 'Tools' }, links: [{ id: 3, name: { zh: '三', en: 'Three' }, url: 'https://a.com' }, { id: 9, name: { en: 'Nine' }, url: 'https://b.com' }] },
+    { id: 2, name: { zh: '', en: 'Reading' }, links: [{ id: 5, name: '', url: 'https://c.example.org/x' }, null, { id: 1, name: { zh: '一' }, url: 'https://d.com' }] },
+    { id: 4, name: { zh: '空' }, links: [] },
     null,
+    { id: 6, name: { zh: '新', en: 'New' }, links: [{ id: 12, name: { zh: '十二', en: 'Twelve' }, url: 'not a url' }] },
   ] };
-  const items = { ok: true,
-    devices: [{ name: 'Old', retired_at: '2024-01-01' }, { name: 'Galaxy S26', retired_at: null }, { name: 'Tab' }],
-    games: [{ title: 'Zelda', status: 'done' }, { title: 'Hades II', status: 'playing' }] };
-  const zh = curioSummary(links, items, 'zh');
-  assert.deepEqual(zh.finds, { n: 3, latest: 'Nine' }, '缺中文回退英文');
-  assert.deepEqual(zh.devices, { n: 3, latest: 'Galaxy S26' });
-  assert.deepEqual(zh.games, { n: 2, latest: 'Hades II' });
-  assert.deepEqual(curioSummary({ ok: true, cats: [{ links: [{ id: 1, name: null, url: 'https://c.example.org/x' }] }] }, null, 'en').finds, { n: 1, latest: 'c.example.org' }, '没名字用域名');
-  assert.deepEqual(curioSummary({ ok: true, cats: [{ links: [{ id: 1, url: 'not a url' }] }] }, null, 'en').finds, { n: 1, latest: '' });
+  const zh = curioLatest(links, '/curio/zh/', 'zh');
+  assert.deepEqual(zh.map((x) => x.id), [12, 9, 5, 3], '最旧的 1 挤掉');
+  assert.deepEqual(zh[0], { id: 12, name: '十二', cat: '新', href: '/curio/zh/#c/6' });
+  assert.deepEqual(zh[1], { id: 9, name: 'Nine', cat: '工具', href: '/curio/zh/#c/1' }, '缺中文名回退英文');
+  assert.deepEqual(zh[2], { id: 5, name: 'c.example.org', cat: 'Reading', href: '/curio/zh/#c/2' }, '没名字用域名；分类缺中文回退英文');
+  const en = curioLatest(links, '/curio/', 'en', 2);
+  assert.deepEqual(en, [{ id: 12, name: 'Twelve', cat: 'New', href: '/curio/#c/6' }, { id: 9, name: 'Nine', cat: 'Tools', href: '/curio/#c/1' }]);
+  assert.equal(curioLatest({ ok: true, cats: [{ id: 1, name: {}, links: [{ id: 1, url: 'not a url' }] }] }, '/curio/', 'en')[0].name, '', '没名字、网址也坏 → 空名（页面写「—」）');
 });
 
-test('curioSummary：取不到 / ok:false → 对应项 null；空列表 → n 0 且那一条为空', () => {
-  assert.deepEqual(curioSummary(null, null, 'zh'), { finds: null, devices: null, games: null });
-  assert.deepEqual(curioSummary({ ok: false }, { ok: false }, 'zh'), { finds: null, devices: null, games: null });
-  assert.deepEqual(curioSummary({ ok: true, cats: [] }, { ok: true }, 'en'), { finds: { n: 0, latest: '' }, devices: { n: 0, latest: '' }, games: { n: 0, latest: '' } });
-  const all = curioSummary(null, { ok: true, devices: [{ name: 'A', retired_at: 'x' }], games: [{ title: 'B', status: 'done' }] }, 'en');
-  assert.deepEqual([all.devices, all.games], [{ n: 1, latest: '' }, { n: 1, latest: '' }], '全退役 / 没在玩 → 那一条为空');
+test('curioLatest：取不到 / ok:false / 没有分类表 → null；空 → []', () => {
+  assert.equal(curioLatest(null, '/curio/', 'zh'), null);
+  assert.equal(curioLatest({ ok: false }, '/curio/', 'zh'), null);
+  assert.equal(curioLatest({ ok: true }, '/curio/', 'zh'), null);
+  assert.deepEqual(curioLatest({ ok: true, cats: [] }, '/curio/', 'en'), []);
+  assert.deepEqual(curioLatest({ ok: true, cats: [{ id: 1, links: [] }] }, '/curio/', 'en'), []);
+});
+
+test('gamesLatest：不分状态、按 id 从新到旧取前 4 个；有封面才给 /games/api/cover?id=；链接 = 游戏页直达 ?game=<id>；状态只认四种', () => {
+  assert.equal(GAMES_LATEST_N, 4);
+  const j = { ok: true, games: [
+    { id: 1, title: 'Zelda', status: 'done', cover: true },
+    { id: 8, title: 'Hades II', status: 'playing', cover: true },
+    { id: 4, title: 'Balatro', status: 'shelved', cover: false },
+    { id: 6, title: '', status: 'weird', cover: false },
+    { id: 2, title: 'Celeste', status: 'want', cover: false },
+    null,
+    { id: 0, title: 'bad', status: 'want' },
+  ] };
+  const r = gamesLatest(j, '/games/zh/');
+  assert.deepEqual(r.map((x) => x.id), [8, 6, 4, 2], '最旧的 1 挤掉；id 0 不进');
+  assert.deepEqual(r[0], { id: 8, title: 'Hades II', status: 'playing', cover: '/games/api/cover?id=8', href: '/games/zh/?game=8' });
+  assert.deepEqual(r[1], { id: 6, title: '', status: '', cover: '', href: '/games/zh/?game=6' }, '不认识的状态给空串');
+  assert.deepEqual(gamesLatest(j, '/games/', 2).map((x) => x.href), ['/games/?game=8', '/games/?game=6']);
+});
+
+test('gamesLatest：取不到 / ok:false / 没有列表 → null；空列表 → []', () => {
+  assert.equal(gamesLatest(null, '/games/'), null);
+  assert.equal(gamesLatest({ ok: false }, '/games/'), null);
+  assert.equal(gamesLatest({ ok: true }, '/games/'), null);
+  assert.deepEqual(gamesLatest({ ok: true, games: [] }, '/games/'), []);
 });
 
 test('statusSummary：up / n、有数格子的平均延迟（四舍五入）、检查时间按北京时间 HH:MM', () => {

@@ -4,19 +4,6 @@
 site:
   name: Curio
   description: 'Sloan Gray''s Curio: good things found on the web, kept one by one'
-entries:
-  finds:
-    title: Finds
-    sub: Bookmarked finds by category
-  devices:
-    title: Devices
-    sub: Devices in use and retired
-  games:
-    title: Games
-    sub: Played, playing, want to play
-  movies:
-    title: Movies
-    sub: Films I love, with a line or two
 notFound:
   pageNotFound: Page not found
   thePageYoureLooking: The page you're looking for doesn't exist or has been moved.
@@ -86,26 +73,6 @@ finds:
   chooseFile: Choose file
   importAsOnlyMe: Import as only me
   import: Import
-games:
-  games: Games
-  filter: Filter
-  loading: Loading…
-  game: Game
-  close: Close
-  chooseCover: Choose cover
-  removeCover: Remove cover
-  title: Title
-  status: Status
-  platform: Platform
-  eGSwitchPc: e.g. Switch, PC
-  playedOn: Played on
-  version: Version
-  eGPhysicalDeluxe: e.g. physical, deluxe, 1.2
-  rating: Rating
-  thoughts: Thoughts
-  onlyMe: Only me
-  delete: Delete
-  save: Save
 movies:
   movies: Movies
   loading: Loading…
@@ -138,7 +105,6 @@ list:
   more: scroll for more
   pager: Pager
   loading: Loading…
-  tabs: Curio sections
 sort:
   recent: recently kept
   order: my order
@@ -149,7 +115,6 @@ sort:
 cmd:
   addFind: keep a find
   addDevice: add a device
-  addGame: add a game
   addMovie: add a movie
   cats: categories
   import: import bookmarks
@@ -213,16 +178,9 @@ js:
     kind_console: Console
     kind_camera: Camera
     kind_other: Other
-    status_want: Want to play
-    status_playing: Playing
-    status_done: Finished
-    status_shelved: On hold
     addDevice: Add a device
     editDevice: Edit device
-    addGame: Add a game
-    editGame: Edit game
     emptyDevAdmin: No devices yet. Use "add a device" above.
-    emptyGameAdmin: No games yet. Use "add a game" above.
     empty: Nothing here yet.
     noMatch: Nothing in this filter.
     needName: Give it a name.
@@ -235,7 +193,6 @@ js:
     notImage: That isn't a photo we can use.
     tooLarge: The photo is too large.
     delDevice: Delete this device?
-    delGame: Delete this game?
     del: Delete
     none: None
     priv: Only you can see this
@@ -249,17 +206,10 @@ js:
     notes: How it's been
     from: Replaced
     to: Replaced by
-    platform: Platform
-    'on': Played on
-    edition: Version
-    rating: Rating
-    review: Thoughts
-    stars: '{n} out of 5'
     crop: Move and scale
     cancel: Cancel
     done: Done
     adjust: Adjust photo
-    games: Games
     listSep: ', '
     days: '{n} days'
     aboutYears: ' · about {y} years'

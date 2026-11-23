@@ -71,27 +71,26 @@
   </div>
 </div>
 
-{{/* ===== 调整顺序（canManage，命令链「sort games/」）：全部游戏一行一个，上移 / 下移，保存 = POST game.order {ids}（全部 id 的新顺序；中途列表变了接口回 409 mismatch） ===== */}}
-<div id="gm-order-wrap" class="bk-overlay fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="gm-order-title">
-  <div class="bk-overlay-backdrop absolute inset-0" data-close="gm-order"></div>
-  <div class="bk-panel text-m-on-surface shadow-2xl">
-    <div class="sheet-handle"></div>
-    <div class="bk-titlebar">
-      <div class="bk-titlebar-side" aria-hidden="true"></div>
-      <div class="bk-titlebar-mid"><h2 id="gm-order-title" class="text-lg font-extrabold">{{ $tr.games.orderTitle }}</h2></div>
-      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="gm-order" aria-label="{{ $tr.games.close }}">{{ partial "games/icon-x.html" (dict "uid" "gmo-x") }}</button></div>
+{{/* ===== 调整顺序（canManage，命令链「sort games/」）：居中悬浮卡片 <dialog class="sgx-qp gm-dlg">（同音乐上传窗 .sgx-up 那种，不是底部抽屉；
+   共享外壳 .sgx-qp：顶栏下方铺满、dialog 本身是遮罩；共享 modalSheet：系统返回 / Esc / 点遮罩关）。外观在 games/css/input.css .gm-dlg / .gm-ord。
+   全部游戏一行一个：拖左边的把手、或点上移 / 下移；保存 = POST /games/api/games {op:'game.order', ids}（全部 id 的新顺序；中途列表变了接口回 409 mismatch） ===== */}}
+<dialog id="gm-order-wrap" class="sgx-qp gm-dlg gm-order" aria-labelledby="gm-order-title">
+  <div class="sgx-qp-sheet" tabindex="-1">
+    <div class="gm-dlg-head">
+      <h2 id="gm-order-title" class="gm-dlg-title">{{ $tr.games.orderTitle }}</h2>
+      <button id="gm-order-x" type="button" class="gm-dlg-x" aria-label="{{ $tr.games.close }}">{{ partial "games/icon-x.html" (dict "uid" "gmo-x") }}</button>
     </div>
-    <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 pb-4 flex flex-col gap-3">
-      <p class="text-xs text-m-on-surface-variant">{{ $tr.games.orderNote }}</p>
+    <div class="gm-dlg-body">
+      <p class="gm-dlg-note">{{ $tr.games.orderNote }}</p>
       <ol id="gm-order-list" class="gm-ord" data-l-up="{{ $tr.games.moveUp }}" data-l-down="{{ $tr.games.moveDown }}"></ol>
       <p id="gm-order-err" class="hidden text-sm text-m-error"></p>
     </div>
-    <div class="shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-[var(--sgx-divider)] flex gap-3">
-      <button type="button" class="flex-1 h-12 rounded-full bg-m-container text-m-on-surface text-[15px] font-bold" data-close="gm-order">{{ $tr.games.cancel }}</button>
-      <button id="gm-order-save" type="button" class="flex-1 h-12 rounded-full bg-m-primary-fill text-m-on-primary-fill text-[15px] font-bold">{{ $tr.games.save }}</button>
+    <div class="gm-dlg-foot">
+      <button id="gm-order-cancel" type="button" class="gm-dlg-no">{{ $tr.games.cancel }}</button>
+      <button id="gm-order-save" type="button" class="gm-dlg-go disabled:opacity-50">{{ $tr.games.save }}</button>
     </div>
   </div>
-</div>
+</dialog>
 
 {{/* 确认框 + 提示条（本站自己的 partials/games/common.html + games-ui.js，同 music） */}}
 {{ partial "games/common.html" (dict "tr" $tr) }}

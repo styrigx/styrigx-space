@@ -1,21 +1,22 @@
-/* assets/js/curio-items.js —— 奇趣「设备」「游戏」两个子页（P4-3 奇趣拆页：/curio/devices/、/curio/games/；浏览器 IIFE；node 测试时导出纯函数）。
+/* assets/js/curio-items.js —— 奇趣「设备」子页（P4-3 奇趣拆页：/curio/devices/；浏览器 IIFE；node 测试时导出纯函数）+ 电影子页借用的裁剪 / 照片状态。
+ * 奇趣重组 PR 2（2026-11-22）：游戏搬成第五个子站 /games/（games/js/games-page.js，接口 /games/api/*），这里的游戏部分（列表、筛选、条目页、编辑弹层、
+ *   「在它上面玩的游戏」一行）删掉了；接口仍是 /curio/api/items（回的 games 不再用）。设备部分 PR 3 才搬 / 删。
  *
  * 2026-11 对齐 PR-C2（设计稿 pg=curio / citem）：封面卡（.sgx-cc）+ 条目页（?id=，取代旧的详情弹层）。
  * 设备：卡片（照片 / 类型图标、「devices · 类型」、名字、在用 · 用了多少天），筛选 chips 全部 / 在用 / 已退役。
- *   点卡片 → 条目页（面包屑 cat ~/curio/devices/<名字>、大图、spec 表：状态、购买 / 退役、用了多少天、系统、参数、配件、换代历史、在它上面玩的游戏；体验当短评）。
+ *   点卡片 → 条目页（面包屑 cat ~/curio/devices/<名字>、大图、spec 表：状态、购买 / 退役、用了多少天、系统、参数、配件、换代历史；体验当短评）。
  *   使用天数不存，按 购买日期 → 退役日期（没退役就是今天）现算。
- * 游戏：卡片（封面、「games · 平台」、名字、状态 · 评分），筛选 chips 全部 / 想玩 / 在玩 / 通关 / 搁置。条目页有平台、在哪台设备上玩、版本、评分，评价当短评。
  * 条目页底部两卡：‹ cd ../prev（上一个；第一个时 cd .. 回列表）│ 相关文章 ›（博客里标题 / 标签提到它的那篇，relatedPost；没有就 cd ../next）。
  * 能编辑（接口回 canManage：curio-manage）：页头命令链「touch curio/<分区>/ +」新建；条目页里「vim …」编辑；编辑弹层里删除（要确认）。
  * 照片：选图 → 全屏「移动和缩放」（同主站头像裁剪：单指拖、双指 / 滚轮缩放，照片始终盖满取景框）。
- *   取景框 = 卡片显示的比例（设备 .it-media 4:3、游戏 .it-media--cover 3:4），裁好的图卡片里正好铺满、详情里完整显示。
+ *   取景框 = 卡片显示的比例（设备 .it-media 4:3），裁好的图卡片里正好铺满、详情里完整显示。
  *   完成 → 浏览器里裁成长边 ≤1200（电影海报 ≤1600；不放大）、转 webp（不支持就 jpeg），保存时再传；保存前点缩略图可以重新调整。
  *   电影子页（curio-movies.js）借用同一套裁剪和照片状态：window.SgxCurioPhoto.box(前缀, 'movie')（海报 2:3）。
  * 账号没登录：只读、只看公开的（showPrivate=false）；「su · su 登录后可编辑」那条命令在 curio.js（#cu-signin）。
  * 写请求 401 当锁定刷新。
  *
- * 数据：GET /api/items；写：POST /api/items {op}；照片：/api/photo?kind=device|game&id=（GET 图、POST 传、DELETE 删）。
- * 每个子页只有自己的面板和编辑弹层（设备页没有游戏的，反之亦然）：$() 找不到的元素给一个不挂在页面上的空 div，事件、画列表都落空，不用到处判断。
+ * 数据：GET /curio/api/items；写：POST /curio/api/items {op}；照片：/curio/api/photo?kind=device|movie&id=（GET 图、POST 传、DELETE 删）。
+ * 电影页只借裁剪和照片状态：$() 找不到的元素给一个不挂在页面上的空 div，事件、画列表都落空，不用到处判断。
  * 确认框、提示条、弹层开关、页底一行借 curio.js 的（window.SgxCurioUI）。
  */
 (function(){
@@ -24,7 +25,6 @@ var G = typeof globalThis !== 'undefined' ? globalThis : this;
 
 /* ================= 纯函数 ================= */
 var KINDS = ['phone', 'tablet', 'laptop', 'desktop', 'watch', 'audio', 'console', 'camera', 'other'];
-var STATUS = ['want', 'playing', 'done', 'shelved'];
 var DAY = 86400000;
 
 /** 'YYYY-MM-DD' → UTC 毫秒；不合格返回 NaN */
@@ -55,10 +55,6 @@ function daysText(n, tr){
 function filterDevices(list, f){
   return (list || []).filter(function(d){ return f === 'active' ? !d.retired_at : f === 'retired' ? !!d.retired_at : true; });
 }
-/** 游戏筛选：all 或某个状态 */
-function filterGames(list, f){
-  return (list || []).filter(function(g){ return !f || f === 'all' || g.status === f; });
-}
 /** 换代历史：before = 换成了这台的那些旧设备，after = 这台换成的那台（看不到就 null） */
 function lineage(devices, id){
   var byId = {};
@@ -68,12 +64,6 @@ function lineage(devices, id){
     before: (devices || []).filter(function(d){ return d.replaced_by === id; }),
     after: me && me.replaced_by ? byId[me.replaced_by] || null : null,
   };
-}
-/** 平台联想：已有游戏里出现过的平台，按次数多到少，去重 */
-function platformsOf(games){
-  var n = {};
-  (games || []).forEach(function(g){ var p = String(g.platform || '').trim(); if (p) n[p] = (n[p] || 0) + 1; });
-  return Object.keys(n).sort(function(a, b){ return n[b] - n[a] || a.localeCompare(b); });
 }
 /**
  * 条目的「相关文章」：库里没有关联字段，按名字在博客文章（标题 + 标签）里找。整个名字出现在标题里最好；
@@ -120,8 +110,8 @@ function fitSize(w, h, max){
 }
 
 /* ---- 裁剪的几何（照片在舞台上：左上角 (tx,ty)、缩放 k；取景框 f = {l,t,w,h}，舞台坐标） ---- */
-/** 卡片显示的比例（宽 / 高），和 CSS 里 .it-media（4/3）、.it-media--cover（3/4）一致 */
-var CROP_RATIO = { device: 4 / 3, game: 3 / 4, movie: 2 / 3 };
+/** 卡片显示的比例（宽 / 高），和 CSS 里 .it-media（4/3）、电影海报（2/3）一致（游戏封面 3:4 搬去 games-page.js） */
+var CROP_RATIO = { device: 4 / 3, movie: 2 / 3 };
 /** 取景框尺寸：按比例放进舞台，左右留 24、上下给标题和按钮留 220，宽不超过 520 */
 function cropFrame(stageW, stageH, ratio){
   var w = Math.max(1, Math.min(stageW - 48, 520)), h = w / ratio, mh = Math.max(1, stageH - 220);
@@ -192,17 +182,17 @@ function makeTr(dict, lang){
   };
 }
 
-var pure = { readDict: readDict, makeTr: makeTr, relatedPost: relatedPost, monthOf: monthOf, neighbors: neighbors, KINDS: KINDS, STATUS: STATUS, dateMs: dateMs, todayStr: todayStr, usedDays: usedDays, daysText: daysText, filterDevices: filterDevices, filterGames: filterGames, lineage: lineage, platformsOf: platformsOf, fitSize: fitSize,
+var pure = { readDict: readDict, makeTr: makeTr, relatedPost: relatedPost, monthOf: monthOf, neighbors: neighbors, KINDS: KINDS, dateMs: dateMs, todayStr: todayStr, usedDays: usedDays, daysText: daysText, filterDevices: filterDevices, lineage: lineage, fitSize: fitSize,
   CROP_RATIO: CROP_RATIO, cropFrame: cropFrame, coverScale: coverScale, clampView: clampView, centerView: centerView, cropSource: cropSource, viewFromSource: viewFromSource, cropOut: cropOut };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxCurioItems = pure;
 
 /* ================= 页面 ================= */
 var doc = G.document;
-var hasItems = !!(doc.getElementById('cu-pane-devices') || doc.getElementById('cu-pane-games'));
+var hasItems = !!doc.getElementById('cu-pane-devices');
 if (!hasItems && !doc.getElementById('mv-list')) return;
 var UI = G.SgxCurioUI;
-/* 本子页没有的部件（设备页的游戏弹层等）：给一个不挂在页面上的空 div，后面的事件绑定和 innerHTML 都落空 */
+/* 本子页没有的部件（电影页没有设备的面板等）：给一个不挂在页面上的空 div，后面的事件绑定和 innerHTML 都落空 */
 var $ = function(s){ return doc.querySelector(s) || doc.createElement('div'); };
 
 /* 界面文案（语言包化第二部分 2026-11-07）：页面里的 #sgx-i18n-curioItems，模板从字符串表 data/curio/i18n/<语言>.yaml 的 js.curioItems 输出，
@@ -212,8 +202,6 @@ var T = readDict(doc, 'curioItems');
 var tr = makeTr(T, lang);
 function sub(p){ var o = {}; for (var k in T) if (k.indexOf(p) === 0) o[k.slice(p.length)] = T[k]; return o; }
 T.kinds = sub('kind_');
-T.status = sub('status_');
-T.stars = function(n){ return tr('stars', { n: n }); };
 
 /* 类型图标（没有照片时显示） */
 var KIND_IC = {
@@ -225,16 +213,13 @@ var KIND_IC = {
   audio: '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/>',
   console: '<path d="M7 8h10a4 4 0 0 1 4 4v1a3 3 0 0 1-5.4 1.8L15 14H9l-.6.8A3 3 0 0 1 3 13v-1a4 4 0 0 1 4-4z"/><path d="M8 11v2M7 12h2"/>',
   camera: '<path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
-  other: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 12h6"/>',
-  game: '<path d="M7 8h10a4 4 0 0 1 4 4v1a3 3 0 0 1-5.4 1.8L15 14H9l-.6.8A3 3 0 0 1 3 13v-1a4 4 0 0 1 4-4z"/><path d="M8 11v2M7 12h2M15.5 11.5h.01M17.5 12.5h.01"/>'
+  other: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 12h6"/>'
 };
 function icon(k, size){ return '<svg viewBox="0 0 24 24" width="' + (size || 28) + '" height="' + (size || 28) + '" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (KIND_IC[k] || KIND_IC.other) + '</svg>'; }
 var LOCK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
-function starSvg(n){ return '<svg viewBox="0 0 24 24" width="' + n + '" height="' + n + '" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="currentColor"/></svg>'; }
-var STAR = starSvg(16);
 
-var devices = [], games = [], canManage = false, showPrivate = false, loaded = false;
-var dvFilter = 'all', gmFilter = 'all';
+var devices = [], canManage = false, showPrivate = false, loaded = false;
+var dvFilter = 'all';
 var ver = {}; /* 照片缓存破坏：换过照片的条目带 ?v= */
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -259,7 +244,7 @@ function send(method, url, body, type){
     });
   });
 }
-function op(body){ return send('POST', '/curio/api/items', body).then(function(j){ devices = j.devices || []; games = j.games || []; render(); return j; }); }
+function op(body){ return send('POST', '/curio/api/items', body).then(function(j){ devices = j.devices || []; render(); return j; }); }
 function errText(e){
   var c = e && e.code || '';
   if (c === 'bad-name' || c === 'bad-title') return T.needName;
@@ -270,13 +255,9 @@ function errText(e){
   return T.failed;
 }
 function findDev(id){ return devices.filter(function(d){ return d.id === id; })[0] || null; }
-function findGame(id){ return games.filter(function(g){ return g.id === id; })[0] || null; }
 
 /* ---------- 画 ---------- */
 var POSTS = (function(){ try { var e = doc.getElementById('cu-posts'); return e ? JSON.parse(e.textContent) || [] : []; } catch (x) { return []; } })();
-var DIR = doc.getElementById('cu-pane-games') ? 'games' : 'devices';
-/** 另一个分区的地址（设备 ↔ 游戏互链），取页头 tab 上按语言算好的 href */
-function tabHref(tab){ var a = doc.querySelector('#cu-tabs [data-ctab="' + tab + '"]'); return a ? a.getAttribute('href') : ''; }
 function chips(el, opts, cur){
   el.innerHTML = opts.map(function(o){ return '<button type="button" role="tab" class="sgx-chip" aria-selected="' + (o[0] === cur) + '" data-f="' + o[0] + '">' + esc(o[1]) + ' <i>' + o[2] + '</i></button>'; }).join('');
 }
@@ -291,44 +272,19 @@ function devCard(d, i){
     + '<span class="sgx-cc-k">' + esc(d.retired_at ? T.retired : T.active) + (days != null ? ' · ' + esc((d.retired_at ? T.usedFor : T.used) + ' ' + daysText(days, tr)) : '') + '</span>'
     + '</span></a>';
 }
-function starsText(n){ var s = ''; for (var i = 1; i <= 5; i++) s += i <= n ? '★' : '☆'; return s; }
-function stars(n){
-  if (!n) return '';
-  return '<span class="it-stars-ro" role="img" aria-label="' + esc(T.stars(n)) + '">' + starsText(n) + '</span>';
-}
-function gameCard(g, i){
-  var dev = g.device_id ? findDev(g.device_id) : null;
-  var q = [g.title, g.platform, dev && dev.name, g.edition, g.review, T.status[g.status]].join(' ');
-  return '<a class="sgx-cc it-cc it-cc--game" href="?id=' + g.id + '" data-item="' + g.id + '" data-game="' + g.id + '"'
-    + ' data-q="' + esc(q) + '" data-ord="' + i + '" data-s-recent="' + g.id + '" data-s-rating="' + (g.rating || 0) + '" data-s-name="' + esc(g.title) + '">'
-    + '<span class="sgx-cc-im">' + (g.cover ? '<img src="' + photoUrl('game', g.id) + '" alt="" loading="lazy" decoding="async" onerror="this.remove()">' : '<span class="it-media-ic">' + icon('game', 32) + '</span>') + '</span>'
-    + '<span class="sgx-cc-ci"><span class="sgx-cc-m"><span translate="no">games</span>' + (g.platform || dev ? ' · ' + esc([g.platform, dev && dev.name].filter(Boolean).join(' · ')) : '') + '</span>'
-    + '<span class="sgx-cc-t"><span class="it-name">' + esc(g.title) + '</span>' + (showPrivate && g.private ? '<span class="cu-lock-inline" title="' + esc(T.priv) + '">' + LOCK + '</span>' : '') + '</span>'
-    + '<span class="sgx-cc-k"><span class="it-status it-status--' + esc(g.status) + '">' + esc(T.status[g.status] || '') + '</span>' + (g.rating ? ' · ' + stars(g.rating) : '') + '</span>'
-    + '</span></a>';
-}
 function render(){
   chips($('#dv-chips'), [['all', T.all, devices.length], ['active', T.active, filterDevices(devices, 'active').length], ['retired', T.retired, filterDevices(devices, 'retired').length]], dvFilter);
-  chips($('#gm-chips'), [['all', T.all, games.length]].concat(STATUS.map(function(s){ return [s, T.status[s], filterGames(games, s).length]; })), gmFilter);
   var ds = filterDevices(devices, dvFilter);
   $('#dv-list').innerHTML = ds.map(devCard).join('');
-  var gs = filterGames(games, gmFilter);
-  $('#gm-list').innerHTML = gs.map(gameCard).join('');
-  var de = $('#dv-empty'), ge = $('#gm-empty');
+  var de = $('#dv-empty');
   de.textContent = devices.length ? T.noMatch : canManage ? T.emptyDevAdmin : T.empty;
-  ge.textContent = games.length ? T.noMatch : canManage ? T.emptyGameAdmin : T.empty;
   de.classList.toggle('hidden', !loaded || ds.length > 0);
-  ge.classList.toggle('hidden', !loaded || gs.length > 0);
-  if (loaded && G.SgxCurioList) { G.SgxCurioList.count('devices', devices.length); G.SgxCurioList.count('games', games.length); }
   if (loaded && UI && UI.itemId()) route(UI.itemId());
 }
 $('#dv-chips').addEventListener('click', function(e){ var b = e.target.closest('[data-f]'); if (b) { dvFilter = b.dataset.f; render(); } });
-$('#gm-chips').addEventListener('click', function(e){ var b = e.target.closest('[data-f]'); if (b) { gmFilter = b.dataset.f; render(); } });
 
 /* ---------- 条目页（?id=） ---------- */
 function devLink(d){ return d ? '<a href="?id=' + d.id + '" data-item="' + d.id + '">' + esc(d.name) + '</a>' : ''; }
-function gameLink(g){ var h = tabHref('games'); return '<a href="' + esc(h) + '?id=' + g.id + '">' + esc(g.title) + '</a>'; }
-function devOnGame(d){ var h = tabHref('devices'); return '<a href="' + esc(h) + '?id=' + d.id + '">' + esc(d.name) + '</a>'; }
 function txt(v){ return esc(v).replace(/\n/g, '<br>'); }
 /** 底部两卡：‹ 上一个（第一个时 cd .. 回列表）│ 相关文章 ›（没有就 cd ../next 下一个） */
 function nxCards(list, it, name, label){
@@ -346,8 +302,6 @@ function viewDevice(d){
   [[T.bought, d.bought_at], [T.retiredOn, d.retired_at], [T.os, d.os], [T.specs, d.specs], [T.acc, d.accessories]].forEach(function(r){ if (r[1]) spec.push([r[0], txt(r[1])]); });
   if (lin.before.length) spec.push([T.from, lin.before.map(devLink).join(T.listSep)]);
   if (lin.after) spec.push([T.to, devLink(lin.after)]);
-  var played = games.filter(function(g){ return g.device_id === d.id; });
-  if (played.length) spec.push([T.games, played.map(gameLink).join(T.listSep)]);
   var nx = nxCards(filterDevices(devices, dvFilter).some(function(x){ return x.id === d.id; }) ? filterDevices(devices, dvFilter) : devices, d, d.name, function(x){ return x.name; });
   var meta = ['devices', T.kinds[d.kind] || T.kinds.other, d.retired_at ? T.retired : T.active, monthOf(d.bought_at) ? tr('kept', { d: monthOf(d.bought_at) }) : ''].filter(Boolean).join(' · ');
   UI.showItem({ dir: 'devices', name: d.name, meta: meta, spec: spec, prose: d.notes,
@@ -355,28 +309,14 @@ function viewDevice(d){
     edit: canManage ? { k: 'vim curio/devices/' + UI.slug(d.name), d: T.editCmd, fn: function(){ openDevEdit(findDev(d.id)); } } : null,
     prev: nx.prev, next: nx.next });
 }
-function viewGame(g){
-  var dev = g.device_id ? findDev(g.device_id) : null;
-  var spec = [[T.state, esc(T.status[g.status] || '')]];
-  if (g.rating) spec.push([T.rating, '<span class="cy">' + stars(g.rating) + '</span>']);
-  if (g.platform) spec.push([T.platform, txt(g.platform)]);
-  if (dev) spec.push([T.on, devOnGame(dev)]);
-  if (g.edition) spec.push([T.edition, txt(g.edition)]);
-  var list = filterGames(games, gmFilter).some(function(x){ return x.id === g.id; }) ? filterGames(games, gmFilter) : games;
-  var nx = nxCards(list, g, g.title, function(x){ return x.title; });
-  UI.showItem({ dir: 'games', name: g.title, meta: ['games', T.status[g.status], g.platform].filter(Boolean).join(' · '), spec: spec, prose: g.review,
-    img: g.cover ? '<img src="' + photoUrl('game', g.id) + '" alt="">' : '<span class="it-media-ic">' + icon('game', 56) + '</span>',
-    edit: canManage ? { k: 'vim curio/games/' + UI.slug(g.title), d: T.editCmd, fn: function(){ openGameEdit(findGame(g.id)); } } : null,
-    prev: nx.prev, next: nx.next });
-}
 /** 路由：0 = 列表；数据还没回来先不画（回来后 render 再调）；找不到（删了 / 私密）→ 一句提示 + cd .. */
 function route(id){
   if (!UI) return;
   if (!id) { UI.showList(); return; }
   if (!loaded) return;
-  var it = DIR === 'games' ? findGame(id) : findDev(id);
-  if (!it) { UI.showItem({ dir: DIR, name: '#' + id, meta: DIR, prose: T.notFound, prev: { href: '?', id: 0, k: 'cd ..', title: T.back }, next: null }); return; }
-  if (DIR === 'games') viewGame(it); else viewDevice(it);
+  var it = findDev(id);
+  if (!it) { UI.showItem({ dir: 'devices', name: '#' + id, meta: 'devices', prose: T.notFound, prev: { href: '?', id: 0, k: 'cd ..', title: T.back }, next: null }); return; }
+  viewDevice(it);
 }
 if (hasItems && UI && UI.onItemRoute) UI.onItemRoute(route);
 
@@ -502,7 +442,7 @@ function photoBox(prefix, kind){
   function show(src){
     if (st.prevUrl) { URL.revokeObjectURL(st.prevUrl); st.prevUrl = ''; }
     var adj = !!(src && st.pending && st.file);
-    prev.innerHTML = src ? '<img src="' + esc(src) + '" alt="">' + (adj ? ADJ : '') : icon(kind === 'game' ? 'game' : 'other', 32);
+    prev.innerHTML = src ? '<img src="' + esc(src) + '" alt="">' + (adj ? ADJ : '') : icon('other', 32);
     prev.disabled = !adj;
     if (adj) { prev.setAttribute('aria-label', T.adjust); prev.removeAttribute('aria-hidden'); }
     else { prev.removeAttribute('aria-label'); prev.setAttribute('aria-hidden', 'true'); }
@@ -534,15 +474,15 @@ function photoBox(prefix, kind){
       return p.then(function(){
         ver[kind + id] = Date.now();
         /* 本地列表跟上：第一次传图 / 去掉照片后卡片立刻换，不用等刷新（列表是保存时 op 回的，那时照片还没传） */
-        var it = kind === 'game' ? findGame(id) : findDev(id);
-        if (it) it[kind === 'game' ? 'cover' : 'photo'] = has;
+        var it = kind === 'device' ? findDev(id) : null;
+        if (it) it.photo = has;
         return false;
       }, function(e){ if (e.sgxLocked) throw e; return true; });
     }
   };
 }
 
-/* 电影子页（curio-movies.js）借用裁剪 + 照片状态；下面是设备 / 游戏自己的部分 */
+/* 电影子页（curio-movies.js）借用裁剪 + 照片状态；下面是设备自己的部分 */
 G.SgxCurioPhoto = { box: photoBox, photoUrl: photoUrl, send: send, errText: errText };
 /* 电影子页的条目页借用条目文案（回到列表 / 相关文章 / 找不到）和纯函数（relatedPost / neighbors） */
 G.SgxCurioItemsT = { back: T.back, related: T.related, notFound: T.notFound };
@@ -613,65 +553,10 @@ $('#dv-del').addEventListener('click', function(){
   UI.ask(T.delDevice, T.del, function(){ op({ op: 'device.del', id: id }).then(function(){ close('dv-edit-wrap'); toast(T.deleted); if (UI.itemId()) UI.goItem(0, true); }).catch(function(e){ if (!e.sgxLocked) toast(errText(e)); }); });
 });
 
-/* ---------- 游戏：编辑 ---------- */
-var gmEditing = null, gmStatus = 'want', gmRating = 0;
-var gmPhoto = photoBox('gm', 'game');
-function renderStatus(){
-  $('#gm-status').innerHTML = STATUS.map(function(s){ return '<button type="button" role="radio" class="cu-chip cu-chip-sm" aria-checked="' + (gmStatus === s) + '" data-s="' + s + '">' + esc(T.status[s]) + '</button>'; }).join('');
-}
-function renderRating(){
-  var h = '';
-  for (var i = 1; i <= 5; i++) h += '<button type="button" role="radio" class="it-star-btn' + (i <= gmRating ? ' on' : '') + '" aria-checked="' + (i === gmRating) + '" aria-label="' + esc(T.stars(i)) + '" data-r="' + i + '">' + starSvg(28) + '</button>';
-  $('#gm-rating').innerHTML = h;
-}
-$('#gm-status').addEventListener('click', function(e){ var b = e.target.closest('[data-s]'); if (b) { gmStatus = b.dataset.s; renderStatus(); } });
-/* 点同一颗星再点一次 = 清空评分 */
-$('#gm-rating').addEventListener('click', function(e){ var b = e.target.closest('[data-r]'); if (!b) return; var n = Number(b.dataset.r); gmRating = n === gmRating ? 0 : n; renderRating(); });
-function gmErr(m){ var el = $('#gm-err'); el.textContent = m || ''; el.classList.toggle('hidden', !m); }
-function openGameEdit(g){
-  gmEditing = g || null;
-  $('#gm-edit-title').textContent = g ? T.editGame : T.addGame;
-  gmStatus = g ? g.status : 'want'; renderStatus();
-  gmRating = g ? g.rating : 0; renderRating();
-  $('#gm-title').value = g ? g.title : '';
-  $('#gm-platform').value = g ? g.platform : '';
-  $('#gm-platforms').innerHTML = platformsOf(games).map(function(p){ return '<option value="' + esc(p) + '">'; }).join('');
-  deviceOptions($('#gm-device'), g ? g.device_id : 0, 0);
-  $('#gm-edition').value = g ? g.edition : '';
-  $('#gm-review').value = g ? g.review : '';
-  $('#gm-private').checked = !!(g && g.private);
-  $('#gm-del').classList.toggle('hidden', !g);
-  gmPhoto.reset(g, g && g.cover);
-  gmErr('');
-  open('gm-edit-wrap');
-  if (!g) setTimeout(function(){ $('#gm-title').focus(); }, 50);
-}
-$('#gm-fab').addEventListener('click', function(){ openGameEdit(null); });
-$('#gm-save').addEventListener('click', function(){
-  var title = $('#gm-title').value.trim();
-  if (!title) { gmErr(T.needName); return; }
-  var body = {
-    title: title, status: gmStatus, rating: gmRating, platform: $('#gm-platform').value, device_id: Number($('#gm-device').value) || 0,
-    edition: $('#gm-edition').value, review: $('#gm-review').value, private: $('#gm-private').checked,
-  };
-  if (gmEditing) { body.op = 'game.edit'; body.id = gmEditing.id; } else body.op = 'game.add';
-  var btn = $('#gm-save'); btn.disabled = true;
-  op(body).then(function(j){
-    var id = gmEditing ? gmEditing.id : j.id;
-    return gmPhoto.commit(id).then(function(bad){ if (!bad) return; toast(T.photoFail); throw { quiet: true }; }).then(function(){ render(); close('gm-edit-wrap'); toast(T.saved); });
-  }).catch(function(e){ if (e && e.quiet) { render(); close('gm-edit-wrap'); return; } if (!e.sgxLocked) gmErr(errText(e)); }).then(function(){ btn.disabled = false; });
-});
-$('#gm-del').addEventListener('click', function(){
-  if (!gmEditing || !UI) return;
-  var id = gmEditing.id;
-  UI.ask(T.delGame, T.del, function(){ op({ op: 'game.del', id: id }).then(function(){ close('gm-edit-wrap'); toast(T.deleted); if (UI.itemId()) UI.goItem(0, true); }).catch(function(e){ if (!e.sgxLocked) toast(errText(e)); }); });
-});
-
 /* ---------- 启动 ---------- */
 getJSON('/curio/api/items').then(function(j){
-  canManage = !!j.canManage; showPrivate = !!j.showPrivate; devices = j.devices || []; games = j.games || []; loaded = true;
+  canManage = !!j.canManage; showPrivate = !!j.showPrivate; devices = j.devices || []; loaded = true;
   $('#dv-fab').classList.toggle('hidden', !canManage);
-  $('#gm-fab').classList.toggle('hidden', !canManage);
   if (UI && UI.signin) UI.signin(canManage);
   doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); });
   render();

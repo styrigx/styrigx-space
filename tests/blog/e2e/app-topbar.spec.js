@@ -255,15 +255,15 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
     await expect(nav(page)).toHaveAttribute('data-state', 'open');
   }
 
-  test('NAVIGATE：00 主页 · 01 博客 · 02 日刻 · 03 音乐 · 04 奇趣（同主站，Gray 2026-11-21；旧 05 旷野 2026-11-12 删除）；博客是「开」态当前项（01/04）；STATUS 跳转按钮去主站状态页；实色面板；没有搜索框；外观面板只有 MODE + PALETTE', async ({ page }) => {
+  test('NAVIGATE：00 主页 · 01 博客 · 02 日刻 · 03 音乐 · 04 奇趣 · 05 游戏（同主站，Gray 2026-11-21；旧 05 旷野 2026-11-12 删除，奇趣重组 PR 2 追加 05 游戏）；博客是「开」态当前项（01/05）；STATUS 跳转按钮去主站状态页；实色面板；没有搜索框；外观面板只有 MODE + PALETTE', async ({ page }) => {
     await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar .sgx-tb-grid')).toHaveAttribute('aria-expanded', 'false');
     await openNav(page);
     await expect(page.locator('.sgx-topbar .sgx-tb-grid')).toHaveAttribute('aria-expanded', 'true');
     const tiles = nav(page).locator('a.sgx-nav-tile');
-    await expect(tiles.locator('.sgx-nav-name')).toHaveText(['主页', '博客', '日刻', '音乐', '奇趣']);
-    await expect(tiles.locator('.sgx-nav-no')).toHaveText(['00', '01', '02', '03', '04']);
-    await expect(nav(page).locator('[data-nav-count]')).toHaveText('01/04');
+    await expect(tiles.locator('.sgx-nav-name')).toHaveText(['主页', '博客', '日刻', '音乐', '奇趣', '游戏']);
+    await expect(tiles.locator('.sgx-nav-no')).toHaveText(['00', '01', '02', '03', '04', '05']);
+    await expect(nav(page).locator('[data-nav-count]')).toHaveText('01/05');
     await expect(nav(page).locator('[data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/zh/');
     await expect(nav(page).locator('[data-nav="daymark"]')).toHaveAttribute('href', '/daymark/zh/');
     await expect(nav(page).locator('[data-nav="wild"]')).toHaveCount(0);

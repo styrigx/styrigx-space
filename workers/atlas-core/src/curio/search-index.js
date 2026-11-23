@@ -8,9 +8,11 @@
  *
  * 每条出两条：中文条目（lang zh，链到 /curio/zh/）和英文条目（lang en，链到 /curio/）。
  *   - 发现（links）：title = 名字（缺这种语言就用另一种）；subtitle =「发现 · 分类名」/ "Finds · <cat>"；
- *     text = 简介（两种语言）+ 网址；url = 发现子页 finds/ + 所在分类 #c/<分类 id>（本站没有单条收藏的深链）
+ *     text = 简介（两种语言）+ 网址；url = 奇趣首页 /curio/（中文 /curio/zh/）+ 所在分类 #c/<分类 id>（本站没有单条收藏的深链；
+ *     奇趣重组 PR 2 起奇趣 = 发现，原发现子页 /curio/finds/ 301 到首页）
  *   - 设备（devices）：title = 名字；subtitle =「设备 · 类型 · 系统」；text = 系统、参数、配件、体验；url = 设备子页 devices/
- *   - 游戏（games）：title = 名字；subtitle =「游戏 · 平台 · 状态」；text = 版本、评价；url = 游戏子页 games/
+ *   - 游戏（games）：title = 名字；subtitle =「游戏 · 平台 · 状态」；text = 版本、评价；url = 游戏子站这一款 /games/?game=<id>（中文 /games/zh/?game=<id>；
+ *     奇趣重组 PR 2 起游戏是第五个子站，见 gameUrl；之前是奇趣子页 /curio/games/）
  *   - 电影（movies）：title = 片名；subtitle =「电影 · 年份 · 导演」；text = 原名、导演、年份、评分、观看日期、短评；url = 电影子页 movies/
  *   - 音乐（music_albums + music_tracks，元数据）：一张专辑 / 一首单曲一条，title = 专辑名 / 歌名；subtitle =「音乐 · 歌手 · 年份」（单曲「音乐 · 单曲 · 歌手 · 年份」）；text = 歌手 + 曲目表（曲序. 曲名）；
  *     url = 音乐页 /music/（中文 /music/zh/，music 搬家第 4 步起；之前是奇趣子页 /curio/music/，见 musicUrl）。音频 / 封面 / 歌词不进。2026-11 AI 语义召回起电影、音乐都进（Gray 2026-11-07：除账号数据外全部放开，
@@ -102,6 +104,14 @@ export function musicUrl(lang) {
   return MUSIC_URL + (lang && lang !== DEFAULT_LANG ? '/' + lang + '/' : '/');
 }
 
+/** 游戏页地址（奇趣重组设计稿 v1.0 PR 2：游戏是第五个子站，/<站>/zh/ 规矩——英文 /games/，中文 /games/zh/；条目页 = ?game=<id>） */
+export const GAMES_URL = 'https://styrigx.com/games';
+
+/** @param {'zh'|'en'} lang @param {number|string} id */
+export function gameUrl(lang, id) {
+  return GAMES_URL + (lang && lang !== DEFAULT_LANG ? '/' + lang + '/' : '/') + '?game=' + id;
+}
+
 /** @param {Record<string, any>} it @param {string} subtitle @param {string[]} parts @param {boolean} priv */
 function finish(it, subtitle, parts, priv) {
   if (subtitle) it.subtitle = subtitle;
@@ -122,7 +132,7 @@ export function linkItems(r, cat) {
     const title = clip(pick(r.name_zh, r.name_en, lang), TITLE_MAX);
     if (!title) continue;
     const catName = cat ? pick(cat.name_zh, cat.name_en, lang) : '';
-    const it = { id: 'link:' + r.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: pageUrl(lang, 'finds', cat ? '#c/' + cat.id : '') };
+    const it = { id: 'link:' + r.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: pageUrl(lang, '', cat ? '#c/' + cat.id : '') };
     const descMain = pick(r.desc_zh, r.desc_en, lang);
     const descOther = lang === 'en' ? r.desc_zh : r.desc_en;
     out.push(finish(it, [labels(lang).finds, catName].filter(Boolean).join(' · '), [descMain, descOther !== descMain ? descOther : '', r.url], priv));
@@ -151,7 +161,7 @@ export function gameItems(r) {
     const title = clip(r.title, TITLE_MAX);
     if (!title) continue;
     const T = labels(lang);
-    const it = { id: 'game:' + r.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: pageUrl(lang, 'games') };
+    const it = { id: 'game:' + r.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: gameUrl(lang, r.id) };
     const sub = [T.games, r.platform, T.status[r.status] || ''].filter(Boolean).join(' · ');
     out.push(finish(it, sub, [r.platform, r.edition, r.review], !!r.private));
   }

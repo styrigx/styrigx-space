@@ -42,7 +42,7 @@ async function pinLang(pg, lang) {
 /* Mobile（竖屏）：单列 */
 test.use({ viewport: { width: 412, height: 915 } });
 
-test('home (mobile, 对齐 PR-B; 2026-11-12 no wild; 2026-11-21 reorder): hero, then [01] blog · [02] daymark · [03] music · [04] curio in order; no category entries, no account card, no option groups', async ({ page: pg }) => {
+test('home (mobile, 对齐 PR-B; 2026-11-12 no wild; 2026-11-21 reorder; 奇趣重组 PR 2 adds games): hero, then [01] blog · [02] daymark · [03] music · [04] curio · [05] games in order; no category entries, no account card, no option groups', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/zh/');
   await expect(pg).toHaveTitle('主页 | Styrigx');
@@ -55,19 +55,25 @@ test('home (mobile, 对齐 PR-B; 2026-11-12 no wild; 2026-11-21 reorder): hero, 
   await expect(pg.locator('#w-screen')).toHaveCount(0);
   /* 分类入口（旧 sgx-entries 平铺行 + 标题带）删除 */
   await expect(pg.locator('#space-entries, .home-wrap .sgx-ents, .home-wrap [aria-label="分类"]')).toHaveCount(0);
-  // 四节顺序：hero 在上，[01]–[04] 自上而下（Gray 2026-11-21 重排；旧 [04] 旷野 2026-11-12 删除）
-  await expect(pg.locator('.home-sec .home-sec-k')).toHaveText(['[01] // BLOG', '[02] // DAYMARK', '[03] // MUSIC', '[04] // CURIO']);
+  // 五节顺序：hero 在上，[01]–[05] 自上而下（Gray 2026-11-21 重排；旧 [04] 旷野 2026-11-12 删除；奇趣重组 PR 2 追加 [05] 游戏）
+  await expect(pg.locator('.home-sec .home-sec-k')).toHaveText(['[01] // BLOG', '[02] // DAYMARK', '[03] // MUSIC', '[04] // CURIO', '[05] // GAMES']);
   await expect(pg.locator('#wild, .home-mini')).toHaveCount(0);
   const ys = [];
-  for (const id of ['#home-hero', '#blog', '#daymark', '#music', '#curio']) ys.push((await pg.locator(id).boundingBox()).y);
+  for (const id of ['#home-hero', '#blog', '#daymark', '#music', '#curio', '#games']) ys.push((await pg.locator(id).boundingBox()).y);
   expect([...ys].sort((a, b) => a - b)).toEqual(ys);
   // [03] 音乐：cd music/ → /music/zh/，测试构建不问接口，4 个「—」占位、等待提示收起
   await expect(pg.locator('#music .home-sec-more')).toHaveAttribute('href', '/music/zh/');
   await expect(pg.locator('#music .home-alb-t')).toHaveText(['—', '—', '—', '—']);
   await expect(pg.locator('#music [data-mu-wait]')).toBeHidden();
-  // [04] 奇趣三个目录（手机一栏）
-  const dirs = pg.locator('#curio a.home-dir');
-  expect(await dirs.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/zh/finds/', '/curio/zh/devices/', '/curio/zh/games/']);
+  // [04] 奇趣（奇趣重组 PR 2 起 = 发现）：cd curio/ → /curio/zh/，测试构建不问接口，4 个「—」占位都链到奇趣首页；没有目录卡
+  await expect(pg.locator('#curio .home-sec-more')).toHaveAttribute('href', '/curio/zh/');
+  await expect(pg.locator('#curio .home-find-t')).toHaveText(['—', '—', '—', '—']);
+  expect(await pg.locator('#curio a.home-find').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/zh/', '/curio/zh/', '/curio/zh/', '/curio/zh/']);
+  await expect(pg.locator('#curio .home-dir')).toHaveCount(0);
+  // [05] 游戏：cd games/ → /games/zh/，同音乐 4 个「—」占位、等待提示收起
+  await expect(pg.locator('#games .home-sec-more')).toHaveAttribute('href', '/games/zh/');
+  await expect(pg.locator('#games .home-alb-t')).toHaveText(['—', '—', '—', '—']);
+  await expect(pg.locator('#games [data-gm-wait]')).toBeHidden();
   // 删掉的分类（含显示页、旷野）不再有链接；页面上没有任何指向旧设置层的链接
   for (const gone of ['display', 'manage', 'accessibility', 'goodlock', 'advanced', 'apps', 'wellbeing', 'wild', 'about']) await expect(pg.locator(`a[href="/${gone}/"], a[href="/zh/${gone}/"]`), gone).toHaveCount(0);
   await expect(pg.locator(`a[href^="${OLD}"], a[href^="/zh${OLD}"]`)).toHaveCount(0);
@@ -112,13 +118,74 @@ test('home [03] music: latest albums from /music/api/music fill the row; fewer a
   await expect(t).toHaveText(['—', '—', '—', '—']);
 });
 
-/* [04] 奇趣目录（3 张）：手机布局一栏，桌面布局三栏、同一行顶边对齐（对齐 PR-B，设计稿 tb4.html；[04] 旷野小卡 2026-11-12 删除） */
-for (const [w, h, cols] of [[412, 900, 1], [1100, 900, 3], [1366, 768, 3]]) {
-  test(`home dirs: ${w}px wide → ${cols} column(s)`, async ({ page: pg }) => {
+/* [04] 奇趣（奇趣重组 PR 2）：取 /curio/api/links（测试构建要先设 window.__sgxCurioApi），所有分类的收藏按 id 从新到旧取 4 条，名字 + 分类；
+   链接 = 奇趣首页这个分类 #c/<分类 id>；只有 2 条时多的占位删掉；接口失败保持「—」 */
+test('home [04] curio: latest finds from /curio/api/links fill the row; fewer drop slots; API failure keeps —', async ({ page: pg }) => {
+  await pinLang(pg, 'zh');
+  await pg.addInitScript(() => { window.__sgxCurioApi = true; });
+  const cats = [
+    { id: 1, name: { zh: '工具', en: 'Tools' }, links: [{ id: 3, name: { zh: '三', en: 'Three' }, url: 'https://a.com/' }, { id: 9, name: { zh: '九', en: 'Nine' }, url: 'https://b.com/' }] },
+    { id: 2, name: { zh: '阅读', en: 'Reading' }, links: [{ id: 5, name: { zh: '', en: '' }, url: 'https://c.example.org/x' }, { id: 1, name: { zh: '一' }, url: 'https://d.com/' }, { id: 7, name: { zh: '七' }, url: 'https://e.com/' }] },
+  ];
+  let reply = { ok: true, cats };
+  await blockExternalRequests(pg);
+  await pg.route(/\/curio\/api\/links(\?|$)/, (r) => r.fulfill(reply ? { json: reply } : { status: 500, json: { ok: false } }));
+  await pg.goto('/zh/', { waitUntil: 'domcontentloaded' });
+  const t = pg.locator('#curio .home-find-t');
+  await expect(t).toHaveText(['九', '七', 'c.example.org', '三']);
+  await expect(pg.locator('#curio .home-find-c')).toHaveText(['工具', '阅读', '阅读', '工具']);
+  expect(await pg.locator('#curio a.home-find').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/zh/#c/1', '/curio/zh/#c/2', '/curio/zh/#c/2', '/curio/zh/#c/1']);
+  const row = await pg.locator('#curio .home-finds').evaluate((ul) => ({ cols: getComputedStyle(ul).gridTemplateColumns.split(' ').length, sw: document.scrollingElement.scrollWidth, vw: innerWidth }));
+  expect(row.cols).toBe(2);
+  expect(row.sw).toBeLessThanOrEqual(row.vw);
+  reply = { ok: true, cats: [cats[0]] };
+  await pg.reload();
+  await expect(t).toHaveText(['九', '三']);
+  reply = null;
+  await pg.reload();
+  await expect(t).toHaveText(['—', '—', '—', '—']);
+});
+
+/* [05] 游戏（奇趣重组 PR 2，仿 [03] 音乐）：取 /games/api/games（测试构建要先设 window.__sgxGamesApi），id 从新到旧取 4 个（不分状态）；
+   有封面画 /games/api/cover?id=，第二行是状态，链接 = 游戏页直达 ?game=<id>；只有 2 个时多的占位删掉；接口失败保持「—」 */
+test('home [05] games: latest games from /games/api/games fill the row; fewer drop slots; API failure keeps —', async ({ page: pg }) => {
+  await pinLang(pg, 'zh');
+  await pg.addInitScript(() => { window.__sgxGamesApi = true; });
+  const games = [
+    { id: 1, title: 'Zelda', status: 'done', cover: true },
+    { id: 8, title: 'Hades II', status: 'playing', cover: true },
+    { id: 4, title: 'Balatro', status: 'shelved', cover: false },
+    { id: 6, title: 'Celeste', status: 'want', cover: false },
+    { id: 2, title: 'Tunic', status: 'done', cover: false },
+  ];
+  let reply = { ok: true, canManage: false, showPrivate: false, games };
+  await blockExternalRequests(pg);
+  await pg.route(/\/games\/api\/games(\?|$)/, (r) => r.fulfill(reply ? { json: reply } : { status: 500, json: { ok: false } }));
+  await pg.route(/\/games\/api\/cover/, (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>' }));
+  await pg.goto('/zh/', { waitUntil: 'domcontentloaded' });
+  const t = pg.locator('#games .home-alb-t');
+  await expect(t).toHaveText(['Hades II', 'Celeste', 'Balatro', 'Tunic']);
+  await expect(pg.locator('#games .home-alb-a')).toHaveText(['在玩', '想玩', '搁置', '通关']);
+  await expect(pg.locator('#games [data-gm-wait]')).toBeHidden();
+  expect(await pg.locator('#games a.home-alb').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/games/zh/?game=8', '/games/zh/?game=6', '/games/zh/?game=4', '/games/zh/?game=2']);
+  await expect(pg.locator('#games .home-alb img')).toHaveCount(1);
+  await expect(pg.locator('#games .home-alb').first().locator('img')).toHaveAttribute('src', '/games/api/cover?id=8');
+  reply = { ok: true, games: games.slice(0, 2) };
+  await pg.reload();
+  await expect(t).toHaveText(['Hades II', 'Zelda']);
+  reply = null;
+  await pg.reload();
+  await expect(pg.locator('#games [data-gm-wait]')).toBeHidden();
+  await expect(t).toHaveText(['—', '—', '—', '—']);
+});
+
+/* [04] 奇趣收藏卡（4 张）：手机布局两栏，桌面布局四栏、同一行顶边对齐（奇趣重组 PR 2 前是三张目录卡：手机一栏 / 桌面三栏） */
+for (const [w, h, cols] of [[412, 900, 2], [1100, 900, 4], [1366, 768, 4]]) {
+  test(`home finds: ${w}px wide → ${cols} columns`, async ({ page: pg }) => {
     await pg.setViewportSize({ width: w, height: h });
     await pinLang(pg, 'zh');
     await gotoSettings(pg, '/zh/');
-    for (const [sel, n, max] of [['#curio .home-dirs', 3, 3]]) {
+    for (const [sel, n, max] of [['#curio .home-finds', 4, 4]]) {
       const c = Math.min(cols, max);
       const info = await pg.locator(sel).evaluate((ul) => ({
         cols: getComputedStyle(ul).gridTemplateColumns.split(' ').length,
@@ -144,17 +211,19 @@ test.describe('home (dex)', () => {
   });
 });
 
-test('home (en): title Home, four sections (blog · daymark · music · curio), no wild section', async ({ page: pg }) => {
+test('home (en): title Home, five sections (blog · daymark · music · curio · games), no wild section', async ({ page: pg }) => {
   await pinLang(pg, 'en');
   await gotoSettings(pg, '/');
   await expect(pg).toHaveTitle('Home | Styrigx');
   await expect(pg.locator('.sgx-tb-tab')).toHaveCount(0);
   await expect(pg.locator('.sgx-tb-title')).toHaveText('Home');
   await expect(pg.locator('#space-entries')).toHaveCount(0);
-  await expect(pg.locator('.home-sec .home-sec-k')).toHaveText(['[01] // BLOG', '[02] // DAYMARK', '[03] // MUSIC', '[04] // CURIO']);
+  await expect(pg.locator('.home-sec .home-sec-k')).toHaveText(['[01] // BLOG', '[02] // DAYMARK', '[03] // MUSIC', '[04] // CURIO', '[05] // GAMES']);
   await expect(pg.locator('#music .home-sec-more')).toHaveAttribute('href', '/music/');
+  await expect(pg.locator('#games .home-sec-more')).toHaveAttribute('href', '/games/');
   await expect(pg.locator('#wild, .home-mini')).toHaveCount(0);
-  expect(await pg.locator('#curio a.home-dir').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/finds/', '/curio/devices/', '/curio/games/']);
+  await expect(pg.locator('#curio .home-sec-more')).toHaveAttribute('href', '/curio/');
+  expect(await pg.locator('#curio a.home-find').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/', '/curio/', '/curio/', '/curio/']);
   await expect(pg.locator('a[href="/display/"]')).toHaveCount(0);
 });
 

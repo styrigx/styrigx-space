@@ -34,6 +34,27 @@
       "ref": "curio/icon.html",
       "reason": "music 搬家第 3 步：3.1 第 2 条「外观不变」——音乐页照旧用奇趣的页头（站名、tab、su 那一条）/ 确认框 / 图标，和它们的样式；技术债，随 curio.js 一起挪进 common 后删这条。",
       "since": "2026-11-21 music 搬家第 3 步"
+    },
+    {
+      "rule": 24,
+      "file": "space/web/layouts/games/baseof.html",
+      "ref": "curio/js/sgx/ui-inherit-run.js",
+      "reason": "奇趣重组 PR 2：游戏子站外框照 layouts/music/baseof.html 写（同音乐的例外），借奇趣打好的共享外壳包（topbar-host.js、ui-inherit-run.js 里全是 common 的代码，只是入口文件放在 curio/js/sgx/）和奇趣的 main.css（cu- / bk- / it- 部件：页头、卡片、编辑弹层、裁剪）；外观同拆出前的 /curio/games/，技术债同音乐，随 curio.js / 奇趣样式挪进 common 后删这几条。",
+      "since": "2026-11-22 奇趣重组 PR 2"
+    },
+    {
+      "rule": 24,
+      "file": "space/web/layouts/games/baseof.html",
+      "ref": "curio/css/main.css",
+      "reason": "奇趣重组 PR 2：游戏子站外框照 layouts/music/baseof.html 写（同音乐的例外），借奇趣打好的共享外壳包（topbar-host.js、ui-inherit-run.js 里全是 common 的代码，只是入口文件放在 curio/js/sgx/）和奇趣的 main.css（cu- / bk- / it- 部件：页头、卡片、编辑弹层、裁剪）；外观同拆出前的 /curio/games/，技术债同音乐，随 curio.js / 奇趣样式挪进 common 后删这几条。",
+      "since": "2026-11-22 奇趣重组 PR 2"
+    },
+    {
+      "rule": 24,
+      "file": "space/web/layouts/games/baseof.html",
+      "ref": "curio/js/sgx/topbar-host.js",
+      "reason": "奇趣重组 PR 2：游戏子站外框照 layouts/music/baseof.html 写（同音乐的例外），借奇趣打好的共享外壳包（topbar-host.js、ui-inherit-run.js 里全是 common 的代码，只是入口文件放在 curio/js/sgx/）和奇趣的 main.css（cu- / bk- / it- 部件：页头、卡片、编辑弹层、裁剪）；外观同拆出前的 /curio/games/，技术债同音乐，随 curio.js / 奇趣样式挪进 common 后删这几条。",
+      "since": "2026-11-22 奇趣重组 PR 2"
     }
   ]
 }
