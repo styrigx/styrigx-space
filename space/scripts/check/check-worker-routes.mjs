@@ -54,6 +54,7 @@ export const SUBSITES = ['blog', 'curio', 'daymark', 'music', 'games'];
 /* 子站在主域名上必须归网关的路径（页面、RSS、站点地图；v5 S3 起都公开，但要经网关注入会话标记） */
 const SUBSITE_MUST = ['/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?a', '/blog/tags/x/', '/blog/zh/', '/blog/zh/?a', '/blog/zh/post/x/', '/blog/rss.xml', '/blog/rss.xml?a',
   '/curio/', '/curio/?x=1', '/curio/zh/', '/curio/sitemap.xml', '/curio/sitemap.xml?a',
+  /* /curio/movies/、/curio/zh/devices/：奇趣重组 PR 3 删了页面，Pages 回 404，照样要过网关（不跳转） */
   '/curio/finds/', '/curio/zh/devices/', '/curio/games/', '/curio/movies/', '/curio/zh/music/', '/curio/music/?artist=1',
   '/daymark/', '/daymark/?x=1', '/daymark/zh/', '/daymark/sitemap.xml', '/daymark/sitemap.xml?a',
   /* music 搬家第 3 步：新页面地址；旧 /curio/music/… 留在上面（301 由 Pages _redirects 回，也要过网关） */
@@ -63,8 +64,8 @@ const SUBSITE_MUST = ['/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?
 /* 子站接口 Worker：必须登记的路由（每个站一条 /<站>/api/*）和归它的样例路径（主域名） */
 export const CORE_WORKERS = [
   { name: 'atlas-core', label: '内容层接口 Worker（styrigx-atlas-core）', dir: 'workers/atlas-core', sites: ['curio', 'daymark', 'music', 'games'],
-    samples: ['/curio/api/links', '/curio/api/icon?id=1', '/curio/api/import', '/curio/api/export', '/curio/api/preview?url=x', '/curio/api/photo?kind=device&id=1',
-      '/curio/api/movies',
+    samples: ['/curio/api/links', '/curio/api/icon?id=1', '/curio/api/import', '/curio/api/export', '/curio/api/preview?url=x',
+      /* 奇趣重组 PR 3 删掉了 /curio/api/items、/curio/api/movies、/curio/api/photo（地址仍落在 /curio/api/* 上、由 atlas-core 当表外路径回 401） */
       '/daymark/api/quotes', '/daymark/api/today', '/daymark/api/today?x=1', '/daymark/api/collections', '/daymark/api/days',
       /* 音乐接口只在 /music/api/*（music 搬家第 4 步删掉旧 /curio/api/music*，那些地址落在 /curio/api/* 上、由 atlas-core 当表外路径回 401） */
       '/music/api/music', '/music/api/music-upload?album=1&kind=track', '/music/api/music-play', '/music/api/music-stream?t=x&id=1', '/music/api/music-cover?album=1',

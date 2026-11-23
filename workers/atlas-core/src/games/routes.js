@@ -2,7 +2,7 @@
  * @fileoverview 游戏的接口路由表（公开地址 styrigx.com/games/api/*；奇趣重组设计稿 v1.0 第三节 PR 1，照 music 搬家第 2 步的做法）：
  * /api/<路径> → src/games/api/<路径>.js。handler 只是薄壳：数据层、写操作、照片规则复用 src/curio/api/（_items.js、_items-post.js、_photo.js），
  * 和奇趣「游戏」栏同一张表、同一份 R2 封面。由 src/curio/app.js 按前缀 /games 选用本表。
- * PR 1 只加不改：旧 /curio/api/items、/curio/api/photo 照常（PR 3 才删）。
+ * PR 1 只加不改；PR 3 删掉了旧 /curio/api/items、/curio/api/photo（游戏只走这里）。
  * 同一文件里的 ROUTE_ACCESS 是游戏接口在本 Worker 的访问表（谁能调哪个接口；组名在账号 Worker 路由表按 product 推：games-use / games-manage）。
  */
 import * as games from './api/games.js';

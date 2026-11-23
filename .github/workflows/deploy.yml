@@ -1503,7 +1503,7 @@ jobs:
     # 内容层接口 Worker styrigx-atlas-core（workers/atlas-core；2026-11-14 Atlas 后端合并：原 deploy-curio-core / deploy-daymark-core 两个 job 合成本 job）。
     # 奇趣 + 日刻 + 音乐一个 Worker、一个 D1、一个 R2；路由见 workers/atlas-core/wrangler.toml：styrigx.com/curio/api/*、styrigx.com/daymark/api/*、
     # styrigx.com/music/api/*（music 搬家第 2 步加；第 4 步删掉旧 /curio/api/music*，旧地址落在 /curio/api/* 上回 401），
-    # styrigx.com/games/api/*（奇趣重组设计稿 v1.0 第三节 PR 1；CF 上这条路由第一次由本 job 建，部署要 Gray 单独批），
+    # styrigx.com/games/api/*（奇趣重组设计稿 v1.0 第三节 PR 1；CF 上这条路由第一次由本 job 建，部署要 Gray 单独批；PR 3 删掉旧 /curio/api/items、movies、photo，同样落在 /curio/api/* 上回 401），
     # 比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：v6 会话经站点核心 SpaceVerifier.admit() 问账号 Worker（服务绑定 SPACE）。
     # 排在 styrigx-space-core 之后（needs）：服务绑定 SPACE 指向的 Worker / 入口 SpaceVerifier 要先在。status（JOB_ATLAS）、ai（CURIO）绑本 Worker 的入口，
     # 本 Worker 已在线上（2026-11-14 不挂路由先部署过），所以它们排在前面也部署得了。
@@ -1593,6 +1593,10 @@ jobs:
           # 奇趣重组 PR 1：游戏接口 /games/api/*（列表公开；奇趣接口不能从这个前缀走 = 表外路径 401）
           check "https://styrigx.com/games/api/games" 200 || ok=1
           check "https://styrigx.com/games/api/links" 401 || ok=1
+          # 奇趣重组 PR 3：旧 /curio/api/items（设备 + 游戏）、/curio/api/movies、/curio/api/photo 删掉、不留别名——表外路径（401，不再 200）
+          check "https://styrigx.com/curio/api/items" 401 || ok=1
+          check "https://styrigx.com/curio/api/movies" 401 || ok=1
+          check "https://styrigx.com/curio/api/photo?kind=game&id=1" 401 || ok=1
           exit $ok
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)

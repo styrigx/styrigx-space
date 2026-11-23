@@ -59,7 +59,7 @@ test('mdParse：段落 / 换行 / 列表 / 粗体 / 链接 / 裸网址；标题 
 });
 
 test('linkInfo：只认 http(s) 和站内绝对路径；同 host 算站内', () => {
-  assert.deepEqual(AP.linkInfo('/curio/movies/', HERE), { href: '/curio/movies/', internal: true });
+  assert.deepEqual(AP.linkInfo('/games/', HERE), { href: '/games/', internal: true });
   assert.deepEqual(AP.linkInfo('https://styrigx.com/theme/', HERE), { href: 'https://styrigx.com/theme/', internal: true });
   assert.deepEqual(AP.linkInfo('https://example.org/x', HERE), { href: 'https://example.org/x', internal: false });
   for (const bad of ['javascript:alert(1)', 'data:text/html,x', '//evil.com/x', 'vbscript:x', 'mailto:a@b.c', 'relative/path', '']) assert.equal(AP.linkInfo(bad, HERE), null, bad);

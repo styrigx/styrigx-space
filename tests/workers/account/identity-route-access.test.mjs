@@ -149,16 +149,16 @@ test('档合法；删除两级；sudo 继任；root 不能从访客直接登录'
   for (const p of ['/api/account/session', '/api/account/reauth', '/api/account/reset', '/api/account/keys', '/api/account/grants']) assert.equal(RA.ruleOf('POST', p), null, p + '（v6 P4 删）');
   assert.equal(RA.levelOf('POST', '/api/identity', { action: 'su' }), 'public', 'su root 的 wheel 要求在接口内（身份命令），不在路由档');
   assert.equal(RA.levelOf('DELETE', '/daymark/api/quotes'), 'daymark-manage');
-  assert.equal(RA.levelOf('DELETE', '/curio/api/photo'), 'curio-manage');
+  for (const p of ['/curio/api/items', '/curio/api/movies', '/curio/api/photo']) assert.equal(RA.ruleOf('GET', p), null, p + '（奇趣重组 PR 3 删）');
 });
 
 test('摘要快照：各档路由数（改表必须改这里）', () => {
   const count = {};
   for (const r of RA.ROUTE_ACCESS) count[r.level] = (count[r.level] || 0) + 1;
-  assert.deepEqual(count, { public: 26, 'ai-use': 2, 'status-use': 1, root: 5, webmaster: 5, user: 1, 'curio-manage': 6, 'music-manage': 2, 'music-use': 3, 'daymark-manage': 6, 'games-manage': 3 },
-    'P4-3（定稿 v5.5 §五）：avatar PUT / DELETE、prefs POST、devices 由 user 改 webmaster；组权限 v1.1 §六：音乐的 POST music / music-upload 从 curio-write 拆到 music-manage；music 搬家第 2 步加 /music/api/* 7 行、第 4 步删旧 /curio/api/music* 7 行（音乐：public 2、music-manage 2、music-use 3）；奇趣重组 PR 1 加 /games/api/* 5 行（public 2、games-manage 3）');
-  assert.equal(RA.ROUTE_ACCESS.length, 60, 'v6 P4 删旧入口 20 条（78 → 58），应用授权 /api/account/grants 删除（58 → 57），数字健康 POST / GET /api/wellbeing 删除（57 → 55），music 搬家第 2 步加 /music/api/* 7 行（55 → 62），第 4 步删旧 /curio/api/music* 7 行（62 → 55），奇趣重组 PR 1 加 /games/api/* 5 行（55 → 60）');
-  assert.equal(RA.ROUTE_ACCESS.filter((r) => r.decided).length, 14, 'Gray 2026-11-11 定稿的 17 条，P4 删 lock-all-devices 后 16 条，数字健康两条删除后 14 条');
+  assert.deepEqual(count, { public: 23, 'ai-use': 2, 'status-use': 1, root: 5, webmaster: 5, user: 1, 'curio-manage': 2, 'music-manage': 2, 'music-use': 3, 'daymark-manage': 6, 'games-manage': 3 },
+    'P4-3（定稿 v5.5 §五）：avatar PUT / DELETE、prefs POST、devices 由 user 改 webmaster；组权限 v1.1 §六：音乐的 POST music / music-upload 从 curio-write 拆到 music-manage；music 搬家第 2 步加 /music/api/* 7 行、第 4 步删旧 /curio/api/music* 7 行（音乐：public 2、music-manage 2、music-use 3）；奇趣重组 PR 1 加 /games/api/* 5 行（public 2、games-manage 3）；PR 3 删 /curio/api/items、movies、photo 7 行（public 3、curio-manage 4）');
+  assert.equal(RA.ROUTE_ACCESS.length, 53, 'v6 P4 删旧入口 20 条（78 → 58），应用授权 /api/account/grants 删除（58 → 57），数字健康 POST / GET /api/wellbeing 删除（57 → 55），music 搬家第 2 步加 /music/api/* 7 行（55 → 62），第 4 步删旧 /curio/api/music* 7 行（62 → 55），奇趣重组 PR 1 加 /games/api/* 5 行（55 → 60），PR 3 删 /curio/api/items、movies、photo 7 行（60 → 53）');
+  assert.equal(RA.ROUTE_ACCESS.filter((r) => r.decided).length, 12, 'Gray 2026-11-11 定稿的 17 条，P4 删 lock-all-devices 后 16 条，数字健康两条删除后 14 条，奇趣重组 PR 3 删 GET /curio/api/items、movies 后 12 条');
   assert.equal(RA.ROUTE_ACCESS.filter((r) => 'doubt' in r).length, 0, '不再有存疑');
   assert.equal(RA.levelOf('GET', '/curio/api/export'), 'root', '导出含私密 → root（Gray 2026-11-11）');
   assert.equal(RA.levelOf('PUT', '/api/profile'), 'webmaster', '站长名片只有一份：站长 + root（P2 定稿 v4）');
@@ -274,10 +274,10 @@ test('music 搬家第 4 步：旧 /curio/api/music* 7 行删掉（不留别名�
   assert.equal(RA.levelOf('GET', NEW, { action: 'private' }), 'music-use');
   assert.equal(RA.levelOf('GET', NEW, { action: 'manage' }), 'music-manage');
   assert.equal(RA.levelOf('DELETE', '/daymark/api/quotes'), 'daymark-manage');
-  assert.equal(RA.levelOf('DELETE', '/curio/api/photo'), 'curio-manage');
+  assert.equal(RA.levelOf('DELETE', '/games/api/cover'), 'games-manage');
 });
 
-test('奇趣重组 PR 1：/games/api/* 5 行，product games 推出 games-use / games-manage；/games/api/ 下只有游戏；旧 /curio/api/items、photo 照常', () => {
+test('奇趣重组 PR 1：/games/api/* 5 行，product games 推出 games-use / games-manage；/games/api/ 下只有游戏；PR 3 删了旧 /curio/api/items、movies、photo', () => {
   const rows = RA.ROUTE_ACCESS.filter((r) => r.path.startsWith('/games/'));
   assert.deepEqual(rows.map((r) => r.method + ' ' + r.path + ' ' + r.level), [
     'GET /games/api/games public', 'POST /games/api/games games-manage', 'GET /games/api/cover public', 'POST /games/api/cover games-manage', 'DELETE /games/api/cover games-manage',
@@ -294,9 +294,9 @@ test('奇趣重组 PR 1：/games/api/* 5 行，product games 推出 games-use / 
   assert.equal(RA.ruleOf('POST', '/games/api/games').del, 'item');
   assert.equal(RA.ruleOf('DELETE', '/games/api/cover').del, 'item');
   for (const p of ['/games/api/items', '/games/api/photo', '/games/api/links', '/games/api/music', '/games/api/export']) assert.equal(RA.levelOf('GET', p), null, p + '：别的产品不能从 /games 前缀走');
-  assert.equal(RA.levelOf('GET', '/curio/api/items'), 'public', '旧路径照常（PR 3 再删）');
-  assert.equal(RA.levelOf('POST', '/curio/api/items'), 'curio-manage');
-  assert.equal(RA.levelOf('POST', '/curio/api/photo'), 'curio-manage');
+  /* 奇趣重组 PR 3：旧路径整行删掉，不留别名（不在表里 = 拒绝） */
+  for (const [m, p] of [['GET', '/curio/api/items'], ['POST', '/curio/api/items'], ['GET', '/curio/api/movies'], ['POST', '/curio/api/movies'],
+    ['GET', '/curio/api/photo'], ['POST', '/curio/api/photo'], ['DELETE', '/curio/api/photo']]) assert.equal(RA.ruleOf(m, p), null, m + ' ' + p);
 });
 
 test('product / kind 推导：写错就抛（表写错 Worker 起不来）', () => {

@@ -122,7 +122,7 @@ html, body {
    2026-10-24 跟进主站 PR-G 主题：三层 token —— Shell（光晕 / 顶栏 / 抽屉 / 内容底板 / 玻璃材质，中性，全主题一样）、
    Semantic（primary = 前景 1、secondary = 前景 2；选中、链接、边线、文字）、Component（只引用前两层）。
    颜色只用上面共享外壳的 --sgx-* 角色，不写颜色值（唯一例外：网站图标的白底衬，见 .cu-ic img）。
-   能对照主站的部分照主站 styrigx-space space/web/assets/common/css/input.css 一比一搬（各段注明出处）。Curio 封面（游戏封面 / 设备照片）保留原色。 */
+   能对照主站的部分照主站 styrigx-space space/web/assets/common/css/input.css 一比一搬（各段注明出处）。Curio 封面（游戏封面）保留原色。 */
 
 
 /* ===== --m-* 别名、布局变量（--nav-h / --sgx-content-*）：2026-11 奇趣 CSS 瘦身上提进平台 tokens.css（gen-common 从主站 tokens 层抽），本站经上面 @import 用同一份。

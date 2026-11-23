@@ -1,8 +1,8 @@
 // 奇趣照片兜底清扫（workers/atlas-core/src/curio/photo-sweep.js，2026-11-14 合并进 atlas-core）：
-// - 只删 photos/ 下没被 devices.photo / games.cover 引用、且上传超过 1 小时的
-// - icons/、imports/ 不动；D1 读不到整轮不删
+// - 只删 photos/game/ 下没被 games.cover 引用、且上传超过 1 小时的（奇趣重组 PR 3 起只看游戏封面）
+// - photos/device/、photos/movie/（删掉的设备照片 / 电影海报，等备份后按 docs/ops/2026-11-23-drop-devices-movies.sql 手动删）、icons/、imports/ 不动；D1 读不到整轮不删
 // - Cron 只在 UTC 19 点那轮扫
-// 运行：node --test tests/workers/photo-sweep.test.mjs
+// 运行：node --test tests/workers/atlas-core/curio-photo-sweep.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -47,34 +47,35 @@ const FRESH = NOW - 10 * 60e3;
 async function seed(db) {
   const IT = await import(W + '/api/_items.js');
   await IT.ensureItemSchema(db);
-  db.raw.prepare("INSERT INTO devices (name, photo) VALUES ('S24', 'photos/device/1-100.webp')").run();
   db.raw.prepare("INSERT INTO games (title, cover) VALUES ('Zelda', 'photos/game/1-200.webp')").run();
   db.raw.prepare("INSERT INTO games (title, cover) VALUES ('NoCover', '')").run();
 }
 
-test('只删没人引用、上传超过 1 小时的 photos/；引用的、刚传的、icons/、imports/ 都留着（翻页也扫全）', async () => {
+test('只删没人引用、上传超过 1 小时的 photos/game/；引用的、刚传的、photos/device/、photos/movie/、icons/、imports/ 都留着（翻页也扫全）', async () => {
   const db = makeD1();
   await seed(db);
   const r2 = makeR2([
     ['photos/device/1-100.webp', OLD],
     ['photos/device/1-050.webp', OLD],
+    ['photos/movie/3-070.jpg', OLD],
     ['photos/game/1-200.webp', OLD],
     ['photos/game/9-300.webp', OLD],
     ['photos/game/2-999.webp', FRESH],
     ['icons/a.png', OLD],
     ['imports/x.html', OLD],
   ]);
-  const r = await S.sweepPhotos({ D1_DEVICES: db, R2_PHOTOS: r2 }, NOW);
-  assert.deepEqual([r.ok, r.scanned, r.deleted], [true, 5, 2]);
+  const r = await S.sweepPhotos({ D1_GAMES: db, R2_PHOTOS: r2 }, NOW);
+  assert.deepEqual([r.ok, r.scanned, r.deleted], [true, 3, 1], '只扫 photos/game/（3 个），删没人引用的 9-300');
   assert.deepEqual([...r2.m.keys()].sort(), [
-    'icons/a.png', 'imports/x.html', 'photos/device/1-100.webp', 'photos/game/1-200.webp', 'photos/game/2-999.webp',
+    'icons/a.png', 'imports/x.html', 'photos/device/1-050.webp', 'photos/device/1-100.webp', 'photos/game/1-200.webp', 'photos/game/2-999.webp', 'photos/movie/3-070.jpg',
   ]);
+  assert.equal(S.SWEEP_PREFIX, 'photos/game/');
 });
 
 test('D1 读不到：整轮不删', async () => {
   const r2 = makeR2([['photos/game/9-300.webp', OLD]]);
   const bad = { prepare() { throw new Error('boom'); }, batch() { throw new Error('boom'); }, exec() { throw new Error('boom'); } };
-  const r = await S.sweepPhotos({ D1_DEVICES: bad, R2_PHOTOS: r2 }, NOW);
+  const r = await S.sweepPhotos({ D1_GAMES: bad, R2_PHOTOS: r2 }, NOW);
   assert.equal(r.ok, false);
   assert.equal(r2.m.size, 1);
   assert.deepEqual(await S.sweepPhotos({ R2_PHOTOS: r2 }, NOW), { ok: false, scanned: 0, deleted: 0, reason: 'unbound' });
@@ -86,7 +87,7 @@ test('Cron：只有 UTC 19 点那轮扫照片；其它整点只重建索引', as
   const db = makeD1();
   await seed(db);
   const r2 = makeR2([['photos/game/9-300.webp', OLD]]);
-  const env = { D1_DEVICES: db, R2_PHOTOS: r2 };
+  const env = { D1_GAMES: db, R2_PHOTOS: r2 };
   await worker.scheduled({ scheduledTime: Date.UTC(2026, 9, 24, 18, 23) }, env, { waitUntil() {} });
   assert.equal(r2.m.size, 1);
   await worker.scheduled({ scheduledTime: NOW }, env, { waitUntil() {} });

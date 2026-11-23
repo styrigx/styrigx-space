@@ -115,16 +115,16 @@ test('AccountVerifier.admit 带 action：按 action 的档、回答带回 action
   assert.equal((await a(sty, 'POST', '/music/api/music', 'album.add')).allowed, true);
   assert.equal((await a(ali, 'POST', '/music/api/music', 'album.add')).allowed, false);
   /* 私密行：action private = 写组 */
-  assert.equal((await a(sty, 'GET', '/curio/api/items', 'private')).allowed, true);
-  assert.equal((await a(ali, 'GET', '/curio/api/items', 'private')).allowed, false);
-  assert.equal((await a('', 'GET', '/curio/api/items', 'private')).allowed, false, '访客');
+  assert.equal((await a(sty, 'GET', '/curio/api/links', 'private')).allowed, true);
+  assert.equal((await a(ali, 'GET', '/curio/api/links', 'private')).allowed, false);
+  assert.equal((await a('', 'GET', '/curio/api/links', 'private')).allowed, false, '访客');
   assert.equal((await a(sty, 'GET', '/daymark/api/quotes', 'private')).allowed, true);
   assert.equal((await a(rt, 'GET', '/daymark/api/quotes', 'private')).allowed, true);
-  /* 没列的 action 不退回路由档（GET /api/status 没有 actions；GET items 没有 x） */
+  /* 没列的 action 不退回路由档（GET /api/status 没有 actions；GET links 没有 x） */
   r = await a(sty, 'GET', '/api/status', 'private');
   assert.equal(r.allowed, false); assert.equal(r.reason, 'action');
-  assert.equal((await a(sty, 'GET', '/curio/api/items', 'x')).reason, 'action');
-  assert.equal((await a(sty, 'GET', '/curio/api/items', 'BAD ACTION')).reason, 'action');
+  assert.equal((await a(sty, 'GET', '/curio/api/links', 'x')).reason, 'action');
+  assert.equal((await a(sty, 'GET', '/curio/api/links', 'BAD ACTION')).reason, 'action');
   /* 路由档（网关 / 子站守卫的问法） */
   r = await a(sty, 'POST', '/curio/api/links');
   assert.equal(r.allowed, true); assert.equal(r.action, '');
@@ -142,7 +142,7 @@ test('AccountVerifier.admit 带 action：按 action 的档、回答带回 action
 test('路由表：action private 挂在奇趣 / 日刻 / 音乐公开 GET 上（= <产品>-use，另有 manage = <产品>-manage，组权限 v1.1 §七、§八）和 POST /api/ai 上（2c：= webmaster）', () => {
   const withPrivate = RA.ROUTE_ACCESS.filter((r) => r.actions && Object.prototype.hasOwnProperty.call(r.actions, 'private'));
   assert.deepEqual(withPrivate.map((r) => r.method + ' ' + r.path).sort(), [
-    'GET /curio/api/icon', 'GET /curio/api/items', 'GET /curio/api/links', 'GET /curio/api/movies', 'GET /curio/api/photo',
+    'GET /curio/api/icon', 'GET /curio/api/links',
     'GET /daymark/api/collections', 'GET /daymark/api/quotes', 'GET /games/api/cover', 'GET /games/api/games', 'GET /music/api/music', 'POST /api/ai',
   ]);
   for (const r of withPrivate) {

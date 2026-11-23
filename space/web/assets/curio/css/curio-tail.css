@@ -19,7 +19,7 @@
 .bk-panel .rounded-full.h-12 { height: 40px; border-radius: 8px; font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 500; }
 .bk-panel .bg-m-container { background: transparent; border: 1px dashed var(--sgx-term-line); }
 .layout-phone #edit-wrap .bk-panel, .layout-phone #cats-wrap .bk-panel { max-height: 92dvh; }
-.layout-phone #dv-edit-wrap .bk-panel, .layout-phone #gm-edit-wrap .bk-panel, .layout-phone #mv-edit-wrap .bk-panel { max-height: 92dvh; }
+.layout-phone #gm-edit-wrap .bk-panel { max-height: 92dvh; }
 
 /* ===== 分区列表（2026-11 对齐 PR-C2，设计稿 pg=curio）：页头 tab + 命令链（共享外壳 .sgx-ctab / .sgx-cmds）→ chips → 封面卡（.sgx-cc）→ 分页条 ===== */
 #cu-main { padding-bottom: 60px; }
@@ -44,14 +44,13 @@
 /* stylelint-disable-next-line color-no-hex */
 .cu-ic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #fff; padding: 6px; }
 .cu-lock { display: inline-flex; flex: none; color: var(--sgx-text-secondary); opacity: .75; }
-/* 设备 / 游戏 / 电影卡片：照片 / 封面 / 海报铺满封面位；没图时类型图标；已退役的设备照片去色 */
+/* 游戏卡片（游戏子站借这份样式）：封面铺满封面位；没图时类型图标（设备 / 电影卡片奇趣重组 PR 3 删了） */
 .it-cc .sgx-cc-im img { z-index: 1; }
-.it-cc.is-retired .sgx-cc-im img { filter: grayscale(.85); opacity: .8; }
 .it-media-ic { display: inline-flex; opacity: .7; }
 .it-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .it-status { color: inherit; }
 .it-stars-ro { letter-spacing: 1px; }
-/* 条目页（设计稿 pg=citem；curio.js showItem） */
+/* 条目页（设计稿 pg=citem；奇趣自己的条目页 PR 3 删了，游戏子站 games-ui.js showItem 借这几条） */
 .cu-item[hidden] { display: none; }
 .cu-item .sgx-item-im .it-media-ic { opacity: .6; }
 .cu-item .sgx-cmds { margin-top: 18px; }
@@ -113,8 +112,8 @@
 .it-star-btn { width: 44px; height: 44px; border: 0; border-radius: 999px; background: transparent; color: var(--sgx-outline-variant); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .it-star-btn.on { color: var(--sgx-primary); }
 .it-star-btn:focus-visible { outline: 2px solid var(--sgx-focus-ring); }
-/* 照片「移动和缩放」（curio-items.js；同主站头像裁剪 .sgx-avc）：全屏 <dialog>，深浅色都是黑底看照片；
-   取景框 = 卡片比例的圆角矩形（设备 4:3、游戏封面 3:4），框外压暗；拖动移动、双指 / 滚轮缩放；底部 取消 / 完成（完成 = 主题主色填充） */
+/* 照片「移动和缩放」（原 curio-items.js，现在游戏子站 games-page.js 用；同主站头像裁剪 .sgx-avc）：全屏 <dialog>，深浅色都是黑底看照片；
+   取景框 = 卡片比例的圆角矩形（游戏封面 3:4），框外压暗；拖动移动、双指 / 滚轮缩放；底部 取消 / 完成（完成 = 主题主色填充） */
 .cu-crop { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: rgb(0 0 0); color: rgb(255 255 255); overflow: hidden; }
 .cu-crop::backdrop { background: rgb(0 0 0); }
 .cu-crop-stage { position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: grab; }
@@ -128,16 +127,9 @@
 .cu-crop-btn:disabled { opacity: .5; }
 .cu-crop-btn:focus-visible { outline: 2px solid rgb(255 255 255); outline-offset: 2px; }
 
-/* ===== P4-3 奇趣拆页：首页入口、电影、私人音乐 ===== */
-/* 手机 tab 放不下时的「›」（curio.js paintTabsMore）：贴在 tab 条右端、渐隐带上面，点了滑到最后一项 */
-.cu-tabs-more { flex: none; align-self: center; margin: 0 0 0 -22px; padding: 0 6px; border: 0; background: transparent; font: inherit; color: var(--sgx-primary); cursor: pointer; }
-.cu-tabs-more[hidden] { display: none; }
 /* 奇趣重组 PR 2 起页头没有分区 tab 了，这一行只剩「grep _」：行高原来由 tab（上 10 + 下 8 + 2px 下划线）撑起 42px，tab 去掉后塌成 22px（太扁、手机点按区只有 22px 高）。
-   给 grep 按钮 / 展开后的输入框补上同样的上下内边距，行高回到 42px，和拆前、和设备 / 电影子页对齐 */
+   给 grep 按钮 / 展开后的输入框补上同样的上下内边距，行高回到 42px，和拆前对齐 */
 #cu-tabs > .sgx-grep, #cu-tabs > .sgx-grep-box { padding-block: 10px; }
-
-/* 电影：编辑弹层里的海报缩略图 2:3（同 curio-items.js 的 CROP_RATIO.movie） */
-.it-photo-prev--poster { width: 60px; height: 90px; }
 
 /* 音乐（.mu-* 音乐页控件 / .mp-* 弹出播放器）：2026-11 第 7 步搬进共享外壳 @frame music（common/css/input.css → frame.css）；音乐页自己的弹层规则 music 搬家第 3 步搬到 assets/music/css/input.css */
 

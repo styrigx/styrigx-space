@@ -72,7 +72,8 @@ test('privateNotFound：公开条目不问；私密且看不到 → 404 not-foun
 
 test('两份 _auth.js 的 readAccess 已删，公开读接口都只调 common/visibility.js；atlas-core 不写组名', () => {
   for (const p of ['curio/api/_auth.js', 'daymark/api/_auth.js']) assert.doesNotMatch(readFileSync(SRC + p, 'utf8'), /readAccess/, p);
-  for (const p of ['curio/api/items.js', 'curio/api/links.js', 'curio/api/movies.js', 'music/api/music.js', 'daymark/api/quotes.js', 'daymark/api/collections.js', 'games/api/games.js']) {
+  /* curio/api/items.js、movies.js 奇趣重组 PR 3 删了 */
+  for (const p of ['curio/api/links.js', 'music/api/music.js', 'daymark/api/quotes.js', 'daymark/api/collections.js', 'games/api/games.js']) {
     assert.match(readFileSync(SRC + p, 'utf8'), /import \{[^}]*\bvisibility\b[^}]*\} from '\.\.\/\.\.\/common\/visibility\.js'/, p);
   }
   for (const p of ['curio/api/_photo.js', 'curio/api/icon.js']) assert.match(readFileSync(SRC + p, 'utf8'), /privateNotFound/, p);

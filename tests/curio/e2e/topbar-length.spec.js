@@ -121,7 +121,7 @@ for (const [w, h] of VIEWPORTS) {
 
 /* 名字按页面语言（博客跟主站 sgx-ui cookie / 浏览器语言，可能是英文） */
 const SECTIONS = [
-  /* 奇趣（奇趣重组 PR 2）：页头没有分区 tab 行了（奇趣 = 发现，设备 / 电影是子页、游戏是子站），只查首页本身 */
+  /* 奇趣（奇趣重组 PR 2 / 3）：页头没有分区 tab 行了（奇趣 = 发现；游戏是子站，设备 / 电影删了），只查首页本身 */
   ['/curio/', ['奇趣', 'Curio'], []],
   /* 日刻（对齐 PR-C2）：余响下面的窗标题进拾录 / 百味，那边「cd ..」回余响 */
   ['/daymark/', ['日刻', 'Daymark'], [['#dm-wt-trove a', ['拾录', 'Trove']], ['#dm-pane-trove .sgx-cmds a[href="#"]', ['日刻', 'Daymark']], ['#dm-wt-flavors a', ['百味', 'Flavors']], ['#dm-pane-flavors .sgx-cmds a[href="#"]', ['日刻', 'Daymark']]]],

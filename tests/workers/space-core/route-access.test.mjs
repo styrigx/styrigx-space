@@ -5,7 +5,7 @@
  * - 精确匹配：多一段 /x、换方法、编码 / 大小写绕法都不算 public
  * - 访客：/status/、/blog/、/curio/、/daymark/ 页面 200；/api/ai、/api/status、/api/space-audit、/api/account 401；屏幕时间合计公开
  * - v6 会话（站长 / root）放行；没身份 401、档不够 403（v6 P4 起进站会话、分享链接会话、lock-now、纪元全部删除，对应用例一并删除）
- * 听歌三层（歌单公开 / 听要进站 / 管理要账号）在奇趣接口（atlas-core）自己的访问表里，见 tests/workers/atlas-core/curio-movies-music.test.mjs。
+ * 听歌三层（歌单公开 / 听要进站 / 管理要账号）在奇趣接口（atlas-core）自己的访问表里，见 tests/workers/atlas-core/curio-music.test.mjs。
  * 运行：node --test tests/workers/space-core/route-access.test.mjs
  */
 import { test } from 'node:test';

@@ -82,10 +82,10 @@ test('语言：合法 cookie 带 lang=en → 中文页换到英文同一页（�
   await expect(page).toHaveURL(/:\d+\/curio\/$/);
   /* 明确存了 system（新写法）同样 = Auto：子站不跳 */
   await setCookie(context, enc({ v: 2, mode: 'light', lang: 'system' }));
-  /* Auto 不换语言：/curio/#devices 留在英文（不进 /curio/zh/…） */
-  await page.goto('/curio/#devices');
+  /* Auto 不换语言：/curio/#c/2 留在英文（不进 /curio/zh/…；奇趣重组 PR 3 起 #devices 不再转跳设备子页，改用分类 hash） */
+  await page.goto('/curio/#c/2');
   await page.waitForTimeout(500);
-  await expect(page).toHaveURL(/:\d+\/curio\/(#devices|devices\/)$/);
+  await expect(page).toHaveURL(/:\d+\/curio\/#c\/2$/);
 });
 
 test.describe('英文浏览器', () => {

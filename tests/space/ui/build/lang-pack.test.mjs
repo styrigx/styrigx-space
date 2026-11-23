@@ -239,8 +239,7 @@ test('JS 字符串表（语言包化 2026-11-07）：i18nTable(表) 的 tx(键) 
 test('奇趣 / 日刻页面脚本（语言包化第二部分）：文案只读 #sgx-i18n-<表>，T.键 / tr(键) 都在英文表 js.<表> 里；脚本不再按语言二选一', () => {
   const FILES = [
     ['curio', 'space/web/assets/curio/js/curio.js', 'curio'],
-    ['curio', 'space/web/assets/curio/js/curio-items.js', 'curioItems'],
-    ['curio', 'space/web/assets/curio/js/curio-movies.js', 'curioMovies'],
+    /* curio-items.js（curioItems）、curio-movies.js（curioMovies）奇趣重组 PR 3 删了 */
     ['music', 'space/web/assets/music/js/music-page.js', 'musicPage'],
     ['games', 'space/web/assets/games/js/games-page.js', 'gamesPage'],
     ['daymark', 'space/web/assets/daymark/js/daymark.js', 'daymark'],
@@ -306,8 +305,9 @@ test('Worker 名字（语言包化第二部分）：服务状态站名接口只�
   assert.ok(!Object.keys(en.space).some((k) => k.startsWith('wb')) && !Object.keys(zh.space || {}).some((k) => k.startsWith('wb')), '字符串表里不留 wb*');
   /* 奇趣搜索索引的页签 / 类型标签：英文底 + 中文层，缺键回退英文 */
   const { labels } = await import('../../../../workers/atlas-core/src/curio/search-index.js');
-  assert.equal(labels('zh').kinds.phone, '手机');
+  assert.equal(labels('zh').status.done, '通关');
   assert.equal(labels('en').status.done, 'Finished');
+  assert.equal(labels('zh').kinds, undefined, '设备类型标签随设备删了（奇趣重组 PR 3）');
   assert.deepEqual(labels('fr'), labels('en'), '没有语言层的语言整份英文');
 });
 

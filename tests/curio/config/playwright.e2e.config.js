@@ -24,7 +24,7 @@ module.exports = defineConfig({
     /* music 搬家第 3 步（搬家设计稿 v1.1 3.4「412 + 1440 两档跑全」）：音乐的几份 spec 再在桌面 1440 跑一遍（桌面弹的是小窗，手机是新标签页） */
     {
       name: 'desktop-1440',
-      testMatch: ['curio-music-*.spec.js', 'curio-movies-music.spec.js'],
+      testMatch: ['curio-music-*.spec.js'], /* curio-music-page.spec.js 原名 curio-movies-music.spec.js（奇趣重组 PR 3 删了电影） */
       use: { browserName: 'chromium', viewport: { width: 1440, height: 900 } },
     },
   ],

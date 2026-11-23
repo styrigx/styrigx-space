@@ -10,31 +10,6 @@ index:
   sections: 分区
 baseof:
   pageNotFound: 页面不存在
-devices:
-  devices: 设备
-  filter: 筛选
-  loading: 加载中…
-  device: 设备
-  close: 关闭
-  choosePhoto: 选照片
-  removePhoto: 去掉照片
-  name: 名字
-  eGGalaxyS25: 比如 Galaxy S25 Ultra
-  type: 类型
-  boughtOn: 购买日期
-  systemVersion: 系统版本
-  eGOneUi: 比如 One UI 8
-  specs: 参数
-  chipMemoryStorageColour: 芯片、内存、存储、颜色……
-  accessories: 配件
-  caseChargerEarbuds: 手机壳、充电器、耳机……
-  howItsBeen: 体验
-  retired: 已退役
-  retiredOn: 退役日期
-  replacedBy: 换成了
-  onlyMe: 仅自己可见
-  delete: 删除
-  save: 保存
 finds:
   finds: 发现
   categories: 分类
@@ -71,28 +46,8 @@ finds:
   chooseFile: 选择文件
   importAsOnlyMe: 导入为仅自己可见
   import: 导入
-movies:
-  movies: 电影
-  loading: 加载中…
-  movie: 电影
-  close: 关闭
-  choosePoster: 选海报
-  removePoster: 去掉海报
-  title: 片名
-  originalTitle: 原名
-  eG: 比如 In the Mood for Love
-  year: 年份
-  director: 导演
-  watchedOn: 观看日期
-  myRating: 我的评分
-  aLineOrTwo: 短评
-  delete: 删除
-  save: 保存
 curioCommon:
   cancel: 取消
-curioItemView:
-  edit: 编辑
-  close: 关闭
 curioSignin:
   signInToYour: su 登录后可编辑
 list:
@@ -107,13 +62,8 @@ sort:
   recent: 最近收藏
   order: 我的顺序
   name: 名称
-  bought: 最近购入
-  rating: 评分
-  watched: 最近看过
 cmd:
   addFind: 收藏
-  addDevice: 添加设备
-  addMovie: 添加电影
   cats: 管理分类
   import: 导入书签
   export: 导出书签
@@ -160,85 +110,3 @@ js:
   curioList:
     count: '-- {n} / {total} --'
     noMatch: 没有匹配的。
-  curioItems:
-    all: 全部
-    active: 在用
-    retired: 已退役
-    kind_phone: 手机
-    kind_tablet: 平板
-    kind_laptop: 笔记本
-    kind_desktop: 台式机
-    kind_watch: 手表
-    kind_audio: 耳机音箱
-    kind_console: 游戏机
-    kind_camera: 相机
-    kind_other: 其他
-    addDevice: 添加设备
-    editDevice: 编辑设备
-    emptyDevAdmin: 还没有设备。用上面的「添加设备」加第一台。
-    empty: 这里还空着。
-    noMatch: 这个筛选下没有。
-    needName: 起个名字。
-    badDate: 日期不对，检查一下。
-    failed: 出了点问题，请再试一次。
-    loadFail: "error: 列表没能加载  # 刷新重试"
-    saved: 已保存
-    deleted: 已删除
-    photoFail: 已保存，但照片没传上去。
-    notImage: 这张图用不了。
-    tooLarge: 照片太大了。
-    delDevice: 确定删除这台设备吗？
-    del: 删除
-    none: 无
-    priv: 仅自己可见
-    used: 已经用了
-    usedFor: 用了
-    bought: 购买
-    retiredOn: 退役
-    os: 系统
-    specs: 参数
-    acc: 配件
-    notes: 体验
-    from: 换下了
-    to: 换成了
-    crop: 移动和缩放
-    cancel: 取消
-    done: 完成
-    adjust: 调整照片
-    listSep: 、
-    days: '{n} 天'
-    aboutYears: ' · 约 {y} 年'
-    state: 状态
-    tags: 标签
-    link: 链接
-    kept: '收入于 {d}'
-    related: 相关文章
-    editCmd: 编辑
-    back: 回到列表
-    nextNone: 已经是最后一个
-    notFound: 这个条目不存在，或者你看不到它。
-    noPermission: 当前用户没有这个权限。
-  curioMovies:
-    add: 添加电影
-    edit: 编辑电影
-    empty: 这里还空着。
-    emptyAdmin: 还没有电影。用上面的「添加电影」加第一部。
-    needTitle: 填一下片名。
-    badYear: 年份不对，检查一下。
-    badDate: 日期不对，检查一下。
-    saved: 已保存
-    deleted: 已删除
-    failed: 出了点问题，请再试一次。
-    loadFail: "error: 列表没能加载  # 刷新重试"
-    photoFail: 已保存，但海报没传上去。
-    del: 删除
-    delMovie: 确定删除这部电影吗？
-    original: 原名
-    year: 年份
-    director: 导演
-    watched: 观看日期
-    rating: 我的评分
-    review: 短评
-    stars: '{n} 星'
-    title: 电影
-    editCmd: 编辑

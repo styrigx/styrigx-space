@@ -1,13 +1,12 @@
 {{ define "main" }}
 {{ $lang := .Lang }}{{ $tr := partialCached "common/tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
-{{/* 奇趣首页（2026-11 对齐 PR-C2，设计稿 tb4.html pg=curio）：「ls curio/」一页就是分区 tab + 卡片，默认 finds/（内容同 /curio/finds/，partials/curio/finds-main.html）。
-   旧的平铺入口（发现 / 设备 / 游戏 / 电影 / 音乐大行）删掉，分区切换是页头的下划线 tab。
-   旧 hash 地址（#devices、#games）由 curio-home.js 在客户端转到对应子页；#c/<分类> 就地生效（首页就是发现）。顶栏页名胶囊显示站名。 */}}
+{{/* 奇趣首页（2026-11 对齐 PR-C2，设计稿 tb4.html pg=curio）：「ls curio/」一页就是发现（partials/curio/finds-main.html）。
+   奇趣重组 PR 2 去掉了分区 tab、游戏搬成子站 /games/；PR 3 删了设备 / 电影子页，旧 hash #devices 的客户端转跳脚本一起删掉
+   （/curio/devices/、/curio/movies/ 直接 404，不跳）。#c/<分类> 就地生效。顶栏页名胶囊显示站名。 */}}
 {{ partial "curio/finds-main.html" (dict "page" . "tr" $tr "lang" $lang "home" true) }}
 {{ end }}
 
 {{ define "pagejs" }}
-<script src="{{ (resources.Get "curio/js/curio-home.js" | minify | fingerprint).RelPermalink }}"></script>
 <script src="{{ (resources.Get "curio/js/curio.js" | minify | fingerprint).RelPermalink }}"></script>
 <script src="{{ (resources.Get "curio/js/curio-list.js" | minify | fingerprint).RelPermalink }}"></script>
 {{ end }}

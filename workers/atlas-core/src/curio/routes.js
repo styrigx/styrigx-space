@@ -1,8 +1,10 @@
 /**
  * @fileoverview 接口路由表：/api/<路径> → src/api/<路径>.js。
  * src/api/ 新增或删除接口文件时这里要同步，tests/workers/core.test.mjs 会检查两边一致。
- * 下划线开头的文件不是接口（_auth、_lib、_write、_store、_netscape、_preview、_items、_items-post、_photo、_image、_movies、_music）。
+ * 下划线开头的文件不是接口（_auth、_lib、_write、_store、_netscape、_preview、_items、_items-post、_photo、_image、_music）。
  * 游戏接口（/games/api/*，奇趣重组 PR 1）的表在 src/games/routes.js，handler 在 src/games/api/，复用这里的 _items.js、_items-post.js、_photo.js。
+ * 奇趣重组 PR 3 删掉了 /api/items（设备 + 游戏）、/api/movies、/api/photo（设备照片 / 游戏封面 / 电影海报）：游戏全走 /games/api/*，
+ * 设备、电影整块删了；旧地址落在 /curio/api/* 这条 CF 路由上，查不到表 = 表外路径（entry 档 → 账号 Worker 表里也没有这几行 → 一律 401，同第 4 步后的旧 /curio/api/music*）。
  * 音乐的 5 个接口文件（api/music*.js）也在 src/curio/api/ 下，但不挂在这里：挂在 src/music/routes.js（公开地址 /music/api/*；
  * music 搬家第 4 步删掉了旧路径 /curio/api/music*，不留别名）。tests/workers/atlas-core/curio.test.mjs 核对两张表合起来 = api/ 下的接口文件。
  * 同一文件里的 ROUTE_ACCESS 是本 Worker 唯一的访问表（谁能调哪个接口）。
@@ -10,10 +12,7 @@
 import * as exportApi from './api/export.js';
 import * as icon from './api/icon.js';
 import * as importApi from './api/import.js';
-import * as items from './api/items.js';
 import * as links from './api/links.js';
-import * as movies from './api/movies.js';
-import * as photo from './api/photo.js';
 import * as preview from './api/preview.js';
 
 /** @type {Map<string, Record<string, Function>>} */
@@ -21,10 +20,7 @@ export const API_ROUTES = new Map([
   ['/api/export', exportApi],
   ['/api/icon', icon],
   ['/api/import', importApi],
-  ['/api/items', items],
   ['/api/links', links],
-  ['/api/movies', movies],
-  ['/api/photo', photo],
   ['/api/preview', preview],
 ]);
 
@@ -39,15 +35,8 @@ export const API_ROUTES = new Map([
  * @type {ReadonlyArray<Readonly<{method: string, path: string, access: 'public'|'entry', product: 'curio'}>>}
  */
 export const ROUTE_ACCESS = Object.freeze([
-  { method: 'GET', path: '/api/items', access: 'public', product: 'curio' },
-  { method: 'POST', path: '/api/items', access: 'entry', product: 'curio' },
   { method: 'GET', path: '/api/links', access: 'public', product: 'curio' },
   { method: 'POST', path: '/api/links', access: 'entry', product: 'curio' },
-  { method: 'GET', path: '/api/movies', access: 'public', product: 'curio' },
-  { method: 'POST', path: '/api/movies', access: 'entry', product: 'curio' },
-  { method: 'GET', path: '/api/photo', access: 'public', product: 'curio' },
-  { method: 'POST', path: '/api/photo', access: 'entry', product: 'curio' },
-  { method: 'DELETE', path: '/api/photo', access: 'entry', product: 'curio' },
   { method: 'GET', path: '/api/icon', access: 'public', product: 'curio' },
   { method: 'GET', path: '/api/preview', access: 'entry', product: 'curio' },
   { method: 'GET', path: '/api/export', access: 'entry', product: 'curio' },

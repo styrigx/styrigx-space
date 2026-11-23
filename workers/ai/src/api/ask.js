@@ -23,7 +23,7 @@
  *   503 config（选中自营模型但没绑 AI）/ no_key（选中外部模型但钥匙没绑 / 读不到）/ index（索引读不了）。
  *
  * 召回（2026-11 AI 语义召回）：三路并行，合成给模型的上下文——
- *   固定查询（core/fixed.js，问句认出「最近 N 部电影」「某专辑曲目」等 → 奇趣的服务绑定 CURIO，只读、参数化）放最前；
+ *   固定查询（core/fixed.js，问句认出「某专辑曲目」等 → 奇趣的服务绑定 CURIO，只读、参数化）放最前；
  *   语义召回（core/semantic.js，问句嵌入 → Vectorize topK）在前、关键词召回（core/recall.js，KV 索引）补后，去重后最多 AI_CONTEXT_HITS 条。
  *   语义召回出错（没建索引、嵌入失败…）只打日志，退回关键词召回；KV 也读不了才 503 index。
  * 浏览器断开：网关把浏览器请求的 signal 带进服务绑定请求；这里 request.signal abort 或流被取消时，取消上游的流。

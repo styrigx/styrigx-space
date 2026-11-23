@@ -12,31 +12,6 @@ index:
   sections: Sections
 baseof:
   pageNotFound: Page not found
-devices:
-  devices: Devices
-  filter: Filter
-  loading: Loading…
-  device: Device
-  close: Close
-  choosePhoto: Choose photo
-  removePhoto: Remove photo
-  name: Name
-  eGGalaxyS25: e.g. Galaxy S25 Ultra
-  type: Type
-  boughtOn: Bought on
-  systemVersion: System version
-  eGOneUi: e.g. One UI 8
-  specs: Specs
-  chipMemoryStorageColour: Chip, memory, storage, colour…
-  accessories: Accessories
-  caseChargerEarbuds: Case, charger, earbuds…
-  howItsBeen: How it's been
-  retired: Retired
-  retiredOn: Retired on
-  replacedBy: Replaced by
-  onlyMe: Only me
-  delete: Delete
-  save: Save
 finds:
   finds: Finds
   categories: Categories
@@ -73,28 +48,8 @@ finds:
   chooseFile: Choose file
   importAsOnlyMe: Import as only me
   import: Import
-movies:
-  movies: Movies
-  loading: Loading…
-  movie: Movie
-  close: Close
-  choosePoster: Choose poster
-  removePoster: Remove poster
-  title: Title
-  originalTitle: Original title
-  eG: e.g. In the Mood for Love
-  year: Year
-  director: Director
-  watchedOn: Watched on
-  myRating: My rating
-  aLineOrTwo: A line or two
-  delete: Delete
-  save: Save
 curioCommon:
   cancel: Cancel
-curioItemView:
-  edit: Edit
-  close: Close
 curioSignin:
   signInToYour: Sign in with su to edit
 list:
@@ -109,13 +64,8 @@ sort:
   recent: recently kept
   order: my order
   name: name
-  bought: recently bought
-  rating: rating
-  watched: recently watched
 cmd:
   addFind: keep a find
-  addDevice: add a device
-  addMovie: add a movie
   cats: categories
   import: import bookmarks
   export: export bookmarks
@@ -165,87 +115,3 @@ js:
   curioList:
     count: '-- {n} / {total} --'
     noMatch: Nothing matches.
-  curioItems:
-    all: All
-    active: In use
-    retired: Retired
-    kind_phone: Phone
-    kind_tablet: Tablet
-    kind_laptop: Laptop
-    kind_desktop: Desktop
-    kind_watch: Watch
-    kind_audio: Audio
-    kind_console: Console
-    kind_camera: Camera
-    kind_other: Other
-    addDevice: Add a device
-    editDevice: Edit device
-    emptyDevAdmin: No devices yet. Use "add a device" above.
-    empty: Nothing here yet.
-    noMatch: Nothing in this filter.
-    needName: Give it a name.
-    badDate: Check the dates.
-    failed: Something went wrong. Please try again.
-    loadFail: "error: couldn't load the list  # refresh to retry"
-    saved: Saved.
-    deleted: Deleted.
-    photoFail: Saved, but the photo didn't upload.
-    notImage: That isn't a photo we can use.
-    tooLarge: The photo is too large.
-    delDevice: Delete this device?
-    del: Delete
-    none: None
-    priv: Only you can see this
-    used: In use for
-    usedFor: Used for
-    bought: Bought
-    retiredOn: Retired
-    os: System
-    specs: Specs
-    acc: Accessories
-    notes: How it's been
-    from: Replaced
-    to: Replaced by
-    crop: Move and scale
-    cancel: Cancel
-    done: Done
-    adjust: Adjust photo
-    listSep: ', '
-    days: '{n} days'
-    aboutYears: ' · about {y} years'
-    days_one: '{n} day'
-    aboutYears_one: ' · about {y} year'
-    state: Status
-    tags: Tags
-    link: Link
-    kept: 'added {d}'
-    related: related post
-    editCmd: edit
-    back: back to the list
-    nextNone: 'end of list'
-    notFound: This item doesn't exist or isn't visible to you.
-    noPermission: Your current user doesn’t have permission for this.
-  curioMovies:
-    add: Add a movie
-    edit: Edit movie
-    empty: No movies yet.
-    emptyAdmin: No movies yet. Use "add a movie" above.
-    needTitle: Give it a title.
-    badYear: Check the year.
-    badDate: Check the date.
-    saved: Saved.
-    deleted: Deleted.
-    failed: Something went wrong. Please try again.
-    loadFail: "error: couldn't load the list  # refresh to retry"
-    photoFail: Saved, but the poster didn't upload.
-    del: Delete
-    delMovie: Delete this movie?
-    original: Original title
-    year: Year
-    director: Director
-    watched: Watched
-    rating: My rating
-    review: A line or two
-    stars: '{n} out of 5'
-    title: Movie
-    editCmd: edit

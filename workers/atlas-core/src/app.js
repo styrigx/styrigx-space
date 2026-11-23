@@ -8,7 +8,7 @@
  *   /music/api/*   → 同样交给 src/curio/app.js（music 搬家设计稿 v1.0 第 2 步：音乐的 handler 还在 curio/api/ 下，路由表 src/music/routes.js；
  *                    第 4 步删掉了旧 /curio/api/music*，不留别名）
  *   /games/api/*   → 同样交给 src/curio/app.js（奇趣重组设计稿 v1.0 第三节 PR 1：路由表 src/games/routes.js，handler 复用奇趣的数据层与照片规则；
- *                    旧 /curio/api/items、/curio/api/photo 照常）
+ *                    奇趣重组 PR 3 删掉了旧 /curio/api/items、/curio/api/photo 和 /curio/api/movies）
  *   其他           → 404
  * 所有响应另打 X-Atlas-Runtime: worker（从外部确认接口走了本 Worker；产品头 X-Curio-Runtime / X-Daymark-Runtime 照旧）。
  * 公开路径不变，前端无感。旧 Worker 已下线、旧目录已删，两份代码只在这里改。

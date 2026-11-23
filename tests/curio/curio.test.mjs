@@ -50,8 +50,8 @@ test('makeTr：占位替换、复数按 Intl.PluralRules（键_one 只英文有�
   assert.equal(C.makeTr(strings('curio', 'fr').js.curio, 'fr')('count', { n: 2 }), '2 links');
 });
 
-test('makeTr：页面把带数字的键改挂成函数（T.tracks = function(n){ return tr(\'tracks\', …) }）后，tr 仍读原始文案（四个脚本同一份）', () => {
-  for (const f of ['curio/js/curio.js', 'curio/js/curio-items.js', 'curio/js/curio-movies.js', 'music/js/music-page.js']) {
+test('makeTr：页面把带数字的键改挂成函数（T.tracks = function(n){ return tr(\'tracks\', …) }）后，tr 仍读原始文案（各脚本同一份；curio-items / curio-movies 奇趣重组 PR 3 删了）', () => {
+  for (const f of ['curio/js/curio.js', 'music/js/music-page.js', 'games/js/games-page.js']) {
     const M = require('../../space/web/assets/' + f);
     const T = { tracks: '{n} 首', chosen: '已选 {n} 个' };
     const tr = M.makeTr(T, 'zh');
@@ -110,112 +110,27 @@ test('importSummary：文案走字符串表 js.curio.imp*，复数按语言', ()
   assert.equal(C.importSummary({ added: 2, cats_added: 1, skipped: 4 }, trOf('curio', 'en')), 'Added 2 links, 1 new category; 4 already here.');
 });
 
-/* ===== 设备 / 游戏（curio-items.js）、首页（curio-home.js）、电影（curio-movies.js）、音乐（music/js/music-page.js，music 搬家第 3 步前 curio-music.js） ===== */
+/* ===== 音乐（music/js/music-page.js，music 搬家第 3 步前 curio-music.js）；设备 curio-items.js、首页旧 hash curio-home.js、电影 curio-movies.js 奇趣重组 PR 3 删了 ===== */
 test('isLockedReply：写请求 401 当锁定；其余不是', () => {
   assert.equal(C.isLockedReply(401), true);
   assert.equal(C.isLockedReply(403), false);
   assert.equal(C.isLockedReply(200), false);
 });
 
-const IT = require('../../space/web/assets/curio/js/curio-items.js');
-const HM = require('../../space/web/assets/curio/js/curio-home.js');
-const MV = require('../../space/web/assets/curio/js/curio-movies.js');
 const MU = require('../../space/web/assets/music/js/music-page.js');
 
-test('usedDays：购买当天算第 1 天，退役了算到退役日；没填 / 倒了返回 null；daysText 满一年带年数', () => {
-  assert.equal(IT.usedDays('2026-10-22', '', '2026-10-22'), 1);
-  assert.equal(IT.usedDays('2024-02-28', '2024-03-01', '2026-01-01'), 3, '闰年');
-  assert.equal(IT.usedDays('2025-10-22', '', '2026-10-22'), 366);
-  assert.equal(IT.usedDays('', '', '2026-10-22'), null);
-  assert.equal(IT.usedDays('2026-10-23', '', '2026-10-22'), null);
-  const itZh = IT.makeTr(strings('curio', 'zh').js.curioItems, 'zh'), itEn = IT.makeTr(strings('curio', 'en').js.curioItems, 'en');
-  assert.equal(IT.daysText(30, itZh), '30 天');
-  assert.equal(IT.daysText(731, itZh), '731 天 · 约 2 年');
-  assert.equal(IT.daysText(1, itEn), '1 day');
-  assert.equal(IT.daysText(400, itEn), '400 days · about 1.1 years');
-  assert.equal(IT.daysText(370, itEn), '370 days · about 1 year');
-  assert.match(IT.todayStr(Date.UTC(2026, 9, 22, 12)), /^2026-10-2[12]$/);
-});
-
-test('筛选、换代历史、缩图尺寸（游戏的筛选 / 平台联想搬去游戏子站）', () => {
-  const D = [{ id: 1, retired_at: '2025-01-01', replaced_by: 2 }, { id: 2, retired_at: '', replaced_by: 0 }, { id: 3, retired_at: '2024-01-01', replaced_by: 2 }];
-  assert.deepEqual(IT.filterDevices(D, 'active').map((d) => d.id), [2]);
-  assert.deepEqual(IT.filterDevices(D, 'retired').map((d) => d.id), [1, 3]);
-  assert.equal(IT.filterDevices(D, 'all').length, 3);
-  assert.deepEqual(IT.lineage(D, 2).before.map((d) => d.id), [1, 3]);
-  assert.equal(IT.lineage(D, 1).after.id, 2);
-  assert.equal(IT.lineage(D, 2).after, null);
-  /* 奇趣重组 PR 2：游戏筛选 / 平台联想 / 状态搬到游戏子站（games/js/games-page.js），用例在 tests/curio/games-page.test.mjs */
-  assert.equal(IT.filterGames, undefined);
-  assert.equal(IT.STATUS, undefined);
-  assert.deepEqual(IT.fitSize(4000, 3000, 1600), { w: 1600, h: 1200 });
-  assert.deepEqual(IT.fitSize(800, 600, 1600), { w: 800, h: 600 });
-  assert.deepEqual(IT.KINDS.length, 9);
-});
-
-test('裁剪几何：取景框按卡片比例、照片始终盖满、框住的原图区域、重新调整摆回原位', () => {
-  /* music 搬家第 3 步：奇趣样式后半段拆到 curio-tail.css（input.css 末尾 @import），两份合起来是搬家前的 input.css */
+test('奇趣重组 PR 3：设备 / 电影的脚本（curio-items.js、curio-movies.js）和首页旧 hash 转跳（curio-home.js）删了；curio-tabs.js 早已删；curio.js 不再有条目页 / tab「›」/ SgxCurioList 计数', () => {
+  for (const f of ['curio-items.js', 'curio-movies.js', 'curio-home.js', 'curio-tabs.js']) {
+    assert.equal(existsSync(new URL('../../space/web/assets/curio/js/' + f, import.meta.url)), false, f);
+  }
+  const src = readFileSync(new URL('../../space/web/assets/curio/js/curio.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /showItem|onItemRoute|goItem|paintTabsMore|cu-tabs-more|SgxCurioList|SgxCurioPhoto|curio\/api\/(items|movies|photo)/);
   const css = readFileSync(new URL('../../space/web/assets/curio/css/input.css', import.meta.url), 'utf8') + readFileSync(new URL('../../space/web/assets/curio/css/curio-tail.css', import.meta.url), 'utf8');
-  /* 照片按 设备 4:3 存（游戏封面 3:4 奇趣重组 PR 2 起归游戏子站，见 games-page.test.mjs）；2026-11 对齐 PR-C2 起卡片封面位是固定高度（共享外壳 .sgx-cc-im 150 / 90px），图片 object-fit: cover 铺满 */
-  assert.match(readFileSync(new URL('../../space/web/assets/common/css/frame.css', import.meta.url), 'utf8'), /\.sgx-cc-im img \{[^}]*object-fit: cover;/);
+  assert.doesNotMatch(css, /cu-tabs-more|it-photo-prev--poster|#dv-edit-wrap|#mv-edit-wrap|is-retired/);
+  /* 游戏子站借奇趣 main.css 的卡片 / 条目页 / 裁剪规则，这几条留着 */
   assert.match(css, /\.it-cc \.sgx-cc-im img \{ z-index: 1; \}/);
-  assert.equal(IT.CROP_RATIO.device, 4 / 3);
-  assert.equal(IT.CROP_RATIO.game, undefined, '奇趣重组 PR 2：奇趣不再管游戏封面');
-  /* 412×915 手机：设备框 364×273，游戏框 364×485；矮屏按高度收 */
-  assert.deepEqual(IT.cropFrame(412, 915, 4 / 3), { w: 364, h: 273 });
-  assert.deepEqual(IT.cropFrame(412, 915, 3 / 4), { w: 364, h: 485 });
-  assert.deepEqual(IT.cropFrame(1280, 600, 3 / 4), { w: 285, h: 380 });
-  assert.deepEqual(IT.cropFrame(1920, 1080, 4 / 3), { w: 520, h: 390 });
-  const f = { l: 24, t: 300, w: 364, h: 273 };
-  /* 竖图 3000×4000 放进 4:3 框：按宽盖满，居中 */
-  const c = IT.centerView(3000, 4000, f);
-  assert.equal(c.k, 364 / 3000);
-  const s = IT.cropSource(c, 3000, 4000, f);
-  assert.ok(Math.abs(s.sx) < 1e-9 && Math.abs(s.sw - 3000) < 1e-9);
-  assert.ok(Math.abs(s.sh - 2250) < 1e-6 && Math.abs(s.sy - 875) < 1e-6, '上下各裁掉 875');
-  /* 夹住：缩小不到盖满，放大最多 8 倍，拖不出空白 */
-  assert.equal(IT.clampView({ tx: 0, ty: 0, k: 0.01 }, 3000, 4000, f, 8).k, c.k);
-  assert.equal(IT.clampView({ tx: 0, ty: 0, k: 99 }, 3000, 4000, f, 8).k, c.k * 8);
-  const far = IT.clampView({ tx: 500, ty: 900, k: c.k }, 3000, 4000, f, 8);
-  assert.deepEqual([far.tx, far.ty], [24, 300], '左上角不能进框');
-  const away = IT.clampView({ tx: -9999, ty: -9999, k: c.k }, 3000, 4000, f, 8);
-  assert.ok(Math.abs(away.tx + 3000 * c.k - (24 + 364)) < 1e-9 && Math.abs(away.ty + 4000 * c.k - (300 + 273)) < 1e-9, '右下角不能进框');
-  /* 放大 2 倍拖到右下：原图区域在图内、比例 4:3 */
-  const z = IT.clampView({ tx: -9999, ty: -9999, k: c.k * 2 }, 3000, 4000, f, 8);
-  const zs = IT.cropSource(z, 3000, 4000, f);
-  assert.ok(Math.abs(zs.sx + zs.sw - 3000) < 1e-6 && Math.abs(zs.sy + zs.sh - 4000) < 1e-6);
-  assert.ok(Math.abs(zs.sw / zs.sh - 4 / 3) < 1e-9);
-  /* 重新调整 / 转屏：换个框，照原图区域摆回去还是同一块 */
-  const f2 = { l: 10, t: 50, w: 520, h: 390 };
-  const back = IT.cropSource(IT.viewFromSource(zs, f2), 3000, 4000, f2);
-  for (const key of ['sx', 'sy', 'sw', 'sh']) assert.ok(Math.abs(back[key] - zs[key]) < 1e-6, key);
-  /* 输出：严格按卡片比例，长边 1200，小图不放大；取景框取整的误差（364×485）不进成品 */
-  assert.deepEqual(IT.cropOut(zs.sw, zs.sh, 4 / 3, 1200), { w: 1200, h: 900 });
-  assert.deepEqual(IT.cropOut(750.6, 1000, 3 / 4, 1200), { w: 750, h: 1000 });
-  assert.deepEqual(IT.cropOut(4000, 3000, 4 / 3, 1200), { w: 1200, h: 900 });
-  assert.deepEqual(IT.cropOut(300, 400, 3 / 4, 1200), { w: 300, h: 400 });
-});
-
-test('首页旧 hash（客户端兼容）：#devices → 设备子页（地址按本页路径算，语言前缀保留）；#games 不再跳（奇趣重组 PR 2：游戏是子站 /games/，旧 /curio/games/ 由 _redirects 301）；#c/<id> 不跳，其余不跳；curio-tabs.js 已删', () => {
-  assert.deepEqual(HM.legacyTarget('#devices'), { entry: 'devices', hash: '' });
-  assert.deepEqual(HM.legacyTarget('#devices/3'), { entry: 'devices', hash: '' });
-  for (const h of ['', '#', '#c/3', '#c/x', '#trove', '#music', '#games', '#games/x']) assert.equal(HM.legacyTarget(h), null, h);
-  assert.equal(HM.entryPath('/curio/', 'devices'), '/curio/devices/');
-  assert.equal(HM.entryPath('/curio/zh/', 'devices'), '/curio/zh/devices/');
-  assert.equal(HM.entryPath('/curio/zh', 'devices'), '/curio/zh/devices/', '没有结尾斜杠补上');
-  assert.equal(HM.entryPath('', 'devices'), '/curio/devices/');
-  assert.equal(existsSync(new URL('../../space/web/assets/curio/js/curio-tabs.js', import.meta.url)), false);
-});
-
-test('电影：副标题 = 年份 · 导演；年份空 = 0、不合格 null；海报裁剪 2:3、长边 1600', () => {
-  assert.equal(MV.movieSub({ year: 2000, director: '王家卫' }), '2000 · 王家卫');
-  assert.equal(MV.movieSub({ year: 0, director: '' }), '');
-  assert.equal(MV.parseYear(''), 0);
-  assert.equal(MV.parseYear(' 2001 '), 2001);
-  assert.equal(MV.parseYear('1700'), null);
-  assert.equal(MV.parseYear('20.5'), null);
-  assert.equal(IT.CROP_RATIO.movie, 2 / 3);
-  assert.deepEqual(IT.cropOut(3000, 4500, 2 / 3, 1600), { w: 1067, h: 1600 });
+  assert.match(css, /\.cu-item\[hidden\] \{ display: none; \}/);
+  assert.match(css, /\.cu-crop \{/);
 });
 
 test('音乐：时间格式、文件名 → 曲序 / 曲名、自然排序、音频类型、歌词配对（倍速 / LRC 当前行随页内播放删了，music 搬家第 3 步；LRC 解析在共用核，播放器用）', () => {
@@ -340,33 +255,4 @@ test('分页条：「-- 已显示 / 共 --」，页大小桌面 12 / 手机 8；
   assert.equal(CL.pageSize(true), 12);
   assert.equal(CL.pageSize(false), 8);
   assert.equal(CL.countSources, undefined, 'tab 计数（问别的分区接口）删了');
-});
-
-test('条目页：相关文章按名字找（整名在标题 > 词在标题 > 词在标签；同分取新的；没有 null）；收入于取年月；前后条目', () => {
-  const posts = [
-    { t: '把 Galaxy 当主力：一年记', u: '/blog/post/a/', g: ['三星'] },
-    { t: 'Galaxy S25 Ultra 上手', u: '/blog/post/b/', g: [] },
-    { t: '王国之泪通关', u: '/blog/post/c/', g: ['塞尔达传说'] },
-    { t: '随便写写', u: '/blog/post/d/', g: ['Hades'] },
-  ];
-  assert.equal(IT.relatedPost('Galaxy S25 Ultra', posts).u, '/blog/post/b/');
-  assert.equal(IT.relatedPost('Galaxy Tab S9', posts).u, '/blog/post/a/');
-  assert.equal(IT.relatedPost('塞尔达传说 王国之泪', posts).u, '/blog/post/c/');
-  assert.equal(IT.relatedPost('Hades II', posts).u, '/blog/post/d/');
-  assert.equal(IT.relatedPost('Pixel 9', posts), null);
-  assert.equal(IT.relatedPost('', posts), null);
-  assert.equal(IT.relatedPost('Galaxy', []), null);
-  assert.equal(IT.monthOf('2025-03-01'), '2025-03');
-  assert.equal(IT.monthOf(''), '');
-  const list = [{ id: 1 }, { id: 2 }, { id: 3 }];
-  assert.deepEqual(IT.neighbors(list, 1), { prev: null, next: { id: 2 } });
-  assert.deepEqual(IT.neighbors(list, 2), { prev: { id: 1 }, next: { id: 3 } });
-  assert.deepEqual(IT.neighbors(list, 3), { prev: { id: 2 }, next: null });
-  assert.deepEqual(IT.neighbors(list, 9), { prev: null, next: null });
-});
-
-test('相关文章：拉丁词按整词比（pro 不算 project），中文按子串', () => {
-  const posts = [{ t: 'Project notes', u: '/a/', g: [] }, { t: '用 iPad Pro 写字', u: '/b/', g: [] }];
-  assert.equal(IT.relatedPost('MacBook Pro', posts).u, '/b/');
-  assert.equal(IT.relatedPost('Prodigy', posts), null);
 });

@@ -45,7 +45,7 @@
 | `styrigx-space-core` | `D1_SPACE`（space-core） | 进站：纪元、解锁密码、通行密钥、user handle、challenge、输错计数、恢复钥匙审计；分享链接 `share_*`；AI 全站限流计数。迁移表 `d1_migrations_core` |
 | `styrigx-account` | `D1_ACCOUNT`（account） | `account_*` 表、`settings_sync`（`wb_daily` v6 P4 删除，见 `docs/architecture/archive/ops/v6-p4-drop-wellbeing.sql`） |
 | `styrigx-status` | `D1_UPTIME_MONITOR`、`D1_CLOUDFLARE_USAGE`（status） | `status_*` 表。迁移表 `d1_migrations_status` |
-| `styrigx-atlas-core` | `D1_FINDS`、`D1_DEVICES`、`D1_GAMES`、`D1_MOVIES`、`D1_MUSIC`、`D1_QUOTES`（atlas-core，同一个库） | 收藏、设备、游戏、电影、音乐；句子、专题、`daily_pick` |
+| `styrigx-atlas-core` | `D1_FINDS`、`D1_GAMES`、`D1_MUSIC`、`D1_QUOTES`（atlas-core，同一个库；设备、电影的绑定奇趣重组 PR 3 删了） | 收藏、游戏、音乐；句子、专题、`daily_pick` |
 | `styrigx-proxy` | `D1_PROXY`（proxy-rules） | 代理订阅：`meta`（公钥、令牌哈希与封存的令牌、UA）、`sources`（机场链接与节点密文、成品 age 密文）、`lock` |
 | `styrigx-test-preview` | 各 Worker 的 `env.preview` | 预览 / 测试共用 |
 

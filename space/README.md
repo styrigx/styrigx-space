@@ -156,7 +156,7 @@ space/
 | `web/assets/jsconfig.json` | 26（落点） | 横跨整个 `assets/` 的 JS 路径配置：`baseUrl` 为 `.`（即 `assets/` 本身），覆盖 Platform 的 `common/js/` 和 curio、daymark、blog 的 `js/`；放进任一层都会断掉其它层的路径解析 | 2026-11-13 #450 |
 | `web/layouts/music/section.html` → `partials/curio/icon.html` | 24（产品互引） | 外观不变（3.1 第 2 条）：音乐页照旧用奇趣的图标（页头打磨 6.1、确认框和 `curio.js` 打磨 6.2 已换成本站自己的） | 2026-11-21 music 第 3 步 |
 | `web/layouts/music/baseof.html` → `curio/css/main.css`、`curio/js/sgx/topbar-host.js`、`curio/js/sgx/ui-inherit-run.js` | 24（产品互引） | 外框照奇趣的写：借奇趣的样式表（cu- / bk- / it- 部件）和奇趣打好的共享外壳入口（里面全是 common 的代码）；同上 | 2026-11-21 music 第 3 步 |
-| `web/layouts/games/baseof.html` → `curio/css/main.css`、`curio/js/sgx/topbar-host.js`、`curio/js/sgx/ui-inherit-run.js` | 24（产品互引） | 游戏子站（第五个产品，奇趣重组 PR 2：`/games/`、`/games/zh/`，接口 `/games/api/*`；JS / CSS 在 `assets/games/`，模板 `layouts/games/`、`layouts/partials/games/`，文案 `data/games/i18n/`）的外框照音乐的写，借同样三样：奇趣的样式表（页头、卡片、编辑弹层、裁剪这些 cu- / bk- / it- 部件，外观同拆出前的 `/curio/games/`）和奇趣打好的共享外壳入口。游戏页自己的确认框、提示条、条目页路由在 `assets/games/js/games-ui.js`，不加载 `curio.js` / `curio-items.js`；技术债同音乐，随 `curio.js` / 奇趣样式挪进 common 后删 | 2026-11-22 奇趣重组 PR 2 |
+| `web/layouts/games/baseof.html` → `curio/css/main.css`、`curio/js/sgx/topbar-host.js`、`curio/js/sgx/ui-inherit-run.js` | 24（产品互引） | 游戏子站（第五个产品，奇趣重组 PR 2：`/games/`、`/games/zh/`，接口 `/games/api/*`；JS / CSS 在 `assets/games/`，模板 `layouts/games/`、`layouts/partials/games/`，文案 `data/games/i18n/`）的外框照音乐的写，借同样三样：奇趣的样式表（页头、卡片、编辑弹层、裁剪这些 cu- / bk- / it- 部件，外观同拆出前的 `/curio/games/`）和奇趣打好的共享外壳入口。游戏页自己的确认框、提示条、条目页路由在 `assets/games/js/games-ui.js`，不加载 `curio.js`（`curio-items.js` 奇趣重组 PR 3 已删）；技术债同音乐，随 `curio.js` / 奇趣样式挪进 common 后删 | 2026-11-22 奇趣重组 PR 2 |
 
 ## 6. 迁移（已完成）
 

@@ -5,6 +5,7 @@
 # 路由：切换窗口里先用 Cloudflare 路由接口把旧两个 Worker 的两条路由直接改指本 Worker（不留空档），本 PR 合并后由 deploy-atlas-core 按这里接管。
 # 旧 Worker 已下线，workers/ 下的旧目录已删（2026-11-14 合并进 atlas-core）。
 # 绑定名和旧 Worker 一字不差（D1_FINDS…D1_MUSIC、D1_QUOTES 全指同一个库，R2_PHOTOS / R2_MUSIC 同一个桶），业务代码不改。
+# 奇趣重组 PR 3（2026-11-23）删掉了设备、电影：绑定 D1_DEVICES、D1_MOVIES 一起去掉（库是同一个，不影响别的绑定）。
 
 name = "styrigx-atlas-core"
 main = "src/index.js"
@@ -25,7 +26,7 @@ zone_name = "styrigx.com"
 pattern = "styrigx.com/music/api/*"
 zone_name = "styrigx.com"
 
-# 游戏接口（奇趣重组设计稿 v1.0 第三节 PR 1 加；旧 /curio/api/items、/curio/api/photo 照常，PR 3 再删）。
+# 游戏接口（奇趣重组设计稿 v1.0 第三节 PR 1 加；旧 /curio/api/items、/curio/api/photo PR 3 删了，落在上面 /curio/api/* 这条当表外路径回 401）。
 # 部署时 wrangler 按这里在 CF 上建这条路由：Gray 单独批
 [[routes]]
 pattern = "styrigx.com/games/api/*"
@@ -43,17 +44,7 @@ database_id = "0137776d-f8d5-4726-a66c-49cf5778d970"
 migrations_dir = "migrations"
 
 [[d1_databases]]
-binding = "D1_DEVICES"
-database_name = "styrigx-atlas-core"
-database_id = "0137776d-f8d5-4726-a66c-49cf5778d970"
-
-[[d1_databases]]
 binding = "D1_GAMES"
-database_name = "styrigx-atlas-core"
-database_id = "0137776d-f8d5-4726-a66c-49cf5778d970"
-
-[[d1_databases]]
-binding = "D1_MOVIES"
 database_name = "styrigx-atlas-core"
 database_id = "0137776d-f8d5-4726-a66c-49cf5778d970"
 

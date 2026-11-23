@@ -86,12 +86,9 @@ test('共享外壳：frame/page-head.html 只有主站一份（2026-11 合站后
   }
 });
 
-test('子站接入（对齐 PR-C2；奇趣重组 PR 2）：奇趣三个分区页同一个页头（页头 + grep + 命令链，没有分区 tab 行），游戏 / 音乐用共享外壳页头，日刻拾录 / 百味各一个页头 + cd ..；博客首页 / 目录页 / 标签页用 sgx-ph；都不用段式标签 / 平铺入口', () => {
-  for (const id of ['devices', 'movies']) {
-    assert.match(rd(`space/web/layouts/curio/${id}.html`), new RegExp(`partial "curio/page-head\\.html" \\(dict "page" \\. "id" "${id}"`), id);
-  }
-  /* 奇趣重组 PR 2：游戏是第五个子站（layouts/games/section.html），奇趣的 games.html / finds.html 删了（finds = 奇趣首页） */
-  for (const f of ['games.html', 'finds.html']) assert.ok(!has(`space/web/layouts/curio/${f}`), 'curio/' + f + ' 应已删除');
+test('子站接入（对齐 PR-C2；奇趣重组 PR 2 / 3）：奇趣只剩首页 = 发现一页（页头 + grep + 命令链，没有分区 tab 行；设备 / 电影子页 PR 3 删了），游戏 / 音乐用共享外壳页头，日刻拾录 / 百味各一个页头 + cd ..；博客首页 / 目录页 / 标签页用 sgx-ph；都不用段式标签 / 平铺入口', () => {
+  /* 奇趣重组 PR 2：游戏是第五个子站（layouts/games/section.html），奇趣的 games.html / finds.html 删了（finds = 奇趣首页）；PR 3 删了 devices.html / movies.html */
+  for (const f of ['games.html', 'finds.html', 'devices.html', 'movies.html']) assert.ok(!has(`space/web/layouts/curio/${f}`), 'curio/' + f + ' 应已删除');
   /* 打磨 6.1：音乐页（layouts/music/section.html）用自己的页头：共享外壳 page-head「ls music/」，不再借奇趣的（没有奇趣 tab、grep）；游戏页同样「ls games/」 */
   for (const s of ['music', 'games']) {
     const sec = rd(`space/web/layouts/${s}/section.html`);
@@ -101,7 +98,7 @@ test('子站接入（对齐 PR-C2；奇趣重组 PR 2）：奇趣三个分区页
   }
   assert.match(rd('space/web/layouts/partials/curio/finds-main.html'), /partial "curio\/page-head\.html" \(dict "page" \$p "id" "finds"/);
   assert.match(rd('space/web/layouts/curio/section.html'), /partial "curio\/finds-main\.html"/, 'section.html');
-  for (const id of ['devices', 'movies']) for (const f of [`${id}.md`, `${id}.zh.md`]) assert.match(rd(`space/web/content/curio/${f}`), /^description: '.+'$/m, f);
+  for (const id of ['devices', 'movies']) for (const f of [`${id}.md`, `${id}.zh.md`]) assert.ok(!has(`space/web/content/curio/${f}`), 'content/curio/' + f + ' 应已删除');
   for (const s of ['music', 'games']) for (const f of ['_index.md', '_index.zh.md']) assert.match(rd(`space/web/content/${s}/${f}`), /^description: '.+'$/m, s + '/' + f);
   const head = rd('space/web/layouts/partials/curio/page-head.html');
   assert.match(head, /partial "common\/frame\/page-head\.html"/);
