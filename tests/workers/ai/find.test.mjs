@@ -26,7 +26,7 @@ const IX = {
     { id: 'b1', type: 'post', lang: 'zh', title: '主题模式的设计', subtitle: '博客', text: '正文很长'.repeat(200), url: 'https://styrigx.com/blog/zh/post/theme/' },
   ] },
   curio: { items: [
-    { id: 'c1', type: 'item', lang: 'en', title: 'Galaxy Buds', subtitle: 'Devices · earbuds', text: 'theme song', url: 'https://styrigx.com/curio/devices/' },
+    { id: 'c1', type: 'item', lang: 'en', title: 'Galaxy Buds', subtitle: 'Finds · earbuds', text: 'theme song', url: 'https://styrigx.com/curio/' },
   ] },
 };
 
@@ -82,7 +82,7 @@ test('私密条目一律不回：带账号结论头也一样', async () => {
 
 test('语言：先按 lang 找；没有再放开语言；lang 不认识当没给', async () => {
   let j = await (await find('?q=theme&lang=en', { KV_SEARCH_INDEX: full() })).json();
-  assert.deepEqual(j.results.map((x) => x.url), ['https://styrigx.com/theme/', 'https://styrigx.com/curio/devices/']);
+  assert.deepEqual(j.results.map((x) => x.url), ['https://styrigx.com/theme/', 'https://styrigx.com/curio/']);
   j = await (await find('?q=buds&lang=zh', { KV_SEARCH_INDEX: full() })).json();
   assert.deepEqual(j.results.map((x) => x.title), ['Galaxy Buds'], 'zh 里没有 → 放开语言');
   j = await (await find('?q=buds&lang=fr', { KV_SEARCH_INDEX: full() })).json();

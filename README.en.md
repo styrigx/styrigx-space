@@ -59,7 +59,7 @@ Dark theme with the default motto. Phone shots use a Samsung phone viewport (412
 | Home | [`/`](https://styrigx.com/) (Chinese `/zh/`) | Hero (`$ whoami`, name, typed tagline, personal motto) with an embedded terminal; then three sections: latest 3 blog posts, Curio directories, Daymark's quote of the day |
 | Status | `/status/` (Chinese `/zh/status/`) | Read-only terminal window: service status, uptime, quota and usage (opened from the STATUS block in the navigation panel; the old `/wild/` redirects here with a 301) |
 | Blog | [`/blog/`](https://styrigx.com/blog/) (Chinese `/blog/zh/`) | Posts, a tree of series, tags, RSS |
-| Curio | `/curio/` (Chinese `/curio/zh/`) | Finds, devices, games, movies, music |
+| Curio | `/curio/` (Chinese `/curio/zh/`) | Finds, games, music |
 | Daymark | `/daymark/` (Chinese `/daymark/zh/`) | A collection of quotes and the quote of the day |
 
 Shared by all four sites:
