@@ -335,11 +335,11 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
     await openNav(page);
   });
 
-  test('英文：Home / Blog / Curio / Daymark；顶栏头像去主站英文账号旧地址', async ({ page }) => {
+  test('英文：Home / Blog / Daymark / Music / Curio / Games；顶栏头像去主站英文账号旧地址', async ({ page }) => {
     await preferLang(page, 'en');
     await page.goto('/blog/', { waitUntil: 'domcontentloaded' });
     await openNav(page);
-    await expect(nav(page).locator('.sgx-nav-name')).toHaveText(['Home', 'Blog', 'Daymark', 'Music', 'Curio']);
+    await expect(nav(page).locator('.sgx-nav-name')).toHaveText(['Home', 'Blog', 'Daymark', 'Music', 'Curio', 'Games']);
     await expect(nav(page).locator('[data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/');
     await expect(nav(page).locator('[data-nav="blog"]')).toHaveAttribute('href', '/blog/');
     await expect(page.locator('.sgx-topbar .sgx-tb-av')).toHaveAttribute('href', 'https://styrigx.com/account/');
