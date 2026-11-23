@@ -46,7 +46,7 @@
 | 2026-11-08 | 语义召回（Vectorize `styrigx-ai-recall`，`@cf/baai/bge-m3`）、奇趣只读固定查询、Markdown 渲染、Gemini 联网搜索 | #307 |
 | 2026-11-09 | `gemini-2.5-flash` → `gemini-3.8-flash`：低思考、首字前重试、搜索被拒去工具、空回答兜底、key 脱敏 | #344 |
 | 2026-11-09 | 主力换 `gemini-3.5-flash-lite`，3.8 Flash 429 时回退 Lite | #347 |
-| 2026-11-23 | 删联网来源段：ask.js 不再发 `event: sources`，前端不追加「来源」；链接只由模型在正文里给出（Gray 定，报告修复 C7） | 待填 |
+| 2026-11-23 | 删联网来源段：ask.js 不再发 `event: sources`，前端不追加「来源」；链接只由模型在正文里给出（Gray 定，报告修复 C7） | #509 |
 
 ## 4. 后果
 
