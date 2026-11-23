@@ -41,7 +41,7 @@ This repository holds all of [styrigx.com](https://styrigx.com): one Hugo site (
 - **Terminal style** — Home, the lock screen, the shield, the account and the AI window all work as "prompt + command + output", with no pop-up dialogs; `Ctrl K` opens the terminal drawer on any page.
 - **One site, one build** — the main site and `/blog/`, `/curio/`, `/daymark/` are one Hugo site in one Cloudflare Pages project, sharing one shell (top bar, navigation panel, quick panel, terminal, AI window).
 - **Locked by default** — the site is not public. Without a space session every page shows the lock screen first; the owner gets in with an unlock password or a passkey, visitors only with a temporary key or a share link.
-- **Bilingual** — English is the default language (`/`), Chinese lives at `/zh/`; light / dark follows the system, with 22 palettes to choose from.
+- **Bilingual** — English is the default language (`/`), Chinese lives at `/zh/`; 25 palettes to choose from.
 
 ## Screenshots
 
