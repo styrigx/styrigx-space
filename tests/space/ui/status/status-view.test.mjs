@@ -226,7 +226,7 @@ test('renderIncidents：进行中 / 已恢复，北京时间、同一天恢复�
   assert.match(items[0], /开始 10月9日 11:53/);
   assert.match(items[0], /已持续 7 分钟/);
   /* 规则集：9 月 27 日 09:00 开始，09:25 恢复（同一天，只写时分），持续 25 分钟 */
-  assert.match(items[1], /data-site="proxy-rules"/);
+  assert.match(items[1], /data-site="proxy"/);
   assert.match(items[1], /已恢复/);
   assert.match(items[1], /HTTP 502/);
   assert.match(items[1], /开始 9月27日 09:00/);
@@ -243,7 +243,7 @@ test('renderIncidents：进行中 / 已恢复，北京时间、同一天恢复�
 /* ===== 六个 unit（对齐 PR-B：systemctl status space.target） ===== */
 test('UNITS：五个 unit 顺序和来源（P4 R-07：一个 Pages 加几个 Worker；proxy 进 unit，Gray 2026-11-15 23:30）', () => {
   assert.deepEqual(UNITS.map((u) => u.id), ['space', 'atlas', 'account', 'proxy', 'gray-ai']);
-  assert.deepEqual(UNITS.map((u) => u.src), ['space', 'atlas', 'account', 'proxy-rules', 'ai']);
+  assert.deepEqual(UNITS.map((u) => u.src), ['space', 'atlas', 'account', 'proxy', 'ai']);
   assert.ok(!UNITS.some((u) => /blog|curio|daymark|auth|lockkey/.test(u.id + u.host)), '子站行和过时的 auth 行都去掉');
 });
 

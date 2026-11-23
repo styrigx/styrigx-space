@@ -320,7 +320,7 @@ export const UNITS = [
   { id: 'space', src: 'space', host: 'styrigx.com' },
   { id: 'atlas', src: 'atlas', host: 'atlas-core' },
   { id: 'account', src: 'account', host: 'account' },
-  { id: 'proxy', src: 'proxy-rules', host: 'proxy.styrigx.com' },
+  { id: 'proxy', src: 'proxy', host: 'proxy.styrigx.com' },
   { id: 'gray-ai', src: 'ai', host: 'Gray AI' },
 ];
 
@@ -334,6 +334,8 @@ export function unitList(data, rtt) {
   /** @type {Record<string, any>} */
   const by = {};
   for (const x of (data && data.sites) || []) if (x && x.site) by[x.site] = x;
+  /* 2026-11-23 proxy-rules 改名 proxy：status Worker 先后部署的空档里接口可能还回旧名，兼容到 2027-02-21 */
+  if (!by.proxy && by['proxy-rules']) by.proxy = by['proxy-rules'];
   return UNITS.map((u) => {
     if (!u.src) return { id: u.id, host: u.host, state: data && data.ok ? 'up' : 'pending', ms: typeof rtt === 'number' ? Math.round(rtt) : null };
     const s = by[u.src];

@@ -16,10 +16,13 @@
  *
  * name：站名的英文原文（语言包化第二部分 2026-11-07：英文是源，接口只回英文）。页面按字符串表 js.status.site_<site> 显示当前语言，
  * 表里没有的站回退这里的英文名；加站时在 space/web/data/common/i18n/{en,zh}.yaml 的 js.status 补 site_<site>。
+ *
+ * formerly（2026-11-23，报告修复 PR 4）：站改过名，D1 里旧名的历史行不迁（不碰生产 SQL），summary / loadPrev 读取时并进新名。
+ * proxy-rules → proxy：保留一个 90 天窗口，2027-02-21 之后可删 formerly。
  */
 export const TARGETS = [
   { site: 'space', name: 'Home', url: 'https://styrigx.com/', expect: [200] },
-  { site: 'proxy-rules', name: 'Proxy rules', url: 'https://proxy.styrigx.com/healthz', expect: [200] },
+  { site: 'proxy', name: 'Proxy rules', url: 'https://proxy.styrigx.com/healthz', expect: [200], formerly: ['proxy-rules'] },
   { site: 'ai', name: 'AI', url: 'https://styrigx-ai/healthz', binding: 'AI_SERVICE', expect: [200] },
   { site: 'atlas', name: 'Atlas', url: 'styrigx-atlas-core', rpc: 'JOB_ATLAS', expect: [200] },
   { site: 'account', name: 'Account', url: 'styrigx-account', rpc: 'JOB_ACCOUNT', expect: [200] },
@@ -31,3 +34,8 @@ export const TIMEOUT_MS = 10 * 1000;
 export const FAIL_THRESHOLD = 3;
 /** 原始记录保留 */
 export const KEEP_MS = 7 * 24 * 3600 * 1000;
+
+/** 旧站名 → 现名（TARGETS 的 formerly） */
+export const RENAMED = new Map(TARGETS.flatMap((t) => (t.formerly || []).map((old) => [old, t.site])));
+/** 站名归一：旧名换成现名，其余原样 */
+export const siteOf = (site) => RENAMED.get(site) || site;

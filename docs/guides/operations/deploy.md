@@ -42,7 +42,7 @@
 quality + passkey-e2e
   ├─ deploy-ai-worker ─┬─ deploy-status-worker ─ deploy-account-worker ─ deploy-space-core ─ deploy-atlas-core ─ build-and-deploy（Pages）
   │                    └─ rollback-ai-worker（后两步失败时）
-  └─ deploy-proxy-rules-worker
+  └─ deploy-proxy-worker
 ```
 
 4.1 依赖理由：站点核心的服务绑定（`ACCOUNT`、`STATUS`、`AI_SERVICE`）要求下游 Worker 先在；接口 Worker `styrigx-atlas-core` 绑定 `SPACE`，排在站点核心之后；Pages 最后。
@@ -81,7 +81,7 @@ quality + passkey-e2e
 | `deploy-ai-worker`、`rollback-ai-worker` | `STYRIGX_AI_DEPLOY` |
 | `deploy-status-worker` | `STYRIGX_STATUS_DEPLOY` |
 | `deploy-atlas-core` | `STYRIGX_ATLAS_CORE_DEPLOY` |
-| `deploy-proxy-rules-worker` | `STYRIGX_PROXY_DEPLOY` |
+| `deploy-proxy-worker` | `STYRIGX_PROXY_DEPLOY` |
 | `build-and-deploy`（及 passkey 预览） | `STYRIGX_SPACE_PAGES_DEPLOY` |
 | 全部 | `CLOUDFLARE_ACCOUNT_ID` |
 

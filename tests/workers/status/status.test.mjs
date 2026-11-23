@@ -64,7 +64,7 @@ function fakeFetch(map) {
 }
 
 test('地址：2 个公开（主站首页 + 规则集 healthz）+ 1 个服务绑定（P4-2 起 ai 的 /healthz，取代 search / chat），没有 book / muse-invite；旧图志那项 P4-3 PR-1 删除', () => {
-  assert.deepEqual(TARGETS.map((t) => t.site), ['space', 'proxy-rules', 'ai', 'atlas', 'account']);
+  assert.deepEqual(TARGETS.map((t) => t.site), ['space', 'proxy', 'ai', 'atlas', 'account']);
   assert.deepEqual(TARGETS.filter((t) => t.binding).map((t) => [t.site, t.binding, new URL(t.url).pathname]),
     [['ai', 'AI_SERVICE', '/healthz']]);
   /* P4 R-07：atlas-core、account 走现有命名入口绑定的 ping()，不加绑定 */
@@ -131,10 +131,10 @@ test('真 SQL：连续 3 分钟 502 开故障，第 4 分钟恢复关上；每�
   for (let i = 1; i <= 3; i++) await runOnce(env, t0 + i * M, fakeFetch({ 'https://proxy.styrigx.com/healthz': 502 }));
   let inc = db.raw.prepare('SELECT * FROM status_incidents').all();
   assert.equal(inc.length, 1);
-  assert.deepEqual([inc[0].site, inc[0].started_at, inc[0].ended_at, inc[0].cause], ['proxy-rules', t0 + M, null, 'HTTP 502']);
+  assert.deepEqual([inc[0].site, inc[0].started_at, inc[0].ended_at, inc[0].cause], ['proxy', t0 + M, null, 'HTTP 502']);
   const prev = await loadPrev(db);
-  assert.equal(prev.get('proxy-rules').fails, 3);
-  assert.equal(prev.get('proxy-rules').open.id, inc[0].id);
+  assert.equal(prev.get('proxy').fails, 3);
+  assert.equal(prev.get('proxy').open.id, inc[0].id);
   await runOnce(env, t0 + 4 * M, fakeFetch({}));
   inc = db.raw.prepare('SELECT * FROM status_incidents').all();
   assert.equal(inc[0].ended_at, t0 + 4 * M);
@@ -144,7 +144,7 @@ test('真 SQL：连续 3 分钟 502 开故障，第 4 分钟恢复关上；每�
   /* 整点汇总（41 分那轮）：上一个已结束小时进 hourly、daily；旧记录清掉；再跑一次不重复累加 */
   await aggregate(db, Date.UTC(2026, 9, 22, 5, 41));
   await aggregate(db, Date.UTC(2026, 9, 22, 5, 41));
-  const day = db.raw.prepare("SELECT * FROM status_daily WHERE site = 'proxy-rules'").all();
+  const day = db.raw.prepare("SELECT * FROM status_daily WHERE site = 'proxy'").all();
   assert.deepEqual([day[0].day, day[0].total, day[0].ok_count], ['2026-10-22', 5, 2]);
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_minute WHERE at < ?').get(t0).n, 0);
 });
@@ -160,7 +160,7 @@ test('真 SQL：汇总——当前状态、24 小时 / 30 天可用率、每日�
   assert.equal(s.today, '2026-10-22');
   assert.equal(s.all_up, true);
   assert.deepEqual(s.sites.map((x) => x.site), TARGETS.map((t) => t.site));
-  const curio = s.sites.find((x) => x.site === 'proxy-rules');
+  const curio = s.sites.find((x) => x.site === 'proxy');
   assert.equal(curio.up, true);
   assert.equal(curio.uptime.h24, 25);
   /* 还没整点汇总：24 小时格由 status_minute 现算补上；30 天 / 每日要等汇总 */
@@ -172,13 +172,35 @@ test('真 SQL：汇总——当前状态、24 小时 / 30 天可用率、每日�
   assert.deepEqual(curio.last && [curio.last.ok, curio.last.at], [true, t0 + 3 * M]);
   await aggregate(db, Date.UTC(2026, 9, 22, 5, 41));
   const s2 = await summary(db, Date.UTC(2026, 9, 22, 5, 42));
-  const c2 = s2.sites.find((x) => x.site === 'proxy-rules');
+  const c2 = s2.sites.find((x) => x.site === 'proxy');
   assert.equal(c2.uptime.d30, 25);
   assert.equal(c2.recent.length, 1, '汇总后同一小时不重复');
   assert.deepEqual(c2.days.map((d) => [d.day, d.total, d.ok]), [['2026-10-22', 4, 1]]);
   assert.equal(s.incidents.length, 1);
-  assert.deepEqual([s.incidents[0].site, s.incidents[0].cause, s.incidents[0].ended_at], ['proxy-rules', 'network', t0 + 3 * M]);
+  assert.deepEqual([s.incidents[0].site, s.incidents[0].cause, s.incidents[0].ended_at], ['proxy', 'network', t0 + 3 * M]);
   assert.equal(s.sites.find((x) => x.site === 'space').uptime.h24, 100);
+});
+
+test('真 SQL：改名兼容（2026-11-23 proxy-rules → proxy）——旧名历史行并进现名、同一天相加；旧名开着的故障这一轮能关掉；旧 state 行不算', { skip: !sqlite && '需要 node:sqlite' }, async () => {
+  const db = d1();
+  const M = 60000;
+  const t0 = Date.UTC(2026, 9, 22, 4, 1);
+  db.raw.prepare("INSERT INTO status_daily (site, day, total, ok_count, ms_sum) VALUES ('proxy-rules', '2026-10-21', 10, 9, 900), ('proxy-rules', '2026-10-22', 4, 4, 400), ('proxy', '2026-10-22', 2, 2, 200)").run();
+  db.raw.prepare("INSERT INTO status_state (site, fails, first_fail_at) VALUES ('proxy-rules', 9, 1)").run();
+  db.raw.prepare("INSERT INTO status_incidents (site, started_at, cause) VALUES ('proxy-rules', ?, 'HTTP 502')").run(t0 - 10 * M);
+  const prev = await loadPrev(db);
+  assert.equal(prev.get('proxy').fails, 0, '旧 state 行不并');
+  assert.ok(prev.get('proxy').open, '旧名开着的故障并进现名');
+  assert.equal(prev.has('proxy-rules'), false);
+  const s = await summary(db, t0);
+  assert.equal(s.sites.some((x) => x.site === 'proxy-rules'), false);
+  const p = s.sites.find((x) => x.site === 'proxy');
+  assert.deepEqual(p.days.map((d) => [d.day, d.total, d.ok]), [['2026-10-21', 10, 9], ['2026-10-22', 6, 6]]);
+  assert.equal(s.incidents[0].site, 'proxy');
+  /* 这一轮检查正常 → 那条旧名故障被关掉 */
+  const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db, ...SVC };
+  await runOnce(env, t0, fakeFetch({}));
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_incidents WHERE ended_at IS NULL').get().n, 0);
 });
 
 test('写库：一个 batch 写完（分钟行、状态变化、开 / 关故障）', async () => {
@@ -234,11 +256,11 @@ test('真 SQL：第一次失败时间存在 state 里，恢复清零', { skip: !
   const bad = fakeFetch({ 'https://proxy.styrigx.com/healthz': 502 });
   await runOnce(env, t0, bad);
   await runOnce(env, t0 + M, bad);
-  assert.equal((await loadPrev(db)).get('proxy-rules').firstFailAt, t0);
+  assert.equal((await loadPrev(db)).get('proxy').firstFailAt, t0);
   await runOnce(env, t0 + 2 * M, fakeFetch({}));
-  assert.equal((await loadPrev(db)).get('proxy-rules').firstFailAt, 0);
+  assert.equal((await loadPrev(db)).get('proxy').firstFailAt, 0);
   await aggregate(db, Date.UTC(2026, 9, 23, 5, 41));
-  const h = db.raw.prepare("SELECT * FROM status_hourly WHERE site = 'proxy-rules'").all();
+  const h = db.raw.prepare("SELECT * FROM status_hourly WHERE site = 'proxy'").all();
   assert.deepEqual([h.length, h[0].total, h[0].ok_count], [1, 3, 1]);
 });
 

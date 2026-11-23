@@ -246,7 +246,7 @@ for (const [label, viewport] of VIEWPORTS) {
 
     test('点色块：卡片底部显示当天说明，再点收起', async ({ page }) => {
       await go(page, '/zh/status/', { api: fx.normal() });
-      const rules = page.locator('.st-card[data-site="proxy-rules"]');
+      const rules = page.locator('.st-card[data-site="proxy"]');
       const cell = rules.locator('.st-cell[data-level="minor"]');
       await cell.click();
       await expect(rules.locator('.st-detail')).toBeVisible();

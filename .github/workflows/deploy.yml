@@ -1403,7 +1403,7 @@ jobs:
           PREVIOUS: ${{ needs.deploy-ai-worker.outputs.previous }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
-  deploy-proxy-rules-worker:
+  deploy-proxy-worker:
     # 规则集反代 + 代理订阅 styrigx-proxy（workers/proxy）：独立部署，不等也不挡网关和 Pages。
     # 公开地址只有自定义域名 proxy.styrigx.com（wrangler.toml 的 routes，custom_domain）。
     # token：Cloudflare 上 styrigx-proxy-deploy = GitHub 环境 STYRIGX_PROXY_DEPLOY 里的同名密钥，
@@ -1428,7 +1428,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Apply D1 migrations (proxy-rules → styrigx-proxy)
+      - name: Apply D1 migrations (styrigx-proxy)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_PROXY_DEPLOY }}
@@ -1813,7 +1813,7 @@ jobs:
     # 没有路由，不需要 Workers Routes 权限；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-ai-worker, deploy-status-worker, deploy-proxy-rules-worker]
+    needs: [quality, passkey-e2e, deploy-ai-worker, deploy-status-worker, deploy-proxy-worker]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_ACCOUNT_DEPLOY

@@ -220,7 +220,7 @@ js:
     auditErrPerm: 只有 root 能看这份记录，先 su root。
     uErrorSub: 读取 Cloudflare 用量失败，下一个整点 41 分会再试。
     site_space: "主站"
-    site_proxy-rules: "规则集"
+    site_proxy: "规则集"
     site_ai: "AI 助手"
     site_atlas: "奇趣 · 日刻接口"
     site_account: "账号"

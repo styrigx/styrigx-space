@@ -26,7 +26,7 @@ const TODAY = '2026-10-09';
 
 const SITES = [
   { site: 'space', name: 'Home', url: 'https://styrigx.com/', ms: 123 },
-  { site: 'proxy-rules', name: 'Proxy rules', url: 'https://proxy.styrigx.com/healthz', ms: 61 },
+  { site: 'proxy', name: 'Proxy rules', url: 'https://proxy.styrigx.com/healthz', ms: 61 },
   { site: 'ai', name: 'AI', url: 'https://styrigx-ai/healthz', ms: 140 },
   { site: 'atlas', name: 'Atlas', url: 'styrigx-atlas-core', ms: 45 },
   { site: 'account', name: 'Account', url: 'styrigx-account', ms: 38 },
@@ -44,7 +44,7 @@ function days(site, ms, todayOk = 720) {
     const day = addDays(TODAY, -i);
     const total = i === 0 ? 720 : 1440;
     let ok = total;
-    if (site === 'proxy-rules' && i === 12) ok = 1415;
+    if (site === 'proxy' && i === 12) ok = 1415;
     if (site === 'ai' && i === 20) ok = 1320;
     if (i === 0) ok = todayOk;
     out.push({ day, total, ok, avg_ms: ok ? ms + (i % 5) : null });
@@ -77,7 +77,7 @@ function site(t, over = {}) {
 }
 
 const INC_RESOLVED = [
-  { id: 2, site: 'proxy-rules', started_at: NOW - 12 * DAY - 3 * 3600 * 1000, ended_at: NOW - 12 * DAY - 3 * 3600 * 1000 + 25 * MIN, cause: 'HTTP 502' },
+  { id: 2, site: 'proxy', started_at: NOW - 12 * DAY - 3 * 3600 * 1000, ended_at: NOW - 12 * DAY - 3 * 3600 * 1000 + 25 * MIN, cause: 'HTTP 502' },
   { id: 1, site: 'ai', started_at: NOW - 20 * DAY + 2 * 3600 * 1000, ended_at: NOW - 20 * DAY + 4 * 3600 * 1000, cause: 'timeout' },
 ];
 
