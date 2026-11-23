@@ -441,6 +441,13 @@ $('#cu-chips').addEventListener('click', function(e){
   try { G.history.replaceState(null, '', G.location.pathname + G.location.search + catHash(cat)); } catch (err) {}
   render();
 });
+/* 同页改 hash（手输 #c/<分类>、从 #games 等不认识的 hash 跳过来；奇趣重组 PR 2 起 #games 不再整页跳走）：就地换分类 */
+G.addEventListener('hashchange', function(){
+  var next = parseHash(G.location.hash);
+  if (next === cat) return;
+  cat = next;
+  if (loaded) render();
+});
 /* ---------- 编辑 ---------- */
 function setErr(msg){ var el = $('#edit-err'); el.textContent = msg || ''; el.classList.toggle('hidden', !msg); }
 function renderCatPicker(){
