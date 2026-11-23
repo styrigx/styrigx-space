@@ -362,13 +362,15 @@ var crop = (function(){
     var fn = cb;
     encode(c).then(function(b){ shut(); if (fn) fn(b, s); }, function(e){ shut(); toast(errText(e)); });
   }
+  /** 选的文件只当图片解码：按 image/* 重新包一层 Blob（不是位图类型、或是 SVG，就给 octet-stream），这个 object URL 不会被当成网页打开 */
+  function asImage(file){ return new Blob([file], { type: /^image\/(?!svg)/i.test(file.type) ? file.type : 'application/octet-stream' }); }
   /** 打开：file = 原图；src = 上次框住的原图区域（重新调整时带上）；onDone(blob, src) */
   function openCrop(file, src, onDone){
     if (!dlg) build();
     if (url) URL.revokeObjectURL(url);
     cb = onDone; busy = false; nw = nh = 0; pts = {}; nPts = 0;
     doneBtn.disabled = true;
-    url = URL.createObjectURL(file);
+    url = URL.createObjectURL(asImage(file));
     pic.onload = function(){
       nw = pic.naturalWidth; nh = pic.naturalHeight;
       if (!nw || !nh) { shut(); toast(T.notImage); return; }
