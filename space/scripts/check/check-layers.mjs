@@ -491,8 +491,8 @@ export function checkWorkerSkeleton(root) {
 
 /* ───────────── space 骨架契约（规则 23–28，space/README.md） ───────────── */
 
-/* music：music 搬家第 3 步（2026-11-21，搬家设计稿 v1.1 3.1 第 2 条）升为第四个产品 / 子站 */
-export const PRODUCTS = Object.freeze(['blog', 'curio', 'daymark', 'music']);
+/* music：music 搬家第 3 步（2026-11-21，搬家设计稿 v1.1 3.1 第 2 条）升为第四个产品 / 子站；games：奇趣重组 PR 2（2026-11-22）第五个 */
+export const PRODUCTS = Object.freeze(['blog', 'curio', 'daymark', 'music', 'games']);
 
 /** 规则 26：允许的落点（和 space/README.md §1–§2 一致；改骨架两边同一个 PR 改） */
 export const ALLOWED_PLACES = Object.freeze([
@@ -500,11 +500,11 @@ export const ALLOWED_PLACES = Object.freeze([
   /^space\/web\/assets\/common\/js\/(?:core|i18n|prefs|ui|features|auth|music)\/.+/,
   /^space\/web\/assets\/common\/js\/frame\/(?:topbar|nav|term|ai|apps|status|account)\/.+/,
   /^space\/web\/assets\/common\/js\/tsconfig\.json$/,
-  /^space\/web\/assets\/(?:blog|curio|daymark|music)\/(?:css|js)\/.+/,
+  /^space\/web\/assets\/(?:blog|curio|daymark|music|games)\/(?:css|js)\/.+/,
   /^space\/web\/layouts\/[^/]+$/,
-  /^space\/web\/layouts\/(?:_default|common|blog|curio|daymark|music)\/.+/,
-  /^space\/web\/layouts\/partials\/(?:common|blog|curio|daymark|music)\/.+/,
-  /^space\/web\/data\/(?:common|blog|curio|daymark|music)\/.+/,
+  /^space\/web\/layouts\/(?:_default|common|blog|curio|daymark|music|games)\/.+/,
+  /^space\/web\/layouts\/partials\/(?:common|blog|curio|daymark|music|games)\/.+/,
+  /^space\/web\/data\/(?:common|blog|curio|daymark|music|games)\/.+/,
   /^space\/scripts\/(?:lib|build|check|gen|deploy|blog|curio|daymark)\/.+/,
   /^space\/README\.md$/,
 ]);
@@ -523,7 +523,7 @@ export const EXCEPTIONS_FILE = 'space/scripts/check/layers-exceptions.json';
  */
 export function ownerOf(rel) {
   if (!rel.startsWith('space/web/')) return null;
-  const m = rel.match(/^space\/web\/(?:assets|data|layouts\/partials|layouts)\/(blog|curio|daymark|music)\//);
+  const m = rel.match(/^space\/web\/(?:assets|data|layouts\/partials|layouts)\/(blog|curio|daymark|music|games)\//);
   return m ? m[1] : 'platform';
 }
 

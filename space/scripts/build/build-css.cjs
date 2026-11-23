@@ -48,7 +48,8 @@ if (!process.argv.includes('--main-only')) {
   const repo = path.join(__dirname, '..', '..', '..');
   execSync(`"${process.execPath}" space/scripts/blog/build-css.mjs`, { cwd: repo, stdio: 'inherit' });
   /* music：music 搬家第 3 步（2026-11-21）起的第四个子站，assets/music/css/input.css（只要主题 + 工具类，音乐页同时引奇趣的 main.css） */
-  for (const site of ['curio', 'daymark', 'music']) {
+  /* games：奇趣重组 PR 2（2026-11-22）起的第五个子站，assets/games/css/input.css（同 music：只要主题 + 工具类 + 游戏自己的规则，游戏页同时引奇趣的 main.css） */
+  for (const site of ['curio', 'daymark', 'music', 'games']) {
     execSync(`npx --no-install tailwindcss -i space/web/assets/${site}/css/input.css -o space/web/assets/${site}/css/main.css --minify`, { cwd: repo, stdio: 'inherit' });
   }
 }

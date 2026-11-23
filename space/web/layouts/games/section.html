@@ -1,0 +1,105 @@
+{{ define "main" }}
+{{ $lang := .Lang }}{{ $tr := partialCached "common/tr.html" (dict "lang" $lang "ns" "games") (printf "games-%s" $lang) }}
+{{/* 游戏（/games/，中文 /games/zh/；奇趣重组 PR 2 起是第五个子站，原奇趣 › 游戏 /curio/games/）：games-page.js 画，数据走 /games/api/games、封面 /games/api/cover?id=。
+   列表：状态 chips（全部 / 想玩 / 在玩 / 通关 / 搁置）+ 封面卡（封面、「games · 平台」、名字、状态 · 评分）+ 分页条（排序：最近添加 / 我的顺序 / 评分 / 名字；games-list.js）。
+   条目页 = 本页 ?game=<id>（同 music 的 ?album=；直接打开 / 刷新也行，旧 ?id= 也认）：面包屑 cat ~/games/<名字> → 大图 │ spec 表 + 评价 → 底部两卡。
+   能编辑（接口回 canManage：games-manage）：命令链「touch games/ +」新建、「sort games/」调整顺序（game.order）；条目页里「vim …」编辑。
+   不能编辑时命令链空着，不放 su 提示（同 /music/）。「在哪台设备上」（关联设备）去掉了（设计稿 v1.0 PR 2）。 */}}
+<main id="cu-main" class="cu-wrap gm-wrap" data-cu-page="games">
+{{/* 页头（同 /music/）：共享外壳 sgx-ph「ls games/」· 游戏_ · 本站一句话；没有奇趣的 tab 行、grep；下面一行命令链（能写才显示，games-page.js 按 canManage 开） */}}
+{{ partial "common/frame/page-head.html" (dict "cmd" "ls games/" "title" $tr.site.name "desc" $tr.site.description "path" .File.Path) }}
+<div class="sgx-cmds" id="cu-cmds">
+  <button type="button" class="sgx-cmd hidden" id="gm-fab"><span class="sgx-cmd-k" translate="no">touch games/ +</span><i>{{ $tr.cmd.addGame }}</i></button>
+  <button type="button" class="sgx-cmd hidden" id="gm-order-open"><span class="sgx-cmd-k" translate="no">sort games/</span><i>{{ $tr.cmd.order }}</i></button>
+</div>
+  <section id="cu-pane-games" class="cu-pane" aria-label="{{ $tr.games.games }}">
+    <div id="gm-chips" class="sgx-chips cu-chips" role="tablist" aria-label="{{ $tr.games.filter }}"></div>
+    <div id="gm-list" class="sgx-cgrid cu-grid" data-gm-grid aria-label="{{ $tr.games.games }}"></div>
+    <p id="gm-empty" class="cu-note hidden"></p>
+    <p id="gm-loading" class="cu-note it-loading"><span aria-hidden="true">› </span>{{ $tr.games.loading }}</p>
+    <nav class="sgx-pg cu-pg" data-gm-pager aria-label="{{ $tr.list.pager }}" hidden>
+      <span class="sgx-pg-l"><b data-pg-count translate="no">-- 0 / 0 --</b><span class="sgx-pg-hint">{{ $tr.list.more }}</span></span>
+      <span class="sgx-pg-r"><label class="sgx-sort">{{ $tr.list.sortBy }} <select data-gm-sort aria-label="{{ $tr.list.sortBy }}">
+        {{- range (slice (dict "v" "recent" "label" $tr.sort.recent) (dict "v" "order" "label" $tr.sort.order) (dict "v" "rating" "label" $tr.sort.rating) (dict "v" "name" "label" $tr.sort.name)) }}<option value="{{ .v }}">{{ .label }}</option>{{ end -}}
+      </select></label></span>
+    </nav>
+  </section>
+  {{/* 条目页（?game=<id>）：games-ui.js 的 showItem 填 */}}
+  <section id="cu-item" class="cu-item" hidden aria-live="polite"></section>
+  {{- /* 「相关文章」的候选：本语言博客文章（新→旧）的标题 / 地址 / 标签；games-page.js relatedPost 按游戏名找提到它的那篇 */ -}}
+  {{- $posts := slice }}{{ range partial "common/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) }}{{ $posts = $posts | append (dict "t" .Title "u" .RelPermalink "g" (.Params.tags | default slice)) }}{{ end }}
+  <script id="cu-posts" type="application/json">{{ $posts | jsonify | safeJS }}</script>
+</main>
+
+{{/* ===== 游戏：添加 / 编辑（canManage）；外观同拆出前的奇趣游戏弹层（bk-overlay / bk-panel，样式借奇趣 main.css），去掉「在哪台设备上」 ===== */}}
+<div id="gm-edit-wrap" class="bk-overlay fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="gm-edit-title">
+  <div class="bk-overlay-backdrop absolute inset-0" data-close="gm-edit"></div>
+  <div class="bk-panel text-m-on-surface shadow-2xl">
+    <div class="sheet-handle"></div>
+    <div class="bk-titlebar">
+      <div class="bk-titlebar-side" aria-hidden="true"></div>
+      <div class="bk-titlebar-mid"><h2 id="gm-edit-title" class="text-lg font-extrabold"></h2></div>
+      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="gm-edit" aria-label="{{ $tr.games.close }}">{{ partial "games/icon-x.html" (dict "uid" "gme-x") }}</button></div>
+    </div>
+    <form id="gm-form" class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 pb-4 flex flex-col gap-4" novalidate>
+      <div class="it-photo-row">
+        <button id="gm-photo-prev" type="button" class="it-photo-prev it-photo-prev--cover" disabled aria-hidden="true"></button>
+        <div class="flex flex-col gap-2 items-start">
+          <label class="cu-btn-text it-file">{{ $tr.games.chooseCover }}<input id="gm-photo" type="file" accept="image/*" class="sr-only"></label>
+          <button id="gm-photo-del" type="button" class="cu-btn-text it-photo-del hidden">{{ $tr.games.removeCover }}</button>
+        </div>
+      </div>
+      <label class="cu-field"><span>{{ $tr.games.title }}</span><input id="gm-title" type="text" maxlength="80" autocomplete="off"></label>
+      <div class="cu-field"><span>{{ $tr.games.status }}</span><div id="gm-status" class="cu-chipset" role="radiogroup" aria-label="{{ $tr.games.status }}"></div></div>
+      <div class="it-two">
+        <label class="cu-field"><span>{{ $tr.games.platform }}</span><input id="gm-platform" type="text" maxlength="120" autocomplete="off" list="gm-platforms" placeholder="{{ $tr.games.eGSwitchPc }}"><datalist id="gm-platforms"></datalist></label>
+        <label class="cu-field"><span>{{ $tr.games.version }}</span><input id="gm-edition" type="text" maxlength="120" autocomplete="off" placeholder="{{ $tr.games.eGPhysicalDeluxe }}"></label>
+      </div>
+      <div class="cu-field"><span>{{ $tr.games.rating }}</span><div id="gm-rating" class="gm-stars" role="radiogroup" aria-label="{{ $tr.games.rating }}"></div></div>
+      <label class="cu-field"><span>{{ $tr.games.thoughts }}</span><textarea id="gm-review" rows="4" maxlength="4000"></textarea></label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <span class="flex-1 text-[15px]">{{ $tr.games.onlyMe }}</span>
+        <input id="gm-private" type="checkbox" class="peer sr-only">
+        <span class="shrink-0 w-12 h-7 rounded-full bg-[var(--sgx-switch-track-off)] peer-checked:bg-[var(--sgx-switch-track-on)] relative transition-colors after:content-[''] after:absolute after:top-1 after:left-1 after:w-5 after:h-5 after:rounded-full after:bg-[var(--sgx-switch-thumb-off)] peer-checked:after:bg-[var(--sgx-switch-thumb-on)] after:shadow-sm after:transition-transform peer-checked:after:translate-x-5"></span>
+      </label>
+      <p id="gm-err" class="hidden text-sm text-m-error"></p>
+    </form>
+    <div class="shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-[var(--sgx-divider)] flex gap-3">
+      <button id="gm-del" type="button" class="hidden flex-1 h-12 rounded-full bg-m-container text-m-error text-[15px] font-bold">{{ $tr.games.delete }}</button>
+      <button id="gm-save" type="button" class="flex-1 h-12 rounded-full bg-m-primary-fill text-m-on-primary-fill text-[15px] font-bold">{{ $tr.games.save }}</button>
+    </div>
+  </div>
+</div>
+
+{{/* ===== 调整顺序（canManage，命令链「sort games/」）：全部游戏一行一个，上移 / 下移，保存 = POST game.order {ids}（全部 id 的新顺序；中途列表变了接口回 409 mismatch） ===== */}}
+<div id="gm-order-wrap" class="bk-overlay fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="gm-order-title">
+  <div class="bk-overlay-backdrop absolute inset-0" data-close="gm-order"></div>
+  <div class="bk-panel text-m-on-surface shadow-2xl">
+    <div class="sheet-handle"></div>
+    <div class="bk-titlebar">
+      <div class="bk-titlebar-side" aria-hidden="true"></div>
+      <div class="bk-titlebar-mid"><h2 id="gm-order-title" class="text-lg font-extrabold">{{ $tr.games.orderTitle }}</h2></div>
+      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="gm-order" aria-label="{{ $tr.games.close }}">{{ partial "games/icon-x.html" (dict "uid" "gmo-x") }}</button></div>
+    </div>
+    <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 pb-4 flex flex-col gap-3">
+      <p class="text-xs text-m-on-surface-variant">{{ $tr.games.orderNote }}</p>
+      <ol id="gm-order-list" class="gm-ord" data-l-up="{{ $tr.games.moveUp }}" data-l-down="{{ $tr.games.moveDown }}"></ol>
+      <p id="gm-order-err" class="hidden text-sm text-m-error"></p>
+    </div>
+    <div class="shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-[var(--sgx-divider)] flex gap-3">
+      <button type="button" class="flex-1 h-12 rounded-full bg-m-container text-m-on-surface text-[15px] font-bold" data-close="gm-order">{{ $tr.games.cancel }}</button>
+      <button id="gm-order-save" type="button" class="flex-1 h-12 rounded-full bg-m-primary-fill text-m-on-primary-fill text-[15px] font-bold">{{ $tr.games.save }}</button>
+    </div>
+  </div>
+</div>
+
+{{/* 确认框 + 提示条（本站自己的 partials/games/common.html + games-ui.js，同 music） */}}
+{{ partial "games/common.html" (dict "tr" $tr) }}
+{{ end }}
+
+{{ define "pagejs" }}
+{{/* 确认框、提示条、弹层开关、条目页路由（?game=）：games-ui.js（window.SgxGamesUI），要在 games-page.js 之前；分页 / 排序：games-list.js */}}
+<script src="{{ (resources.Get "games/js/games-ui.js" | minify | fingerprint).RelPermalink }}"></script>
+<script src="{{ (resources.Get "games/js/games-list.js" | minify | fingerprint).RelPermalink }}"></script>
+<script src="{{ (resources.Get "games/js/games-page.js" | minify | fingerprint).RelPermalink }}"></script>
+{{ end }}

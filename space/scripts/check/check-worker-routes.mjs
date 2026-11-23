@@ -50,14 +50,16 @@ const ACCOUNT_MUST = ['/api/account/devices', '/api/account/devices?x=1', '/api/
 /* 转发表允许的绑定 */
 const FORWARD_BINDINGS = new Set(['ACCOUNT']);
 /* 子站（合并 PR3）：主域名下的前缀，各站产物都按 /<站>/ 登记（music 搬家第 3 步加 music） */
-export const SUBSITES = ['blog', 'curio', 'daymark', 'music'];
+export const SUBSITES = ['blog', 'curio', 'daymark', 'music', 'games'];
 /* 子站在主域名上必须归网关的路径（页面、RSS、站点地图；v5 S3 起都公开，但要经网关注入会话标记） */
 const SUBSITE_MUST = ['/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?a', '/blog/tags/x/', '/blog/zh/', '/blog/zh/?a', '/blog/zh/post/x/', '/blog/rss.xml', '/blog/rss.xml?a',
   '/curio/', '/curio/?x=1', '/curio/zh/', '/curio/sitemap.xml', '/curio/sitemap.xml?a',
   '/curio/finds/', '/curio/zh/devices/', '/curio/games/', '/curio/movies/', '/curio/zh/music/', '/curio/music/?artist=1',
   '/daymark/', '/daymark/?x=1', '/daymark/zh/', '/daymark/sitemap.xml', '/daymark/sitemap.xml?a',
   /* music 搬家第 3 步：新页面地址；旧 /curio/music/… 留在上面（301 由 Pages _redirects 回，也要过网关） */
-  '/music/', '/music/?artist=1', '/music/zh/', '/music/player/', '/music/player/?album=1&t=0', '/music/zh/player/', '/music/sitemap.xml', '/music/sitemap.xml?a'];
+  '/music/', '/music/?artist=1', '/music/zh/', '/music/player/', '/music/player/?album=1&t=0', '/music/zh/player/', '/music/sitemap.xml', '/music/sitemap.xml?a',
+  /* 奇趣重组 PR 2：游戏子站页面；旧 /curio/games/、/curio/finds/ 留在上面（301 由 Pages _redirects 回，也要过网关） */
+  '/games/', '/games/?game=1', '/games/zh/', '/games/zh/?game=1', '/games/sitemap.xml'];
 /* 子站接口 Worker：必须登记的路由（每个站一条 /<站>/api/*）和归它的样例路径（主域名） */
 export const CORE_WORKERS = [
   { name: 'atlas-core', label: '内容层接口 Worker（styrigx-atlas-core）', dir: 'workers/atlas-core', sites: ['curio', 'daymark', 'music', 'games'],

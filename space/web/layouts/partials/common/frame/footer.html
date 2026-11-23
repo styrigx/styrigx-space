@@ -16,7 +16,7 @@
     <span class="sgx-foot-ses" translate="no">space</span>
     <nav class="sgx-foot-win" aria-label="{{ $t.foot.windows }}">
       {{- range $k, $it := .nav.items }}
-      {{- $sub := in (slice "blog" "curio" "daymark" "music") .id }}
+      {{- $sub := in (slice "blog" "curio" "daymark" "music" "games") .id }}
       {{- /* 地址规则同 frame/topbar.html 的导航项（英文无前缀；中文主站 /zh/…、子站 /<站>/zh/） */ -}}
       {{- $p := .path }}{{ if ne $lang "en" }}{{ if $sub }}{{ $p = printf "%s%s/" .path $lang }}{{ else }}{{ $p = printf "/%s%s" $lang .path }}{{ end }}{{ end }}
       {{- if not $sub }}{{ if ne .origin "https://styrigx.com" }}{{ $p = printf "%s%s" .origin $p }}{{ else }}{{ $p = printf "%s%s" ($.mainOrigin | default "") $p }}{{ end }}{{ end }}

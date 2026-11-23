@@ -3,7 +3,7 @@
  * 这是拼 / 拆语言前缀的唯一函数。
  *
  * - 主站：英文 /security/lock/ ↔ 中文 /zh/security/lock/；根 / ↔ /zh/。
- * - 子站（/blog/、/curio/、/daymark/、/music/；music 搬家第 3 步加 music）：前缀加在站名后面：/blog/post/x/ ↔ /blog/zh/post/x/。
+ * - 子站（/blog/、/curio/、/daymark/、/music/、/games/；music 搬家第 3 步加 music，奇趣重组 PR 2 加 games）：前缀加在站名后面：/blog/post/x/ ↔ /blog/zh/post/x/。
  * - 旧的 /en/… 不再是语言前缀（删除不 301），这里不认它：/en/x/ 就是一条普通路径（线上 404）。
  * - 路径段各语言完全相同、全是英文，非默认语言只多一个 /<语言>/。
  *
@@ -20,7 +20,7 @@ export const DEFAULT_LANG = 'en';
 /** 读不到页面配置时的语言列表（单测 / 构建脚本用；页面上以 <html data-sgx-langs> 为准） */
 export const FALLBACK_LANGS = Object.freeze(['en', 'zh']);
 /** 子站站名：语言前缀加在 /<站>/ 后面 */
-export const SUBSITES = ['blog', 'curio', 'daymark', 'music'];
+export const SUBSITES = ['blog', 'curio', 'daymark', 'music', 'games'];
 
 const SITE_RE = new RegExp('^/(' + SUBSITES.join('|') + ')(?=/|$)');
 const CODE_RE = /^[a-z]{2,3}$/;

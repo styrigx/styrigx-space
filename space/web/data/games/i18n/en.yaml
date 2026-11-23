@@ -1,0 +1,83 @@
+# 游戏子站字符串表（奇趣重组 PR 2，2026-11-22：从 data/curio/i18n 的 games / cmd.addGame / js.curioItems 里游戏那部分搬来，表名 curioItems → gamesPage；
+# 「在哪台设备上」（playedOn / on / none）随表单去掉「关联设备」一起删了）。英文是源文本；其他语言的表缺键时回退英文（partials/common/tr.html）。
+# 站名 / 一句话：页头大标题、标签页标题（首页 = 站名，同 music）、meta description
+site:
+  name: Games
+  description: 'Sloan Gray''s Games: played, playing, want to play'
+games:
+  games: Games
+  filter: Filter
+  loading: Loading…
+  game: Game
+  close: Close
+  chooseCover: Choose cover
+  removeCover: Remove cover
+  title: Title
+  status: Status
+  platform: Platform
+  eGSwitchPc: e.g. Switch, PC
+  version: Version
+  eGPhysicalDeluxe: e.g. physical, deluxe, 1.2
+  rating: Rating
+  thoughts: Thoughts
+  onlyMe: Only me
+  delete: Delete
+  save: Save
+  cancel: Cancel
+  # 排序弹层（命令链「sort games/」，game.order：全部游戏的新顺序）
+  orderTitle: Reorder games
+  orderNote: This is the order of "my order". Private games are included.
+  moveUp: Move up
+  moveDown: Move down
+list:
+  sortBy: Sort
+  more: scroll for more
+  pager: Pager
+sort:
+  recent: recently added
+  order: my order
+  rating: rating
+  name: name
+cmd:
+  addGame: add a game
+  order: reorder
+js:
+  gamesPage:
+    all: All
+    status_want: Want to play
+    status_playing: Playing
+    status_done: Finished
+    status_shelved: On hold
+    addGame: Add a game
+    editGame: Edit game
+    emptyAdmin: No games yet. Use "add a game" above.
+    empty: Nothing here yet.
+    noMatch: Nothing in this filter.
+    needName: Give it a name.
+    failed: Something went wrong. Please try again.
+    loadFail: "error: couldn't load the list  # refresh to retry"
+    saved: Saved.
+    deleted: Deleted.
+    photoFail: Saved, but the cover didn't upload.
+    notImage: That isn't a picture we can use.
+    tooLarge: The picture is too large.
+    delGame: Delete this game?
+    del: Delete
+    priv: Only you can see this
+    platform: Platform
+    edition: Version
+    rating: Rating
+    stars: '{n} out of 5'
+    crop: Move and scale
+    cancel: Cancel
+    done: Done
+    adjust: Adjust cover
+    state: Status
+    related: related post
+    editCmd: edit
+    back: back to the list
+    notFound: This game doesn't exist or isn't visible to you.
+    noPermission: Your current user doesn’t have permission for this.
+    count: '-- {n} / {total} --'
+    orderSaved: Order saved.
+    orderStale: The list changed in the meantime. Reload and try again.

@@ -60,7 +60,7 @@
     <nav aria-label="{{ $t.nav.label }}">
       <ul class="sgx-nav-list">
         {{- range $k, $it := .nav.items }}
-        {{- $sub := in (slice "blog" "curio" "daymark" "music") .id }}
+        {{- $sub := in (slice "blog" "curio" "daymark" "music" "games") .id }}
         {{- /* 语言前缀同 lang-path.html / lib/lang-path.js（外壳只用参数、不调用别的模板，这里照同一规则展开；tests/space/ui/build/lang-default.test.mjs 对表）：英文无前缀，其他语言主站 /<语言>/…、子站 /<站>/<语言>/ */ -}}
         {{- $p := .path }}{{ if ne $lang "en" }}{{ if $sub }}{{ $p = printf "%s%s/" .path $lang }}{{ else }}{{ $p = printf "/%s%s" $lang .path }}{{ end }}{{ end }}
         {{- if not $sub }}{{ if ne .origin "https://styrigx.com" }}{{ $p = printf "%s%s" .origin $p }}{{ else }}{{ $p = printf "%s%s" ($.mainOrigin | default "") $p }}{{ end }}{{ end }}
