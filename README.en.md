@@ -38,7 +38,7 @@ The personal digital space of Sloan Gray (styrigx): a terminal-style personal we
 
 This repository holds all of [styrigx.com](https://styrigx.com): one Hugo site (the main site plus three sub-sites) and a set of Cloudflare Workers.
 
-- **Terminal style** — Home, the lock screen, the shield, the account and the AI window all work as "prompt + command + output", with no pop-up dialogs; `Ctrl K` opens the terminal drawer on any page.
+- **Terminal style** — Home, the lock screen, the shield, the account and the AI window all work as "prompt + command + output", and every dialog opens centred; `Ctrl K` opens the terminal drawer on any page.
 - **One site, one build** — the main site and `/blog/`, `/curio/`, `/daymark/` are one Hugo site in one Cloudflare Pages project, sharing one shell (top bar, navigation panel, quick panel, terminal, AI window).
 - **Locked by default** — the site is not public. Without a space session every page shows the lock screen first; the owner gets in with an unlock password or a passkey, visitors only with a temporary key or a share link.
 - **Bilingual** — English is the default language (`/`), Chinese lives at `/zh/`; 25 palettes to choose from.
@@ -64,7 +64,7 @@ Dark theme with the default motto. Phone shots use a Samsung phone viewport (412
 
 Shared by all four sites:
 
-- **AI floating card (Gray AI)** — opened from the bottom-right button; a floating card on phones. It first recalls from the site index (keywords + semantic vectors + read-only Curio queries), then a model streams the answer, rendered as Markdown; conversations stay on the device. The default model is Gemma 4 on Workers AI; a signed-in account can pick GPT-OSS 20B or Gemini ([ADR-0004](docs/decisions/ADR-0004-ai-models.md)).
+- **AI floating card (Gray AI)** — opened from the bottom-right button; a floating card on phones. It first recalls from the site index (keywords + semantic vectors + read-only Curio queries), then a model streams the answer, rendered as Markdown; anonymous visitors only get public content, the webmaster session includes private items; conversations stay on the device. The default model is Gemma 4 on Workers AI; a signed-in account can pick GPT-OSS 20B or Gemini ([ADR-0004](docs/decisions/ADR-0004-ai-models.md)).
 - **Lock screen (space entry V3)** — a terminal lock screen, `entry@space:~$`, command `sudo styrigx`, unlocked with the unlock password or a passkey; temporary keys and share links work too. The shield in the top bar manages space credentials, temporary keys, share links and lock-now.
 - **Account (V3)** — the avatar in the top bar opens the account terminal, signed in with the account password / account passkey. It handles authorization (writing to Curio and Daymark, settings sync, avatar and profile, …) and is a separate set of tickets from space entry: "the door belongs to the site, the account grants permissions" ([ADR-0003](docs/decisions/ADR-0003-account-v3.md)).
 
