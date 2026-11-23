@@ -86,4 +86,4 @@ HEAD 不读也不写缓存。
 
 ## 数据与迁移
 
-D1 `styrigx-proxy`：`migrations/0001_init.sql`（`meta`、`sources`、`lock`，预置锁行）。源文件不落库，只抽 `proxies:`。部署：`.github/workflows/deploy.yml` 的 `deploy-proxy-rules-worker`（先 `d1 migrations apply styrigx-proxy`，再部署、冒烟，失败回滚代码），独立部署，不等也不挡网关和 Pages。测试：`tests/workers/proxy/`（`proxy-rules.test.mjs` MetaCubeX、`own-repo.test.mjs` 自有仓、`sub.test.mjs` 代理订阅、`layout.test.mjs` 目录结构）；account 侧门卫在 `tests/workers/account/api-proxy.test.mjs`。
+D1 `styrigx-proxy`：`migrations/0001_init.sql`（`meta`、`sources`、`lock`，预置锁行）。源文件不落库，只抽 `proxies:`。部署：`.github/workflows/deploy.yml` 的 `deploy-proxy-worker`（先 `d1 migrations apply styrigx-proxy`，再部署、冒烟，失败回滚代码），独立部署，不等也不挡网关和 Pages。测试：`tests/workers/proxy/`（`proxy-rules.test.mjs` MetaCubeX、`own-repo.test.mjs` 自有仓、`sub.test.mjs` 代理订阅、`layout.test.mjs` 目录结构）；account 侧门卫在 `tests/workers/account/api-proxy.test.mjs`。

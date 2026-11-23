@@ -427,11 +427,11 @@ test.describe('390×844 行为', () => {
     await expect(nav).toHaveAttribute('data-state', 'closed');
   });
 
-  test('NAVIGATE STATUS + 页脚 ● n/5（P4 R-07）：space / atlas / account / proxy（proxy-rules）/ gray-ai（ai）各取自己那项；拿不到时灰点 –/5', async ({ page }) => {
+  test('NAVIGATE STATUS + 页脚 ● n/5（P4 R-07）：space / atlas / account / proxy/ gray-ai（ai）各取自己那项；拿不到时灰点 –/5', async ({ page }) => {
     let calls = 0;
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await goStatus(page, '/zh/', (r) => { calls++; return r.fulfill({ json: { ok: true, all_up: true, sites: [
-      { site: 'space', up: true, last: { ok: true, ms: 38 } }, { site: 'proxy-rules', up: true, last: { ok: true, ms: 50 } }, { site: 'ai', up: false, last: { ok: false, ms: 900 } },
+      { site: 'space', up: true, last: { ok: true, ms: 38 } }, { site: 'proxy', up: true, last: { ok: true, ms: 50 } }, { site: 'ai', up: false, last: { ok: false, ms: 900 } },
       { site: 'atlas', up: true, last: { ok: true, ms: 41 } }, { site: 'account', up: true, last: { ok: true, ms: 33 } }] } }); });
     await expect(page.locator('.sgx-foot-st')).toContainText('4/5');
     await expect(page.locator('.sgx-foot-st')).toHaveAttribute('data-up', '0');
@@ -449,7 +449,7 @@ test.describe('390×844 行为', () => {
 
   test('NAVIGATE STATUS：全部在线 =「● 全部在线」绿；接口 401（锁着）= 灰点、页脚 –/5', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await goStatus(page, '/zh/', (r) => r.fulfill({ json: { ok: true, sites: ['space', 'atlas', 'account', 'proxy-rules', 'ai'].map((site) => ({ site, up: true, last: { ms: 40 } })) } }));
+    await goStatus(page, '/zh/', (r) => r.fulfill({ json: { ok: true, sites: ['space', 'atlas', 'account', 'proxy', 'ai'].map((site) => ({ site, up: true, last: { ms: 40 } })) } }));
     await expect(page.locator('.sgx-foot-st')).toContainText('● 5/5');
     await page.locator('.sgx-tb-grid').click();
     await expect(page.locator('#sgx-nav [data-st-sum]')).toHaveText('● 全部在线');

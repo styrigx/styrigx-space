@@ -1519,7 +1519,7 @@ export function mountStatus(d) {
     /** @param {any} x */
     const one = function (x) { return x ? { up: !!x.up, ms: x.last && typeof x.last.ms === 'number' ? x.last.ms : null } : { up: false, ms: null }; };
     const sp = one(by.space);
-    return { space: sp, atlas: one(by.atlas), account: one(by.account), proxy: one(by['proxy-rules']), 'gray-ai': one(by.ai) };
+    return { space: sp, atlas: one(by.atlas), account: one(by.account), proxy: one(by.proxy || by['proxy-rules'] /* 旧名兼容到 2027-02-21 */), 'gray-ai': one(by.ai) };
   };
   let busy = false;
   /* 服务状态页（/status/，#st-root）自己每 60 秒取 /api/status：外壳不再另问一遍，接它取到的结果（sgx:status 事件）来画、写缓存 */

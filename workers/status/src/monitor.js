@@ -1,7 +1,7 @@
 /**
  * @fileoverview 监测的核心逻辑：发请求、根据上一轮状态算出这一轮要写什么（纯函数，好测）、写进 D1、读汇总。
  */
-import { TARGETS, TIMEOUT_MS, FAIL_THRESHOLD, KEEP_MS } from './targets.js';
+import { TARGETS, TIMEOUT_MS, FAIL_THRESHOLD, KEEP_MS, siteOf } from './targets.js';
 import { readUsage } from './usage.js';
 
 const HOUR_MS = 3600 * 1000;
@@ -111,7 +111,8 @@ export async function loadPrev(db) {
     m.get(r.site).fails = Number(r.fails) || 0;
     m.get(r.site).firstFailAt = Number(r.first_fail_at) || 0;
   }
-  for (const r of open.results || []) if (m.has(r.site)) m.get(r.site).open = { id: Number(r.id) };
+  /* 改名前开着的故障记在旧名下：并进现名，让这一轮能把它关掉（targets.js formerly） */
+  for (const r of open.results || []) if (m.has(siteOf(r.site))) m.get(siteOf(r.site)).open = { id: Number(r.id) };
   return m;
 }
 
@@ -250,13 +251,28 @@ export async function summary(db, now, env) {
     /* 还没汇总进 status_hourly 的分钟（最多约 2 小时 41 分）：补进 recent / 24h，最新一行给 last */
     db.prepare('SELECT at, data FROM status_minute WHERE at >= ? ORDER BY at').bind(Math.floor(now / HOUR_MS) * HOUR_MS - 3 * HOUR_MS),
   ]);
+  /* 改名（targets.js formerly）：旧名的历史行并进现名；同一天 / 同一小时新旧两行相加，state 只认现名那行 */
+  const merge = (rows, key) => {
+    /** @type {Map<string, any>} */
+    const m = new Map();
+    for (const r of rows || []) {
+      const x = { ...r, site: siteOf(r.site) };
+      const k = x.site + '|' + x[key];
+      const y = m.get(k);
+      if (y) { y.total = Number(y.total) + Number(x.total); y.ok_count = Number(y.ok_count) + Number(x.ok_count); y.ms_sum = Number(y.ms_sum) + Number(x.ms_sum); } else m.set(k, x);
+    }
+    return [...m.values()];
+  };
+  days.results = merge(days.results, 'day');
+  recent.results = merge(recent.results, 'hour');
+  inc.results = (inc.results || []).map((r) => ({ ...r, site: siteOf(r.site) }));
   const minRows = mins.results || [];
   const lastRow = minRows.length ? minRows[minRows.length - 1] : null;
   /** @type {Map<string, any>} */
   const lastBy = new Map();
-  if (lastRow) for (const c of parseMinute(lastRow.data)) lastBy.set(c.site, { at: Number(lastRow.at), ok: !!c.ok, code: c.code, ms: c.ms, err: c.err });
+  if (lastRow) for (const c of parseMinute(lastRow.data)) lastBy.set(siteOf(c.site), { at: Number(lastRow.at), ok: !!c.ok, code: c.code, ms: c.ms, err: c.err });
   const haveHour = new Set((recent.results || []).map((x) => x.site + '|' + Number(x.hour)));
-  const pending = [...rollup(minRows).values()].filter((g) => g.hour >= since24 && !haveHour.has(g.site + '|' + g.hour));
+  const pending = merge([...rollup(minRows).values()], 'hour').filter((g) => g.hour >= since24 && !haveHour.has(g.site + '|' + g.hour));
   recent.results = [...(recent.results || []), ...pending].sort((a, b) => Number(a.hour) - Number(b.hour));
   const by = (rows, site) => (rows.results || []).filter((r) => r.site === site);
   const pct = (ok, total) => (total ? Math.round((ok / total) * 10000) / 100 : null);
