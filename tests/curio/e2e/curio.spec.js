@@ -1,10 +1,9 @@
-// 奇趣（手机）：接口用 page.route 假数据，不碰线上。2026-11 对齐 PR-C2（设计稿 pg=curio / citem）：首页 /curio/ 就是「发现」，
-//   分区 /curio/devices/、/movies/（中文 /curio/zh/…）；奇趣重组 PR 2 起页头没有分区 tab 行（#cu-tabs 只剩 grep 一行），/curio/finds/ 301 到首页，
-//   游戏是第五个子站 /games/（用例在 games.spec.js），音乐是自己的子站 /music/。电影、音乐的用例在 curio-movies-music.spec.js。
-// - 顶栏：字标 · 页名胶囊（首页 = 奇趣，子页 = 子页名）· 外观 · 盾牌 · >_ · 头像；页头没有分区 tab
+// 奇趣（手机）：接口用 page.route 假数据，不碰线上。2026-11 对齐 PR-C2（设计稿 pg=curio）：首页 /curio/ 就是「发现」；奇趣重组 PR 2 起页头没有分区 tab 行
+//   （#cu-tabs 只剩 grep 一行），/curio/finds/ 301 到首页，游戏是第五个子站 /games/（用例在 games.spec.js），音乐是自己的子站 /music/（用例在 curio-music-*.spec.js）；
+//   奇趣重组 PR 3 删了设备 / 电影子页：/curio/devices/、/curio/movies/（含中文）直接 404、不跳，首页旧 hash #devices 也不再转跳。
+// - 顶栏：字标 · 页名胶囊（首页 = 奇趣）· 外观 · 盾牌 · >_ · 头像；页头没有分区 tab
 // - 账号没登录（canManage=false）：命令链里没有「收藏 / 管理分类 / 导入 / 导出」，只有「su · su 登录后可编辑」打开顶栏终端预填 su （2c，v6 割接）；封面卡点开新标签页；图标取不到显示首字母
-// - 分类 chips 筛选 + hash；grep 行内过滤；排序；分页条；旧 hash 地址 #devices 在首页转到设备子页（#games 奇趣重组 PR 2 起不再跳；#c/<分类> 就地生效）；左右滑切分区已删
-// - 设备：账号没登录只读；条目页 ?id=（取代详情弹层：面包屑、spec 表、换代互链、cd .. / cd ../next）；能编辑时新建（照片缩图后上传）、条目页里编辑、删除；使用天数
+// - 分类 chips 筛选 + hash；grep 行内过滤；排序；分页条；#c/<分类> 就地生效；左右滑切分区已删
 // - 能编辑（canManage + showPrivate）：私密带锁；没有「su 登录后可编辑」；收藏 → 填网址自动补全 → 保存发 link.add；长按卡片编辑、删除要确认；管理分类；导入发原文
 // - 英文页
 const { test, expect } = require('@playwright/test');
@@ -49,35 +48,6 @@ async function mock(page, signedIn) {
     cats = cats.concat({ id: 9, name: { zh: '工具', en: '' }, private: true, links: [{ id: 91, url: 'https://t.example/', name: { zh: 'T', en: '' }, desc: { zh: '', en: '' }, icon: '', private: true }] });
     return r.fulfill({ json: { ok: true, found: 3, added: 1, skipped: 2, invalid: 0, cats_added: 1, backup: 'imports/x.html', canManage: true, showPrivate: true, cats } });
   });
-  let devices = [
-    { id: 1, name: 'Galaxy S23', kind: 'phone', bought_at: '2023-03-01', retired_at: '2025-03-01', replaced_by: 2, os: 'One UI 6', specs: '8GB / 256GB', accessories: '', notes: '小屏好用', photo: false, private: false },
-    { id: 2, name: 'Galaxy S25 Ultra', kind: 'phone', bought_at: '2025-03-01', retired_at: '', replaced_by: 0, os: 'One UI 8', specs: '', accessories: '原装壳', notes: '', photo: true, private: false },
-    { id: 3, name: '私密平板', kind: 'tablet', bought_at: '', retired_at: '', replaced_by: 0, os: '', specs: '', accessories: '', notes: '', photo: false, private: true },
-  ];
-  let games = [
-    { id: 7, title: '塞尔达传说 王国之泪', platform: 'Switch', device_id: 0, edition: '实体版', status: 'done', rating: 5, review: '神作', cover: false, private: false },
-    { id: 8, title: 'Hades II', platform: 'PC', device_id: 0, edition: '', status: 'playing', rating: 0, review: '', cover: false, private: false },
-  ];
-  if (!show) devices = devices.filter((d) => !d.private);
-  let nextId = 100;
-  await page.route('**/api/photo**', async (r) => {
-    const req = r.request();
-    if (req.method() === 'GET') return r.fulfill({ status: 200, contentType: 'image/png', body: PNG });
-    calls.push({ photo: req.method(), url: req.url(), type: req.headers()['content-type'], size: (req.postDataBuffer() || Buffer.alloc(0)).length });
-    return r.fulfill({ json: { ok: true } });
-  });
-  await page.route('**/api/items**', async (r) => {
-    const req = r.request();
-    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canManage: manage, showPrivate: show, devices, games } });
-    const body = req.postDataJSON();
-    calls.push(body);
-    let id;
-    if (body.op === 'device.add') { id = nextId++; devices.push({ photo: false, ...body, id, op: undefined }); }
-    if (body.op === 'device.edit') devices = devices.map((d) => (d.id === body.id ? { ...d, ...body, op: undefined } : d));
-    if (body.op === 'device.del') devices = devices.filter((d) => d.id !== body.id);
-    if (body.op === 'game.add') { id = nextId++; games.push({ cover: false, ...body, id, op: undefined }); }
-    return r.fulfill({ json: { ok: true, canManage: true, showPrivate: true, id, devices, games } });
-  });
   await page.route('**/api/links**', async (r) => {
     const req = r.request();
     if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canManage: manage, showPrivate: show, cats } });
@@ -91,7 +61,7 @@ async function mock(page, signedIn) {
   return calls;
 }
 
-test('组权限 v1.1：只有 curio-use（showPrivate true、canManage false）——看得到私密收藏 / 设备，但不画收藏 / 管理分类 / 导入 / 导出，长按 / E 不开编辑', async ({ page }) => {
+test('组权限 v1.1：只有 curio-use（showPrivate true、canManage false）——看得到私密收藏，但不画收藏 / 管理分类 / 导入 / 导出，长按 / E 不开编辑', async ({ page }) => {
   await mock(page, 'use');
   await page.goto('/curio/zh/');
   await expect(page.locator('.cu-cc')).toHaveCount(3);
@@ -101,9 +71,6 @@ test('组权限 v1.1：只有 curio-use（showPrivate true、canManage false）�
   await page.locator('.cu-cc').first().focus();
   await page.keyboard.press('e');
   await expect(page.locator('#edit-title')).toHaveText('');
-  await page.goto('/curio/zh/devices/');
-  await expect(page.getByText('私密平板').first()).toBeVisible();
-  await expect(page.locator('#dv-fab')).toBeHidden();
 });
 
 test('账号未登录：首页就是发现（奇趣重组 PR 2：没有分区 tab 行）；没有收藏 / 管理分类 / 导入 / 导出命令、只看公开、图标取不到显示首字母；快捷面板导航页同主站', async ({ page }) => {
@@ -328,158 +295,31 @@ test('英文页：分类名、命令说明用英文（英文空时退回中文�
   await expect(page.locator('#menu-export')).toHaveAttribute('href', '/curio/api/export?lang=en');
 });
 
-/* ================= 子页：设备 / 游戏（P4-3 奇趣拆页） ================= */
+/* ================= 删掉的子页（奇趣重组 PR 3）：设备 / 电影 ================= */
 
-test('旧 hash 地址在首页转到子页（客户端兼容，不是 301）：#devices → 设备；#games 不再跳（奇趣重组 PR 2，游戏是子站 /games/）；#c/<分类> 首页就地筛选；子页胶囊 = 子页名，没有左右滑', async ({ page }) => {
+test('设备 / 电影子页删了：/curio/devices/、/curio/movies/（含中文）直接 404、不跳；首页旧 hash #devices、#games 不再转跳；#c/<分类> 首页就地筛选', async ({ page }) => {
   await mock(page, true);
+  for (const p of ['/curio/devices/', '/curio/zh/devices/', '/curio/movies/', '/curio/zh/movies/']) {
+    const res = await page.goto(p);
+    assert404(res, p);
+    await expect(page.locator('#cu-pane-devices, #cu-pane-movies, #dv-list, #mv-list, #dv-fab, #mv-fab')).toHaveCount(0);
+  }
   await page.goto('/curio/zh/#devices');
-  await expect(page).toHaveURL(/\/curio\/zh\/devices\/$/);
-  await expect(page.locator('.sgx-tb-title')).toHaveText('设备');
-  await expect(page.locator('#cu-pane-devices')).toBeVisible();
-  await expect(page.locator('#dv-list .it-cc')).toHaveCount(3);
-  await expect(page.locator('#dv-fab')).toBeVisible();
-  await expect(page.locator('#cu-pane-games, #cu-pane-finds, #gm-fab, #cu-fab, #gm-edit-wrap')).toHaveCount(0);
+  await expect(page).toHaveURL(/\/curio\/zh\/#devices$/);
+  await expect(page.locator('#cu-pane-finds')).toBeVisible();
   await page.goto('/curio/zh/#games');
   await expect(page).toHaveURL(/\/curio\/zh\/#games$/);
   await expect(page.locator('#cu-pane-finds')).toBeVisible();
-  await expect(page.locator('#gm-fab, #gm-edit-wrap')).toHaveCount(0);
+  await expect(page.locator('#gm-fab, #gm-edit-wrap, #dv-edit-wrap, #mv-edit-wrap, #cu-item')).toHaveCount(0);
   await page.goto('/curio/zh/#c/2');
   await expect(page).toHaveURL(/\/curio\/zh\/#c\/2$/);
   await expect(page.locator('#cu-chips [data-cat="2"]')).toHaveAttribute('aria-selected', 'true');
-  await chooseLang(page, 'en');
-  await page.goto('/curio/#devices');
-  await expect(page).toHaveURL(/\/curio\/devices\/$/);
-  await expect(page.locator('.sgx-tb-title')).toHaveText('Devices');
-  await chooseLang(page, 'system');
-  /* 没有 hash / 不认识的 hash：留在首页 */
-  await page.goto('/curio/zh/#nope');
-  await expect(page).toHaveURL(/\/curio\/zh\/#nope$/);
-  await expect(page.locator('#cu-pane-finds')).toBeVisible();
-  /* 左右滑切分区已删：子页上横滑不跳页 */
-  await page.goto('/curio/zh/devices/');
-  const box = await page.locator('#cu-pane-devices').boundingBox();
-  const y = box.y + 120;
-  await page.locator('#cu-pane-devices').dispatchEvent('touchstart', { touches: [{ identifier: 1, clientX: 300, clientY: y }], changedTouches: [{ identifier: 1, clientX: 300, clientY: y }] });
-  await page.locator('#cu-pane-devices').dispatchEvent('touchend', { touches: [], changedTouches: [{ identifier: 1, clientX: 120, clientY: y + 5 }] });
-  await page.waitForTimeout(300);
-  await expect(page).toHaveURL(/\/curio\/zh\/devices\/$/);
 });
 
-test('账号未登录：设备只读（没有新建命令、条目页没有编辑；游戏只读搬到 games.spec.js）；看不到私密设备；退役的标出来；使用天数算到退役日；条目页 ?id= 换代互链、返回键回列表', async ({ page }) => {
-  await mock(page, false);
-  await page.goto('/curio/zh/devices/');
-  await expect(page.locator('#dv-list .it-name')).toHaveText(['Galaxy S23', 'Galaxy S25 Ultra']);
-  await expect(page.locator('#dv-fab')).toBeHidden();
-  const s23 = page.locator('#dv-list [data-dev="1"]');
-  await expect(s23).toHaveClass(/is-retired/);
-  await expect(s23.locator('.sgx-cc-m')).toHaveText('devices · 手机 · One UI 6');
-  await expect(s23.locator('.sgx-cc-k')).toHaveText('已退役 · 用了 732 天 · 约 2 年');
-  await expect(page.locator('#dv-list [data-dev="2"] img')).toHaveCount(1);
-  await page.locator('#dv-chips [data-f="retired"]').click();
-  await expect(page.locator('#dv-list .it-cc')).toHaveCount(1);
-  await s23.click();
-  /* 条目页（设计稿 pg=citem）：地址 ?id=1，列表藏起来；面包屑 cat ~/curio/devices/<名字>；没有编辑命令；体验当短评 */
-  await expect(page).toHaveURL(/\/curio\/zh\/devices\/\?id=1$/);
-  await expect(page.locator('#cu-item')).toBeVisible();
-  await expect(page.locator('#cu-pane-devices')).toBeHidden();
-  await expect(page.locator('#cu-tabs')).toBeHidden();
-  await expect(page.locator('#cu-item .sgx-crumb')).toHaveText('$cat ~/curio/devices/galaxy-s23');
-  await expect(page.locator('#cu-item .sgx-item-t')).toHaveText('Galaxy S23');
-  await expect(page.locator('#cu-item .sgx-item-m')).toHaveText('devices · 手机 · 已退役 · 收入于 2023-03');
-  await expect(page.locator('#cu-item [data-item-edit]')).toHaveCount(0);
-  await expect(page.locator('#cu-item .sgx-item-p')).toHaveText('小屏好用');
-  await expect(page.locator('#cu-item .sgx-spec dt')).toContainText(['状态', '用了', '购买', '退役', '系统', '参数', '换成了']);
-  /* 第一个：左卡 cd .. 回列表；右卡没有相关文章时 cd ../next（筛选「已退役」下只有它，没有下一个） */
-  await expect(page.locator('#cu-item .sgx-nx-a')).toHaveCount(1);
-  await expect(page.locator('#cu-item .sgx-nx-a').first()).toContainText('cd ..');
-  /* 换代：点「换成了」去新机条目页，那边「换下了」旧机 */
-  await page.locator('#cu-item .sgx-spec a[data-item="2"]').click();
-  await expect(page).toHaveURL(/\?id=2$/);
-  await expect(page.locator('#cu-item .sgx-item-t')).toHaveText('Galaxy S25 Ultra');
-  await expect(page.locator('#cu-item .sgx-spec a[data-item="1"]')).toHaveText('Galaxy S23');
-  /* 返回键：回到上一个条目，再回到列表 */
-  await page.goBack();
-  await expect(page.locator('#cu-item .sgx-item-t')).toHaveText('Galaxy S23');
-  await page.goBack();
-  await expect(page).toHaveURL(/\/curio\/zh\/devices\/$/);
-  await expect(page.locator('#cu-item')).toBeHidden();
-  await expect(page.locator('#cu-pane-devices')).toBeVisible();
-  await expect(page.locator('#cu-signin')).toBeVisible();
-  /* 直接打开条目页地址也行；不存在 / 看不到的编号给一句提示 + cd .. */
-  await page.goto('/curio/zh/devices/?id=2');
-  await expect(page.locator('#cu-item .sgx-item-t')).toHaveText('Galaxy S25 Ultra');
-  await page.goto('/curio/zh/devices/?id=3');
-  await expect(page.locator('#cu-item .sgx-item-p')).toHaveText('这个条目不存在，或者你看不到它。');
-});
-
-test('账号已登录（可写）：添加设备（类型、日期、照片缩图转 webp 上传），详情里编辑成退役并选换成的那台；删除要确认', async ({ page }) => {
-  const calls = await mock(page, true);
-  await page.goto('/curio/zh/devices/');
-  await expect(page.locator('#dv-list .it-cc')).toHaveCount(3);
-  await expect(page.locator('#dv-list [data-dev="3"] .cu-lock-inline')).toHaveCount(1);
-  await page.locator('#dv-fab').click();
-  await expect(page.locator('#dv-edit-wrap')).toHaveClass(/open/);
-  await expect(page.locator('#dv-edit-title')).toHaveText('添加设备');
-  await page.locator('#dv-save').click();
-  await expect(page.locator('#dv-err')).toHaveText('起个名字。');
-  await page.locator('#dv-name').fill('Galaxy Watch 8');
-  await page.locator('#dv-kind [data-k="watch"]').click();
-  await page.locator('#dv-bought').fill('2026-08-01');
-  await page.locator('#dv-os').fill('One UI 8 Watch');
-  await page.locator('#dv-specs').fill('44mm\n蓝牙版');
-  /* 3000×2000 的 PNG：先「移动和缩放」（4:3 框，同卡片），完成后裁成 1200×900、转 webp */
-  const big = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 3000; c.height = 2000; const g = c.getContext('2d'); g.fillStyle = '#3a6'; g.fillRect(0, 0, 3000, 2000); return c.toDataURL('image/png').split(',')[1]; });
-  await page.locator('#dv-photo').setInputFiles({ name: 'watch.png', mimeType: 'image/png', buffer: Buffer.from(big, 'base64') });
-  await expect(page.locator('dialog.cu-crop')).toBeVisible();
-  await expect(page.locator('.cu-crop-title')).toHaveText('移动和缩放');
-  await page.locator('[data-crop-done]').click();
-  await expect(page.locator('dialog.cu-crop')).toBeHidden();
-  await expect(page.locator('#dv-photo-prev img')).toHaveCount(1);
-  await expect.poll(() => page.locator('#dv-photo-prev img').evaluate((i) => i.naturalWidth + 'x' + i.naturalHeight)).toBe('1200x900');
-  await expect(page.locator('#dv-photo-del')).toBeVisible();
-  await page.locator('#dv-save').click();
-  await expect(page.locator('#dv-edit-wrap')).not.toHaveClass(/open/);
-  expect(calls.find((c) => c.op === 'device.add')).toMatchObject({ name: 'Galaxy Watch 8', kind: 'watch', bought_at: '2026-08-01', os: 'One UI 8 Watch', specs: '44mm\n蓝牙版', retired_at: '', replaced_by: 0, private: false });
-  await expect.poll(() => calls.find((c) => c.photo === 'POST')).toBeTruthy();
-  const up = calls.find((c) => c.photo === 'POST');
-  expect(up.url).toContain('kind=device&id=100');
-  expect(up.type).toBe('image/webp');
-  expect(up.size).toBeGreaterThan(0);
-  await expect(page.locator('#bk-toast')).toHaveText('已保存');
-  /* 第一次传图：卡片立刻显示照片，不用刷新 */
-  await expect(page.locator('#dv-list [data-dev="100"] .sgx-cc-im img')).toHaveCount(1);
-
-  /* 编辑：S25 退役，换成新加的 Watch（只是测选择框）；条目页里的「vim …」编辑 */
-  await page.locator('#dv-list [data-dev="2"]').click();
-  await expect(page.locator('#cu-item [data-item-edit] .sgx-cmd-k')).toHaveText('vim curio/devices/galaxy-s25-ultra');
-  await page.locator('#cu-item [data-item-edit]').click();
-  await expect(page.locator('#dv-edit-title')).toHaveText('编辑设备');
-  await expect(page.locator('#dv-name')).toHaveValue('Galaxy S25 Ultra');
-  await expect(page.locator('#dv-retire-wrap')).toBeHidden();
-  await page.locator('label:has(#dv-retired)').click();
-  await expect(page.locator('#dv-retire-wrap')).toBeVisible();
-  await expect(page.locator('#dv-retired-at')).not.toHaveValue('');
-  await expect(page.locator('#dv-replaced option')).toHaveText(['无', 'Galaxy S23', '私密平板', 'Galaxy Watch 8']);
-  await page.locator('#dv-retired-at').fill('2026-10-01');
-  await page.locator('#dv-replaced').selectOption('100');
-  await page.locator('#dv-save').click();
-  await expect(page.locator('#dv-edit-wrap')).not.toHaveClass(/open/);
-  expect(calls.find((c) => c.op === 'device.edit')).toMatchObject({ id: 2, retired_at: '2026-10-01', replaced_by: 100 });
-  await expect(page.locator('#dv-list [data-dev="2"]')).toHaveClass(/is-retired/);
-  /* 条目页跟着重画 */
-  await expect(page.locator('#cu-item .sgx-item-m')).toContainText('已退役');
-
-  /* 删除：删完回到列表 */
-  await page.goBack();
-  await page.locator('#dv-list [data-dev="3"]').click();
-  await page.locator('#cu-item [data-item-edit]').click();
-  await page.locator('#dv-del').click();
-  await expect(page.locator('#confirm-msg')).toHaveText('确定删除这台设备吗？');
-  await page.locator('#confirm-ok').click();
-  await expect.poll(() => calls.some((c) => c.op === 'device.del' && c.id === 3)).toBe(true);
-  await expect(page.locator('#dv-list [data-dev="3"]')).toHaveCount(0);
-  await expect(page).toHaveURL(/\/curio\/zh\/devices\/$/);
-  await expect(page.locator('#cu-pane-devices')).toBeVisible();
-});
+/** 删掉的页：Pages（本地静态服务器同规则）回最近一级 404.html、状态 404 @param {import('@playwright/test').Response|null} res @param {string} p */
+function assert404(res, p) {
+  expect(res, p).not.toBeNull();
+  expect(res.status(), p).toBe(404);
+}
 
 /* 游戏的添加 / 封面裁剪用例奇趣重组 PR 2 起在 games.spec.js（/games/、/games/api/*） */

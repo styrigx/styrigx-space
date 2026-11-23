@@ -24,8 +24,8 @@
 {{ range .AllTranslations }}<link rel="alternate" hreflang="{{ .Language.Lang }}" href="{{ .Permalink }}">
 {{ if eq .Language.Lang "en" }}<link rel="alternate" hreflang="x-default" href="{{ .Permalink }}">
 {{ end }}{{ end }}{{ end }}
-{{- /* 收录（R-23，Gray 2026-11-14 22:40 定公开页允许收录；#300–#400 偏离收尾清理项 10）：公开页（首页、发现、设备、电影、游戏、音乐）不带 noindex；
-   只有 404 带 noindex（电影接口 2026-11-11 起 public，Gray 2026-11-16 定电影页一并放开）。站点地图另见 section.curiositemap.xml（只列首页，不动）。 */ -}}
+{{- /* 收录（R-23，Gray 2026-11-14 22:40 定公开页允许收录；#300–#400 偏离收尾清理项 10）：公开页（奇趣首页 = 发现）不带 noindex；
+   只有 404 带 noindex（设备 / 电影子页奇趣重组 PR 3 删了，/curio/devices/、/curio/movies/ 落到 404）。站点地图另见 section.curiositemap.xml（只列首页，不动）。 */ -}}
 {{ if $is404 }}<meta name="robots" content="noindex">
 {{ end -}}
 {{/* 标签页图标、主屏图标都用主站头像 */}}
@@ -77,7 +77,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ $frameNav := site.Data.common.frame.nav }}
 {{ $center := "" }}
 {{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿；顶栏不再有分区页签）。P4-3 奇趣拆页起每个分区是独立子页：
-   首页 = 站名，子页（发现 / 设备 / 游戏 / 电影 / 音乐）= 子页名（内容文件的 title）；桌面布局显示、手机布局不显示（共享外壳 PR-4b 机制）。
+   首页 = 站名，子页（现在只有 404）= 子页名（内容文件的 title）；桌面布局显示、手机布局不显示（共享外壳 PR-4b 机制）。
    分区入口在首页正文（共享外壳平铺入口）。 */}}
 {{ if $isHome }}{{ $pageName = $tr.site.name }}{{ end }}
 {{ $center = printf "<span class=\"sgx-tb-title\">%s</span>" (htmlEscape $pageName) }}

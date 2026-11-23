@@ -1,6 +1,6 @@
 /* assets/curio/js/curio-list.js —— 奇趣分区列表的公共部件（2026-11 对齐 PR-C2，设计稿 tb4.html pg=curio；浏览器 IIFE；node 测试时导出纯函数）。
  *
- * 发现 / 设备 / 电影三个分区页共用，只动页面上已经画好的卡片（.sgx-cc），不碰数据：
+ * 奇趣首页（发现）用（奇趣重组 PR 3 删了设备 / 电影子页，原先三个分区页共用），只动页面上已经画好的卡片（.sgx-cc），不碰数据：
  * - （奇趣重组 PR 2，2026-11-22：页头的分区 tab 行和 tab 计数去掉了，游戏搬成第五个子站 /games/；这里不再问别的分区的读接口。）
  * - grep：页头下面一行「grep _」点开成行内输入（grep -i ▏），按空白切词，每个词都要出现在卡片的 data-q（名字、简介 / 备注、域名、分类、标签）里；Esc / 清空后失焦收起。
  * - 排序：分页条右侧「排序 … ▾」（第一个选项是默认），按卡片上的 data-s-<键> 重排（order / name 升序，其余降序）。
@@ -22,7 +22,7 @@ function grepMatch(hay, words){
   for (var i = 0; i < words.length; i++) if (h.indexOf(words[i]) < 0) return false;
   return true;
 }
-/** 排序键的方向：order（我的顺序）/ name 升序，其余（recent、bought、rating、watched）降序 @param {string} key */
+/** 排序键的方向：order（我的顺序）/ name 升序，其余（recent 等）降序 @param {string} key */
 function sortAsc(key){ return key === 'order' || key === 'name'; }
 /**
  * 比较两张卡片的排序值（字符串）：都是数字按数字，否则按 Intl 排序；同值按原来的顺序（ord）。

@@ -1,6 +1,6 @@
 /* assets/games/js/games-page.js —— 游戏子站 /games/（中文 /games/zh/）的页面逻辑（奇趣重组 PR 2，2026-11-22；浏览器 IIFE；node 测试时导出纯函数）。
  *
- * 从奇趣的 curio/js/curio-items.js 搬来游戏那一半（规则不变），接口全部换成游戏子站自己的 /games/api/*（PR 1 #503）：
+ * 从奇趣的 curio/js/curio-items.js（奇趣重组 PR 3 删了）搬来游戏那一半（规则不变），接口全部换成游戏子站自己的 /games/api/*（PR 1 #503）：
  *   读 GET /games/api/games → {ok, canManage, showPrivate, games:[…]}（按「我的顺序」pos 排好）；
  *   写 POST /games/api/games {op: game.add | game.edit | game.del | game.order} → {ok, games, id?}；
  *   封面 /games/api/cover?id=<n>（GET 图、POST 传、DELETE 删）。写请求回 401 = 没进站 → 发 sgx:sudo（顶栏终端预填 su ）。
@@ -8,7 +8,7 @@
  * 条目页 = 本页 ?game=<id>（旧 ?id= 也认；路由、画法在 games-ui.js）：spec 表（状态、评分、平台、版本），评价当短评；
  *   底部两卡：‹ cd ../prev（第一个时 cd .. 回列表）│ 相关文章 ›（博客里标题 / 标签提到它的那篇，relatedPost；没有就 cd ../next）。
  * 能编辑（canManage：games-manage）：命令链「touch games/ +」新建、「sort games/」调整顺序；条目页里「vim games/<名字>」编辑；编辑弹层里删除（要确认）。
- *   不能编辑时命令链空着（同 /music/，不放 su 提示）。编辑弹层去掉了「在哪台设备上」（关联设备，设计稿 v1.0 PR 2）：保存时不发 device_id，库里原值不动（PR 3 清零）。
+ *   不能编辑时命令链空着（同 /music/，不放 su 提示）。编辑弹层去掉了「在哪台设备上」（关联设备，设计稿 v1.0 PR 2）：保存时不发 device_id，库里原值不动（PR 3 起接口不读写、固定回 0，线上值由 docs/ops 的 SQL 清零）。
  * 封面：选图 → 全屏「移动和缩放」（3:4 取景框，同奇趣；样式 .cu-crop 在奇趣 main.css）→ 长边 ≤1200、webp（不支持就 jpeg），保存后再传。
  * 调整顺序：居中悬浮卡片 <dialog class="sgx-qp gm-dlg">（共享 modalSheet，同音乐上传窗），拖把手或上移 / 下移，保存 = game.order {ids}（全部游戏）；
  *   409 mismatch（中途有人加 / 删了游戏）→ 提示刷新后再试。
@@ -43,7 +43,7 @@ function hasWord(text, w){
   return false;
 }
 /**
- * 「相关文章」：按名字在博客文章（标题 + 标签）里找（同 curio-items.js）。整个名字出现在标题里最好；
+ * 「相关文章」：按名字在博客文章（标题 + 标签）里找（同原 curio-items.js，奇趣重组 PR 3 删了）。整个名字出现在标题里最好；
  * 否则按名字里的词（拉丁词 ≥ 3 个字母、中文词 ≥ 2 个字）在标题 / 标签里出现的个数打分，0 分不算；同分取新的（posts 已经新→旧）。
  * @param {string} name @param {{t:string, u:string, g?:string[]}[]} posts @returns {{t:string, u:string}|null}
  */
@@ -95,7 +95,7 @@ function errKey(code){
 /** 封面地址（换过封面的带 ?v= 破缓存） @param {number} id @param {number} [v] */
 function coverUrl(id, v){ return '/games/api/cover?id=' + id + (v ? '&v=' + v : ''); }
 
-/* ---- 裁剪的几何（同 curio-items.js：照片在舞台上左上角 (tx,ty)、缩放 k；取景框 f = {l,t,w,h}，舞台坐标） ---- */
+/* ---- 裁剪的几何（同原 curio-items.js，奇趣重组 PR 3 删了：照片在舞台上左上角 (tx,ty)、缩放 k；取景框 f = {l,t,w,h}，舞台坐标） ---- */
 /** 游戏封面卡的比例（宽 / 高），和奇趣 CSS 的 .it-media--cover（3/4）一致 */
 var COVER_RATIO = 3 / 4;
 function cropFrame(stageW, stageH, ratio){
@@ -198,7 +198,7 @@ function send(method, url, body, type){
     body: body === undefined ? undefined : type ? body : JSON.stringify(body),
   }).then(function(r){
     return r.json().catch(function(){ return {}; }).then(function(j){
-      /* 401（没进门）→ 请人进站（同 curio-items.js） */
+      /* 401（没进门）→ 请人进站（同原 curio-items.js） */
       if (r.status === 401) { if (UI && UI.sudo) UI.sudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
       if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error });
       return j;
@@ -273,7 +273,7 @@ function route(id){
 }
 if (UI && UI.onItemRoute) UI.onItemRoute(route);
 
-/* ---------- 封面：选图 → 移动和缩放 → 裁成长边 ≤1200 → webp（不支持就 jpeg）；同 curio-items.js 的 crop / photoBox，只留游戏 ---------- */
+/* ---------- 封面：选图 → 移动和缩放 → 裁成长边 ≤1200 → webp（不支持就 jpeg）；原 curio-items.js 的 crop / photoBox 只留游戏（curio-items.js 奇趣重组 PR 3 删了；取景框 3:4） ---------- */
 var CROP_OUT = 1200, ZOOM_MAX = 8;
 function encode(c){
   return new Promise(function(resolve, reject){
@@ -475,7 +475,7 @@ $('#gm-fab').addEventListener('click', function(){ if (canManage) openGameEdit(n
 $('#gm-save').addEventListener('click', function(){
   var title = $('#gm-title').value.trim();
   if (!title) { gmErr(T.needName); return; }
-  /* 不发 device_id：add 时取缺省 0，edit 时库里原值不动（关联设备 PR 2 去掉界面、PR 3 清零） */
+  /* 不发 device_id：add 时取缺省 0，edit 时库里原值不动（关联设备 PR 2 去掉界面、PR 3 起不读写，edit 只带 device_id 回 400 nothing） */
   var body = {
     title: title, status: gmStatus, rating: gmRating, platform: $('#gm-platform').value,
     edition: $('#gm-edition').value, review: $('#gm-review').value, private: $('#gm-private').checked,

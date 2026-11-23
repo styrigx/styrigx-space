@@ -1,9 +1,9 @@
-{{- /* 奇趣页头（2026-11 对齐 PR-C2，设计稿 tb4.html pg=curio）：三个分区页（发现 / 设备 / 电影）同一个页头——
+{{- /* 奇趣页头（2026-11 对齐 PR-C2，设计稿 tb4.html pg=curio；奇趣重组 PR 3 删了设备 / 电影子页，现在只有首页 = 发现用）——
    sgx-ph（「ls curio/<分区>/」· 奇趣_ · 站点一句话）→ 一行「grep _」（点开成行内输入，就地过滤卡片；curio-list.js）。
    奇趣重组 PR 2（2026-11-22）：游戏搬成第五个子站 /games/，页头的下划线分区 tab 行（finds/ n · devices/ n · games/ n · movies/ n）和 tab 计数去掉了
    （音乐 / 游戏都是自己的子站；分区之间靠顶栏导航面板）。grep 那一行沿用 .sgx-ctab / #cu-tabs（curio.js 条目页藏列表时按 #cu-tabs 找，名字不改）。
    → 一行命令链（.sgx-cmds：新增 / 管理分类 / 导入 / 导出，能编辑才显示；不能编辑时是「su · su 登录后可编辑」，#cu-signin）。
-   参数（dict）：page（当前页）、id（当前分区 finds / devices / movies）、tr、lang、home（奇趣首页 = 发现，命令写 ls curio/）、
+   参数（dict）：page（当前页）、id（当前分区，现在只有 finds）、tr、lang、home（奇趣首页 = 发现，命令写 ls curio/）、
      cmds（命令链：{id, k 命令, d 说明, href 可选（有就是链接）, dl 可选（下载）}）、grep（默认 true；false 时这一行不画） */ -}}
 {{- $tr := .tr -}}{{- $lang := .lang -}}{{- $p := .page -}}{{- $cur := .id -}}
 {{- $cmd := cond (.home | default false) "ls curio/" (printf "ls curio/%s/" $cur) -}}

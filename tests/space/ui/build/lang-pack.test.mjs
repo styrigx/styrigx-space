@@ -239,8 +239,7 @@ test('JS 字符串表（语言包化 2026-11-07）：i18nTable(表) 的 tx(键) 
 test('奇趣 / 日刻页面脚本（语言包化第二部分）：文案只读 #sgx-i18n-<表>，T.键 / tr(键) 都在英文表 js.<表> 里；脚本不再按语言二选一', () => {
   const FILES = [
     ['curio', 'space/web/assets/curio/js/curio.js', 'curio'],
-    ['curio', 'space/web/assets/curio/js/curio-items.js', 'curioItems'],
-    ['curio', 'space/web/assets/curio/js/curio-movies.js', 'curioMovies'],
+    /* curio-items.js（curioItems）、curio-movies.js（curioMovies）奇趣重组 PR 3 删了 */
     ['music', 'space/web/assets/music/js/music-page.js', 'musicPage'],
     ['games', 'space/web/assets/games/js/games-page.js', 'gamesPage'],
     ['daymark', 'space/web/assets/daymark/js/daymark.js', 'daymark'],

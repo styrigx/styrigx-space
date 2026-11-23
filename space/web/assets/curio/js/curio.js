@@ -1,7 +1,8 @@
-/* assets/js/curio.js —— 奇趣「发现」子页逻辑 + 各子页共用的确认框 / 提示条 / 弹层开关 / 页底一行（浏览器 IIFE；node 测试时导出纯函数）。
+/* assets/js/curio.js —— 奇趣「发现」页逻辑 + 确认框 / 提示条 / 弹层开关 / 页底一行（浏览器 IIFE；node 测试时导出纯函数）。
  *
  * - 「发现」= 奇趣首页 /curio/ 和 /curio/finds/（中文 /curio/zh/…；2026-11 对齐 PR-C2 起同一份内容）：分类 chips（全部 + 每个分类，hash #c/<分类 id>，只用 replaceState）。
- *   设备 / 游戏 / 电影 / 音乐子页也加载本文件，只用 window.SgxCurioUI（没有 #cu-list 时后面「发现」的部件不启动）。
+ *   奇趣重组后奇趣只剩这一页（PR 2 游戏搬成子站 /games/、音乐早已是 /music/，PR 3 删了设备 / 电影子页和它们的条目页 ?id=），
+ *   本文件不再给别的子页用；window.SgxCurioUI 只留确认框 / 提示条 / 弹层 / 进站这些（没有 #cu-list 时后面「发现」的部件不启动）。
  *   grep / 排序 / 分页在 curio-list.js（只动画好的卡片）；filterCats 的搜索词留给以后。
  * - 封面卡（设计稿 .cc）：封面位放站点图标（/api/icon?id=，R2 缓存；取不到显示首字母方块）、「finds · 域名」、名字、#分类；私密的带小锁（只有账号已登录看得到私密的）。
  *   点卡片在新标签页打开网址。
@@ -290,8 +291,7 @@ function ask(msg, okLabel, fn){
 }
 $('#confirm-cancel').addEventListener('click', function(){ confirmFn = null; closeOverlay('confirm-wrap'); });
 $('#confirm-ok').addEventListener('click', function(){ var f = confirmFn; confirmFn = null; closeOverlay('confirm-wrap'); if (f) f(); });
-/* 设备 / 游戏页签（curio-items.js）共用确认框、提示条、弹层开关 */
-/** 页底那一行（#cu-signin）：能编辑就藏起来；不能编辑时按有没有账号会话换字和链接（各子页共用，curio-items.js / curio-movies.js 也调） */
+/** 页底那一行（#cu-signin）：能编辑就藏起来；不能编辑时按有没有账号会话换字和链接 */
 function applySignin(can){
   var hint = $('#cu-signin');
   if (!hint) return;
@@ -302,89 +302,8 @@ function applySignin(can){
   }
 }
 
-/* ---------- 条目页（2026-11 对齐 PR-C2，设计稿 pg=citem；取代旧的详情弹层）：设备 / 游戏 / 电影子页的 ?id=<编号> ----------
-   列表（页头、tab、命令链、分区面板）和条目页（#cu-item）二选一显示；点卡片 pushState，返回键 popstate 回到列表。 */
-var ITEM_IMG = '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M20.5 16l-5-5-8 8.5"/></svg>';
-/** 地址里的条目编号（?id=）；没有 / 不对返回 0 */
-function itemIdOf(search){ var m = /[?&]id=(\d+)(?:&|$)/.exec(String(search || '')); return m ? Number(m[1]) : 0; }
-/** 名字 → 面包屑里的文件名（小写、空白变 -、去掉路径符号；中文原样） */
-function slugOf(name){ return String(name || '').trim().toLowerCase().replace(/[\/\\?#%*:|"<>]+/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').slice(0, 80) || 'item'; }
-function listParts(){ return doc.querySelectorAll('#cu-main > .sgx-ph, #cu-tabs, #cu-cmds, #cu-main > .cu-pane'); }
-function showList(){
-  var it = $('#cu-item'); if (it) { it.hidden = true; it.innerHTML = ''; }
-  listParts().forEach(function(el){ el.hidden = false; });
-}
-/**
- * 画条目页：o = {dir 分区目录名（devices / games / movies）, name, img（封面 HTML，可空）, meta（「devices · 在用 · 收入于 2024-03」）,
- *   spec [[标签, 值 HTML]], prose（短评，纯文字）, edit {k, d, fn}（能编辑时）, prev / next {href, k, title}（next 为空就不画右卡）}
- */
-function showItem(o){
-  var it = $('#cu-item'); if (!it) return;
-  listParts().forEach(function(el){ el.hidden = true; });
-  var nx = function(x, right){
-    if (!x) return '<li></li>';
-    return '<li><a class="sgx-nx-a' + (right ? ' is-next' : '') + '" href="' + esc(x.href) + '"' + (x.ext ? ' target="_blank" rel="noopener"' : '') + (x.id ? ' data-item="' + x.id + '"' : '') + '>'
-      + (right ? esc(x.k) + ' ›' : '‹ ' + esc(x.k)) + '<b>' + esc(x.title) + '</b></a></li>';
-  };
-  it.innerHTML = '<p class="sgx-crumb" translate="no"><span class="sgx-pr">$</span>cat ~/curio/' + esc(o.dir) + '/' + esc(slugOf(o.name)) + '</p>'
-    + '<div class="sgx-item"><div class="sgx-item-im">' + (o.img || ITEM_IMG) + '</div><div class="sgx-item-b">'
-    + '<p class="sgx-item-m">' + esc(o.meta || '') + '</p><h1 class="sgx-item-t">' + esc(o.name) + '</h1>'
-    + (o.spec && o.spec.length ? '<dl class="sgx-spec">' + o.spec.map(function(r){ return '<div><dt>' + esc(r[0]) + '</dt><dd>' + r[1] + '</dd></div>'; }).join('') + '</dl>' : '')
-    + (o.prose ? '<p class="sgx-item-p">' + esc(o.prose) + '</p>' : '')
-    + (o.edit ? '<div class="sgx-cmds"><button type="button" class="sgx-cmd" data-item-edit><span class="sgx-cmd-k" translate="no">' + esc(o.edit.k) + '</span><i>' + esc(o.edit.d) + '</i></button></div>' : '')
-    + '<ul class="sgx-nx">' + nx(o.prev, false) + nx(o.next, true) + '</ul>'
-    + '</div></div>';
-  it.hidden = false;
-  var eb = it.querySelector('[data-item-edit]');
-  if (eb && o.edit) eb.addEventListener('click', o.edit.fn);
-}
-/** 去某个条目（0 = 回列表）：改地址（pushState）并通知本页脚本重画 */
-function goItem(id, replace){
-  var url = G.location.pathname + (id ? '?id=' + id : '') + G.location.hash;
-  try { G.history[replace ? 'replaceState' : 'pushState']({ cuItem: id }, '', url); } catch (e) {}
-  G.scrollTo({ top: 0, behavior: 'auto' });
-  if (itemRoute) itemRoute(id);
-}
-var itemRoute = null;
-/** 本页脚本登记路由：fn(id)（id = 0 时回列表）；卡片 / 条目页里带 data-item 的链接点了走这里（新标签页 / 修饰键照常） */
-function onItemRoute(fn){
-  itemRoute = fn;
-  G.addEventListener('popstate', function(){ fn(itemIdOf(G.location.search)); });
-  doc.addEventListener('click', function(e){
-    var a = e.target.closest && e.target.closest('a[data-item]');
-    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    e.preventDefault();
-    goItem(Number(a.getAttribute('data-item')) || 0);
-  });
-}
-G.SgxCurioUI = { ask: function(m, l, f){ ask(m, l, f); }, toast: function(m){ toast(m); }, sudo: askSudo, sudoTicket: sudoTicket, openOverlay: openOverlay, closeOverlay: closeOverlay, signin: applySignin,
-  itemId: function(){ return itemIdOf(G.location.search); }, showItem: showItem, showList: showList, goItem: goItem, onItemRoute: onItemRoute, slug: slugOf };
-/* 直接打开 / 刷新条目页：列表先藏起来，等本页脚本拿到数据再画条目（免得先闪一下列表） */
-if (itemIdOf(G.location.search) && doc.getElementById('cu-item')) listParts().forEach(function(el){ el.hidden = true; });
-/* 页头 tab 放不下（手机）时右端给一个「›」：看得出后面还有（音乐多半就在屏外），点它滑到最后（2026-11-09 Gray 细节） */
-var tabsNav = doc.querySelector('#cu-tabs .sgx-ctab-tabs');
-var tabsMore = null;
-function paintTabsMore(){
-  if (!tabsNav) return;
-  var more = tabsNav.scrollWidth - tabsNav.scrollLeft - tabsNav.clientWidth > 4;
-  if (more && !tabsMore) {
-    tabsMore = doc.createElement('button');
-    tabsMore.type = 'button';
-    tabsMore.className = 'cu-tabs-more';
-    tabsMore.setAttribute('aria-hidden', 'true');
-    tabsMore.tabIndex = -1;
-    tabsMore.textContent = '\u203a';
-    tabsMore.addEventListener('click', function(){ tabsNav.scrollTo({ left: tabsNav.scrollWidth, behavior: 'smooth' }); });
-    tabsNav.parentNode.insertBefore(tabsMore, tabsNav.nextSibling);
-  }
-  if (tabsMore) tabsMore.hidden = !more;
-}
-if (tabsNav) {
-  tabsNav.addEventListener('scroll', paintTabsMore, { passive: true });
-  G.addEventListener('resize', paintTabsMore);
-  paintTabsMore();
-}
-/* P4-3 奇趣拆页：下面是「发现」子页（/curio/finds/）自己的部件；别的子页只用上面的确认框 / 提示条 / 弹层开关 / 页底一行 */
+G.SgxCurioUI = { ask: function(m, l, f){ ask(m, l, f); }, toast: function(m){ toast(m); }, sudo: askSudo, sudoTicket: sudoTicket, openOverlay: openOverlay, closeOverlay: closeOverlay, signin: applySignin };
+/* 下面是「发现」（奇趣首页）自己的部件 */
 if (!doc.getElementById('cu-list')) return;
 
 /* ---------- 画 ---------- */
@@ -430,7 +349,6 @@ function render(){
   var none = loaded && !countLinks(shown);
   empty.textContent = query ? T.noMatch : canManage ? T.emptyAdmin : T.emptyVisitor;
   empty.classList.toggle('hidden', !none);
-  if (loaded && G.SgxCurioList) G.SgxCurioList.count('finds', countLinks(cats));
 }
 
 /* ---------- 筛选 ---------- */
