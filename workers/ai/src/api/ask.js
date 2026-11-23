@@ -5,9 +5,8 @@
  * 请求：POST { q, lang?: 'zh'|'en', history?: [{ role:'user'|'assistant', text }], model?: '<id>' }，JSON，最多 BODY_MAX 字节。
  *   头 X-Styrigx-Account-Session: 1（网关写的账号结论头）→ 私密条目进召回，且 model 生效（只认登记里的 id，见 core/models.js）；
  *   没有 / 别的值 → 只召回公开条目，model 忽略，一律默认模型（切模型只能登账号）。
- * 回答：200 text/event-stream，事件顺序固定（2026-11-06 起不再发 event: hits：召回只作模型上下文，不给浏览器来源列表）：
+ * 回答：200 text/event-stream，事件顺序固定（2026-11-06 起不再发 event: hits：召回只作模型上下文，不给浏览器来源列表；2026-11-23 起也不再发 event: sources，链接只由模型在正文里给出）：
  *   event: delta    data: { text }                                         （0 到多次）
- *   event: sources  data: { items: [{ title, url }] }                      （只有 gemini 模型用了 Google 搜索时，0 或 1 次，在 done 之前；2026-11 AI 语义召回）
  *   event: done     data: {}
  *   出错时（已经开始流以后）：event: error data: { code: 'upstream' }，然后关流（不再发 done）。
  *   响应头 X-Styrigx-AI-Scope: private | public（这次召回用了哪一档；前端只用来显示，方案 5.5）。
@@ -35,7 +34,7 @@ import { fixedHits } from '../core/fixed.js';
 import { buildMessages, Q_MAX, AI_LANGS } from '../core/prompt.js';
 import { thinkFilter } from '../core/think.js';
 import { loadModels, pickModel } from '../core/models.js';
-import { readKey, hasKeyBinding, geminiOpen, geminiChunk, geminiSources, geminiMeta, geminiMaxTokens, redact, UPSTREAM_TIMEOUT_MS } from '../core/gemini.js';
+import { readKey, hasKeyBinding, geminiOpen, geminiChunk, geminiMeta, geminiMaxTokens, redact, UPSTREAM_TIMEOUT_MS } from '../core/gemini.js';
 import { apiError, SSE_HEADERS, sseEvent, sseData } from '../lib/http.js';
 
 export const BODY_MAX = 16 * 1024;
@@ -186,8 +185,6 @@ export async function onRequestPost(request, env) {
     async start(controller) {
       const send = (/** @type {string} */ ev, /** @type {any} */ data) => { if (!closed) controller.enqueue(sseEvent(ev, data)); };
       let sentText = false;
-      /** @type {Array<{title: string, url: string}>} Gemini 联网来源（去重） */
-      const sources = [];
       let reasoningChars = 0;
       let finish = '';
       /* gemini 空回答排查用：最后的 finishReason、usageMetadata 计数、这次带没带搜索 */
@@ -229,7 +226,6 @@ export async function onRequestPost(request, env) {
               const meta = geminiMeta(chunk);
               if (meta.finishReason) gFinish = meta.finishReason;
               if (meta.usage) gUsage = meta.usage;
-              for (const s of geminiSources(chunk)) if (!sources.some((x) => x.url === s.url)) sources.push(s);
               const text = filter.push(r.text);
               if (text) { sentText = true; send('delta', { text }); }
             }
@@ -269,7 +265,6 @@ export async function onRequestPost(request, env) {
           send('error', { code: 'empty' });
           return;
         }
-        if (sources.length) send('sources', { items: sources.slice(0, 8) });
         send('done', {});
       } catch (e) {
         console.error('[ai] answer failed', e && /** @type {any} */ (e).name, e && String(/** @type {any} */ (e).message || '').slice(0, 300));

@@ -66,7 +66,6 @@ ai:
   fail: 没能拿到回答，请稍后再试
   send: 发送
   stop: 停止
-  sources: 来源
   newTab: （在新标签页打开）
 # 导航面板（九宫格）：站点名 + 副标题（space/web/data/common/frame/nav-source.json 只留 id / 图标 / 地址）
 nav:

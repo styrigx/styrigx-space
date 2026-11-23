@@ -787,7 +787,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     expect(h2.cur).not.toBe(h2.chats[0].id);
   });
 
-  test('2026-11 AI 语义召回：回答按有限 Markdown 渲染（粗体 / 列表 / 链接，HTML 当文字）；站内链接同页、站外新标签 rel=noopener、虚下划线 + ↗；联网来源列在回答下', async ({ page }) => {
+  test('2026-11 AI 语义召回：回答按有限 Markdown 渲染（粗体 / 列表 / 链接，HTML 当文字）；站内链接同页、站外新标签 rel=noopener、虚下划线 + ↗；来了 event: sources 也不追加来源段（2026-11-23）', async ({ page }) => {
     await go(page, '/status/');
     await page.route('**/api/ai', async (route) => {
       const body = ['**锁屏**在设置里。<img src=x onerror="window.__xss=1">\n\n', '- [锁屏凭证](/security/lock/)\n', '- [外站文档](https://example.org/docs)\n', '- [坏](javascript:void0)']
@@ -805,7 +805,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await expect(md.locator('p').first()).toContainText('<img src=x onerror="window.__xss=1">');
     expect(await page.evaluate(() => window.__xss)).toBeUndefined();
     const links = md.locator('a.sgx-ai-link');
-    await expect(links).toHaveCount(3);
+    await expect(links).toHaveCount(2);
     const inner = links.nth(0);
     await expect(inner).toHaveAttribute('href', '/security/lock/');
     expect(await inner.getAttribute('target')).toBe(null);
@@ -816,11 +816,11 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await expect(ext).toHaveAttribute('rel', 'noopener');
     await expect(md).toContainText('坏');
     await expect(md.locator('a[href^="javascript"]')).toHaveCount(0);
-    /* 联网来源：追加成「来源」列表，随回答存进历史 */
-    await expect(md).toContainText('来源');
-    await expect(links.nth(2)).toHaveAttribute('href', 'https://example.org/a');
+    /* 2026-11-23：不收 event: sources，回答末尾没有来源段，历史里也没有 */
+    await expect(md).not.toContainText('来源');
+    await expect(md.locator('a[href="https://example.org/a"]')).toHaveCount(0);
     const h = JSON.parse(await ls(page, 'sgx-ai-history'));
-    expect(h.chats[0].msgs[1].text).toContain('来源\n- [example.org](https://example.org/a)');
+    expect(h.chats[0].msgs[1].text).not.toContain('example.org/a');
     /* 站内链接：关窗口后同页跳转 */
     await inner.click();
     await expect(page).toHaveURL(/\/security\/lock\/$/);

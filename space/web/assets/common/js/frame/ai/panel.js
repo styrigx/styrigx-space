@@ -29,7 +29,7 @@
  *   其余一律当纯文本（只用 createElement / textContent 拼 DOM，不用 innerHTML，HTML 天然转义）。链接只认 http(s) 和站内绝对路径（/…），别的协议当文字。
  *   链接文字带虚下划线 + ↗（参照 ChatGPT 安卓）；站内链接同页打开（关窗口后跳转），站外新标签 + rel=noopener。
  *   长网址不当链接文字：同一条回答里有 [标题](同一地址) 就用那个标题，否则显示「域名/…」。
- *   event: sources（gemini 联网来源）→ 在回答末尾追加「来源」一段（- [标题](地址)），随回答存进历史。
+ *   2026-11-23 起不收 event: sources（不追加「来源」段）；链接只由模型在正文里给出。旧历史里已存的来源段照原样显示。
  */
 import { KH_EN, frameSection } from '../term/core/strings.js';
 
@@ -75,7 +75,6 @@ const STR_EN = {
   fail: "Couldn’t get an answer. Please try again",
   send: "Send",
   stop: "Stop",
-  sources: "Sources",
   newTab: "(opens in a new tab)",
   sug1: "What have you been listening to?",
   sug2: "Today’s daymark",
@@ -370,18 +369,6 @@ export function renderMd(doc, text, o) {
   }
   return frag;
 }
-/** gemini 联网来源 → 追加到回答末尾的一段（- [标题](地址)；标题里的方括号换成圆括号，免得断开链接语法） @param {any} items @param {string} label */
-export function sourcesBlock(items, label) {
-  const list = (Array.isArray(items) ? items : []).filter(function (/** @type {any} */ x) {
-    return x && typeof x.url === 'string' && /^https?:\/\//i.test(x.url);
-  }).slice(0, 8);
-  if (!list.length) return '';
-  return '\n\n' + label + '\n' + list.map(function (/** @type {any} */ x) {
-    const tl = String(x.title || '').replace(/[\[\]]/g, function (c) { return c === '[' ? '(' : ')'; }).replace(/\s+/g, ' ').trim() || shortLabel(x.url);
-    return '- [' + tl + '](' + x.url.replace(/[()\s]/g, function (c) { return c === '(' ? '%28' : c === ')' ? '%29' : '%20'; }) + ')';
-  }).join('\n');
-}
-
 /**
  * 读 SSE：按空行切事件，回调 (event, data)。 @param {ReadableStream<Uint8Array>} body @param {(ev: string, data: any) => void} on
  */
@@ -891,8 +878,6 @@ export function mountAiChat(dlg, opts) {
             ans.text += d.text;
             if (liveText) paintAnswer(liveText, ans.text);
             list.scrollTop = list.scrollHeight;
-          } else if (ev === 'sources' && d && ans.text) {
-            ans.text += sourcesBlock(d.items, t.sources);
           } else if (ev === 'error') failed = errKey(0, d);
         });
         if (!ans.text && !failed) failed = 'fail';
