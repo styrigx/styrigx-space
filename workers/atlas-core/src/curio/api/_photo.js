@@ -1,8 +1,7 @@
 // workers/atlas-core/src/curio/api/_photo.js
-// 条目照片的读 / 换 / 删（设备照片、游戏封面、电影海报；R2 R2_PHOTOS：photos/<device|game|movie>/<id>-<时间>.<webp|jpg|png>）。下划线开头：不是接口。
-// 两个接口共用这一份（奇趣重组设计稿 v1.0 第三节 PR 1：复用、不复制）：
-//   - 奇趣 /curio/api/photo（photo.js）：?kind=device|game|movie&id=N
-//   - 游戏 /games/api/cover（../../games/api/cover.js）：?id=N，kind 固定是 game
+// 条目照片的读 / 换 / 删（现在只有游戏封面；R2 R2_PHOTOS：photos/game/<id>-<时间>.<webp|jpg|png>）。下划线开头：不是接口。
+// 调用方：游戏 /games/api/cover（../../games/api/cover.js：?id=N，kind 固定是 game）。
+// 奇趣重组 PR 3 删掉了奇趣 /curio/api/photo（?kind=device|game|movie）和设备照片、电影海报；这份规则留在这里（不搬文件），kind 表只剩 game。
 // 调用方只给「这个请求指的是哪一条」（targetOf(request) → {kind, K, id} 或 null，null = 400 bad-id），其余规则一处：
 //   GET    公开；私密条目的图看不到（没有本产品的 use 组，公用 privateNotFound 按命中的路由行 product 问）= 404，同不存在。没照片 404。
 //   POST   同源 + 本路由的 manage 档；body 是图片本身（Content-Type image/webp|jpeg|png，看头几个字节核对），≤ 3 MB。
@@ -14,22 +13,20 @@ import { err, json } from './_lib.js';
 import { privateNotFound } from '../../common/visibility.js';
 import { guardWrite } from './_write.js';
 import { ensureItemSchema, KINDS, itemDb } from './_items.js';
-import { ensureMovieSchema, MOVIE_KIND } from './_movies.js';
 import { etagMatches, etagOf, imageResponse, notModified, sniffImage } from './_image.js';
 
 export const PHOTO_MAX_BYTES = 3 * 1024 * 1024;
 const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
 
-/** 能带照片的条目：设备、游戏（_items.js）+ 电影（_movies.js，表在 D1_MOVIES，没有私密列） */
-export const PHOTO_KINDS = Object.freeze({ ...KINDS, movie: MOVIE_KIND });
+/** 能带照片的条目：游戏（_items.js KINDS；设备、电影奇趣重组 PR 3 删了） */
+export const PHOTO_KINDS = Object.freeze({ ...KINDS });
 
-/** 这种条目的表所在的绑定（设备 → D1_DEVICES，游戏 → D1_GAMES，电影 → D1_MOVIES） */
+/** 这种条目的表所在的绑定（游戏 → D1_GAMES） */
 function photoDb(env, kind) {
-  return kind === 'movie' ? (env && env.D1_MOVIES) || null : itemDb(env, kind);
+  return itemDb(env, kind);
 }
-async function ensureKind(db, kind) {
-  if (kind === 'movie') await ensureMovieSchema(db);
-  else await ensureItemSchema(db);
+async function ensureKind(db) {
+  await ensureItemSchema(db);
 }
 
 /**
@@ -52,8 +49,8 @@ export async function getPhoto(context, targetOf) {
   if (!t) return err('bad-id', 400);
   const db = photoDb(env, t.kind);
   if (!db || !env.R2_PHOTOS) return err('server', 503);
-  await ensureKind(db, t.kind);
-  const row = await db.prepare(`SELECT ${t.K.photo} AS photo, ${t.K.hasPrivate === false ? '0' : 'private'} AS private FROM ${t.K.table} WHERE id = ?1`).bind(t.id).first();
+  await ensureKind(db);
+  const row = await db.prepare(`SELECT ${t.K.photo} AS photo, private FROM ${t.K.table} WHERE id = ?1`).bind(t.id).first();
   if (!row || !row.photo) return err('not-found', 404);
   /* 私密条目的图：看不到（没有本产品的 use 组）= 404，同不存在（公用 privateNotFound，组权限 v1.1 §八） */
   const hidden = await privateNotFound(context, !!row.private);
@@ -85,7 +82,7 @@ export async function putPhoto(context, targetOf) {
   if (bytes.length > PHOTO_MAX_BYTES) return err('too-large', 413);
   const type = sniffImage(bytes);
   if (!type) return err('not-image', 400);
-  await ensureKind(db, t.kind);
+  await ensureKind(db);
   const row = await db.prepare(`SELECT ${t.K.photo} AS photo FROM ${t.K.table} WHERE id = ?1`).bind(t.id).first();
   if (!row) return err('not-found', 404);
   const key = `photos/${t.kind}/${t.id}-${Date.now()}.${EXT[type]}`;
@@ -111,7 +108,7 @@ export async function deletePhoto(context, targetOf) {
   if (!t) return err('bad-id', 400);
   const db = photoDb(env, t.kind);
   if (!db || !env.R2_PHOTOS) return err('server', 503);
-  await ensureKind(db, t.kind);
+  await ensureKind(db);
   const row = await db.prepare(`SELECT ${t.K.photo} AS photo FROM ${t.K.table} WHERE id = ?1`).bind(t.id).first();
   if (!row) return err('not-found', 404);
   await db.prepare(`UPDATE ${t.K.table} SET ${t.K.photo} = '', updated_at = ?1 WHERE id = ?2`).bind(Date.now(), t.id).run();

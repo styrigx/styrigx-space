@@ -306,8 +306,9 @@ test('Worker 名字（语言包化第二部分）：服务状态站名接口只�
   assert.ok(!Object.keys(en.space).some((k) => k.startsWith('wb')) && !Object.keys(zh.space || {}).some((k) => k.startsWith('wb')), '字符串表里不留 wb*');
   /* 奇趣搜索索引的页签 / 类型标签：英文底 + 中文层，缺键回退英文 */
   const { labels } = await import('../../../../workers/atlas-core/src/curio/search-index.js');
-  assert.equal(labels('zh').kinds.phone, '手机');
+  assert.equal(labels('zh').status.done, '通关');
   assert.equal(labels('en').status.done, 'Finished');
+  assert.equal(labels('zh').kinds, undefined, '设备类型标签随设备删了（奇趣重组 PR 3）');
   assert.deepEqual(labels('fr'), labels('en'), '没有语言层的语言整份英文');
 });
 

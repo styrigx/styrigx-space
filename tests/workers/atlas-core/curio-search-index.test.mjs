@@ -1,9 +1,9 @@
 // 奇趣的全站搜索索引（workers/atlas-core/src/curio/search-index.js，2026-11-14 合并进 atlas-core，KV styrigx-space-core 的 site:curio）：
-// - 条目映射：收藏 / 设备 / 游戏各出 zh + en 两条；标题、副标题（页签 · 分类 / 类型 / 平台）、text、url 深链
-// - 私密：分类或收藏任一私密 → private:true；私密设备 / 游戏同样；公开的不带 private
-// - 改内容的写接口（links / items / import）成功后 ctx.waitUntil 重建并 put；读接口、失败的写、照片接口不重建
+// - 条目映射：收藏 / 游戏各出 zh + en 两条；标题、副标题（页签 · 分类 / 平台 · 状态）、text、url 深链（设备、电影奇趣重组 PR 3 删了，不进索引）
+// - 私密：分类或收藏任一私密 → private:true；私密游戏同样；公开的不带 private
+// - 改内容的写接口（links / import / 游戏 /games/api/games）成功后 ctx.waitUntil 重建并 put；读接口、失败的写、封面接口不重建
 // - Cron scheduled 重建；KV / D1 出错、绑定缺失都只打日志不抛，接口照常回答
-// SQL 用 node:sqlite 真跑（CI 用 Node 22）。运行：node --test tests/workers/search-index.test.mjs
+// SQL 用 node:sqlite 真跑（CI 用 Node 22）。运行：node --test tests/workers/atlas-core/curio-search-index.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { whoAuth } from '../_v6who.mjs';
@@ -86,9 +86,6 @@ async function seeded() {
       (10, 1, 'https://a.example/', '好工具', '', '一个好用的工具', 'A handy tool', 0, 0),
       (11, 1, 'https://b.example/', '', 'Only English', '', 'desc en', 1, 1),
       (12, 2, 'https://c.example/', '藏起来', 'Hidden', '', '', 0, 0);
-    INSERT INTO devices (id, name, kind, os, specs, accessories, notes, private, pos) VALUES
-      (1, 'Galaxy S25', 'phone', 'One UI 8', '12GB', '壳', '很顺手', 0, 0),
-      (2, '旧平板', 'tablet', '', '', '', '', 1, 1);
     INSERT INTO games (id, title, platform, edition, status, review, private, pos) VALUES
       (1, '塞尔达传说', 'Switch', '王国之泪', 'done', '自由', 0, 0),
       (2, '秘密游戏', '', '', 'want', '', 1, 1);
@@ -97,12 +94,15 @@ async function seeded() {
 }
 const byId = (ix) => new Map(ix.items.map((it) => [it.id, it]));
 
-test('buildIndex：收藏 / 设备 / 游戏各出 zh + en 两条，标题、副标题、text、深链', async () => {
+test('buildIndex：收藏 / 游戏各出 zh + en 两条，标题、副标题、text、深链；没有设备 / 电影（奇趣重组 PR 3）', async () => {
   const ix = await SI.buildIndex(await seeded(), Date.UTC(2026, 9, 22));
   assert.equal(ix.site, 'curio');
   assert.equal(ix.generated, '2026-10-22T00:00:00.000Z');
-  assert.equal(ix.items.length, 14);
+  assert.equal(ix.items.length, 10);
   const m = byId(ix);
+  assert.equal(ix.items.some((it) => /^(device|movie):/.test(it.id)), false);
+  assert.equal('deviceItems' in SI, false);
+  assert.equal('movieItems' in SI, false);
   for (const it of ix.items) {
     assert.equal(it.type, 'item');
     assert.ok(it.url.startsWith(it.id.startsWith('game:') ? 'https://styrigx.com/games/' : SITE + '/'), it.id);
@@ -120,12 +120,6 @@ test('buildIndex：收藏 / 设备 / 游戏各出 zh + en 两条，标题、副�
   assert.equal(en.url, SITE + '/#c/1');
   assert.equal(m.get('link:11').title, 'Only English');
 
-  assert.equal(m.get('device:1').subtitle, '设备 · 手机 · One UI 8');
-  assert.equal(m.get('device:1:en').subtitle, 'Devices · Phone · One UI 8');
-  assert.equal(m.get('device:1').text, 'One UI 8\n12GB\n壳\n很顺手');
-  assert.equal(m.get('device:1').url, SITE + '/zh/devices/');
-  assert.equal(m.get('device:1:en').url, SITE + '/devices/');
-
   assert.equal(m.get('game:1').title, '塞尔达传说');
   assert.equal(m.get('game:1').subtitle, '游戏 · Switch · 通关');
   assert.equal(m.get('game:1:en').subtitle, 'Games · Switch · Finished');
@@ -136,12 +130,12 @@ test('buildIndex：收藏 / 设备 / 游戏各出 zh + en 两条，标题、副�
   assert.equal(SI.gameUrl('zh', 7), 'https://styrigx.com/games/zh/?game=7');
 });
 
-test('私密：分类或收藏任一私密 → private:true；私密设备 / 游戏同样；公开的不带 private', async () => {
+test('私密：分类或收藏任一私密 → private:true；私密游戏同样；公开的不带 private', async () => {
   const m = byId(await SI.buildIndex(await seeded()));
-  for (const id of ['link:11', 'link:11:en', 'link:12', 'link:12:en', 'device:2', 'device:2:en', 'game:2', 'game:2:en']) {
+  for (const id of ['link:11', 'link:11:en', 'link:12', 'link:12:en', 'game:2', 'game:2:en']) {
     assert.equal(m.get(id).private, true, id);
   }
-  for (const id of ['link:10', 'link:10:en', 'device:1', 'game:1:en']) assert.equal('private' in m.get(id), false, id);
+  for (const id of ['link:10', 'link:10:en', 'game:1', 'game:1:en']) assert.equal('private' in m.get(id), false, id);
   // 分类不在了（孤儿收藏）也当私密，链到奇趣首页（中文条目 → /curio/zh/；奇趣重组 PR 2 前是发现子页 /curio/zh/finds/）
   const orphan = SI.linkItems({ id: 9, cat_id: 99, url: 'https://x/', name_zh: '孤儿', name_en: '' }, undefined);
   assert.equal(orphan[0].private, true);
@@ -150,11 +144,11 @@ test('私密：分类或收藏任一私密 → private:true；私密设备 / 游
 });
 
 test('截断：标题 ≤ 80 字、text ≤ 2000 字；没名字不出条目', () => {
-  const [it] = SI.deviceItems({ id: 3, name: '长'.repeat(200), kind: 'nope', notes: 'x'.repeat(5000) });
+  const [it] = SI.gameItems({ id: 3, title: '长'.repeat(200), status: 'nope', review: 'x'.repeat(5000) });
   assert.equal([...it.title].length, 80);
   assert.ok(it.title.endsWith('…'));
   assert.equal(it.text.length, 2000);
-  assert.equal(it.subtitle, '设备 · 其他');
+  assert.equal(it.subtitle, '游戏', '不认识的状态不进副标题');
   assert.deepEqual(SI.gameItems({ id: 4, title: '  ' }), []);
 });
 
@@ -181,19 +175,22 @@ test('改收藏成功后 waitUntil 重建并 put site:curio；读接口、失败
   assert.equal(env.KV_SEARCH_INDEX.puts, 2);
 });
 
-test('改设备 / 游戏成功后也重建；照片接口不重建', async () => {
+test('改游戏（/games/api/games）成功后也重建；封面接口、删掉的旧接口不重建', async () => {
   const db = makeD1();
-  const env = { D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, KV_SEARCH_INDEX: makeKV(), R2_PHOTOS: makeR2() };
-  const r = await call(env, '/curio/api/items', { method: 'POST', body: { op: 'game.add', title: '空洞骑士', platform: 'PC', status: 'playing' } });
+  const env = { D1_FINDS: db, D1_GAMES: db, KV_SEARCH_INDEX: makeKV(), R2_PHOTOS: makeR2() };
+  assert.equal((await call(env, '/curio/api/items', { method: 'POST', body: { op: 'game.add', title: 'x' } })).res.status, 401, '旧接口删了');
+  assert.equal(env.KV_SEARCH_INDEX.puts, 0);
+  const r = await call(env, '/games/api/games', { method: 'POST', body: { op: 'game.add', title: '空洞骑士', platform: 'PC', status: 'playing' } });
   assert.equal(r.res.status, 200, await r.res.clone().text());
   assert.equal(env.KV_SEARCH_INDEX.puts, 1);
   const ix = JSON.parse(env.KV_SEARCH_INDEX.m.get('site:curio'));
   assert.equal(ix.items[0].subtitle, '游戏 · PC · 在玩');
-  assert.equal(SI.isContentMutation('/api/photo', 'POST', 200), false);
-  assert.equal(SI.isContentMutation('/api/photo', 'DELETE', 200), false);
+  assert.equal(SI.isContentMutation('/api/cover', 'POST', 200), false);
+  assert.equal(SI.isContentMutation('/api/cover', 'DELETE', 200), false);
   assert.equal(SI.isContentMutation('/api/import', 'POST', 200), true);
-  assert.equal(SI.isContentMutation('/api/items', 'GET', 200), false);
-  assert.equal(SI.isContentMutation('/api/items', 'POST', 409), false);
+  assert.equal(SI.isContentMutation('/api/games', 'GET', 200), false);
+  assert.equal(SI.isContentMutation('/api/games', 'POST', 409), false);
+  for (const gone of ['/api/items', '/api/movies', '/api/photo']) assert.equal(SI.isContentMutation(gone, 'POST', 200), false, gone);
 });
 
 test('Cron scheduled：重建并 put', async () => {
@@ -202,7 +199,7 @@ test('Cron scheduled：重建并 put', async () => {
   await worker.scheduled({ cron: '23 * * * *' }, env, { waitUntil: (p) => pending.push(p) });
   await Promise.all(pending);
   assert.equal(env.KV_SEARCH_INDEX.puts, 1);
-  assert.equal(JSON.parse(env.KV_SEARCH_INDEX.m.get('site:curio')).items.length, 14);
+  assert.equal(JSON.parse(env.KV_SEARCH_INDEX.m.get('site:curio')).items.length, 10);
 });
 
 test('出错不抛：KV 写失败、D1 出错、绑定缺失只打日志；写接口照常 200', async () => {
@@ -227,7 +224,7 @@ test('出错不抛：KV 写失败、D1 出错、绑定缺失只打日志；写�
 
 test('Cron 兜底：内容和 KV 里那份一样就不写；内容变了、旧值没有 metadata、读出错都照常写', async () => {
   const db = makeD1();
-  const env = { D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, KV_SEARCH_INDEX: makeKV(), R2_PHOTOS: makeR2() };
+  const env = { D1_FINDS: db, D1_GAMES: db, KV_SEARCH_INDEX: makeKV(), R2_PHOTOS: makeR2() };
   const cron = async () => {
     const pending = [];
     await worker.scheduled({ cron: '23 * * * *', scheduledTime: Date.UTC(2026, 9, 26, 1, 23) }, env, { waitUntil: (p) => pending.push(p) });
@@ -245,7 +242,7 @@ test('Cron 兜底：内容和 KV 里那份一样就不写；内容变了、旧�
   assert.equal(env.KV_SEARCH_INDEX.puts, 1);
   assert.equal(env.KV_SEARCH_INDEX.reads, 3);
   /* 写接口改了内容：照常写（不先读） */
-  const r = await call(env, '/curio/api/items', { method: 'POST', body: { op: 'game.add', title: '空洞骑士', platform: 'PC', status: 'playing' } });
+  const r = await call(env, '/games/api/games', { method: 'POST', body: { op: 'game.add', title: '空洞骑士', platform: 'PC', status: 'playing' } });
   assert.equal(r.res.status, 200);
   assert.equal(env.KV_SEARCH_INDEX.puts, 2);
   assert.equal(env.KV_SEARCH_INDEX.reads, 3);

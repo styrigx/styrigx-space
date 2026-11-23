@@ -1,7 +1,8 @@
 // styrigx-atlas-core（workers/atlas-core，Atlas 后端合并 PR1，2026-11-14）：
 // - 旧 workers/curio-core、workers/daymark-core 2026-11-14 下线后删目录；两边业务用例迁到本目录 curio*.test.mjs / daymark*.test.mjs
 // - 分流：/curio/api/* 交奇趣、/daymark/api/* 交日刻、其他 404；两边真跑在同一个 SQLite 库上（同一个 D1）
-// - 迁移 0001_curio + 0002_daymark 的结构 = 代码里的建表语句（SCHEMA / ITEM_SCHEMA / MOVIE_SCHEMA / MUSIC_SCHEMA、日刻 SCHEMA），不含种子数据
+// - 迁移 0001_curio + 0002_daymark，再跑奇趣重组 PR 3 的手动 SQL docs/ops/2026-11-23-drop-devices-movies.sql（删 devices、movies），
+//   结构 = 代码里的建表语句（SCHEMA / ITEM_SCHEMA / MUSIC_SCHEMA、日刻 SCHEMA），不含种子数据；那份 SQL 不在 migrations/ 里（deploy.yml 会自动跑 migrations/）
 // - HourlyJob：先奇趣后日刻，一边失败不拖另一边
 // - wrangler.toml：挂 /curio/api/*、/daymark/api/*，不开 workers.dev、无 Cron；绑定名沿用旧两个 Worker 的，D1 / R2 各只一个
 // 运行：node --test tests/workers/atlas-core/*.test.mjs（CI 用 Node 22，node:sqlite）
@@ -30,20 +31,29 @@ function schemaOf(files) {
 }
 const mig = (w) => readdirSync(REPO + '/workers/' + w + '/migrations').filter((n) => n.endsWith('.sql')).sort().map((n) => REPO + '/workers/' + w + '/migrations/' + n);
 
-test('迁移：只有 0001_curio + 0002_daymark，结构 = 代码里的建表语句（不含种子）', async () => {
+/* 奇趣重组 PR 3：删设备、电影两张表的 SQL（手动执行，Gray 批了才跑；见文件注释） */
+const DROP_SQL = REPO + '/docs/ops/2026-11-23-drop-devices-movies.sql';
+
+test('迁移：只有 0001_curio + 0002_daymark；再跑 docs/ops 删表 SQL 后结构 = 代码里的建表语句（不含种子）', async () => {
   const atlas = mig('atlas-core');
   assert.deepEqual(atlas.map((f) => path.basename(f)), ['0001_curio.sql', '0002_daymark.sql']);
+  for (const f of atlas) assert.doesNotMatch(readFileSync(f, 'utf8'), /\bDROP\s+TABLE\b/i, path.basename(f) + '：删表不放 migrations/');
   const C = A + '/src/curio/api/';
   const code = [
     ...(await import(C + '_store.js')).SCHEMA, ...(await import(C + '_items.js')).ITEM_SCHEMA,
-    ...(await import(C + '_movies.js')).MOVIE_SCHEMA, ...(await import(C + '_music.js')).MUSIC_SCHEMA,
+    ...(await import(C + '_music.js')).MUSIC_SCHEMA,
     ...(await import(A + '/src/daymark/api/_quotes.js')).SCHEMA,
   ];
   const db = new DatabaseSync(':memory:');
   for (const s of code) db.exec(s);
   const fromCode = Object.fromEntries(db.prepare("SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name").all()
     .map((r) => [r.type + ' ' + r.name, String(r.sql).replace(/\s+/g, ' ').replace(/IF NOT EXISTS /g, '').replace(/\( /g, '(').replace(/ (?=[),])/g, '')]));
-  assert.deepEqual(schemaOf(atlas), fromCode);
+  assert.deepEqual(schemaOf([...atlas, DROP_SQL]), fromCode);
+  /* 删表 SQL 只做三件事：DROP devices、DROP movies、games.device_id 清零（列留着） */
+  const drop = readFileSync(DROP_SQL, 'utf8').split('\n').filter((l) => l.trim() && !l.trim().startsWith('--'));
+  assert.deepEqual(drop, ['DROP TABLE IF EXISTS devices;', 'DROP TABLE IF EXISTS movies;', 'UPDATE games SET device_id = 0;']);
+  assert.ok('table games' in fromCode && /device_id/.test(fromCode['table games']), 'games.device_id 列留着');
+  for (const t of ['table devices', 'table movies']) assert.equal(t in fromCode, false, t);
   /* 只有结构：新库建出来是空的，数据 2026-11-14 从旧库拷入 */
   for (const f of atlas) assert.doesNotMatch(readFileSync(f, 'utf8'), /\bINSERT\b/i, path.basename(f));
 });
@@ -78,7 +88,7 @@ function atlasEnv(who = null) {
     db,
     env: {
       SPACE: whoAuth(who),
-      D1_FINDS: d1, D1_DEVICES: d1, D1_GAMES: d1, D1_MOVIES: d1, D1_MUSIC: d1, D1_QUOTES: d1,
+      D1_FINDS: d1, D1_GAMES: d1, D1_MUSIC: d1, D1_QUOTES: d1,
       R2_PHOTOS: { async get() { return null; }, async put() {}, async delete() {}, async list() { return { objects: [], truncated: false }; } },
       R2_MUSIC: { async get() { return null; }, async put() {}, async delete() {}, async list() { return { objects: [], truncated: false }; } },
       KV_SEARCH_INDEX: { async get(k) { return kv.has(k) ? kv.get(k) : null; }, async put(k, v) { kv.set(k, v); } },
@@ -147,7 +157,7 @@ test('HourlyJob：一轮写两个产品的搜索索引；一边失败另一边�
 
   const bad = atlasEnv();
   const broken = { prepare() { throw new Error('boom'); } };
-  bad.env.D1_FINDS = broken; bad.env.D1_DEVICES = broken; bad.env.D1_GAMES = broken; bad.env.D1_MOVIES = broken; bad.env.D1_MUSIC = broken;
+  bad.env.D1_FINDS = broken; bad.env.D1_GAMES = broken; bad.env.D1_MUSIC = broken;
   const r2 = await new HourlyJob({}, bad.env).run(Date.UTC(2026, 10, 14, 3));
   assert.equal(r2.daymark, true);
   assert.ok([...bad.kv.keys()].some((k) => k.includes('daymark')));
@@ -186,7 +196,7 @@ test('wrangler.toml：挂 /curio/api/*、/daymark/api/*、/music/api/*（music �
 
   /* 绑定名沿用旧两个 Worker 的（业务代码按这些名字取） */
   const want = {
-    d1_databases: ['D1_DEVICES', 'D1_FINDS', 'D1_GAMES', 'D1_MOVIES', 'D1_MUSIC', 'D1_QUOTES'],
+    d1_databases: ['D1_FINDS', 'D1_GAMES', 'D1_MUSIC', 'D1_QUOTES'], /* D1_DEVICES、D1_MOVIES 奇趣重组 PR 3 删 */
     r2_buckets: ['R2_MUSIC', 'R2_PHOTOS'], services: ['SPACE'], kv_namespaces: ['KV_SEARCH_INDEX'],
   };
   for (const [block, names] of Object.entries(want)) assert.deepEqual(bindings(t, block).map((b) => b.binding).sort(), names, block);

@@ -1,26 +1,26 @@
-// workers/core/src/api/_items.js
-// 奇趣「设备」「游戏」两栏的数据层：表结构、校验、读写。下划线开头：不是接口（路由表见 src/routes.js）。
+// workers/atlas-core/src/curio/api/_items.js
+// 游戏（/games/api/games、/games/api/cover，奇趣重组 PR 1）的数据层：表结构、校验、读写。下划线开头：不是接口（路由表见 src/games/routes.js）。
+// 文件名沿用（原来是奇趣「设备」「游戏」两栏共用）；奇趣重组 PR 3 删掉了设备（devices 表、/curio/api/items），这里只剩游戏。
 //
-// 表（D1 styrigx-curio，迁移 migrations/0003_devices_games.sql；ITEM_SCHEMA 只兜底全新的库，两边一致，测试核对）：
-//   devices  设备：名字、类型、购买 / 退役日期、换成了哪台（replaced_by）、系统版本、参数、配件、体验、照片（R2 key）、私密、排序
-//   games    游戏：名字、平台、关联设备（device_id，可空）、版本、状态（想玩 / 在玩 / 通关 / 搁置）、评分 0–5、评价、封面（R2 key）、私密、排序
+// 表 games（D1 styrigx-atlas-core，迁移 migrations/0001_curio.sql；ITEM_SCHEMA 只兜底全新的库，两边一致，测试核对）：
+//   名字、平台、版本、状态（想玩 / 在玩 / 通关 / 搁置）、评分 0–5、评价、封面（R2 key）、私密、排序。
+//   device_id 列留着不重建表（原来关联设备；PR 3 起不再读写，线上由 docs/ops/2026-11-23-drop-devices-movies.sql 清零），
+//   接口照旧回 device_id: 0（兼容）；写操作里带 device_id 一律忽略。
 // 只存一种语言（站点作者自己写的话），不像收藏那样分中英文。
-// 私密：看不到私密的（没有 curio-use）看不到私密的条目；游戏关联的设备是私密的，看不到私密的人拿到的游戏里 device_id 置 0（不泄露那台设备）。
-// 照片的上传 / 读取 / 删除在 _photo.js（奇趣 /curio/api/photo、游戏 /games/api/cover 共用）；写操作的接口共用部分在 _items-post.js；删条目时顺手删 R2 里的照片（applyItemOp 返回 {removed} 交给调用方删）。
+// 私密：看不到私密的（没有 games-use）看不到私密的条目。
+// 封面的上传 / 读取 / 删除在 _photo.js（/games/api/cover）；写操作的接口共用部分在 _items-post.js；删条目时顺手删 R2 里的封面（applyItemOp 返回 {removed} 交给调用方删）。
 
 import { filterPrivate } from '../../common/visibility.js';
 
 export const ITEM_SCHEMA = [
-  "CREATE TABLE IF NOT EXISTS devices (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'other', bought_at TEXT NOT NULL DEFAULT '', retired_at TEXT NOT NULL DEFAULT '', replaced_by INTEGER NOT NULL DEFAULT 0, os TEXT NOT NULL DEFAULT '', specs TEXT NOT NULL DEFAULT '', accessories TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', photo TEXT NOT NULL DEFAULT '', private INTEGER NOT NULL DEFAULT 0, pos INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0)",
   "CREATE TABLE IF NOT EXISTS games (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, platform TEXT NOT NULL DEFAULT '', device_id INTEGER NOT NULL DEFAULT 0, edition TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'want', rating INTEGER NOT NULL DEFAULT 0, review TEXT NOT NULL DEFAULT '', cover TEXT NOT NULL DEFAULT '', private INTEGER NOT NULL DEFAULT 0, pos INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0)",
   'CREATE INDEX IF NOT EXISTS games_status ON games (status, pos)',
 ];
 
-export const DEVICE_KINDS = ['phone', 'tablet', 'laptop', 'desktop', 'watch', 'audio', 'console', 'camera', 'other'];
 export const GAME_STATUS = ['want', 'playing', 'done', 'shelved'];
 
-/** 上限：设备 500、游戏 2000；名字 80 字；短字段 120 字；长文本（参数 / 配件 / 体验 / 评价）4000 字 */
-export const ITEM_LIMITS = { devices: 500, games: 2000, name: 80, short: 120, long: 4000 };
+/** 上限：游戏 2000；名字 80 字；短字段 120 字；长文本（评价）4000 字 */
+export const ITEM_LIMITS = { games: 2000, name: 80, short: 120, long: 4000 };
 
 /** 单行：去控制字符（含换行）、去首尾空白、截断 */
 function line(v, max) {
@@ -32,23 +32,9 @@ function text(v, max) {
   if (typeof v !== 'string') return '';
   return v.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, max);
 }
-/** 'YYYY-MM-DD' 且是真实日期，或空串；不合格返回 null */
-export function cleanDate(v) {
-  if (v === undefined || v === null || v === '') return '';
-  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
-  const d = new Date(v + 'T00:00:00Z');
-  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== v) return null;
-  const y = Number(v.slice(0, 4));
-  return y >= 1970 && y <= 2100 ? v : null;
-}
 function posInt(v) {
   const n = Number(v);
   return Number.isInteger(n) && n > 0 && n < 2 ** 31 ? n : 0;
-}
-/** 0 或正整数（「不关联」= 0）；不合格返回 -1 */
-function refId(v) {
-  if (v === undefined || v === null || v === 0 || v === '0' || v === '') return 0;
-  return posInt(v) || -1;
 }
 const bool = (v) => (v === true || v === 1 ? 1 : 0);
 
@@ -61,22 +47,9 @@ function idList(v, max) {
 
 /** 字段规则：[列名, 清洗函数, 错误码]；清洗返回 null 视为不合格 */
 const L = ITEM_LIMITS;
-const DEVICE_FIELDS = {
-  name: (v) => line(v, L.name) || null,
-  kind: (v) => (DEVICE_KINDS.includes(v) ? v : null),
-  bought_at: cleanDate,
-  retired_at: cleanDate,
-  replaced_by: (v) => { const n = refId(v); return n < 0 ? null : n; },
-  os: (v) => line(v, L.short),
-  specs: (v) => text(v, L.long),
-  accessories: (v) => text(v, L.long),
-  notes: (v) => text(v, L.long),
-  private: bool,
-};
 const GAME_FIELDS = {
   title: (v) => line(v, L.name) || null,
   platform: (v) => line(v, L.short),
-  device_id: (v) => { const n = refId(v); return n < 0 ? null : n; },
   edition: (v) => line(v, L.short),
   status: (v) => (GAME_STATUS.includes(v) ? v : null),
   rating: (v) => { const n = Number(v); return Number.isInteger(n) && n >= 0 && n <= 5 ? n : null; },
@@ -84,21 +57,19 @@ const GAME_FIELDS = {
   private: bool,
 };
 const DEFAULTS = {
-  device: { kind: 'other', bought_at: '', retired_at: '', replaced_by: 0, os: '', specs: '', accessories: '', notes: '', private: 0 },
-  game: { platform: '', device_id: 0, edition: '', status: 'want', rating: 0, review: '', private: 0 },
+  game: { platform: '', edition: '', status: 'want', rating: 0, review: '', private: 0 },
 };
 export const KINDS = {
-  device: { table: 'devices', binding: 'D1_DEVICES', fields: DEVICE_FIELDS, required: 'name', photo: 'photo', limit: L.devices },
   game: { table: 'games', binding: 'D1_GAMES', fields: GAME_FIELDS, required: 'title', photo: 'cover', limit: L.games },
 };
 
 /**
- * 校验写操作，返回规整后的操作或 {error}。kind = 'device' | 'game'。
- *   <kind>.add   {字段...}       名字（device: name / game: title）必填，其余缺省
+ * 校验写操作，返回规整后的操作或 {error}。kind = 'game'（只剩游戏；别的 kind → bad-op）。
+ *   <kind>.add   {字段...}       名字（title）必填，其余缺省；device_id 等不认识的字段忽略
  *   <kind>.edit  {id, 字段...}   只改给了的字段
  *   <kind>.del   {id}
  *   <kind>.order {ids:[...]}     全部条目的新顺序
- * @param {'device'|'game'} kind
+ * @param {'game'} kind
  * @param {any} b
  */
 export function parseItemOp(kind, b) {
@@ -129,7 +100,6 @@ export function parseItemOp(kind, b) {
       const r = take(false);
       if ('error' in r) return r;
       if (!Object.keys(r.fields).length) return { error: 'nothing' };
-      if (kind === 'device' && r.fields.replaced_by === id) return { error: 'bad-replaced-by' };
       return { op: b.op, kind, id, fields: r.fields };
     }
     case 'del': {
@@ -146,7 +116,7 @@ export function parseItemOp(kind, b) {
 }
 
 /**
- * 这一种条目（device / game）的表所在的 D1 绑定（D1_DEVICES / D1_GAMES，同一个库 styrigx-atlas-core）；没绑返回 null
+ * 这一种条目（game）的表所在的 D1 绑定（D1_GAMES，库 styrigx-atlas-core）；没绑返回 null
  * @param {Record<string, any>|undefined} env @param {string} kind
  */
 export function itemDb(env, kind) {
@@ -155,58 +125,29 @@ export function itemDb(env, kind) {
 }
 
 const schemaDone = new WeakSet();
-/**
- * 建表（幂等）。一个 batch 同时建 devices、games 两张表（跨两套数据）：两个绑定是同一个库，
- * 调用方传自己手上那个绑定即可（D1_DEVICES / D1_GAMES / 搜索索引用的 D1_FINDS 都行）。
- */
+/** 建表（幂等；只兜底 games，devices 表奇趣重组 PR 3 删了，不再建） @param {any} db */
 export async function ensureItemSchema(db) {
   if (schemaDone.has(db)) return;
   await db.batch(ITEM_SCHEMA.map((s) => db.prepare(s)));
   schemaDone.add(db);
 }
 
-function rowDevice(r) {
-  return {
-    id: r.id, name: r.name, kind: r.kind, bought_at: r.bought_at, retired_at: r.retired_at, replaced_by: r.replaced_by,
-    os: r.os, specs: r.specs, accessories: r.accessories, notes: r.notes, photo: !!r.photo, private: !!r.private,
-  };
-}
+/** 一行 → 接口里的游戏。device_id 固定回 0（列还在、不再用；保持接口字段兼容） */
 function rowGame(r) {
   return {
-    id: r.id, title: r.title, platform: r.platform, device_id: r.device_id, edition: r.edition, status: r.status,
+    id: r.id, title: r.title, platform: r.platform, device_id: 0, edition: r.edition, status: r.status,
     rating: r.rating, review: r.review, cover: !!r.cover, private: !!r.private,
   };
 }
 
 /**
- * 读设备和游戏：{devices:[...], games:[...]}（照片只给有没有，图走 /api/photo）。
- * showPrivate=false（没登录账号）：私密的不给；设备的 replaced_by、游戏的 device_id 指向看不到的设备时置 0。
- * 一个 batch 读 devices + games（跨两套数据：游戏要按设备可见性处理 device_id，要同一快照），
- * 所以用主表 devices 那套的绑定 D1_DEVICES 执行（同一个库）。
- * @param {any} db  D1_DEVICES
- * @param {boolean} showPrivate
- */
-export async function listItems(db, showPrivate) {
-  const [ds, gs] = await db.batch([
-    db.prepare('SELECT * FROM devices ORDER BY pos, id'),
-    db.prepare('SELECT * FROM games ORDER BY pos, id'),
-  ]);
-  const devices = filterPrivate(ds.results || [], showPrivate).map(rowDevice);
-  const seen = new Set(devices.map((d) => d.id));
-  for (const d of devices) if (d.replaced_by && !seen.has(d.replaced_by)) d.replaced_by = 0;
-  const games = filterPrivate(gs.results || [], showPrivate).map(rowGame);
-  for (const g of games) if (g.device_id && !seen.has(g.device_id)) g.device_id = 0;
-  return { devices, games };
-}
-
-/**
- * 只读游戏（游戏子站 GET /games/api/games，奇趣重组 PR 1）：{games:[...]}，规则同 listItems（私密的按 showPrivate 过滤；
- * device_id 指向看不到的设备置 0），不回设备。设备表到奇趣重组 PR 3 才删，在那之前照旧一起读一个 batch。
- * @param {any} db  D1_GAMES（同一个库，batch 同时读 devices、games）
+ * 读游戏（GET /games/api/games）：{games:[...]}（封面只给有没有，图走 /games/api/cover）。showPrivate=false：私密的不给。
+ * @param {any} db  D1_GAMES
  * @param {boolean} showPrivate
  */
 export async function listGames(db, showPrivate) {
-  return { games: (await listItems(db, showPrivate)).games };
+  const r = await db.prepare('SELECT * FROM games ORDER BY pos, id').all();
+  return { games: filterPrivate(r.results || [], showPrivate).map(rowGame) };
 }
 
 async function one(db, sql, ...args) {
@@ -214,30 +155,20 @@ async function one(db, sql, ...args) {
 }
 
 /**
- * 执行一个已校验的写操作。返回 {error} 或 {removed: [R2 key...]}（删条目时它的照片，交给调用方从 R2 删）。
- * 错误码：not-found / limit / mismatch。关联的设备（replaced_by / device_id）必须存在，否则 not-found。
- * 删设备时：别的设备 replaced_by 指向它、游戏 device_id 指向它的，都置 0。
- * 绑定：本表的读写用这种条目自己的绑定 db（device → D1_DEVICES，game → D1_GAMES）；
- * 查「关联的设备在不在」用 devDb（D1_DEVICES）。删设备那个 batch 同时改 devices 和 games（跨两套数据，要一起成功），
- * 用主表 devices 的绑定（此时 db 就是 D1_DEVICES）执行。
+ * 执行一个已校验的写操作。返回 {error} 或 {removed: [R2 key...]}（删条目时它的封面，交给调用方从 R2 删）。
+ * 错误码：not-found / limit / mismatch。
  * @param {any} db  o.kind 对应的绑定（itemDb(env, o.kind)）
  * @param {any} o  parseItemOp 的结果
  * @param {number} [now]
- * @param {any} [devDb]  D1_DEVICES；不传就用 db（同一个库）
  */
-export async function applyItemOp(db, o, now = Date.now(), devDb = db) {
+export async function applyItemOp(db, o, now = Date.now()) {
   const K = KINDS[o.kind];
   const T = K.table;
   const verb = o.op.split('.')[1];
-  const refOk = async (f) => {
-    const ref = o.kind === 'device' ? f.replaced_by : f.device_id;
-    return !ref || !!(await one(devDb, 'SELECT id FROM devices WHERE id = ?1', ref));
-  };
   switch (verb) {
     case 'add': {
       const n = await one(db, `SELECT COUNT(*) AS n, COALESCE(MAX(pos), -1) AS p FROM ${T}`);
       if (n && n.n >= K.limit) return { error: 'limit' };
-      if (!(await refOk(o.fields))) return { error: 'not-found' };
       const cols = Object.keys(o.fields);
       const vals = cols.map((c) => o.fields[c]);
       cols.push('pos', 'created_at', 'updated_at');
@@ -248,7 +179,6 @@ export async function applyItemOp(db, o, now = Date.now(), devDb = db) {
     case 'edit': {
       const cur = await one(db, `SELECT id FROM ${T} WHERE id = ?1`, o.id);
       if (!cur) return { error: 'not-found' };
-      if (!(await refOk(o.fields))) return { error: 'not-found' };
       const cols = Object.keys(o.fields);
       const args = cols.map((c) => o.fields[c]);
       args.push(now, o.id);
@@ -258,13 +188,7 @@ export async function applyItemOp(db, o, now = Date.now(), devDb = db) {
     case 'del': {
       const cur = await one(db, `SELECT id, ${K.photo} AS photo FROM ${T} WHERE id = ?1`, o.id);
       if (!cur) return { error: 'not-found' };
-      const stmts = [db.prepare(`DELETE FROM ${T} WHERE id = ?1`).bind(o.id)];
-      if (o.kind === 'device') {
-        /* 跨表 batch（devices + games）：db 此时是 D1_DEVICES（主表），同一个库，原子执行 */
-        stmts.push(db.prepare('UPDATE devices SET replaced_by = 0 WHERE replaced_by = ?1').bind(o.id));
-        stmts.push(db.prepare('UPDATE games SET device_id = 0 WHERE device_id = ?1').bind(o.id));
-      }
-      await db.batch(stmts);
+      await db.prepare(`DELETE FROM ${T} WHERE id = ?1`).bind(o.id).run();
       return { removed: cur.photo ? [cur.photo] : [] };
     }
     case 'order': {

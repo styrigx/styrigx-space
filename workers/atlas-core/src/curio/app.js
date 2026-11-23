@@ -1,7 +1,7 @@
 /**
  * @fileoverview 奇趣接口（styrigx-atlas-core 的 /curio/api/*，由 src/app.js 分流进来；2026-11-14 前是独立的 styrigx-curio-core）。
  *
- * 数据接口都在这里，D1（D1_FINDS / D1_DEVICES / D1_GAMES / D1_MOVIES / D1_MUSIC，同一个库）和 R2（R2_PHOTOS：图标缓存、导入原文备份、设备照片、电影海报；
+ * 数据接口都在这里，D1（D1_FINDS / D1_GAMES / D1_MUSIC，同一个库）和 R2（R2_PHOTOS：图标缓存、导入原文备份、游戏封面；
  * R2_MUSIC：私人音乐的音频和封面，同一个桶的 music/ 前缀）只绑在本 Worker 上；Pages 只放静态文件。
  * 本 Worker 不持任何钥匙：会话交给主站鉴权网关验（服务绑定 SPACE，见 src/api/_auth.js）。
  *
@@ -9,7 +9,7 @@
  * 音乐是 styrigx.com/music/api/*（music 搬家第 2 步加；handler 同一份，在 api/music*.js，路由表在 ../music/routes.js；
  * 第 4 步删掉旧路径 /curio/api/music*，不留别名：旧路径在奇趣表里查不到 = 表外路径）；
  * 游戏是 styrigx.com/games/api/*（奇趣重组设计稿 v1.0 第三节 PR 1：路由表在 ../games/routes.js，handler 复用 api/_items.js、_items-post.js、_photo.js；
- * 旧 /curio/api/items、/curio/api/photo 照常）：
+ * PR 3 删掉了旧 /curio/api/items、/curio/api/photo 和电影 /curio/api/movies，同 music 第 4 步：旧路径在奇趣表里查不到 = 表外路径）：
  *   1. 访问档（v5 S3）：routes.js ROUTE_ACCESS 按「方法 + 路径」给出 public / entry / music（不在表里 = entry），
  *      在这里套上那一档的守卫（api/_auth.js GUARDS：publicRead / requireEntry / requireMusic），entry / music 档在守卫里经网关 SpaceVerifier.admit 问 v6 会话的档，
  *      public 档要私密行 / canManage 的 handler 调公用 visibility()（common/visibility.js，分别问 action private / manage）；每个请求每个 action 最多问一次。没有 v6 身份 → 401 unauthorized（不 302，fetch 不跟跳转），档不够 → 403 forbidden。
@@ -125,7 +125,7 @@ export async function handle(request, env, ctx) {
   const base = baseOf(url.pathname);
 
   /* 三个前缀各查各的表：/music/api/* 只有音乐的行，/games/api/* 只有游戏的行，/curio/api/* 只有奇趣的行（第 4 步起旧 /curio/api/music* 在这里就是表外路径：
-     entry 档 → 账号 Worker 表里也没有 → 一律 401），谁都不能从另一个前缀绕进去 */
+     entry 档 → 账号 Worker 表里也没有 → 一律 401；奇趣重组 PR 3 删掉的 /curio/api/items、movies、photo 同样），谁都不能从另一个前缀绕进去 */
   const table = tableOf(base);
   const row = table.routeOf(request.method, path);
   const hit = resolve(path, base);

@@ -27,15 +27,17 @@ src/common/visibility.js 公用（组权限 v1.1，ADR-0007）：visibility(cont
 ## 绑定
 
 绑定名沿用旧两个 Worker 的（业务代码按这些名字取）：
-- D1 `styrigx-atlas-core`：`D1_FINDS`、`D1_DEVICES`、`D1_GAMES`、`D1_MOVIES`、`D1_MUSIC`（奇趣）、`D1_QUOTES`（日刻），同一个库。
-- R2 `styrigx-atlas-core`：`R2_PHOTOS`、`R2_MUSIC`，同一个桶；对象键和旧桶一样（icons/、imports/、photos/、music/…）。
+- D1 `styrigx-atlas-core`：`D1_FINDS`、`D1_GAMES`、`D1_MUSIC`（奇趣 / 游戏 / 音乐）、`D1_QUOTES`（日刻），同一个库。`D1_DEVICES`、`D1_MOVIES` 随设备、电影一起删了（奇趣重组 PR 3，2026-11-23）。
+- R2 `styrigx-atlas-core`：`R2_PHOTOS`、`R2_MUSIC`，同一个桶；对象键和旧桶一样（icons/、imports/、photos/、music/…）；`photos/` 下现在只有游戏封面 `photos/game/` 在用，`photos/device/`、`photos/movie/` 是删掉的设备照片 / 电影海报，等备份后手动删（见 `docs/ops/2026-11-23-drop-devices-movies.sql`）。
 - 服务绑定 `SPACE` → `styrigx-space-core` 的 `SpaceVerifier`。
 - KV `KV_SEARCH_INDEX`（`styrigx-space-core` 那份全站搜索索引；奇趣写 `site:curio`、日刻写 `site:daymark`）。
 - 无 Cron（每小时由 status 调 HourlyJob）。
 
 ## 数据与迁移
 
-`migrations/` 重新起头：`0001_curio.sql` = 奇趣旧迁移 0001+0003+0004+0005 跑完的结构，`0002_daymark.sql` = 日刻旧迁移（不含 0003 种子句子）跑完的结构；只有结构，数据 2026-11-14 从旧库拷入。之后的结构变更接着编号，已上线的文件不改名、不重新编号。旧两个目录（含种子迁移）已随旧 Worker 下线删除。
+`migrations/` 重新起头：`0001_curio.sql` = 奇趣旧迁移 0001+0003+0004+0005 跑完的结构，`0002_daymark.sql` = 日刻旧迁移（不含 0003 种子句子）跑完的结构；只有结构，数据 2026-11-14 从旧库拷入。之后的结构变更接着编号，已上线的文件不改名、不重新编号。
+
+**删表不进 `migrations/`**：`deploy.yml` 部署时会自动对线上库跑 `migrations/` 里没跑过的文件，删数据的 SQL 不能放这里。奇趣重组 PR 3 删设备、电影的 `DROP TABLE devices / movies` + `UPDATE games SET device_id = 0` 在 `docs/ops/2026-11-23-drop-devices-movies.sql`，D1 两表与 R2 照片备份完、Gray 批了再手动执行；`0001_curio.sql` 里这两张表的建表语句是历史，不改（单测按「迁移 + 这份 SQL = 代码里的建表语句」核对）。旧两个目录（含种子迁移）已随旧 Worker 下线删除。
 
 ## 音乐空记录清理（Janitor）
 

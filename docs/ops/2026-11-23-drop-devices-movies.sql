@@ -1,0 +1,49 @@
+-- 奇趣重组 PR 3：删设备、电影的线上数据（《奇趣重组设计稿 v1.0》第三节 PR 3、第五节第 3 件；Gray 2026-11-22 12:32「movies 和 devices 删干净，包括数据」）。
+--
+-- ！！手动执行，严格按这个顺序（每步做完再下一步）：
+--   1. PR 3 合并、deploy-atlas-core 部署变绿（新代码已不读写 devices / movies；先删表再部署，旧代码的 /curio/api/items、/curio/api/movies、
+--      搜索索引重建、照片清扫会报错）；
+--   2. 只读数：D1 devices、movies 两表行数，R2 前缀 photos/device/、photos/movie/ 下的对象数（见下「只读核对」），报给 Gray；
+--   3. 备份：wrangler d1 export 导出 devices、movies 两表；列出并下载 R2 这两个前缀下的全部照片（见下「备份」）；
+--   4. Gray 批准；
+--   5. 跑本文件（DROP 两表 + games.device_id 清零）；
+--   6. 删 R2 photos/device/、photos/movie/ 下的对象（见下「R2 里要删的照片」）。
+-- 不进 workers/atlas-core/migrations/：deploy.yml 部署时会对生产库自动跑 migrations/ 里没跑过的文件，删数据的 SQL 放那里就等于合并即删。
+-- 执行（先记下 D1 Time Travel 时间点）：
+--   npx wrangler d1 execute styrigx-atlas-core --remote --file docs/ops/2026-11-23-drop-devices-movies.sql
+--
+-- 代码这边（PR 3 起）：
+-- - devices：读写它的 /curio/api/items（api/items.js）、照片 /curio/api/photo（api/photo.js）、_items.js 的设备部分、搜索索引 deviceItems、
+--   照片清扫的 devices.photo 都删了；_items.js 的 ITEM_SCHEMA 不再兜底建 devices。
+-- - movies：/curio/api/movies（api/movies.js）、_movies.js（含 MOVIE_SCHEMA 兜底建表）、reader.js recentMovies、ai fixed.js 电影意图、搜索索引 movieItems、
+--   照片清扫的 movies.poster 都删了。
+-- - 仍提到两张表的只有历史迁移 workers/atlas-core/migrations/0001_curio.sql（不改；已在线上跑过，wrangler 不会再跑）。
+--   tests/workers/atlas-core/core.test.mjs 按「0001 + 0002 迁移，再跑本文件」= 代码里的建表语句核对。
+-- - games.device_id：列留着不重建 games 表（设计稿：列留着）；代码不再读写，接口固定回 device_id: 0。这里清零只是让库里的值和接口一致。
+--
+-- 只读核对（第 2 步；结果报给 Gray；不是本文件的一部分，单独 --command 跑）：
+--   SELECT COUNT(*) AS devices, SUM(photo <> '') AS with_photo FROM devices;
+--   SELECT COUNT(*) AS movies, SUM(poster <> '') AS with_poster FROM movies;
+--   SELECT COUNT(*) AS games_with_device FROM games WHERE device_id <> 0;
+--   SELECT photo AS k FROM devices WHERE photo <> '' UNION ALL SELECT poster FROM movies WHERE poster <> '';   -- 要备份 / 删的 R2 key 清单
+--   R2 对象数：按前缀 photos/device/、photos/movie/ 列对象计数（S3 兼容接口 / rclone ls styrigx-atlas-core/photos/device/ 等；只读、不删）
+--
+-- 备份（第 3 步，Gray 批准前做完）：
+-- - D1：npx wrangler d1 export styrigx-atlas-core --remote --table devices --output <备份目录>/devices.sql
+--       npx wrangler d1 export styrigx-atlas-core --remote --table movies  --output <备份目录>/movies.sql
+-- - R2：按上面那条 SELECT 的 key 清单逐个 npx wrangler r2 object get styrigx-atlas-core/<key> --remote --file <备份目录>/<key>；
+--   再列一遍前缀 photos/device/、photos/movie/（S3 兼容接口 / rclone ls）补上没被 D1 引用的残留对象。
+--
+-- R2 里要删的照片（第 6 步；桶 styrigx-atlas-core，绑定 R2_PHOTOS；Gray 批了、本文件执行完之后按清单删）：
+-- - 键规则（workers/atlas-core/src/curio/api/_photo.js putPhoto：`photos/${kind}/${id}-${Date.now()}.${ext}`；合并前的 styrigx-curio-core 同一规则，
+--   2026-11-14 迁桶时键不变）：
+--     设备照片  photos/device/<devices.id>-<上传时的毫秒时间戳>.<webp|jpg|png>   （D1 devices.photo 存完整 key）
+--     电影海报  photos/movie/<movies.id>-<上传时的毫秒时间戳>.<webp|jpg|png>    （D1 movies.poster 存完整 key）
+-- - 即：前缀 photos/device/ 和 photos/movie/ 下的全部对象（含 D1 已不引用的残留：换照片 / 删条目时当场删失败留下的）。
+-- - 不碰：photos/game/（游戏封面，games.cover 还在用）、icons/（收藏图标缓存）、imports/（书签导入原文备份）、music/（音乐）。
+-- - PR 3 起照片清扫（src/curio/photo-sweep.js）只扫 photos/game/，不会自动删这两个前缀；只能按本清单手动删。
+--   例：npx wrangler r2 object delete styrigx-atlas-core/<key> --remote（逐个；或 S3 兼容接口按前缀批量删）。
+
+DROP TABLE IF EXISTS devices;
+DROP TABLE IF EXISTS movies;
+UPDATE games SET device_id = 0;

@@ -1,35 +1,17 @@
 /**
  * @fileoverview 只读固定查询（2026-11 AI 语义召回）：给 styrigx-ai 的服务绑定 RPC（rpc/reader.js 的 CurioReader.query）用。
  *
- * 预先写好的参数化查询，只有这几条，模型不写 SQL：
- *   recentMovies { n }     最近看的 n 部电影（按观看日期、再按添加顺序倒序；n 1–20，默认 5）
+ * 预先写好的参数化查询，只有这几条，模型不写 SQL（奇趣重组 PR 3 删掉了电影查询 recentMovies，movies 表随之删）：
  *   music        { q }     问句里提到的专辑名 / 歌手名（专辑名或歌手名是问句的子串，忽略大小写，至少 2 个字）→ 这些专辑和各自的曲目（曲序）；
  *                          每条带 kind（album 专辑 / single 单曲，v1.13 ②）
- * 只读电影、音乐的元数据（片名、原名、年份、导演、评分、短评、观看日期；专辑名、歌手、年份、曲名、曲序、时长），
- * 不读音频 / 海报 / 封面本体、歌词、播放令牌。电影进门即可看（没有私密）；音乐在 AI 里同样放开（Gray 2026-11-07：站有门锁、音乐已付费）。
+ * 只读音乐的元数据（专辑名、歌手、年份、曲名、曲序、时长），不读音频 / 封面本体、歌词、播放令牌。
+ * 音乐在 AI 里放开（Gray 2026-11-07：站有门锁、音乐已付费）。
  * 参数先校验再 bind，查询名不在表里 → { ok:false, error:'unknown' }。出错 → { ok:false, error:'failed' }（只打日志）。
  */
-import { ensureMovieSchema } from './api/_movies.js';
 import { ensureMusicSchema } from './api/_music.js';
 
-export const QUERIES = Object.freeze(['recentMovies', 'music']);
+export const QUERIES = Object.freeze(['music']);
 const Q_MAX = 200;
-
-/** @param {any} v @param {number} d @param {number} lo @param {number} hi */
-function int(v, d, lo, hi) {
-  const n = Number(v);
-  return Number.isInteger(n) ? Math.max(lo, Math.min(hi, n)) : d;
-}
-
-/** @param {any} db @param {{n?: any}} p */
-export async function recentMovies(db, p) {
-  await ensureMovieSchema(db);
-  const n = int(p && p.n, 5, 1, 20);
-  const r = await db.prepare(
-    "SELECT title, original_title, year, director, rating, review, watched_at FROM movies ORDER BY CASE WHEN watched_at = '' THEN 1 ELSE 0 END, watched_at DESC, id DESC LIMIT ?1",
-  ).bind(n).all();
-  return { ok: true, movies: (r.results || []).map((m) => ({ ...m, review: String(m.review || '').slice(0, 300) })) };
-}
 
 /** @param {any} db @param {{q?: any}} p */
 export async function music(db, p) {
@@ -59,7 +41,6 @@ export async function music(db, p) {
  */
 export async function runQuery(env, name, params) {
   try {
-    if (name === 'recentMovies') return await recentMovies(env.D1_MOVIES, params);
     if (name === 'music') return await music(env.D1_MUSIC, params);
     return { ok: false, error: 'unknown' };
   } catch (e) {

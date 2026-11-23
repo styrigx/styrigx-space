@@ -288,45 +288,37 @@ test('/ask：语义召回的段进上下文（关键词召回不中的问法也�
 
 /* ---------- 固定查询 ---------- */
 
-test('fixed：意图——最近 N 部电影（数字 / 中文数字 / 默认 5 / 上限 20）、音乐；无关问题不查', () => {
-  assert.deepEqual(F.detectIntents('最近看了哪些电影'), [{ name: 'recentMovies', params: { n: 5 } }]);
-  assert.deepEqual(F.detectIntents('最近 3 部电影'), [{ name: 'recentMovies', params: { n: 3 } }]);
-  assert.deepEqual(F.detectIntents('最近十部电影'), [{ name: 'recentMovies', params: { n: 10 } }]);
-  assert.deepEqual(F.detectIntents('最近二十三部电影'), [{ name: 'recentMovies', params: { n: 20 } }]);
-  assert.deepEqual(F.detectIntents('last 7 movies you watched'), [{ name: 'recentMovies', params: { n: 7 } }]);
-  assert.equal(F.parseCount('2025 年的电影'), 0, '年份不当数量');
+test('fixed：意图——音乐；电影意图奇趣重组 PR 3 删了（问电影交给语义召回）；无关问题不查', () => {
+  for (const q of ['最近看了哪些电影', '最近 3 部电影', 'last 7 movies you watched']) assert.deepEqual(F.detectIntents(q), [], q);
+  assert.equal('parseCount' in F, false);
+  assert.equal('CURIO_URL' in F, false);
   assert.deepEqual(F.detectIntents('专辑 OK Computer 有哪些曲目').map((x) => x.name), ['music']);
   assert.equal(F.detectIntents('Tell me about the album Blue').at(0).params.q, 'Tell me about the album Blue');
   assert.deepEqual(F.detectIntents('主题怎么换'), []);
-  assert.deepEqual(F.detectIntents('电影院在哪'), [], '只说电影不说最近：交给语义召回');
+  assert.deepEqual(F.detectIntents('电影院在哪'), []);
 });
 
 test('fixed：调 CURIO.query（只传查询名 + 参数，不传 SQL）；结果成一条上下文（中英）；没绑 / 超时 / 出错 → 空，不抛', async () => {
   const calls = [];
   const env = { CURIO: { async query(name, params) {
     calls.push([name, params]);
-    if (name === 'recentMovies') return { ok: true, movies: [{ title: '花样年华', original_title: 'In the Mood for Love', year: 2000, director: '王家卫', rating: 5, review: '好', watched_at: '2026-10-01' }] };
     return { ok: true, albums: [{ title: 'Blue', artist: 'Joni Mitchell', year: 1971, tracks: [{ no: 1, title: 'All I Want', duration: 214 }] }] };
   } } };
   let hits = await F.fixedHits(env, '最近 2 部电影和专辑 Blue 的曲目', 'zh');
-  assert.deepEqual(calls, [['recentMovies', { n: 2 }], ['music', { q: '最近 2 部电影和专辑 Blue 的曲目' }]]);
-  assert.equal(hits.length, 2);
-  assert.equal(hits[0].url, 'https://styrigx.com/curio/zh/movies/');
-  assert.match(hits[0].text, /1\. 花样年华（In the Mood for Love） — 2000，王家卫，评分 5\/5，观看 2026-10-01。短评：好/);
-  assert.equal(hits[1].url, 'https://styrigx.com/music/zh/', 'music 搬家第 4 步：音乐页是第四个子站（中文 /music/zh/）');
-  assert.match(hits[1].text, /Blue — Joni Mitchell \(1971\)\n {2}1\. All I Want 3:34/);
+  assert.deepEqual(calls, [['music', { q: '最近 2 部电影和专辑 Blue 的曲目' }]], '电影意图删了（奇趣重组 PR 3），只查音乐');
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].url, 'https://styrigx.com/music/zh/', 'music 搬家第 4 步：音乐页是第四个子站（中文 /music/zh/）');
+  assert.match(hits[0].text, /Blue — Joni Mitchell \(1971\)\n {2}1\. All I Want 3:34/);
   const en = await F.fixedHits(env, 'tracks on the album Blue', 'en');
   assert.equal(en.find((h) => /album|track/i.test(h.title)).url, 'https://styrigx.com/music/', '英文音乐页 /music/');
-  hits = await F.fixedHits(env, 'latest movies', 'en');
-  assert.equal(hits[0].url, 'https://styrigx.com/curio/movies/');
-  assert.equal(hits[0].title, 'Recently watched movies');
-  assert.deepEqual(await F.fixedHits({}, '最近的电影', 'zh'), []);
-  assert.deepEqual(await F.fixedHits({ CURIO: { async query() { throw new Error('rpc'); } } }, '最近的电影', 'zh'), []);
-  assert.deepEqual(await F.fixedHits({ CURIO: { async query() { return { ok: true, movies: [] }; } } }, '最近的电影', 'zh'), []);
-  assert.deepEqual(await F.fixedHits({ CURIO: { async query() { return { ok: false, error: 'failed' }; } } }, '最近的电影', 'zh'), []);
+  assert.deepEqual(await F.fixedHits(env, 'latest movies', 'en'), [], '电影不再有固定查询');
+  assert.deepEqual(await F.fixedHits({}, '专辑 Blue', 'zh'), []);
+  assert.deepEqual(await F.fixedHits({ CURIO: { async query() { throw new Error('rpc'); } } }, '专辑 Blue', 'zh'), []);
+  assert.deepEqual(await F.fixedHits({ CURIO: { async query() { return { ok: true, albums: [] }; } } }, '专辑 Blue', 'zh'), []);
+  assert.deepEqual(await F.fixedHits({ CURIO: { async query() { return { ok: false, error: 'failed' }; } } }, '专辑 Blue', 'zh'), []);
   const t0 = Date.now();
-  const slow = { CURIO: { query: () => new Promise((r) => setTimeout(() => r({ ok: true, movies: [{ title: 'x' }] }), F.FIXED_TIMEOUT_MS + 500)) } };
-  assert.deepEqual(await F.fixedHits(slow, '最近的电影', 'zh'), []);
+  const slow = { CURIO: { query: () => new Promise((r) => setTimeout(() => r({ ok: true, albums: [{ title: 'x', tracks: [] }] }), F.FIXED_TIMEOUT_MS + 500)) } };
+  assert.deepEqual(await F.fixedHits(slow, '专辑 Blue', 'zh'), []);
   assert.ok(Date.now() - t0 < F.FIXED_TIMEOUT_MS + 400);
 });
 
@@ -352,8 +344,8 @@ test('fixed：R-35 日刻今日一句——「今天 + 日刻」或「今日一�
   assert.deepEqual(await F.fixedHits({ CURIO: { async query() { return { ok: true }; } } }, '日刻今天那句是什么', 'zh'), [], '没绑 DAYMARK');
   assert.deepEqual(await F.fixedHits({ DAYMARK: { async today() { throw new Error('rpc'); } } }, '今日一句', 'zh'), []);
   assert.deepEqual(await F.fixedHits({ DAYMARK: { async today() { return { ok: true, day: '2026-11-15', quote: null }; } } }, '今日一句', 'zh'), []);
-  /* 只绑 DAYMARK 时电影意图跳过、不抛 */
-  assert.deepEqual(await F.fixedHits(env, '最近的电影', 'zh'), []);
+  /* 只绑 DAYMARK 时音乐意图跳过、不抛 */
+  assert.deepEqual(await F.fixedHits(env, '专辑 Blue', 'zh'), []);
 });
 
 test('fixed：单曲（kind=single，音乐 v1.13 ②）标「单曲」/ single，专辑不标；「单曲」也认作音乐意图', () => {
@@ -368,9 +360,9 @@ test('fixed：单曲（kind=single，音乐 v1.13 ②）标「单曲」/ single�
 test('/ask：固定查询结果排在上下文最前', async () => {
   const env = await seeded();
   const ai = chatAI(env);
-  env.CURIO = { async query() { return { ok: true, movies: [{ title: '花样年华', year: 2000 }] }; } };
-  await events(await ask({ q: '最近看的电影', lang: 'zh' }, { ...env, AI: ai }));
-  assert.match(ai.calls.at(-1).input.messages[0].content, /站内内容：\n\n\[1\] 最近看的电影 — 奇趣 › 电影\n地址：https:\/\/styrigx\.com\/curio\/zh\/movies\//);
+  env.CURIO = { async query() { return { ok: true, albums: [{ title: 'Blue', artist: 'Joni Mitchell', year: 1971, tracks: [] }] }; } };
+  await events(await ask({ q: '专辑 Blue 的曲目', lang: 'zh' }, { ...env, AI: ai }));
+  assert.match(ai.calls.at(-1).input.messages[0].content, /站内内容：\n\n\[1\] 专辑与曲目 — 奇趣 › 音乐\n地址：https:\/\/styrigx\.com\/music\/zh\//);
 });
 
 /* ---------- Gemini：联网来源、错误分类、脱敏日志 ---------- */

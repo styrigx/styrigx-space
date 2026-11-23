@@ -51,7 +51,7 @@ function call(b, p, o = {}) {
   h['CF-Connecting-IP'] = '203.0.113.9';
   const body = o.body === undefined ? undefined : typeof o.body === 'string' ? o.body : JSON.stringify(o.body);
   const SPACE = v6Space({}, { calls: b.calls, audits: b.audits, throws: o.throws });
-  const env = { SPACE, D1_FINDS: b.db, D1_DEVICES: b.db, D1_GAMES: b.db, D1_MOVIES: b.db, D1_MUSIC: b.db, R2_PHOTOS: b.r2, R2_MUSIC: b.r2m, KV_SEARCH_INDEX: { async put() {}, async get() { return null; } } };
+  const env = { SPACE, D1_FINDS: b.db, D1_GAMES: b.db, D1_MUSIC: b.db, R2_PHOTOS: b.r2, R2_MUSIC: b.r2m, KV_SEARCH_INDEX: { async put() {}, async get() { return null; } } };
   return worker.fetch(new Request(ORIGIN + p, { method: o.method || 'GET', headers: h, body }), env, { waitUntil() {} });
 }
 const j = async (r) => ({ status: r.status, json: await r.json().catch(() => null) });
@@ -68,10 +68,8 @@ test('写接口（curio-manage 档）：styrigx 的 v6 会话放行；alice（�
   assert.equal((await add('expired', 'x')).status, 401, '坏 / 过期令牌 = 没有身份');
   assert.equal((await add(undefined, 'x')).status, 401);
   /* 其余 curio-manage 路由走同一套守卫 */
-  assert.equal((await call(b, '/curio/api/items', { v6: 'styrigx', method: 'POST', body: { op: 'game.add', title: 'G', platform: 'PC', status: 'playing' } })).status, 200);
-  assert.equal((await call(b, '/curio/api/items', { v6: 'alice', method: 'POST', body: { op: 'game.add', title: 'G', platform: 'PC', status: 'playing' } })).status, 403);
-  assert.equal((await call(b, '/curio/api/movies', { v6: 'styrigx', method: 'POST', body: { op: 'movie.add', title: 'M' } })).status, 200);
-  assert.equal((await call(b, '/curio/api/movies', { v6: 'temp', method: 'POST', body: { op: 'movie.add', title: 'M' } })).status, 403);
+  /* 奇趣重组 PR 3：/curio/api/items、/curio/api/movies 删了——谁来都是表外路径 401（styrigx 也是） */
+  for (const p of ['/curio/api/items', '/curio/api/movies']) assert.equal((await call(b, p, { v6: 'styrigx', method: 'POST', body: { op: 'game.add', title: 'G' } })).status, 401, p);
   assert.notEqual((await call(b, '/curio/api/preview?url=javascript:1', { v6: 'styrigx' })).status, 401, 'preview 归 curio-manage');
   assert.equal((await call(b, '/curio/api/preview?url=javascript:1', { v6: 'alice' })).status, 403);
 });
@@ -143,7 +141,7 @@ test('公开读：私密行按 action private（= curio-use）、canManage 按 a
     assert.equal(r.showPrivate, false, String(who));
     assert.ok(!r.cats.some((c) => JSON.stringify(c.name).includes('私密')), String(who));
   }
-  for (const p of ['/curio/api/items', '/curio/api/movies', '/music/api/music']) {
+  for (const p of ['/curio/api/links', '/music/api/music']) {
     assert.equal((await (await call(b, p, { v6: 'styrigx' })).json()).canManage, true, p);
     assert.equal((await (await call(b, p, { v6: 'alice' })).json()).canManage, false, p);
   }
@@ -178,29 +176,21 @@ test('组权限 v1.1 模板 · 奇趣：访客 / alice 看不到私密行；view
   const sec = lj.json.cats.find((c) => JSON.stringify(c.name).includes('私密'));
   assert.equal((await call(b, '/curio/api/links', { v6: 'styrigx', method: 'POST', body: { op: 'link.add', cat: pub.id, url: 'https://pub.example/', name: '公开收藏' } })).status, 200);
   assert.equal((await call(b, '/curio/api/links', { v6: 'styrigx', method: 'POST', body: { op: 'link.add', cat: sec.id, url: 'https://sec.example/', name: '私密收藏' } })).status, 200);
-  assert.equal((await call(b, '/curio/api/items', { v6: 'styrigx', method: 'POST', body: { op: 'device.add', name: '私密设备', kind: 'phone', private: true } })).status, 200);
-  const it = await j(await call(b, '/curio/api/items', { v6: 'styrigx', method: 'POST', body: { op: 'device.add', name: '公开设备', kind: 'phone' } }));
-  const secDev = it.json.devices.find((d) => d.name === '私密设备');
-  b.r2.m.set('photos/device/' + secDev.id + '-1.webp', new Uint8Array([1]));
-  b.db.raw.prepare('UPDATE devices SET photo = ? WHERE id = ?').run('photos/device/' + secDev.id + '-1.webp', secDev.id);
+  /* 奇趣重组 PR 3 删了设备 /curio/api/items 和照片 /curio/api/photo：奇趣的模板只剩收藏（私密封面的同类用例在 games.test.mjs，按 games-use 问） */
   const look = async (who) => {
     const links = (await j(await call(b, '/curio/api/links', { v6: who }))).json;
-    const items = (await j(await call(b, '/curio/api/items', { v6: who }))).json;
-    const photo = (await call(b, '/curio/api/photo?kind=device&id=' + secDev.id, { v6: who })).status;
-    return { links, items, photo, seesPrivate: JSON.stringify(links.cats).includes('私密收藏') && items.devices.some((d) => d.name === '私密设备') };
+    return { links, seesPrivate: JSON.stringify(links.cats).includes('私密收藏') };
   };
   for (const who of [undefined, 'alice', 'temp']) {
     const v = await look(who);
     assert.equal(v.seesPrivate, false, String(who) + ' 看不到私密行');
     assert.ok(JSON.stringify(v.links.cats).includes('公开收藏'), String(who) + ' 公开的照常');
-    assert.deepEqual([v.links.showPrivate, v.links.canManage, v.items.showPrivate, v.items.canManage], [false, false, false, false], String(who));
-    assert.equal(v.photo, 404, String(who) + ' 私密设备的照片 = 404（同不存在）');
+    assert.deepEqual([v.links.showPrivate, v.links.canManage], [false, false], String(who));
   }
   const viewer = await look('viewer');
   assert.equal(viewer.seesPrivate, true, 'viewer（curio-use）看得到私密行（v1.1 §七 A）');
-  assert.deepEqual([viewer.links.showPrivate, viewer.links.canManage, viewer.items.showPrivate, viewer.items.canManage], [true, false, true, false], 'use 不给 canManage');
-  assert.equal(viewer.photo, 200, 'viewer 看得到私密设备的照片');
-  for (const [p, body] of [['/curio/api/links', { op: 'cat.add', name: 'v' }], ['/curio/api/items', { op: 'game.add', title: 'G', platform: 'PC', status: 'playing' }], ['/curio/api/movies', { op: 'movie.add', title: 'M' }]]) {
+  assert.deepEqual([viewer.links.showPrivate, viewer.links.canManage], [true, false], 'use 不给 canManage');
+  for (const [p, body] of [['/curio/api/links', { op: 'cat.add', name: 'v' }]]) {
     const r = await j(await call(b, p, { v6: 'viewer', method: 'POST', body }));
     assert.equal(r.status, 403, 'viewer 写 ' + p);
     assert.equal(r.json.error, 'forbidden');
@@ -209,15 +199,14 @@ test('组权限 v1.1 模板 · 奇趣：访客 / alice 看不到私密行；view
   for (const who of ['keeper', 'styrigx', 'root']) {
     const v = await look(who);
     assert.equal(v.seesPrivate, true, who + ' 看得到私密行（manage 包含 use）');
-    assert.deepEqual([v.links.showPrivate, v.links.canManage, v.items.showPrivate, v.items.canManage], [true, true, true, true], who);
-    assert.equal(v.photo, 200, who);
+    assert.deepEqual([v.links.showPrivate, v.links.canManage], [true, true], who);
     const w = await j(await call(b, '/curio/api/links', { v6: who, method: 'POST', body: { op: 'cat.add', name: 'w-' + who } }));
     assert.equal(w.status, 200, who + ' 写');
     assert.equal(w.json.canManage, true);
     assert.equal(w.json.canWrite, undefined, '旧字段 canWrite 不留别名');
   }
-  const m = (await j(await call(b, '/curio/api/movies', { v6: 'viewer' }))).json;
-  assert.deepEqual([m.showPrivate, m.canManage, m.canWrite], [true, false, undefined]);
+  const l = (await j(await call(b, '/curio/api/links', { v6: 'viewer' }))).json;
+  assert.deepEqual([l.showPrivate, l.canManage, l.canWrite], [true, false, undefined]);
 });
 
 test('组权限 v1.1 模板 · 音乐（搬家第 1 步换档；第 4 步起只在 /music/api/*）：viewer（music-use）能听、canManage false、上传 / 管理 403；keeper（music-manage）能管；curio-manage 管不了音乐', async () => {

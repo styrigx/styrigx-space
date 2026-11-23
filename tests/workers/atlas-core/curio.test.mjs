@@ -82,7 +82,7 @@ function call(p, { who = null, db = makeD1(), r2 = makeR2(), method = 'GET', bod
   if (origin) headers.Origin = origin;
   if (body !== undefined && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
   const req = new Request(ORIGIN + p, { method, headers, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body) });
-  return worker.fetch(req, { SPACE: auth(who, throws), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: r2 }, CTX);
+  return worker.fetch(req, { SPACE: auth(who, throws), D1_FINDS: db, D1_GAMES: db, R2_PHOTOS: r2 }, CTX);
 }
 const op = async (db, body, who = 'owner') => call('/curio/api/links', { who, db, method: 'POST', body });
 const list = async (db, who) => (await call('/curio/api/links', { who, db })).json();
@@ -97,15 +97,8 @@ test('路由表与接口文件一一对应（奇趣表 = src/curio/api/，音乐
 
 test('访问表（v5 S3）快照：一档一个守卫，方法 + 路径精确匹配；改表必须改这里', () => {
   assert.deepEqual(ROUTE_ACCESS.map((r) => r.method + ' ' + r.path + ' → ' + r.access), [
-    'GET /api/items → public',
-    'POST /api/items → entry',
     'GET /api/links → public',
     'POST /api/links → entry',
-    'GET /api/movies → public',
-    'POST /api/movies → entry',
-    'GET /api/photo → public',
-    'POST /api/photo → entry',
-    'DELETE /api/photo → entry',
     'GET /api/icon → public',
     'GET /api/preview → entry',
     'GET /api/export → entry',
@@ -142,16 +135,18 @@ test('访问表（v5 S3）快照：一档一个守卫，方法 + 路径精确匹
   /* music 搬家第 4 步：奇趣表里没有音乐了（旧 /curio/api/music* = 表外 = entry） */
   for (const p of ['/api/music', '/api/music-cover', '/api/music-play', '/api/music-stream', '/api/music-upload']) assert.equal(accessOf('GET', p), 'entry', p);
   assert.equal(accessOf('GET', '/api/nope'), 'entry');
+  /* 奇趣重组 PR 3：设备 / 游戏 /api/items、电影 /api/movies、照片 /api/photo 删了（表外 = entry） */
+  for (const p of ['/api/items', '/api/movies', '/api/photo']) assert.equal(accessOf('GET', p), 'entry', p);
   assert.deepEqual(Object.keys(GUARDS).sort(), ['entry', 'music', 'public']);
 });
 
 test('访客：public 的读 200、其余 401，带运行标记；不存在的路径一律 401（路由表里没有，v6 不放行）；网关挂了当没有 v6 → 401', async () => {
-  for (const p of ['/curio/api/links', '/curio/api/items']) {
+  for (const p of ['/curio/api/links', '/games/api/games']) {
     const r = await call(p, { db: makeD1() });
     assert.ok(r.status < 500 && r.status !== 401 && r.status !== 403, p + ' ' + r.status);
     assert.equal(r.headers.get('X-Curio-Runtime'), 'worker');
   }
-  for (const p of ['/curio/api/export', '/curio/api/preview?url=https://a.com', '/music/api/music-stream?t=x&id=1', '/curio/api/nope', '/curio/api/access']) {
+  for (const p of ['/curio/api/export', '/curio/api/preview?url=https://a.com', '/music/api/music-stream?t=x&id=1', '/curio/api/nope', '/curio/api/access', '/curio/api/items', '/curio/api/movies', '/curio/api/photo?kind=game&id=1']) {
     const r = await call(p);
     assert.equal(r.status, 401, p);
     assert.equal(r.headers.get('X-Curio-Runtime'), 'worker');
@@ -171,7 +166,7 @@ test('访客：public 的读 200、其余 401，带运行标记；不存在的�
 test('每个接口请求每个 action 最多问网关一次（守卫问到的 v6 结论经 context.data.v6 传给 handler；公开读按 visibility 问 private、manage 两档）；cookie 原样转给 admit；不再有复验结论', async () => {
   const calls = [];
   const db = makeD1();
-  const env = (who) => ({ SPACE: whoAuth(who, { calls }), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: makeR2() });
+  const env = (who) => ({ SPACE: whoAuth(who, { calls }), D1_FINDS: db, D1_GAMES: db, R2_PHOTOS: makeR2() });
   const req = (p, method = 'GET', body, type = 'application/json') => new Request(ORIGIN + p, {
     method,
     headers: { Cookie: 'sgx-session=x', Origin: ORIGIN, 'User-Agent': 'UA/1', ...(body ? { 'Content-Type': type } : {}) },
@@ -180,14 +175,14 @@ test('每个接口请求每个 action 最多问网关一次（守卫问到的 v6
   const cases = [
     ['owner', '/curio/api/links', 'GET', undefined, 2],
     ['lock', '/curio/api/links', 'GET', undefined, 2],
-    ['owner', '/curio/api/items', 'GET', undefined, 2],
+    ['owner', '/games/api/games', 'GET', undefined, 2],
     ['owner', '/curio/api/links', 'POST', { op: 'cat.add', name: '一' }, 1],
     ['lock', '/curio/api/links', 'POST', { op: 'cat.add', name: '二' }, 1],
-    ['owner', '/curio/api/items', 'POST', { op: 'game.add', title: '空洞骑士', platform: 'PC', status: 'playing' }, 1],
+    ['owner', '/games/api/games', 'POST', { op: 'game.add', title: '空洞骑士', platform: 'PC', status: 'playing' }, 1],
     ['owner', '/curio/api/export', 'GET', undefined, 1],
     ['lock', '/curio/api/export', 'GET', undefined, 1],
     ['owner', '/curio/api/icon?id=999', 'GET', undefined, 0],
-    ['lock', '/curio/api/photo?kind=device&id=999', 'GET', undefined, 0],
+    ['lock', '/games/api/cover?id=999', 'GET', undefined, 0],
     ['owner', '/curio/api/preview?url=javascript:1', 'GET', undefined, 1],
     ['owner', '/curio/api/import', 'POST', 'x', 1, 'text/html'],
   ];
@@ -216,13 +211,13 @@ test('每个接口请求每个 action 最多问网关一次（守卫问到的 v6
   for (const gone of ['conclusionOf', 'askConclusion', 'normalizeConclusion', 'canReadPrivate', 'can', 'visibility', 'readAccess', 'DENIED', 'SCOPE_WRITE']) assert.equal(gone in A, false, gone);
 });
 
-test('写接口（v6 路由档 curio-manage）：没有身份 401 unauthorized、有身份没 manage 组 403 forbidden、有档 200', async () => {
+test('写接口（v6 路由档 curio-manage；游戏 games-manage，奇趣重组 PR 3 起 /curio/api/items、photo 删了、改测 /games/api/*）：没有身份 401 unauthorized、有身份没 manage 组 403 forbidden、有档 200', async () => {
   const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0, 0, 0, 0]);
   const writes = [
     ['/curio/api/links', 'POST', { op: 'cat.add', name: '甲' }, 'application/json', 200],
-    ['/curio/api/items', 'POST', { op: 'game.add', title: '游戏', platform: 'PC', status: 'playing' }, 'application/json', 200],
-    ['/curio/api/photo?kind=device&id=1', 'POST', WEBP, 'image/webp', 404], /* 都有：过了门，条目不存在 */
-    ['/curio/api/photo?kind=device&id=1', 'DELETE', undefined, undefined, 404],
+    ['/games/api/games', 'POST', { op: 'game.add', title: '游戏', platform: 'PC', status: 'playing' }, 'application/json', 200],
+    ['/games/api/cover?id=1', 'POST', WEBP, 'image/webp', 404], /* 都有：过了门，条目不存在 */
+    ['/games/api/cover?id=1', 'DELETE', undefined, undefined, 404],
     ['/curio/api/preview?url=javascript:1', 'GET', undefined, undefined, 400], /* 都有：过了门，网址不合格 */
   ];
   for (const [p, method, body, type, okStatus] of writes) {
@@ -231,7 +226,7 @@ test('写接口（v6 路由档 curio-manage）：没有身份 401 unauthorized�
       if (type) headers['Content-Type'] = type;
       const b = body === undefined ? undefined : body instanceof Uint8Array ? body : JSON.stringify(body);
       const db = makeD1();
-      return worker.fetch(new Request(ORIGIN + p, { method, headers, body: b }), { SPACE: auth(who), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: makeR2() }, CTX);
+      return worker.fetch(new Request(ORIGIN + p, { method, headers, body: b }), { SPACE: auth(who), D1_FINDS: db, D1_GAMES: db, R2_PHOTOS: makeR2() }, CTX);
     };
     const tag = method + ' ' + p;
     let r = await run(null);
@@ -593,7 +588,7 @@ test('图标：没缓存现抓（apple-touch-icon → favicon.ico），存 R2 �
   const f = fakeFetch({ 'https://site.example/favicon.ico': () => new Response(PNG, { headers: { 'Content-Type': 'application/octet-stream' } }) });
   const ctxFetch = { waitUntil() {} };
   const req = (id, who = 'owner') => new Request(ORIGIN + '/curio/api/icon?id=' + id, { headers: { Cookie: 'sgx-session=x' } });
-  const env = (who) => ({ SPACE: auth(who), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: r2 });
+  const env = (who) => ({ SPACE: auth(who), D1_FINDS: db, D1_GAMES: db, R2_PHOTOS: r2 });
   const r = await I.onRequestGet({ request: req(1), env: env('owner'), fetchImpl: f, ...ctxFetch });
   assert.equal(r.status, 200);
   assert.equal(r.headers.get('Content-Type'), 'image/x-icon');
@@ -616,7 +611,7 @@ test('图标：抓不到存「没有」标记，7 天内不再抓；账号未登
   await op(db, { op: 'link.add', cat: 1, url: 'https://none.example/', name: 'N' });
   await op(db, { op: 'link.add', cat: 1, url: 'https://secret.example/', name: 'S', private: true });
   const f = fakeFetch({ 'https://none.example/favicon.ico': () => new Response('<html>', { headers: { 'Content-Type': 'text/html' } }) });
-  const env = (who) => ({ SPACE: auth(who), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: r2 });
+  const env = (who) => ({ SPACE: auth(who), D1_FINDS: db, D1_GAMES: db, R2_PHOTOS: r2 });
   const get = (id, who = 'owner') => I.onRequestGet({ request: new Request(ORIGIN + '/curio/api/icon?id=' + id), env: env(who), fetchImpl: f });
   assert.equal((await get(1)).status, 404);
   assert.equal(f.calls.length, 2);
@@ -637,7 +632,7 @@ test('图标：公开（v5 S3）——private, no-cache + ETag，304 只在可�
   const f = fakeFetch({ 'https://pub.example/apple-touch-icon.png': () => new Response(PNG, { headers: { 'Content-Type': 'image/png' } }) });
   const get = (id, who, inm) => call('/curio/api/icon?id=' + id, { who, headers: inm ? { 'If-None-Match': inm } : {}, db, r2 });
   /* 先由 handler 抓进 R2（call() 走 index.js 没法注入 fetchImpl） */
-  const env = { SPACE: auth('owner'), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: r2 };
+  const env = { SPACE: auth('owner'), D1_FINDS: db, D1_GAMES: db, R2_PHOTOS: r2 };
   const first = await I.onRequestGet({ request: new Request(ORIGIN + '/curio/api/icon?id=1'), env, fetchImpl: f });
   const etag = first.headers.get('ETag');
   assert.ok(etag);
