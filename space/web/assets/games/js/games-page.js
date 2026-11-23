@@ -392,7 +392,13 @@ var cover = (function(){
   function show(src){
     if (st.prevUrl) { URL.revokeObjectURL(st.prevUrl); st.prevUrl = ''; }
     var adj = !!(src && st.pending && st.file);
-    prev.innerHTML = src ? '<img src="' + esc(src) + '" alt="">' + (adj ? ADJ : '') : icon(32);
+    prev.textContent = '';
+    if (src) {
+      var im = document.createElement('img');
+      im.src = src; im.alt = '';
+      prev.appendChild(im);
+      if (adj) prev.insertAdjacentHTML('beforeend', ADJ);
+    } else prev.innerHTML = icon(32);
     prev.disabled = !adj;
     if (adj) { prev.setAttribute('aria-label', T.adjust); prev.removeAttribute('aria-hidden'); }
     else { prev.removeAttribute('aria-label'); prev.setAttribute('aria-hidden', 'true'); }

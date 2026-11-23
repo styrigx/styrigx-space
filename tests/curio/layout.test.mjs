@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
+const reEsc = s => s.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
 const base = read('space/web/layouts/curio/baseof.html');
 const index = read('space/web/layouts/curio/section.html');
 const page = (n) => read('space/web/layouts/curio/' + n + '.html');
@@ -47,7 +48,7 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 frame/topbar.
   const host = read('space/web/assets/curio/js/sgx/topbar-host.js');
   /* 合站：直接引主站的共享外壳源文件（没有 js/sgx/shell/ 副本） */
   for (const m of ['../../../common/js/frame/topbar/panel.js', '../../../common/js/ui/modal-sheet.js', '../../../common/js/frame/ai/panel.js', '../../../common/js/ui/vk.js', '../../../common/js/prefs/prefs-write.js']) {
-    assert.match(host, new RegExp("from '" + m.replace(/[.\/]/g, '\\$&') + "'"), m);
+    assert.match(host, new RegExp("from '" + reEsc(m) + "'"), m);
   }
   assert.doesNotMatch(host, /share-button|mountShare/, 'v6 P4：分享本页磁贴拿掉');
 });
@@ -99,7 +100,7 @@ test('首页（2026-11 对齐 PR-C2，设计稿 pg=curio）：就是「发现」
   }
   const redir = read('space/web/static/_redirects');
   for (const [a, b] of [['/curio/finds/', '/curio/'], ['/curio/zh/finds/', '/curio/zh/'], ['/curio/games/', '/games/'], ['/curio/zh/games/', '/games/zh/']]) {
-    assert.match(redir, new RegExp('^' + a.replace(/\//g, '\\/') + '\\s+' + b.replace(/\//g, '\\/') + '\\s+301$', 'm'), a);
+    assert.match(redir, new RegExp('^' + reEsc(a) + '\\s+' + reEsc(b) + '\\s+301$', 'm'), a);
   }
   const a = index.indexOf('js/curio-home.js'), b = index.indexOf('js/curio.js'), c = index.indexOf('js/curio-list.js');
   assert.ok(a > 0 && a < b && b < c, '脚本顺序');
