@@ -87,9 +87,10 @@ function call(p, { who = null, db = makeD1(), r2 = makeR2(), method = 'GET', bod
 const op = async (db, body, who = 'owner') => call('/curio/api/links', { who, db, method: 'POST', body });
 const list = async (db, who) => (await call('/curio/api/links', { who, db })).json();
 
-test('路由表与 src/api 接口文件一一对应（奇趣表 + 音乐表 src/music/routes.js 合起来；两张表不重叠，音乐表只有 music*）', () => {
-  const files = readdirSync(W + '/api').filter((n) => n.endsWith('.js') && !n.startsWith('_')).map((n) => '/api/' + n.slice(0, -3)).sort();
-  assert.deepEqual([...API_ROUTES.keys(), ...MR.API_ROUTES.keys()].sort(), files);
+test('路由表与接口文件一一对应（奇趣表 = src/curio/api/，音乐表 = src/music/api/；两张表不重叠，音乐表只有 music*）', () => {
+  const ls = (d) => readdirSync(d).filter((n) => n.endsWith('.js') && !n.startsWith('_')).map((n) => '/api/' + n.slice(0, -3)).sort();
+  assert.deepEqual([...API_ROUTES.keys()].sort(), ls(W + '/api'), '奇趣表 = src/curio/api/ 下的接口文件');
+  assert.deepEqual([...MR.API_ROUTES.keys()].sort(), ls(REPO + '/workers/atlas-core/src/music/api'), '音乐表 = src/music/api/ 下的接口文件（2026-11-23 从 curio/api 挪来）');
   for (const k of MR.API_ROUTES.keys()) assert.equal(API_ROUTES.has(k), false, k + ' 不在奇趣表（music 搬家第 4 步删掉旧 /curio/api/music*）');
   assert.ok([...MR.API_ROUTES.keys()].every((k) => /^\/api\/music(-|$)/.test(k)));
 });

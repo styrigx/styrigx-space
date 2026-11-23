@@ -1,14 +1,14 @@
 /**
- * @fileoverview 音乐的接口路由表（公开地址 styrigx.com/music/api/*；music 搬家设计稿 v1.1）：/api/<路径> → src/curio/api/<路径>.js。
- * 接口文件还在 src/curio/api/ 下（搬家只换地址、不搬代码，handler 同一份）；由 src/curio/app.js 按前缀 /music 选用本表。
+ * @fileoverview 音乐的接口路由表（公开地址 styrigx.com/music/api/*；music 搬家设计稿 v1.1）：/api/<路径> → src/music/api/<路径>.js。
+ * 接口文件在 src/music/api/ 下（2026-11-23 从 src/curio/api/ 挪来，只换位置不改逻辑）；由 src/curio/app.js 按前缀 /music 选用本表。
  * 搬家第 2 步起 /music/api/* 与旧 /curio/api/music* 两边都挂；第 4 步删掉旧路径（不留别名），音乐只剩本表。
  * 同一文件里的 ROUTE_ACCESS 是音乐接口在本 Worker 的访问表（谁能调哪个接口；组名在账号 Worker 路由表按 product 推）。
  */
-import * as music from '../curio/api/music.js';
-import * as musicCover from '../curio/api/music-cover.js';
-import * as musicPlay from '../curio/api/music-play.js';
-import * as musicStream from '../curio/api/music-stream.js';
-import * as musicUpload from '../curio/api/music-upload.js';
+import * as music from './api/music.js';
+import * as musicCover from './api/music-cover.js';
+import * as musicPlay from './api/music-play.js';
+import * as musicStream from './api/music-stream.js';
+import * as musicUpload from './api/music-upload.js';
 
 /** @type {Map<string, Record<string, Function>>} */
 export const API_ROUTES = new Map([

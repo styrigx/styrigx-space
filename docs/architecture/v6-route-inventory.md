@@ -164,7 +164,7 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | GET | `/curio/api/export` | **root** |  |  | 保留 | 导出全部收藏（含私密） | Gray 2026-11-11 定 root：导出全部收藏含私密 |
 | POST | `/curio/api/import` | **root** |  |  | 保留 | 批量导入书签（v5 要账号复验 → v6 sudo 每次重验 = root） |  |
 
-### 音乐接口 styrigx-atlas-core（styrigx.com/music/api/*，不经网关；路由表 workers/atlas-core/src/music/routes.js，handler 在 src/curio/api/music*.js）
+### 音乐接口 styrigx-atlas-core（styrigx.com/music/api/*，不经网关；路由表 workers/atlas-core/src/music/routes.js，handler 在 src/music/api/music*.js）
 
 | 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
