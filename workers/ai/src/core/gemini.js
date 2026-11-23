@@ -235,27 +235,6 @@ export function geminiBody(messages, maxTokens, opt) {
 }
 
 /**
- * 一个流片段里的联网来源（groundingMetadata.groundingChunks[].web）→ [{ title, url }]（只认 http(s)；标题缺就用域名）。
- * @param {any} chunk
- * @returns {Array<{title: string, url: string}>}
- */
-export function geminiSources(chunk) {
-  const c = chunk && Array.isArray(chunk.candidates) ? chunk.candidates[0] : null;
-  const g = c && c.groundingMetadata;
-  const list = g && Array.isArray(g.groundingChunks) ? g.groundingChunks : [];
-  const out = [];
-  for (const x of list) {
-    const w = x && x.web;
-    const url = w && typeof w.uri === 'string' ? w.uri : '';
-    if (!/^https?:\/\//i.test(url)) continue;
-    let title = w && typeof w.title === 'string' ? w.title.trim() : '';
-    if (!title) { try { title = new URL(url).hostname; } catch (e) { title = url; } }
-    out.push({ title: title.slice(0, 120), url: url.slice(0, 2000) });
-  }
-  return out;
-}
-
-/**
  * Gemini 一个流片段 → 文本（跳过 thought）；被拦 / 片段里带 error → code。
  * @param {any} chunk
  * @returns {{ text: string, error: ''|'rate_limited'|'model_unavailable'|'region'|'upstream' }}

@@ -1,6 +1,6 @@
 /**
  * styrigx-ai 语义召回（2026-11）：切段、嵌入、Cron 写 Vectorize（只在内容变了时、删多余向量、状态键）、语义召回两档过滤与去重、
- * 和关键词召回合并、奇趣只读固定查询（意图、参数、超时 / 出错不影响回答）、Gemini 联网来源（event: sources）、
+ * 和关键词召回合并、奇趣只读固定查询（意图、参数、超时 / 出错不影响回答）、Gemini 联网（2026-11-23 起不发 event: sources）、
  * 上游错误分类 + 脱敏日志（不打钥匙）、搜索工具被拒不带工具重试、scheduled。
  * 不调真实 Workers AI / Vectorize / Gemini：替身。运行：node --test tests/workers/ai/semantic-recall.test.mjs
  */
@@ -382,7 +382,7 @@ async function withConsole(run) {
 const sse = (o) => 'data: ' + JSON.stringify(o) + '\n\n';
 const gEnv = (o = {}) => ({ KV_SEARCH_INDEX: fakeKV({ 'site:space': JSON.stringify(SPACE), 'ai:models': JSON.stringify({ default: 'gemini-x', models: [{ id: 'gemini-x', provider: 'gemini' }] }) }), SGX_CHAT_API_KEY: 'AIzaSySECRETSECRETSECRET123', ...o });
 
-test('Gemini 联网：带 google_search；groundingChunks → event: sources（去重、只认 http(s)、done 之前）；AI_GEMINI_SEARCH=0 不带', async () => {
+test('Gemini 联网：带 google_search；groundingChunks 不再转成 event: sources（2026-11-23）；AI_GEMINI_SEARCH=0 不带', async () => {
   const bodies = [];
   await withFetch(async (url, init) => {
     bodies.push(JSON.parse(init.body));
@@ -394,11 +394,7 @@ test('Gemini 联网：带 google_search；groundingChunks → event: sources（�
     ] } }] }), { status: 200 });
   }, async () => {
     const ev = await events(await ask({ q: '今天天气', lang: 'zh' }, gEnv()));
-    assert.deepEqual(ev.map((e) => e.event), ['delta', 'delta', 'sources', 'done']);
-    assert.deepEqual(ev[2].data.items, [
-      { title: 'weather.com', url: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc' },
-      { title: 'example.org', url: 'https://example.org/x' },
-    ]);
+    assert.deepEqual(ev.map((e) => e.event), ['delta', 'delta', 'done']);
     M._resetModelsCache(); R._resetCache();
     await events(await ask({ q: '今天天气', lang: 'zh' }, gEnv({ AI_GEMINI_SEARCH: '0' })));
   });
@@ -457,7 +453,7 @@ test('describeUpstream / classifyUpstream / redact：分类与脱敏', () => {
   assert.deepEqual(G.geminiChunk({ error: { message: 'User location is not supported' } }), { text: '', error: 'region' });
   assert.equal(G.toolRejected(400, 'google_search tool not enabled'), true);
   assert.equal(G.toolRejected(400, 'User location is not supported'), false);
-  assert.deepEqual(G.geminiSources({ candidates: [{}] }), []);
+  assert.equal(G.geminiSources, undefined, '2026-11-23 起不收联网来源');
 });
 
 test('aiConfig：AI_RECALL_MIN_SCORE 0–1 才认；AI_GEMINI_SEARCH 默认开', () => {

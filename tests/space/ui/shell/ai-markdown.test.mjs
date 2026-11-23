@@ -1,5 +1,5 @@
 /**
- * AI 窗口回答渲染（2026-11 AI 语义召回）：ai/panel.js 的有限 Markdown（mdParse / renderMd / linkInfo / shortLabel / sourcesBlock）。
+ * AI 窗口回答渲染（2026-11 AI 语义召回）：ai/panel.js 的有限 Markdown（mdParse / renderMd / linkInfo / shortLabel）。
  * - 只认段落、换行、列表、**粗体**、[文字](地址)、裸网址；其余当文字（HTML 原样当文字，不进 DOM）
  * - 链接只认 http(s) 和站内绝对路径；站内同页（交给 onInternal 关窗口后跳转）、站外新标签 + rel=noopener；文字后带 ↗
  * - 长网址不当链接文字：同一条回答里的 [标题](同一地址) 优先，否则「域名/…」
@@ -89,24 +89,14 @@ test('renderMd：只用 createElement / textContent（不碰 innerHTML）；站�
   assert.equal(ext.attrs['aria-label'], '外站 （在新标签页打开）');
 });
 
-test('sourcesBlock：来源列表（只认 http(s)、最多 8 条、标题里的方括号换掉、括号 / 空白转义）；空 → 空串', () => {
-  const s = AP.sourcesBlock([{ title: 'A [x]', url: 'https://a.com/p(1)' }, { title: '', url: 'https://www.b.org/' }, { title: 'bad', url: 'javascript:1' }], '来源');
-  assert.equal(s, '\n\n来源\n- [A (x)](https://a.com/p%281%29)\n- [b.org](https://www.b.org/)');
-  const parsed = AP.mdParse('答' + s);
-  assert.deepEqual(parsed[2].items.map((i) => i[0]), [{ t: 'a', text: 'A (x)', href: 'https://a.com/p%281%29' }, { t: 'a', text: 'b.org', href: 'https://www.b.org/' }]);
-  assert.equal(AP.sourcesBlock([], '来源'), '');
-  assert.equal(AP.sourcesBlock(null, '来源'), '');
-  assert.equal(AP.sourcesBlock(Array.from({ length: 12 }, (_, i) => ({ title: 't' + i, url: 'https://x.com/' + i })), 'S').split('\n- ').length - 1, 8);
-});
-
-test('ai/panel.js：不用 innerHTML / insertAdjacentHTML；助手回答走 renderMd；处理 event: sources；文案表有 sources / newTab（中英）', () => {
+test('ai/panel.js：不用 innerHTML / insertAdjacentHTML；助手回答走 renderMd；不收 event: sources（2026-11-23）；文案表有 newTab、没有 sources（中英）', () => {
   const src = readFileSync(new URL('../../../../space/web/assets/common/js/frame/ai/panel.js', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /\.innerHTML\s*=|insertAdjacentHTML|outerHTML\s*=/);
   assert.match(src, /renderMd\(doc, text,/);
-  assert.match(src, /ev === 'sources'/);
+  assert.doesNotMatch(src, /ev === 'sources'|sourcesBlock/);
   for (const lang of ['en', 'zh']) {
     const y = readFileSync(new URL('../../../../space/web/data/common/frame/i18n/' + lang + '.yaml', import.meta.url), 'utf8');
-    assert.match(y, /^ {2}sources: \S/m, lang);
+    assert.doesNotMatch(y, /^ {2}sources: \S/m, lang);
     assert.match(y, /^ {2}newTab: \S/m, lang);
   }
   const css = readFileSync(new URL('../../../../space/web/assets/common/css/input.css', import.meta.url), 'utf8');
