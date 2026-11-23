@@ -10,8 +10,8 @@ import path from 'node:path';
 import { REPO, rawTable, tableLangs, strings, flatKeys, deepMerge } from '../../../fixtures/strings.mjs';
 
 const rd = (/** @type {string} */ p) => readFileSync(path.join(REPO, p), 'utf8');
-const SITES = ['space', 'curio', 'daymark', 'music'];
-const PUB = { space: 'space/web/public', blog: 'space/web/public/blog', curio: 'space/web/public/curio', daymark: 'space/web/public/daymark', music: 'space/web/public/music' };
+const SITES = ['space', 'curio', 'daymark', 'music', 'games'];
+const PUB = { space: 'space/web/public', blog: 'space/web/public/blog', curio: 'space/web/public/curio', daymark: 'space/web/public/daymark', music: 'space/web/public/music', games: 'space/web/public/games' };
 const built = Object.values(PUB).every((d) => existsSync(path.join(REPO, d, 'index.html')));
 
 /* 只在英文表里、不需要译文的键（品牌 / 产品名，回退英文就是对的） */
@@ -112,7 +112,7 @@ function pages(dir, keep) {
 }
 const isZh = (/** @type {string} */ rel) => rel.startsWith('zh/');
 /* 2026-11 合站：子站页面和主站同在 space/web/public/，主站这一组跳过 /<站>/ 目录（子站各自一组） */
-const ownPage = (/** @type {string} */ site, /** @type {string} */ rel) => site !== 'space' || !/^(blog|curio|daymark|music)\//.test(rel);
+const ownPage = (/** @type {string} */ site, /** @type {string} */ rel) => site !== 'space' || !/^(blog|curio|daymark|music|games)\//.test(rel);
 
 test('英文页没有中文：四站英文页的可见文字和读屏文字里没有 CJK（个人信息 / translate="no" 节点除外；博客文章正文是内容，不查）', { skip: !built && '没构建' }, () => {
   const bad = [];
@@ -184,8 +184,9 @@ test('标签页标题（Gray 2026-11-07）：四站「页名 | 站名」，站�
       assert.equal(title(pre + '404.html'), `${t.baseof.pageNotFound} | ${t.site.name}`, `${s} ${l} 404`);
     }
   }
-  assert.equal(title('space/web/public/curio/finds/index.html'), 'Finds | Curio');
-  assert.equal(title('space/web/public/curio/zh/finds/index.html'), '发现 | 奇趣');
+  /* 奇趣重组 PR 2：奇趣 = 发现（/curio/finds/ 301 到首页，不再构建）；游戏是第五个子站，首页只有站名 */
+  assert.ok(!existsSync(path.join(REPO, 'space/web/public/curio/finds/index.html')) && !existsSync(path.join(REPO, 'space/web/public/curio/games/index.html')));
+  for (const l of ['en', 'zh']) assert.equal(title(`space/web/public/games/${l === 'en' ? '' : l + '/'}index.html`), strings('games', l).site.name, `games ${l} 首页`);
   /* 博客：站名 = i18n blogTitle；首页只有站名；文章、标签页、404 都带「| 博客站名」 */
   const blog = { en: /** @type {any} */ (rd('space/web/i18n/en.yaml')).match(/^blogTitle: (.+)$/m)[1], zh: /** @type {any} */ (rd('space/web/i18n/zh.yaml')).match(/^blogTitle: (.+)$/m)[1] };
   assert.equal(title('space/web/public/blog/index.html'), blog.en);
@@ -241,6 +242,7 @@ test('奇趣 / 日刻页面脚本（语言包化第二部分）：文案只读 #
     ['curio', 'space/web/assets/curio/js/curio-items.js', 'curioItems'],
     ['curio', 'space/web/assets/curio/js/curio-movies.js', 'curioMovies'],
     ['music', 'space/web/assets/music/js/music-page.js', 'musicPage'],
+    ['games', 'space/web/assets/games/js/games-page.js', 'gamesPage'],
     ['daymark', 'space/web/assets/daymark/js/daymark.js', 'daymark'],
   ];
   const bad = [];
@@ -249,15 +251,15 @@ test('奇趣 / 日刻页面脚本（语言包化第二部分）：文案只读 #
     assert.match(src, new RegExp("readDict\\(doc, '" + table + "'\\)"), file + ' 读 #sgx-i18n-' + table);
     assert.doesNotMatch(src, /\bisEn\b|\ben \?/, file + ' 不按语言二选一');
     const t = (strings(site, 'en').js || {})[table] || {};
-    /* T.kinds / T.status / ST_LABEL 由 sub('前缀') 从同一张表展开 */
-    const built = new Set([...src.matchAll(/T\.(\w+) = sub\(/g)].map((m) => m[1]));
+    /* T.kinds / T.status / ST_LABEL 由 sub('前缀') 从同一张表展开；游戏页（games-page.js）的 T.status 是 {} 再按 status_* 逐个填 */
+    const built = new Set([...src.matchAll(/T\.(\w+) = (?:sub\(|\{\};)/g)].map((m) => m[1]));
     for (const [, key] of src.matchAll(/\bT\.(\w+)/g)) if (!built.has(key) && t[key] == null) bad.push(file + ': T.' + key);
     for (const [, key] of src.matchAll(/\btr\('(\w+)'/g)) if (t[key] == null) bad.push(file + ": tr('" + key + "')");
     for (const [, pre] of src.matchAll(/sub\('(\w+)'\)/g)) if (!Object.keys(t).some((k) => k.startsWith(pre))) bad.push(file + ': sub ' + pre);
   }
   assert.deepEqual(bad, [], '缺键');
   /* 两站模板把整张 js 表按表名输出（页面脚本运行前） */
-  for (const s of ['curio', 'daymark', 'music']) {
+  for (const s of ['curio', 'daymark', 'music', 'games']) {
     const tpl = rd(`space/web/layouts/${s}/baseof.html`);
     assert.ok(tpl.indexOf('<script id="sgx-i18n-{{ $tbl }}"') !== -1 && tpl.indexOf('sgx-i18n-{{ $tbl }}') < tpl.indexOf('{{ block "main" . }}'), s + ' baseof 在 main 前输出文案表');
   }
@@ -273,7 +275,7 @@ test('构建产物：奇趣 / 日刻中文页的页面文案表是中文、英�
     const m = new RegExp('<script id="?sgx-i18n-' + id + '"? type="?application/json"?>(.*?)</script>').exec(html);
     return m ? JSON.parse(m[1]) : null;
   };
-  const cases = [['space/web/public/curio', 'finds/index.html', 'curio', 'count'], ['space/web/public/daymark', 'index.html', 'daymark', 'count']];
+  const cases = [['space/web/public/curio', 'index.html', 'curio', 'count'], ['space/web/public/daymark', 'index.html', 'daymark', 'count'], ['space/web/public/games', 'index.html', 'gamesPage', 'all']];
   for (const [pub, page, id, key] of cases) {
     const en = dict(read(`${pub}/${page}`), id), zh = dict(read(`${pub}/zh/${page}`), id);
     assert.ok(en && zh, pub + ' 有 #sgx-i18n-' + id);

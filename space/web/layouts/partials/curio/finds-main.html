@@ -5,7 +5,7 @@
 {{- $p := .page }}{{ $tr := .tr }}{{ $lang := .lang -}}
 <main id="cu-main" class="cu-wrap" data-cu-page="finds">
 {{ partial "curio/page-head.html" (dict "page" $p "id" "finds" "tr" $tr "lang" $lang "home" .home "cmds" (slice
-  (dict "id" "cu-fab" "k" "touch curio/finds/ +" "d" $tr.cmd.addFind)
+  (dict "id" "cu-fab" "k" "touch curio/ +" "d" $tr.cmd.addFind)
   (dict "id" "menu-cats" "k" "mkdir" "d" $tr.cmd.cats)
   (dict "id" "menu-import" "k" "import" "d" $tr.cmd.import)
   (dict "id" "menu-export" "k" "export" "d" $tr.cmd.export "href" (printf "%s?lang=%s" ("curio/api/export" | relURL) $lang) "dl" true)

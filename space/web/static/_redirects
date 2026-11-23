@@ -13,6 +13,10 @@
 /wild/  /status/  301
 /curio/music/  /music/  301
 /curio/zh/music/  /music/zh/  301
+/curio/finds/  /curio/  301
+/curio/zh/finds/  /curio/zh/  301
+/curio/games/  /games/  301
+/curio/zh/games/  /games/zh/  301
 /curio/music/player/  /music/player/  301
 /curio/zh/music/player/  /music/zh/player/  301
 /zh/music/  /music/zh/  301

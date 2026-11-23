@@ -39,7 +39,7 @@ const EXEC_TYPES = new Set(['', 'text/javascript', 'application/javascript', 'mo
 
 /** 子站目录（2026-11 合站后和主站同一棵 public/）：子站页面不发 Report-Only CSP（见 docs/architecture/overview.md §10 安全响应头），内联脚本不进主站哈希 */
 /* music：music 搬家第 3 步（2026-11-21）起的第四个子站；搬家前音乐页和播放器在 /curio/ 下，本来就不进主站哈希 */
-export const SUBSITE_DIRS = Object.freeze(['blog', 'curio', 'daymark', 'music']);
+export const SUBSITE_DIRS = Object.freeze(['blog', 'curio', 'daymark', 'music', 'games']);
 
 /** @param {string} dir @param {string[]} [out] @param {boolean} [top] */
 function htmlFiles(dir, out = [], top = true) {

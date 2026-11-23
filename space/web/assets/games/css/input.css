@@ -1,0 +1,123 @@
+/* 游戏子站样式（奇趣重组 PR 2，2026-11-22，设计稿 v1.0 第一节第 2 条：games 是第五个子站，和 music 一个规格）：
+   构建 = npm run build:css（space/scripts/build/build-css.cjs 的 games 条目）→ assets/games/css/main.css（不进库，同 music）。
+   游戏页（layouts/games/）先引奇趣的 curio/css/main.css（页头、卡片、弹层、表单、裁剪这些 cu- / bk- / it- 部件，借用；外观同拆出前的 /curio/games/），再引本份：
+   - Tailwind 只要主题 + 工具类（不要 preflight，奇趣那份已经有）：只扫本站模板、本站 js（source(none) + @source）；
+   - 下面是游戏自己的 gm- 规则：评分行（编辑弹层）、调整顺序窗（居中悬浮卡片 <dialog class="sgx-qp gm-dlg">，同音乐上传窗 .sgx-up 的材质 / 开合，不是底部抽屉）。
+   奇趣 main.css 先引，所以同权重时本份的 gm- 规则赢。 */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@source "../../../layouts/games/**/*.html";
+@source "../../../layouts/partials/games/**/*.html";
+@source "../../../content/games/**/*.md";
+@source "../js/**/*.js";
+
+/* 同 curio/css/input.css 的 @theme（工具类 text-m-* / font-sans 写出同一个值；同 music/css/input.css） */
+@custom-variant dark (&:where(.dark, .dark *));
+@theme {
+  --font-sans: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --tracking-heading: -0.02em;
+}
+
+/* 原 theme.extend.colors.m：值是运行时变量（--m-* 由共享外壳角色和配色 cookie 决定），用 inline 让工具类直接写 var(--m-*)，同 Tailwind 3 产物 */
+@theme inline {
+  --color-m-primary: var(--m-primary);
+  --color-m-on-primary: var(--m-on-primary);
+  --color-m-primary-container: var(--m-primary-container);
+  --color-m-on-primary-container: var(--m-on-primary-container);
+  --color-m-primary-fill: var(--m-primary-fill);
+  --color-m-on-primary-fill: var(--m-on-primary-fill);
+  --color-m-secondary: var(--m-secondary);
+  --color-m-on-secondary: var(--m-on-secondary);
+  --color-m-secondary-container: var(--m-secondary-container);
+  --color-m-on-secondary-container: var(--m-on-secondary-container);
+  --color-m-tertiary: var(--m-tertiary);
+  --color-m-on-tertiary: var(--m-on-tertiary);
+  --color-m-tertiary-container: var(--m-tertiary-container);
+  --color-m-on-tertiary-container: var(--m-on-tertiary-container);
+  --color-m-surface: var(--m-surface);
+  --color-m-on-surface: var(--m-on-surface);
+  --color-m-on-surface-variant: var(--m-on-surface-variant);
+  --color-m-container-lowest: var(--m-container-lowest);
+  --color-m-container-low: var(--m-container-low);
+  --color-m-container: var(--m-container);
+  --color-m-container-high: var(--m-container-high);
+  --color-m-container-highest: var(--m-container-highest);
+  --color-m-outline: var(--m-outline);
+  --color-m-error: var(--m-error);
+  --color-m-on-error: var(--m-on-error);
+  --color-m-inverse-surface: var(--m-inverse-surface);
+  --color-m-inverse-on-surface: var(--m-inverse-on-surface);
+}
+
+/* ===== 编辑弹层：评分一行五颗星（同奇趣 .it-stars；星星按钮 .it-star-btn 在奇趣 main.css） ===== */
+.gm-stars { display: flex; gap: 4px; }
+
+/* ===== 调整顺序窗 #gm-order-wrap（命令链「sort games/」）=====
+   开合 / 遮罩用共享外壳 .sgx-qp（顶栏下方铺满、dialog 本身是遮罩、顶栏留在上面可点）+ 共享 modalSheet；这里只定卡片（同 music/css/input.css 的 .sgx-up）：
+   实色、1px 终端线、圆角 16；左右留 --sgx-page-m，最宽 480，高度随内容、最高 82vh；
+   开合 = 轻微缩放 + 淡入 240ms（减弱动效只淡入）。桌面：宽 min(560px, 86vw)。遮罩 / 位置见下（同编辑窗）。
+   头部一行：等宽小标题 · ×，下一条细线；列表区自己滚，底部按钮常驻。 */
+/* Gray 2026-11-23 定：遮罩和位置统一成编辑窗（#gm-edit-wrap 的 bk-overlay）：铺满整个视口（盖住顶栏）、50% 深色遮罩（同 .bk-overlay-backdrop）、z 50；
+   卡片在视口里垂直、水平都居中（手机也是，不再贴顶栏下沿）。 */
+.gm-dlg { top: 0; z-index: 50; }
+.gm-dlg.is-open { background-color: rgb(0 0 0 / .5); }
+.gm-dlg .sgx-qp-sheet { top: 50%; left: max(var(--sgx-page-m), env(safe-area-inset-left, 0px)); right: max(var(--sgx-page-m), env(safe-area-inset-right, 0px));
+  width: auto; max-width: 480px; max-height: min(82vh, calc(100% - 2 * var(--sgx-page-m) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))); margin: 0 auto; padding: 0;
+  display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; border-color: var(--sgx-term-line); background: var(--sgx-mat-solid); -webkit-backdrop-filter: none;
+  transform: translateY(calc(-50% + 8px)) scale(.97); opacity: 0; transform-origin: 50% 50%; transition: transform .24s cubic-bezier(.2,.8,.2,1), opacity .24s cubic-bezier(.2,.8,.2,1); }
+@supports (backdrop-filter: blur(1px)) { .gm-dlg .sgx-qp-sheet { backdrop-filter: none; } }
+.gm-dlg.is-open .sgx-qp-sheet { transform: translateY(-50%); opacity: 1; }
+.reduced-motion .gm-dlg .sgx-qp-sheet { transform: translateY(-50%); transition: opacity .12s ease; }
+@media (prefers-reduced-motion: reduce) { .gm-dlg .sgx-qp-sheet { transform: translateY(-50%); transition: opacity .12s ease; } }
+:root[data-sgx-layout="desktop"] .gm-dlg .sgx-qp-sheet { left: 0; right: 0; width: min(560px, 86vw); max-width: none; margin: 0 auto; border-radius: 14px;
+  max-height: min(82vh, calc(100% - 2rem)); box-shadow: 0 30px 80px rgba(0,0,0,.45); }
+/* 手机布局时右下角 AI 浮钮压在卡片底部按钮上（同音乐上传窗的处理）：窗开着就先藏起来 */
+:root:not([data-sgx-layout="desktop"]):has(dialog.gm-dlg[open]) .sgx-tb-ai { opacity: 0; visibility: hidden; pointer-events: none; }
+.gm-dlg-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 16px; border-bottom: 1px solid var(--sgx-term-line); }
+.gm-dlg-title { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--sgx-font-mono); font-size: 14px; font-weight: 600; color: var(--sgx-text-primary); }
+.gm-dlg-x { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 0; border-radius: 999px; background: transparent; color: var(--sgx-text-secondary); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.gm-dlg-x svg { width: 19px; height: 19px; }
+.gm-dlg-x:active { background: var(--sgx-state-pressed-bg); }
+.gm-dlg-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+.gm-dlg-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--sgx-text-secondary); }
+.gm-dlg-foot { flex: none; display: flex; gap: 12px; padding: 12px 16px 14px; border-top: 1px solid var(--sgx-term-line); }
+:root[data-sgx-layout="desktop"] .gm-dlg-foot { justify-content: flex-end; }
+.gm-dlg-no, .gm-dlg-go { flex: 1 1 0; height: 40px; border-radius: 8px; font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 600; cursor: pointer; }
+:root[data-sgx-layout="desktop"] .gm-dlg-no, :root[data-sgx-layout="desktop"] .gm-dlg-go { flex: none; min-width: 120px; padding: 0 20px; }
+.gm-dlg-no { background: transparent; border: 1px dashed var(--sgx-term-line); color: var(--sgx-text-primary); }
+.gm-dlg-go { border: 0; background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); }
+.gm-dlg-go:disabled { cursor: default; }
+.gm-dlg-x:focus-visible, .gm-dlg-no:focus-visible, .gm-dlg-go:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+
+/* 排序列表：一行一个游戏（把手 · 序号 · 名字 · 上移 · 下移），外框同音乐曲目表那种细线圆角框；拖动中的那一行抬起来（主色细边 + 浅底） */
+.gm-ord { margin: 0; padding: 0; list-style: none; border: 1px solid var(--sgx-outline-variant); border-radius: 12px; overflow: hidden; }
+.gm-ord:empty { display: none; }
+.gm-ord-row { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 2px 4px 2px 2px; background: var(--sgx-mat-solid); }
+.gm-ord-row + .gm-ord-row { border-top: 1px solid var(--sgx-divider); }
+.gm-ord-grip { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 44px; color: var(--sgx-text-tertiary); cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; }
+.gm-ord.is-dragging, .gm-ord.is-dragging * { cursor: grabbing; -webkit-user-select: none; user-select: none; }
+.gm-ord-row.is-drag { position: relative; z-index: 1; background: color-mix(in srgb, var(--sgx-primary) 8%, var(--sgx-mat-solid)); box-shadow: inset 0 0 0 1px var(--sgx-primary); }
+.gm-ord-row.is-drag .gm-ord-grip { color: var(--sgx-primary); }
+.gm-ord-n { flex: none; min-width: 2ch; font-family: var(--sgx-font-mono); font-size: 12px; color: var(--sgx-text-tertiary); }
+.gm-ord-t { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; color: var(--sgx-text-primary); }
+.gm-ord-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 0; border-radius: 999px; background: transparent; color: var(--sgx-text-secondary); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.gm-ord-btn:disabled { opacity: .3; cursor: default; }
+.gm-ord-btn:not(:disabled):active { background: var(--sgx-state-pressed-bg); }
+.gm-ord-btn:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+:root[data-sgx-layout="desktop"] .gm-ord-t { font-size: 14px; }
+
+/* ===== 列表卡片 / 条目页封面：竖版 3:4（Gray 2026-11-23 定；同裁剪框 COVER_RATIO、主页 [05]），竖封面完整显示，不再被横幅（90 / 150px 高）截断 ===== */
+.it-cc--game .sgx-cc-im, :root[data-sgx-layout="desktop"] .it-cc--game .sgx-cc-im { height: auto; aspect-ratio: 3 / 4; }
+.gm-wrap .sgx-item-im, :root[data-sgx-layout="desktop"] .gm-wrap .sgx-item-im { justify-self: center; width: min(100%, 320px); height: auto; aspect-ratio: 3 / 4; }
+:root[data-sgx-layout="desktop"] .gm-wrap .sgx-item-im { justify-self: start; width: min(100%, 420px); }
+.gm-wrap .sgx-item-im img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+
+/* ===== 状态分颜色（Gray 2026-11-23 定；同主页 [05] 的 .home-alb-a[data-st]）：想玩 蓝 / 在玩 绿 / 通关 橙 / 搁置 灰，用站内色板 token（深浅主题各一套值）。
+   卡片那行原来整行橙（.sgx-cc-k = --sgx-warning），星星保持橙；条目页 spec 表「状态」那格同色 ===== */
+.it-status--want { color: var(--sgx-info); }
+.it-status--playing { color: var(--sgx-success); }
+.it-status--done { color: var(--sgx-warning); }
+.it-status--shelved { color: var(--sgx-text-secondary); }
+/* 桌面版列表卡片的星放大到 14px（Gray 2026-11-23；手机保持行内 11.5px） */
+:root[data-sgx-layout="desktop"] .it-cc--game .it-stars-ro { font-size: 14px; }

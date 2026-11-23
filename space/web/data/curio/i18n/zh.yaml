@@ -2,19 +2,6 @@
 site:
   name: 奇趣
   description: Sloan Gray 的奇趣：在网上偶然遇到、想留下的好东西
-entries:
-  finds:
-    title: 发现
-    sub: 分类收藏的好东西
-  devices:
-    title: 设备
-    sub: 在用和用过的设备
-  games:
-    title: 游戏
-    sub: 玩过、在玩、想玩
-  movies:
-    title: 电影
-    sub: 喜欢的电影和短评
 notFound:
   pageNotFound: 页面不存在
   thePageYoureLooking: 你要找的页面不存在或已被移动。
@@ -84,26 +71,6 @@ finds:
   chooseFile: 选择文件
   importAsOnlyMe: 导入为仅自己可见
   import: 导入
-games:
-  games: 游戏
-  filter: 筛选
-  loading: 加载中…
-  game: 游戏
-  close: 关闭
-  chooseCover: 选封面
-  removeCover: 去掉封面
-  title: 名字
-  status: 状态
-  platform: 平台
-  eGSwitchPc: 比如 Switch、PC
-  playedOn: 在哪台设备上
-  version: 版本
-  eGPhysicalDeluxe: 比如 实体版、豪华版、1.2
-  rating: 评分
-  thoughts: 评价
-  onlyMe: 仅自己可见
-  delete: 删除
-  save: 保存
 movies:
   movies: 电影
   loading: 加载中…
@@ -136,7 +103,6 @@ list:
   more: 滚动加载更多
   pager: 分页
   loading: 正在加载…
-  tabs: 奇趣分区
 sort:
   recent: 最近收藏
   order: 我的顺序
@@ -147,7 +113,6 @@ sort:
 cmd:
   addFind: 收藏
   addDevice: 添加设备
-  addGame: 添加游戏
   addMovie: 添加电影
   cats: 管理分类
   import: 导入书签
@@ -208,16 +173,9 @@ js:
     kind_console: 游戏机
     kind_camera: 相机
     kind_other: 其他
-    status_want: 想玩
-    status_playing: 在玩
-    status_done: 通关
-    status_shelved: 搁置
     addDevice: 添加设备
     editDevice: 编辑设备
-    addGame: 添加游戏
-    editGame: 编辑游戏
     emptyDevAdmin: 还没有设备。用上面的「添加设备」加第一台。
-    emptyGameAdmin: 还没有游戏。用上面的「添加游戏」加一个。
     empty: 这里还空着。
     noMatch: 这个筛选下没有。
     needName: 起个名字。
@@ -230,7 +188,6 @@ js:
     notImage: 这张图用不了。
     tooLarge: 照片太大了。
     delDevice: 确定删除这台设备吗？
-    delGame: 确定删除这个游戏吗？
     del: 删除
     none: 无
     priv: 仅自己可见
@@ -244,17 +201,10 @@ js:
     notes: 体验
     from: 换下了
     to: 换成了
-    platform: 平台
-    'on': 在哪台上玩
-    edition: 版本
-    rating: 评分
-    review: 评价
-    stars: '{n} 星'
     crop: 移动和缩放
     cancel: 取消
     done: 完成
     adjust: 调整照片
-    games: 游戏
     listSep: 、
     days: '{n} 天'
     aboutYears: ' · 约 {y} 年'

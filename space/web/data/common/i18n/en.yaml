@@ -7,21 +7,20 @@ notFound:
   backHome: Back home
   curio: Curio
 home:
-  # 主页首屏终端（2026-11 UI 重设计 PR-2；对齐 PR-B 按设计稿 tb4.html；2026-11-21 重排为 博客 / 日刻 / 音乐 / 奇趣；旧 [04] 旷野 2026-11-12 删除）。status 是首帧文字，外壳取到 /api/status 后换成 js.space.homeStatusUp / Down
+  # 主页首屏终端（2026-11 UI 重设计 PR-2；对齐 PR-B 按设计稿 tb4.html；2026-11-21 重排为 博客 / 日刻 / 音乐 / 奇趣，奇趣重组 PR 2 加 [05] 游戏、[04] 奇趣改成最新收藏；旧 [04] 旷野 2026-11-12 删除）。status 是首帧文字，外壳取到 /api/status 后换成 js.space.homeStatusUp / Down
   status: "STATUS: ONLINE · 6/6 ACTIVE"
   blog: Blog
   minutes: "{n} min"
   blogLabel: "[01] Blog · latest 3"
-  curioLabel: "[04] Curio"
+  curioLabel: "[04] Curio · latest finds"
   curio:
     title: Curio
-    finds: { name: Finds, latest: Latest find }
-    devices: { name: Devices, latest: In use }
-    games: { name: Games, latest: Playing }
   daymark: Daymark
   daymarkLabel: "[02] Daymark · line of the day"
   music: Music
   musicLabel: "[03] Music · latest albums"
+  games: Games
+  gamesLabel: "[05] Games · latest"
 index:
   dmWindow: Echo
   noLineForToday: No line for today yet
@@ -114,6 +113,11 @@ js:
     homeStatusDown: "STATUS: DEGRADED · {up}/{n} ACTIVE"
     dmSourceWrap: '{s}'
     dmCounts: " · Trove {q} · Flavors {f}"
+    # 主页 [05] 游戏的状态（同 /games/ 的 chips，data/games/i18n js.gamesPage.status_*）
+    gameWant: Want to play
+    gamePlaying: Playing
+    gameDone: Finished
+    gameShelved: On hold
   status:
     activeUp: active (running)
     activeDown: degraded

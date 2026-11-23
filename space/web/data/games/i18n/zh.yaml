@@ -1,0 +1,80 @@
+# 游戏子站字符串表（中文；缺的键回退英文 en.yaml）
+site:
+  name: 游戏
+  description: 'Sloan Gray 的游戏：玩过、在玩、想玩'
+games:
+  games: 游戏
+  filter: 筛选
+  loading: 加载中…
+  game: 游戏
+  close: 关闭
+  chooseCover: 选封面
+  removeCover: 去掉封面
+  title: 名字
+  status: 状态
+  platform: 平台
+  eGSwitchPc: 比如 Switch、PC
+  version: 版本
+  eGPhysicalDeluxe: 比如 实体版、豪华版、1.2
+  rating: 评分
+  thoughts: 评价
+  onlyMe: 仅自己可见
+  delete: 删除
+  save: 保存
+  cancel: 取消
+  orderTitle: 调整顺序
+  orderNote: 这就是「我的顺序」的排法，私密的游戏也在里面。
+  moveUp: 上移
+  moveDown: 下移
+list:
+  sortBy: 排序
+  more: 滚动加载更多
+  pager: 分页
+sort:
+  recent: 最近添加
+  order: 我的顺序
+  rating: 评分
+  name: 名字
+cmd:
+  addGame: 添加游戏
+  order: 调整顺序
+js:
+  gamesPage:
+    all: 全部
+    status_want: 想玩
+    status_playing: 在玩
+    status_done: 通关
+    status_shelved: 搁置
+    addGame: 添加游戏
+    editGame: 编辑游戏
+    emptyAdmin: 还没有游戏。用上面的「添加游戏」加一个。
+    empty: 这里还空着。
+    noMatch: 这个筛选下没有。
+    needName: 起个名字。
+    failed: 出了点问题，请再试一次。
+    loadFail: "error: 列表没能加载  # 刷新重试"
+    saved: 已保存
+    deleted: 已删除
+    photoFail: 已保存，但封面没传上去。
+    notImage: 这张图用不了。
+    tooLarge: 图片太大了。
+    delGame: 确定删除这个游戏吗？
+    del: 删除
+    priv: 仅自己可见
+    platform: 平台
+    edition: 版本
+    rating: 评分
+    stars: '{n} 星'
+    crop: 移动和缩放
+    cancel: 取消
+    done: 完成
+    adjust: 调整封面
+    state: 状态
+    related: 相关文章
+    editCmd: 编辑
+    back: 回到列表
+    notFound: 这个游戏不存在，或者你看不到它。
+    noPermission: 当前用户没有这个权限。
+    count: '-- {n} / {total} --'
+    orderSaved: 顺序已保存
+    orderStale: 列表刚刚变了，刷新后再试一次。

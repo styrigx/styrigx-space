@@ -121,8 +121,8 @@ for (const [w, h] of VIEWPORTS) {
 
 /* 名字按页面语言（博客跟主站 sgx-ui cookie / 浏览器语言，可能是英文） */
 const SECTIONS = [
-  /* 奇趣（对齐 PR-C2）：页头下划线 tab 是子页链接，点了到子页，胶囊 = 子页名 */
-  ['/curio/', ['奇趣', 'Curio'], [['#cu-tabs [data-ctab="devices"]', ['设备', 'Devices']], ['#cu-tabs [data-ctab="games"]', ['游戏', 'Games']], ['#cu-tabs [data-ctab="finds"]', ['发现', 'Finds']], ['#cu-tabs [data-ctab="movies"]', ['电影', 'Movies']]]],
+  /* 奇趣（奇趣重组 PR 2）：页头没有分区 tab 行了（奇趣 = 发现，设备 / 电影是子页、游戏是子站），只查首页本身 */
+  ['/curio/', ['奇趣', 'Curio'], []],
   /* 日刻（对齐 PR-C2）：余响下面的窗标题进拾录 / 百味，那边「cd ..」回余响 */
   ['/daymark/', ['日刻', 'Daymark'], [['#dm-wt-trove a', ['拾录', 'Trove']], ['#dm-pane-trove .sgx-cmds a[href="#"]', ['日刻', 'Daymark']], ['#dm-wt-flavors a', ['百味', 'Flavors']], ['#dm-pane-flavors .sgx-cmds a[href="#"]', ['日刻', 'Daymark']]]],
   /* 博客（对齐 PR-C）：首页是一页文章列表 + 分类 chips，没有分区入口（tests/blog/e2e/app-topbar.spec.js 覆盖） */

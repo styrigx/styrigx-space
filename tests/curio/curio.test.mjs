@@ -137,7 +137,7 @@ test('usedDays：购买当天算第 1 天，退役了算到退役日；没填 / 
   assert.match(IT.todayStr(Date.UTC(2026, 9, 22, 12)), /^2026-10-2[12]$/);
 });
 
-test('筛选、换代历史、平台联想、缩图尺寸', () => {
+test('筛选、换代历史、缩图尺寸（游戏的筛选 / 平台联想搬去游戏子站）', () => {
   const D = [{ id: 1, retired_at: '2025-01-01', replaced_by: 2 }, { id: 2, retired_at: '', replaced_by: 0 }, { id: 3, retired_at: '2024-01-01', replaced_by: 2 }];
   assert.deepEqual(IT.filterDevices(D, 'active').map((d) => d.id), [2]);
   assert.deepEqual(IT.filterDevices(D, 'retired').map((d) => d.id), [1, 3]);
@@ -145,24 +145,22 @@ test('筛选、换代历史、平台联想、缩图尺寸', () => {
   assert.deepEqual(IT.lineage(D, 2).before.map((d) => d.id), [1, 3]);
   assert.equal(IT.lineage(D, 1).after.id, 2);
   assert.equal(IT.lineage(D, 2).after, null);
-  const Gs = [{ status: 'done', platform: 'Switch' }, { status: 'want', platform: ' PC ' }, { status: 'done', platform: 'Switch' }, { status: 'want', platform: '' }];
-  assert.equal(IT.filterGames(Gs, 'done').length, 2);
-  assert.equal(IT.filterGames(Gs, 'all').length, 4);
-  assert.deepEqual(IT.platformsOf(Gs), ['Switch', 'PC']);
+  /* 奇趣重组 PR 2：游戏筛选 / 平台联想 / 状态搬到游戏子站（games/js/games-page.js），用例在 tests/curio/games-page.test.mjs */
+  assert.equal(IT.filterGames, undefined);
+  assert.equal(IT.STATUS, undefined);
   assert.deepEqual(IT.fitSize(4000, 3000, 1600), { w: 1600, h: 1200 });
   assert.deepEqual(IT.fitSize(800, 600, 1600), { w: 800, h: 600 });
   assert.deepEqual(IT.KINDS.length, 9);
-  assert.deepEqual(IT.STATUS, ['want', 'playing', 'done', 'shelved']);
 });
 
 test('裁剪几何：取景框按卡片比例、照片始终盖满、框住的原图区域、重新调整摆回原位', () => {
   /* music 搬家第 3 步：奇趣样式后半段拆到 curio-tail.css（input.css 末尾 @import），两份合起来是搬家前的 input.css */
   const css = readFileSync(new URL('../../space/web/assets/curio/css/input.css', import.meta.url), 'utf8') + readFileSync(new URL('../../space/web/assets/curio/css/curio-tail.css', import.meta.url), 'utf8');
-  /* 照片按 设备 4:3 / 游戏 3:4 存；2026-11 对齐 PR-C2 起卡片封面位是固定高度（共享外壳 .sgx-cc-im 150 / 90px），图片 object-fit: cover 铺满 */
+  /* 照片按 设备 4:3 存（游戏封面 3:4 奇趣重组 PR 2 起归游戏子站，见 games-page.test.mjs）；2026-11 对齐 PR-C2 起卡片封面位是固定高度（共享外壳 .sgx-cc-im 150 / 90px），图片 object-fit: cover 铺满 */
   assert.match(readFileSync(new URL('../../space/web/assets/common/css/frame.css', import.meta.url), 'utf8'), /\.sgx-cc-im img \{[^}]*object-fit: cover;/);
   assert.match(css, /\.it-cc \.sgx-cc-im img \{ z-index: 1; \}/);
   assert.equal(IT.CROP_RATIO.device, 4 / 3);
-  assert.equal(IT.CROP_RATIO.game, 3 / 4);
+  assert.equal(IT.CROP_RATIO.game, undefined, '奇趣重组 PR 2：奇趣不再管游戏封面');
   /* 412×915 手机：设备框 364×273，游戏框 364×485；矮屏按高度收 */
   assert.deepEqual(IT.cropFrame(412, 915, 4 / 3), { w: 364, h: 273 });
   assert.deepEqual(IT.cropFrame(412, 915, 3 / 4), { w: 364, h: 485 });
@@ -198,11 +196,14 @@ test('裁剪几何：取景框按卡片比例、照片始终盖满、框住的�
   assert.deepEqual(IT.cropOut(300, 400, 3 / 4, 1200), { w: 300, h: 400 });
 });
 
-test('首页旧 hash（客户端兼容）：#devices / #games → 子页；#c/<id> 不跳（对齐 PR-C2 起首页就是发现，就地生效），其余不跳；curio-tabs.js 已删', () => {
+test('首页旧 hash（客户端兼容）：#devices → 设备子页（地址按本页路径算，语言前缀保留）；#games 不再跳（奇趣重组 PR 2：游戏是子站 /games/，旧 /curio/games/ 由 _redirects 301）；#c/<id> 不跳，其余不跳；curio-tabs.js 已删', () => {
   assert.deepEqual(HM.legacyTarget('#devices'), { entry: 'devices', hash: '' });
-  assert.deepEqual(HM.legacyTarget('#games'), { entry: 'games', hash: '' });
-  assert.deepEqual(HM.legacyTarget('#games/x'), { entry: 'games', hash: '' });
-  for (const h of ['', '#', '#c/3', '#c/x', '#trove', '#music']) assert.equal(HM.legacyTarget(h), null, h);
+  assert.deepEqual(HM.legacyTarget('#devices/3'), { entry: 'devices', hash: '' });
+  for (const h of ['', '#', '#c/3', '#c/x', '#trove', '#music', '#games', '#games/x']) assert.equal(HM.legacyTarget(h), null, h);
+  assert.equal(HM.entryPath('/curio/', 'devices'), '/curio/devices/');
+  assert.equal(HM.entryPath('/curio/zh/', 'devices'), '/curio/zh/devices/');
+  assert.equal(HM.entryPath('/curio/zh', 'devices'), '/curio/zh/devices/', '没有结尾斜杠补上');
+  assert.equal(HM.entryPath('', 'devices'), '/curio/devices/');
   assert.equal(existsSync(new URL('../../space/web/assets/curio/js/curio-tabs.js', import.meta.url)), false);
 });
 
@@ -332,17 +333,13 @@ test('排序：order / name 升序，其余降序；数字按数字比，空值�
   assert.deepEqual(names.slice().sort((a, b) => CL.cmpKey(a, b, 'name', 'en')).map((r) => r.ord), [1, 0]);
 });
 
-test('分页条：「-- 已显示 / 共 --」，页大小桌面 12 / 手机 8；tab 计数只问别的分区的接口', () => {
+test('分页条：「-- 已显示 / 共 --」，页大小桌面 12 / 手机 8；分区 tab 计数随 tab 行删了（奇趣重组 PR 2）', () => {
   assert.equal(CL.countText(12, 42), '-- 12 / 42 --');
   assert.equal(CL.countText(12, 5), '-- 5 / 5 --');
   assert.equal(CL.countText(3, 9, '{n} of {total}'), '3 of 9');
   assert.equal(CL.pageSize(true), 12);
   assert.equal(CL.pageSize(false), 8);
-  assert.deepEqual(CL.countSources('finds'), ['items', 'movies']);
-  assert.deepEqual(CL.countSources('devices'), ['links', 'movies']);
-  assert.deepEqual(CL.countSources('games'), ['links', 'movies']);
-  assert.deepEqual(CL.countSources('movies'), ['links', 'items']);
-  assert.deepEqual(CL.countSources('music'), ['links', 'items', 'movies']);
+  assert.equal(CL.countSources, undefined, 'tab 计数（问别的分区接口）删了');
 });
 
 test('条目页：相关文章按名字找（整名在标题 > 词在标题 > 词在标签；同分取新的；没有 null）；收入于取年月；前后条目', () => {

@@ -8,7 +8,7 @@
 /** 命令 → { d: NAME 说明, syn: SYNOPSIS 各行, desc? / auth? / notes?: 正文，opt?: OPTIONS，ex?: EXAMPLES，see?: SEE ALSO（这个文件不 import，懒加载 chunk 不牵出共享代码）。v6 P4 起旧命令（sudo styrigx / sudo root / sudo -v、lock passwd / passkey / --all、share）的页删了或改成 v6 写法 } */
 export const PAGES = Object.freeze({
   man: { d: 'read a command’s manual page', syn: ['man [<command>]'] },
-  cd: { d: 'change the current directory (use open to go there)', syn: ['cd [blog | curio | daymark | account | proxy | ~ | ..]'], see: ['ls', 'open', 'pwd'] },
+  cd: { d: 'change the current directory (use open to go there)', syn: ['cd [blog | daymark | music | curio | games | account | proxy | ~ | ..]'], see: ['ls', 'open', 'pwd'] },
   ls: { d: 'list a directory', syn: ['ls [<path>]'], see: ['cd', 'open', 'pwd'] },
   cat: { d: 'print today’s daymark line', syn: ['cat daymark/today'] },
   sudo: { d: 'run one command as root with your own credentials (sudoers only; no ticket kept)', syn: ['sudo useradd | userdel | usermod | passwd <name>', 'sudo groups [<name>]', 'sudo who'], see: ['su', 'useradd', 'userdel', 'usermod'] },

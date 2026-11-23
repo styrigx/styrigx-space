@@ -1,0 +1,7 @@
+{{- /* /games/sitemap.xml（奇趣重组 PR 2，同 /music/sitemap.xml）：根上只有一份，列首页的中英两版（英文默认、中文 /games/zh/）并互标 hreflang。
+中英两种语言各渲染一次但内容完全相同，谁后写都一样。条目深链 ?game=<id> 不列。 */ -}}
+{{- printf `<?xml version="1.0" encoding="utf-8" standalone="yes"?>` | safeHTML -}}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+{{- $all := (site.GetPage "/games").AllTranslations -}}
+{{- range $all }}<url><loc>{{ .Permalink }}</loc>{{ range $all }}<xhtml:link rel="alternate" hreflang="{{ .Language.Lang }}" href="{{ .Permalink }}"/>{{ end }}</url>{{ end -}}
+</urlset>

@@ -132,6 +132,9 @@
 /* 手机 tab 放不下时的「›」（curio.js paintTabsMore）：贴在 tab 条右端、渐隐带上面，点了滑到最后一项 */
 .cu-tabs-more { flex: none; align-self: center; margin: 0 0 0 -22px; padding: 0 6px; border: 0; background: transparent; font: inherit; color: var(--sgx-primary); cursor: pointer; }
 .cu-tabs-more[hidden] { display: none; }
+/* 奇趣重组 PR 2 起页头没有分区 tab 了，这一行只剩「grep _」：行高原来由 tab（上 10 + 下 8 + 2px 下划线）撑起 42px，tab 去掉后塌成 22px（太扁、手机点按区只有 22px 高）。
+   给 grep 按钮 / 展开后的输入框补上同样的上下内边距，行高回到 42px，和拆前、和设备 / 电影子页对齐 */
+#cu-tabs > .sgx-grep, #cu-tabs > .sgx-grep-box { padding-block: 10px; }
 
 /* 电影：编辑弹层里的海报缩略图 2:3（同 curio-items.js 的 CROP_RATIO.movie） */
 .it-photo-prev--poster { width: 60px; height: 90px; }

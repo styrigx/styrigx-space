@@ -177,7 +177,7 @@ jobs:
         run: |
           pattern="$(node -e "process.stdout.write(require('./space/scripts/check/retired-names.json').html.join('|'))")"
           test -n "$pattern"
-          if grep -rlE "$pattern" space/web/public/ --include="*.html" | grep -vE '^space/web/public/(blog|curio|daymark|music)/'; then
+          if grep -rlE "$pattern" space/web/public/ --include="*.html" | grep -vE '^space/web/public/(blog|curio|daymark|music|games)/'; then
             echo "FAIL: 技术变量名出现在 HTML 产物中"
             exit 1
           fi
@@ -215,7 +215,7 @@ jobs:
         # v5 S8：#370 的中文标签漏翻（lang-pack「中文页没有漏翻」）在 unit job 里一直是 skip，CI 没拦住；这里对生产构建再跑一遍
         run: node --test tests/space/ui/build/lang-pack.test.mjs tests/space/ui/build/one-site.test.mjs tests/space/ui/build/search-index.test.mjs tests/space/ui/build/space-entries.test.mjs tests/space/ui/build/space-merge.test.mjs tests/space/ui/home/home-typer.test.mjs tests/space/ui/topbar/topbar-four-sites.test.mjs
 
-      - name: Check site tree (根文件只在域名根、子站都在、子站 /js/ 带指纹、/curio/ /daymark/ /music/ 和根上没有多余图片)
+      - name: Check site tree (根文件只在域名根、子站都在、子站 /js/ 带指纹、/curio/ /daymark/ /music/ /games/ 和根上没有多余图片)
         # 2026-11 合站前这一步查拼好的 dist/site；合站后同样的断言直接查生产构建 space/web/public
         run: |
           set -u
@@ -235,8 +235,13 @@ jobs:
           for f in _worker.js _headers _redirects robots.txt; do test ! -e "$T/music/$f" || fail "$T/music/$f must not exist (root-only file)"; done
           grep -q "^/music/js/\*$" "$T/_headers" || fail "_headers has no /music/js/* cache rule"
           test ! -e "$T/curio/music" || fail "$T/curio/music still built (moved to /music/, 301 in _redirects)"
+          # 第五个子站 games（奇趣重组 PR 2，2026-11-22）：只有首页（中英），没有自己的 404（走根上的 404.html）；旧 /curio/games/、/curio/finds/ 不再构建（301 在 _redirects）
+          for f in index.html zh/index.html sitemap.xml; do test -s "$T/games/$f" || fail "$T/games/$f missing"; done
+          for f in _worker.js _headers _redirects robots.txt; do test ! -e "$T/games/$f" || fail "$T/games/$f must not exist (root-only file)"; done
+          grep -q "^/games/js/\*$" "$T/_headers" || fail "_headers has no /games/js/* cache rule"
+          for d in curio/games curio/zh/games curio/finds curio/zh/finds; do test ! -e "$T/$d" || fail "$T/$d still built (301 in _redirects)"; done
           # 子站 /js/ 引用都带内容指纹（_headers 给它们一年 immutable）
-          refs=$(grep -rhoE 'src="?/(blog|curio|daymark|music)/js/[a-zA-Z0-9_./-]+\.js' "$T/blog" "$T/curio" "$T/daymark" "$T/music" | sort -u || true)
+          refs=$(grep -rhoE 'src="?/(blog|curio|daymark|music|games)/js/[a-zA-Z0-9_./-]+\.js' "$T/blog" "$T/curio" "$T/daymark" "$T/music" "$T/games" | sort -u || true)
           bad=$(echo "$refs" | grep -vE '\.[0-9a-f]{8,}\.(js|mjs)$' | grep -v '^$' || true)
           [ -z "$bad" ] || fail "unversioned subsite /js/ refs: $bad"
           # 图片一律要过会话（2026-10-29）：/curio/ /daymark/ 一张都不许有；根上只许主站已有的 /images/ /avatar/ /fav/ og.png favicon.*

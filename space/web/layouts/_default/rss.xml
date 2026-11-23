@@ -29,7 +29,7 @@
 {{- else }}
 	{{- $pages = $pctx.Pages }}
 {{- end }}
-{{- $pages = where $pages "Section" "not in" (slice "blog" "curio" "daymark" "music") }}
+{{- $pages = where $pages "Section" "not in" (slice "blog" "curio" "daymark" "music" "games") }}
 {{- $pages = where $pages "Type" "ne" "blog" }}
 {{- $limit := .Site.Config.Services.RSS.Limit }}
 {{- if ge $limit 1 }}

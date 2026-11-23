@@ -215,11 +215,11 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(html, /href="?https:\/\/x\.com\/intent\/post\?text=/);
   });
 
-  it('NAVIGATE（顶栏 v3）：主页 / 博客 / 日刻 / 音乐 / 奇趣（Gray 2026-11-21；主站项绝对地址、子站之间相对 /<站>/），博客「开」态；头像在顶栏最右（没 JS 时去主站旧账号地址，301 → 首页 #acct；点开是账号终端）；没有搜索框', async () => {
+  it('NAVIGATE（顶栏 v3）：主页 / 博客 / 日刻 / 音乐 / 奇趣 / 游戏（Gray 2026-11-21；奇趣重组 PR 2 追加游戏；主站项绝对地址、子站之间相对 /<站>/），博客「开」态；头像在顶栏最右（没 JS 时去主站旧账号地址，301 → 首页 #acct；点开是账号终端）；没有搜索框', async () => {
     const html = await (await fetch(base + '/blog/')).text();
     const hrefs = [...html.matchAll(/class="sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
     /* 2026-11-12：05 旷野删除；logo 回主站首页 /，STATUS 区按钮去主站状态页 */
-    assert.deepEqual(hrefs, ['https://styrigx.com/', '/blog/', '/daymark/', '/music/', '/curio/']);
+    assert.deepEqual(hrefs, ['https://styrigx.com/', '/blog/', '/daymark/', '/music/', '/curio/', '/games/']);
     assert.match(html, /<a class="sgx-tb-logo" href="\/"/, 'logo 回主站首页');
     assert.match(html, /<a href="https:\/\/styrigx\.com\/status\/" class="sgx-nav-st-go"/, 'STATUS 跳转按钮');
     assert.match(html, /class="sgx-nav-tile" href="\/blog\/" data-nav="blog" aria-current="page"/);
@@ -231,7 +231,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.doesNotMatch(html, /atlas\.styrigx\.com/, '合并 PR3：不再有旧图志域名');
     const zh = await (await fetch(base + '/blog/zh/')).text();
     const zhHrefs = [...zh.matchAll(/class="sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
-    assert.deepEqual(zhHrefs, ['https://styrigx.com/zh/', '/blog/zh/', '/daymark/zh/', '/music/zh/', '/curio/zh/']);
+    assert.deepEqual(zhHrefs, ['https://styrigx.com/zh/', '/blog/zh/', '/daymark/zh/', '/music/zh/', '/curio/zh/', '/games/zh/']);
     assert.match(zh, /<a class="sgx-tb-logo" href="\/zh\/"/, '中文 logo 回 /zh/');
     assert.match(zh, /<a href="https:\/\/styrigx\.com\/zh\/status\/" class="sgx-nav-st-go"/, '中文 STATUS 跳转按钮');
     assert.match(zh, /<a class="sgx-tb-av" href="https:\/\/styrigx\.com\/zh\/account\/"/);

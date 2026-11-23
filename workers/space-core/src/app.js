@@ -7,7 +7,7 @@
  * 静态资源目录（MAIN_STATIC_PREFIXES）和根目录几张公开图第一行就原样回源（isMainStaticPassthrough），不验会话、不改响应。
  * 顺序（合并 PR3，2026-11-03；P4-3 PR-1 删掉旧图志域名的 301 一步）：
  *   1. 主站静态直通（isMainStaticPassthrough）
- *   2. 子站前缀（styrigx.com/blog/ /curio/ /daymark/ /music/，gate.js subsiteOf）的静态后缀 → 原样回源（只补 HSTS、nosniff）；旧 /<站>/en/… 除外（交给子站关口判 404）
+ *   2. 子站前缀（styrigx.com/blog/ /curio/ /daymark/ /music/ /games/，gate.js subsiteOf）的静态后缀 → 原样回源（只补 HSTS、nosniff）；旧 /<站>/en/… 除外（交给子站关口判 404）
  * 主站的后端代码只在本 Worker，Pages 只放静态文件：
  *   2b. POST /api/csp-report（core/csp-report.js）：Report-Only CSP 的违规报告，只记日志、204，不经关口、不存东西
  *   （v6 P4 起没有 Secrets Store 私密值要换（secrets.js 删除），分享链接 /s/<码>、/api/share 整套删除）

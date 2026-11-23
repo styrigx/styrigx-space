@@ -80,7 +80,7 @@ nav:
     sub: "Style and security"
   curio:
     title: "Curio"
-    sub: "Finds, devices, games"
+    sub: "Bookmarked finds"
   daymark:
     title: "Daymark"
     sub: "A line a day"
@@ -90,6 +90,9 @@ nav:
   music:
     title: "Music"
     sub: "Albums and singles"
+  games:
+    title: "Games"
+    sub: "Playing and played"
   title: "NAVIGATE"
   status: "STATUS"
   statusPending: "not wired yet"
@@ -110,6 +113,7 @@ foot:
     curio: "curio"
     daymark: "daymark"
     music: "music"
+    games: "games"
   status: "Service status"
   clock: "Beijing time"
   langs: "Language"

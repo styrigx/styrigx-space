@@ -86,25 +86,27 @@ test('共享外壳：frame/page-head.html 只有主站一份（2026-11 合站后
   }
 });
 
-test('子站接入（对齐 PR-C2）：奇趣四个分区页同一个页头（页头 + 下划线 tab + grep + 命令链），日刻拾录 / 百味各一个页头 + cd ..；博客首页 / 目录页 / 标签页用 sgx-ph；都不用段式标签 / 平铺入口', () => {
-  for (const id of ['devices', 'games', 'movies']) {
+test('子站接入（对齐 PR-C2；奇趣重组 PR 2）：奇趣三个分区页同一个页头（页头 + grep + 命令链，没有分区 tab 行），游戏 / 音乐用共享外壳页头，日刻拾录 / 百味各一个页头 + cd ..；博客首页 / 目录页 / 标签页用 sgx-ph；都不用段式标签 / 平铺入口', () => {
+  for (const id of ['devices', 'movies']) {
     assert.match(rd(`space/web/layouts/curio/${id}.html`), new RegExp(`partial "curio/page-head\\.html" \\(dict "page" \\. "id" "${id}"`), id);
   }
-  /* 打磨 6.1：音乐页（layouts/music/section.html）用自己的页头：共享外壳 page-head「ls music/」，不再借奇趣的（没有奇趣 tab、grep） */
-  const mu = rd('space/web/layouts/music/section.html');
-  assert.match(mu, /partial "common\/frame\/page-head\.html" \(dict "cmd" "ls music\/"/);
-  assert.doesNotMatch(mu, /partial "curio\/page-head\.html"/);
-  assert.doesNotMatch(mu, /sgx-segtabs|sgx-entries|data-cu-grep/);
+  /* 奇趣重组 PR 2：游戏是第五个子站（layouts/games/section.html），奇趣的 games.html / finds.html 删了（finds = 奇趣首页） */
+  for (const f of ['games.html', 'finds.html']) assert.ok(!has(`space/web/layouts/curio/${f}`), 'curio/' + f + ' 应已删除');
+  /* 打磨 6.1：音乐页（layouts/music/section.html）用自己的页头：共享外壳 page-head「ls music/」，不再借奇趣的（没有奇趣 tab、grep）；游戏页同样「ls games/」 */
+  for (const s of ['music', 'games']) {
+    const sec = rd(`space/web/layouts/${s}/section.html`);
+    assert.match(sec, new RegExp(`partial "common/frame/page-head\\.html" \\(dict "cmd" "ls ${s}/"`), s);
+    assert.doesNotMatch(sec, /partial "curio\/page-head\.html"/, s);
+    assert.doesNotMatch(sec, /sgx-segtabs|sgx-entries|data-cu-grep/, s);
+  }
   assert.match(rd('space/web/layouts/partials/curio/finds-main.html'), /partial "curio\/page-head\.html" \(dict "page" \$p "id" "finds"/);
-  for (const f of ['finds.html', 'section.html']) assert.match(rd('space/web/layouts/curio/' + f), /partial "curio\/finds-main\.html"/, f);
-  for (const id of ['finds', 'devices', 'games', 'movies']) for (const f of [`${id}.md`, `${id}.zh.md`]) assert.match(rd(`space/web/content/curio/${f}`), /^description: '.+'$/m, f);
-  for (const f of ['_index.md', '_index.zh.md']) assert.match(rd(`space/web/content/music/${f}`), /^description: '.+'$/m, 'music/' + f);
+  assert.match(rd('space/web/layouts/curio/section.html'), /partial "curio\/finds-main\.html"/, 'section.html');
+  for (const id of ['devices', 'movies']) for (const f of [`${id}.md`, `${id}.zh.md`]) assert.match(rd(`space/web/content/curio/${f}`), /^description: '.+'$/m, f);
+  for (const s of ['music', 'games']) for (const f of ['_index.md', '_index.zh.md']) assert.match(rd(`space/web/content/${s}/${f}`), /^description: '.+'$/m, s + '/' + f);
   const head = rd('space/web/layouts/partials/curio/page-head.html');
   assert.match(head, /partial "common\/frame\/page-head\.html"/);
   assert.match(head, /<div class="sgx-ctab" id="cu-tabs">/);
-  assert.match(head, /range \(slice "finds" "devices" "games" "movies"\)/, 'Gray 2026-11-22：奇趣 tab 行去掉 music/');
-  assert.match(head, /data-ctab="\{\{ \. \}\}"[^>]*\{\{ if eq \. \$cur \}\} aria-current="page"\{\{ end \}\}/);
-  assert.match(head, /<i data-cu-count="\{\{ \. \}\}"><\/i>/);
+  assert.doesNotMatch(head, /data-ctab=|data-cu-count/, '奇趣重组 PR 2：分区 tab 行和计数去掉');
   assert.match(head, /class="sgx-grep" data-cu-grep/);
   assert.match(head, /<div class="sgx-cmds" id="cu-cmds">/);
   /* v5 S3：音乐歌单公开，tab 不再按权限藏 */

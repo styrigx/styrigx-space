@@ -79,11 +79,11 @@ test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚
   assert.doesNotMatch(css.slice(css.indexOf('@import "../../common/css/frame.css";')), /dm-gb-|giscus|guestbook/);
 });
 
-test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主站共享外壳的 nav.json（顶栏 v3：主页 / 博客 / 日刻 / 音乐 / 奇趣；旧 05 旷野 2026-11-12 删除），模板不写死项；日刻是当前项；主站项走 https://styrigx.com', () => {
+test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主站共享外壳的 nav.json（顶栏 v3：主页 / 博客 / 日刻 / 音乐 / 奇趣 / 游戏；旧 05 旷野 2026-11-12 删除，奇趣重组 PR 2 追加 05 游戏），模板不写死项；日刻是当前项；主站项走 https://styrigx.com', () => {
   const nav = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/common/frame/nav.json'), 'utf8'));
   /* 语言包化（2026-11-07）：nav.json 只有 id / 图标 / 地址，站名在外壳字符串表（sync-shell 同步到 data/common/frame/i18n/<语言>.yaml） */
   const trZh = /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/common/frame/i18n/zh.yaml'), 'utf8')));
-  assert.deepEqual(nav.items.map((i) => trZh.nav[i.id].title), ['主页', '博客', '日刻', '音乐', '奇趣']); /* 顶栏 v3 NAVIGATE 00–04（Gray 2026-11-21：加音乐、重排，编号从 00 起） */
+  assert.deepEqual(nav.items.map((i) => trZh.nav[i.id].title), ['主页', '博客', '日刻', '音乐', '奇趣', '游戏']); /* 顶栏 v3 NAVIGATE 00–05（Gray 2026-11-21：加音乐、重排，编号从 00 起；奇趣重组 PR 2 追加 05 游戏） */
   assert.deepEqual(nav.footer, []);
   assert.equal(nav.me.href, 'https://styrigx.com/account/');
   assert.match(base, /\{\{ \$frameNav := site\.Data\.common\.frame\.nav \}\}/); /* 合站：直接读主站 data/common/frame/nav.json，没有副本 */

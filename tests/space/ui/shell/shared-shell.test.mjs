@@ -88,10 +88,12 @@ test('快捷面板（P5-1，替代抽屉；PR-4b 单页 + 导航面板）：非�
   assert.doesNotMatch(s, /is-fading|is-curtain|--sgx-curtain/);
 });
 
-test('nav.json（顶栏 v3 NAVIGATE / tmux 页脚，2026-11 UI 重设计 PR-1）：00 主页 01 博客 02 日刻 03 音乐 04 奇趣（Gray 2026-11-21 加音乐并重排；旧 05 旷野 2026-11-12 删除），没有账号 / 设置项；终端路径提示、页脚外链；顶栏 / AI 图标都在', () => {
+test('nav.json（顶栏 v3 NAVIGATE / tmux 页脚，2026-11 UI 重设计 PR-1）：00 主页 01 博客 02 日刻 03 音乐 04 奇趣 05 游戏（Gray 2026-11-21 加音乐并重排；旧 05 旷野 2026-11-12 删除；奇趣重组 PR 2 追加 05 游戏），没有账号 / 设置项；终端路径提示、页脚外链；顶栏 / AI 图标都在', () => {
   const nav = JSON.parse(files['nav.json']);
-  assert.deepEqual(nav.items.map((i) => i.id), ['home', 'blog', 'daymark', 'music', 'curio']);
-  assert.deepEqual(nav.items.map((i) => i.hint), ['~', 'blog/', 'daymark/', 'music/', 'curio/']);
+  assert.deepEqual(nav.items.map((i) => i.id), ['home', 'blog', 'daymark', 'music', 'curio', 'games']);
+  assert.deepEqual(nav.items.map((i) => i.hint), ['~', 'blog/', 'daymark/', 'music/', 'curio/', 'games/']);
+  const games = nav.items.find((i) => i.id === 'games');
+  assert.deepEqual([games.icon, games.origin, games.path], ['nav-games', 'https://styrigx.com', '/games/'], '游戏项：子站 /games/（奇趣重组 PR 2）');
   const music = nav.items.find((i) => i.id === 'music');
   assert.deepEqual([music.icon, music.origin, music.path], ['nav-music', 'https://styrigx.com', '/music/'], '音乐项：子站 /music/');
   assert.ok(!nav.items.some((i) => i.id === 'wild' || /wild/.test(i.path)), '没有旷野项');
@@ -114,9 +116,9 @@ test('nav.json（顶栏 v3 NAVIGATE / tmux 页脚，2026-11 UI 重设计 PR-1）
   assert.deepEqual(nav.me, { href: 'https://styrigx.com/account/', avatar: 'https://styrigx.com/avatar/192.webp', email: prof.email });
   assert.equal(prof.email, 'styrigx@gmail.com');
   const tr = { en: yaml.load(files['i18n-en.yaml']), zh: yaml.load(files['i18n-zh.yaml']) };
-  assert.deepEqual(nav.items.map((i) => tr.zh.nav[i.id].title), ['主页', '博客', '日刻', '音乐', '奇趣']);
-  assert.deepEqual(nav.items.map((i) => tr.en.nav[i.id].title), ['Home', 'Blog', 'Daymark', 'Music', 'Curio']);
-  assert.deepEqual(nav.items.map((i) => tr.en.foot.win[i.id]), ['home', 'blog', 'daymark', 'music', 'curio'], '页脚窗口名');
+  assert.deepEqual(nav.items.map((i) => tr.zh.nav[i.id].title), ['主页', '博客', '日刻', '音乐', '奇趣', '游戏']);
+  assert.deepEqual(nav.items.map((i) => tr.en.nav[i.id].title), ['Home', 'Blog', 'Daymark', 'Music', 'Curio', 'Games']);
+  assert.deepEqual(nav.items.map((i) => tr.en.foot.win[i.id]), ['home', 'blog', 'daymark', 'music', 'curio', 'games'], '页脚窗口名');
   for (const i of nav.items) for (const l of ['en', 'zh']) assert.ok(tr[l].foot.win[i.id], i.id + ' 页脚窗口名 ' + l);
   for (const i of [...nav.items, ...nav.footer]) assert.match(nav.icons[i.icon], /^<svg[\s\S]*<\/svg>$/, i.icon);
   for (const k of ['tb-palette', 'tb-shield', 'tb-term', 'tb-chat', 'lock', 'tb-undo', 'tb-send', 'tb-newchat', 'tb-history']) assert.match(nav.icons[k], /^<svg[\s\S]*<\/svg>$/, k);

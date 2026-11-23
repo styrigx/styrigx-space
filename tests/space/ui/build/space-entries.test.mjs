@@ -87,13 +87,13 @@ function files(dir) {
   return out;
 }
 
-test('构建产物：中英主页四节 [01] 博客 [02] 日刻 [03] 音乐 [04] 奇趣（Gray 2026-11-21 重排）、没有分类入口；旧 [04] 旷野一节 2026-11-12 删除（about 只在首屏 #about）；状态页 /status/ 一个窗', { skip: !BUILT && '没构建 space/web/public' }, () => {
+test('构建产物：中英主页五节 [01] 博客 [02] 日刻 [03] 音乐 [04] 奇趣 [05] 游戏（Gray 2026-11-21 重排；奇趣重组 PR 2 加 [05] 游戏、[04] 奇趣改成最新收藏）、没有分类入口；旧 [04] 旷野一节 2026-11-12 删除（about 只在首屏 #about）；状态页 /status/ 一个窗', { skip: !BUILT && '没构建 space/web/public' }, () => {
   for (const [lang, file, pre] of [['en', 'index.html', '/'], ['zh', 'zh/index.html', '/zh/']]) {
     const html = readFileSync(path.join(REPO, 'space/web/public', file), 'utf8');
     assert.doesNotMatch(html, /class="?sgx-ents/, lang + '：主页没有入口区块');
     const ks = [...html.matchAll(/home-sec-k"? aria-hidden="?true"? translate="?no"?>([^<]+)</g)].map((m) => m[1]);
-    assert.deepEqual(ks, ['[01] // BLOG', '[02] // DAYMARK', '[03] // MUSIC', '[04] // CURIO'], lang + '：四节顺序');
-    assert.deepEqual([...html.matchAll(/<section class="?home-sec"? id="?(\w+)"?/g)].map((m) => m[1]), ['blog', 'daymark', 'music', 'curio'], lang + '：分节 id 同序');
+    assert.deepEqual(ks, ['[01] // BLOG', '[02] // DAYMARK', '[03] // MUSIC', '[04] // CURIO', '[05] // GAMES'], lang + '：五节顺序');
+    assert.deepEqual([...html.matchAll(/<section class="?home-sec"? id="?(\w+)"?/g)].map((m) => m[1]), ['blog', 'daymark', 'music', 'curio', 'games'], lang + '：分节 id 同序');
     /* [03] 音乐：cd music/ → 当前语言的音乐页；4 个「—」占位（运行时由 /music/api/music 填）；等待提示 › fetching music… */
     const mu = lang === 'zh' ? '/music/zh/' : '/music/';
     assert.match(html, new RegExp(`class="?home-sec-more"? href="?${mu}"? translate="?no"?>cd music/ →`), `${lang}：cd music/ →`);
@@ -108,7 +108,19 @@ test('构建产物：中英主页四节 [01] 博客 [02] 日刻 [03] 音乐 [04]
     assert.doesNotMatch(html, /screen-time|data-wb/, `${lang}：主页没有 screen-time 小卡`);
     assert.match(html, /<div id="?about"? class="?sgx-term sgx-term--static trm-win home-about/, `${lang}：主页有 about 卡`);
     const cu = lang === 'zh' ? '/curio/zh/' : '/curio/';
-    for (const d of ['finds', 'devices', 'games']) assert.match(html, new RegExp(`href="?${cu}${d}/"? data-curio="?${d}"?`), `${lang}：奇趣 ${d}/`);
+    /* [04] 奇趣（奇趣重组 PR 2 起 = 发现）：cd curio/ →；4 个「—」占位（运行时由 /curio/api/links 填最新收藏）；没有 finds / devices / games 目录卡 */
+    assert.match(html, new RegExp(`class="?home-sec-more"? href="?${cu}"? translate="?no"?>cd curio/ →`), `${lang}：cd curio/ →`);
+    assert.match(html, new RegExp(`data-home-curio data-curio-href="?${cu}"?`), `${lang}：收藏行带奇趣首页地址`);
+    assert.equal([...html.matchAll(/data-cu-slot/g)].length, 4, `${lang}：奇趣 4 个占位`);
+    assert.doesNotMatch(html, /data-curio="?(finds|devices|games)|home-dir\b|\/curio\/(zh\/)?(finds|devices|games)\//, `${lang}：没有奇趣目录卡`);
+    /* [05] 游戏：cd games/ → 当前语言的游戏页；4 个「—」占位（运行时由 /games/api/games 填）；等待提示 › fetching games… */
+    const gm = lang === 'zh' ? '/games/zh/' : '/games/';
+    assert.match(html, new RegExp(`class="?home-sec-more"? href="?${gm}"? translate="?no"?>cd games/ →`), `${lang}：cd games/ →`);
+    assert.match(html, /\$<\/span> ls games\//, `${lang}：$ ls games/`);
+    assert.match(html, new RegExp(`data-home-games data-games-href="?${gm}"?`), `${lang}：游戏行带游戏页地址`);
+    assert.equal([...html.matchAll(/data-gm-slot/g)].length, 4, `${lang}：游戏 4 个占位`);
+    assert.match(html, /data-gm-wait[^>]*>.*games…/, `${lang}：游戏等待提示`);
+    assert.match(html, /data-term-dir="?games"?/, `${lang}：终端 cd games 落点`);
     /* 名字保留；屏幕时间小卡 v6 P4 删除 */
     assert.match(html, /id="?w-profile"?/);
     assert.doesNotMatch(html, /id="?w-screen"?/);

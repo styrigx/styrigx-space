@@ -70,15 +70,14 @@ async function mockMovies(page, can) {
 
 test('电影（无权限）：只读封面卡——没有新建命令、条目页没有编辑；命令链「su · su 登录后可编辑」；胶囊 = 电影', async ({ page }) => {
   await mockMovies(page, false);
-  await page.goto('/curio/zh/');
-  await page.locator('#cu-tabs [data-ctab="movies"]').click();
-  await expect(page).toHaveURL(/\/curio\/zh\/movies\/$/);
+  /* 奇趣重组 PR 2：奇趣页头没有分区 tab 行了，直接打开电影子页 */
+  await page.goto('/curio/zh/movies/');
   await expect(page.locator('.sgx-tb-title')).toHaveText('电影');
   await expect(page.locator('#mv-list .it-name')).toHaveText(['花样年华', '奥本海默']);
   await expect(page.locator('#mv-list [data-movie="1"] .sgx-cc-m')).toHaveText('movies · 2000 · 王家卫');
   await expect(page.locator('#mv-list [data-movie="1"] .it-stars-ro')).toHaveText('★★★★★');
   await expect(page.locator('#mv-list [data-movie="1"] .sgx-cc-im img')).toHaveCount(1);
-  await expect(page.locator('#cu-tabs [data-cu-count="movies"]')).toHaveText('2');
+  await expect(page.locator('[data-cu-count]')).toHaveCount(0); /* 奇趣重组 PR 2：tab 计数随 tab 行删了 */
   await expect(page.locator('#mv-fab')).toBeHidden();
   await expect(page.locator('#cu-signin [data-signin-text]')).toHaveText('su 登录后可编辑');
   await page.locator('#mv-list [data-movie="1"]').click();
@@ -223,12 +222,11 @@ async function mockMusic(page, who) {
   return calls;
 }
 
-test('音乐（访客，没进站）：奇趣 tab 行没有 music/；歌单 / 封面照常；只看模式——播放键是锁；点播放 / 曲目不签令牌、不开播放器，打开终端预填 su ；没有上传 / 删除；页面没有播放条', async ({ page }) => {
+test('音乐（访客，没进站）：奇趣没有 music/ 入口（奇趣重组 PR 2 起整个 tab 行都没了）；歌单 / 封面照常；只看模式——播放键是锁；点播放 / 曲目不签令牌、不开播放器，打开终端预填 su ；没有上传 / 删除；页面没有播放条', async ({ page }) => {
   const calls = await mockMusic(page, 'visitor');
   await asVisitor(page);
   await page.goto('/curio/zh/');
-  await expect(page.locator('#cu-tabs .sgx-ctab-a')).toHaveText([/^finds\//, /^devices\//, /^games\//, /^movies\//]);
-  await expect(page.locator('#cu-tabs [data-ctab="music"]')).toHaveCount(0);
+  await expect(page.locator('#cu-tabs [data-ctab], #cu-tabs a[href*="/music/"]')).toHaveCount(0);
   await page.goto('/music/zh/');
   await expect(page.locator('html')).toHaveClass(/mu-view-only/);
   await expect(page.locator('.mu-cover')).toHaveCount(2);
@@ -272,8 +270,7 @@ test('音乐（进站了，没账号写权限）：没有上传 / 删除专辑�
 test('音乐（有权限）：奇趣首页没有 music/ tab，直接开 /music/zh/；封面横滑切专辑；胶囊 = 音乐；上传 / 删除专辑都在', async ({ page }) => {
   await mockMusic(page, 'owner');
   await page.goto('/curio/zh/');
-  await expect(page.locator('#cu-tabs .sgx-ctab-a')).toHaveCount(4);
-  await expect(page.locator('#cu-tabs [data-ctab="music"]')).toHaveCount(0);
+  await expect(page.locator('#cu-tabs [data-ctab], #cu-tabs a[href*="/music/"]')).toHaveCount(0);
   await page.goto('/music/zh/');
   await expect(page.locator('.sgx-tb-title')).toHaveText('音乐');
   await expect(page.locator('.mu-cover')).toHaveCount(2);

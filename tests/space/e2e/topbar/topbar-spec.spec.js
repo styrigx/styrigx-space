@@ -368,7 +368,7 @@ test.describe('390×844 行为', () => {
   });
 
 
-  test('四格打开 NAVIGATE（v5 S6）：$ NAVIGATE 00/04 · 五项（00 主页 01 博客 02 日刻 03 音乐 04 奇趣，Gray 2026-11-21）（编号 · 名字 · 路径提示，当前项「开」态）· lang / layout · STATUS · systemctl status / esc 关闭（v6 P4 拿掉 share）', async ({ page }) => {
+  test('四格打开 NAVIGATE（v5 S6）：$ NAVIGATE 00/05 · 六项（00 主页 01 博客 02 日刻 03 音乐 04 奇趣 05 游戏，Gray 2026-11-21；奇趣重组 PR 2 加游戏）（编号 · 名字 · 路径提示，当前项「开」态）· lang / layout · STATUS · systemctl status / esc 关闭（v6 P4 拿掉 share）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/');
     await page.locator('.sgx-tb-grid').click();
@@ -376,22 +376,22 @@ test.describe('390×844 行为', () => {
     await expect(nav).toBeVisible();
     await expect(page.locator('.sgx-tb-grid')).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('.sgx-tb-grid')).toHaveAccessibleName('导航');
-    await expect(nav.locator('.sgx-nav-h')).toHaveText('$ NAVIGATE00/04');
-    await expect(nav.locator('.sgx-nav-tile .sgx-nav-name')).toHaveText(['主页', '博客', '日刻', '音乐', '奇趣']);
-    await expect(nav.locator('.sgx-nav-tile .sgx-nav-no')).toHaveText(['00', '01', '02', '03', '04']);
-    await expect(nav.locator('.sgx-nav-tile .sgx-nav-hint')).toHaveText(['~', 'blog/', 'daymark/', 'music/', 'curio/']);
+    await expect(nav.locator('.sgx-nav-h')).toHaveText('$ NAVIGATE00/05');
+    await expect(nav.locator('.sgx-nav-tile .sgx-nav-name')).toHaveText(['主页', '博客', '日刻', '音乐', '奇趣', '游戏']);
+    await expect(nav.locator('.sgx-nav-tile .sgx-nav-no')).toHaveText(['00', '01', '02', '03', '04', '05']);
+    await expect(nav.locator('.sgx-nav-tile .sgx-nav-hint')).toHaveText(['~', 'blog/', 'daymark/', 'music/', 'curio/', 'games/']);
     await expect(nav.locator('.sgx-nav-tile[aria-current="page"]')).toHaveAttribute('data-nav', 'home');
-    await expect(nav.locator('.sgx-nav-tile')).toHaveCount(5);
+    await expect(nav.locator('.sgx-nav-tile')).toHaveCount(6);
     await expect(nav.locator('[data-nav="account"], [data-nav="settings"]')).toHaveCount(0);
     await animationsDone(page);
-    /* 五项竖排、整宽 */
+    /* 六项竖排、整宽 */
     const t = await nav.locator('.sgx-nav-tile').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.width)]; }));
-    for (let i = 1; i < 5; i++) { expect(t[i][0]).toBe(t[0][0]); expect(t[i][1]).toBeGreaterThan(t[i - 1][1]); expect(t[i][2]).toBe(t[0][2]); }
+    for (let i = 1; i < 6; i++) { expect(t[i][0]).toBe(t[0][0]); expect(t[i][1]).toBeGreaterThan(t[i - 1][1]); expect(t[i][2]).toBe(t[0][2]); }
     const cur = await nav.locator('.sgx-nav-tile[aria-current="page"]').evaluate((el) => ({ c: getComputedStyle(el).color, sh: getComputedStyle(el).boxShadow }));
     const other = await nav.locator('.sgx-nav-tile[data-nav="curio"]').evaluate((el) => getComputedStyle(el).color);
     expect(cur.c).not.toBe(other);
     expect(cur.sh).toContain('inset');
-    /* 顺序：五项 → lang / layout → STATUS → 底行（v6 P4：share 那一行拿掉，Gray 11-11 17:47） */
+    /* 顺序：六项 → lang / layout → STATUS → 底行（v6 P4：share 那一行拿掉，Gray 11-11 17:47） */
     const order = await nav.locator('.sgx-qp-sheet > *').evaluateAll((els) => els.map((e) => e.className));
     expect(order).toEqual(['sgx-nav-h', '', 'sgx-nav-pf', 'sgx-nav-st', 'sgx-nav-f']);
     await expect(nav.locator('.sgx-nav-pfk')).toHaveText(['lang', 'layout']);
@@ -461,19 +461,22 @@ test.describe('390×844 行为', () => {
     await expect(p2.locator('#sgx-nav [data-st="space"]')).not.toHaveAttribute('data-up', /./);
   });
 
-  test('NAVIGATE：没有 05 旷野（2026-11-12 删除）；状态页（/zh/status/）和 404 都不在四站里，没有当前项（--/04；00 是主页，Gray 2026-11-21）', async ({ page }) => {
+  test('NAVIGATE：没有 05 旷野（2026-11-12 删除）；状态页（/zh/status/）和 404 都不在四站里，没有当前项（--/05；00 是主页，Gray 2026-11-21）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/status/');
     await expect(page.locator('#sgx-nav .sgx-nav-tile[data-nav="wild"]')).toHaveCount(0);
     await expect(page.locator('#sgx-nav .sgx-nav-tile[aria-current="page"]')).toHaveCount(0);
-    await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('--/04');
+    await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('--/05');
     await go(page, '/404.html'); /* 进站 v3 L1：安全页已删 */
     await expect(page.locator('#sgx-nav .sgx-nav-tile[aria-current="page"]')).toHaveCount(0);
-    await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('--/04');
-    /* 音乐页（/music/zh/）：03 音乐是当前项，计数 03/04 */
+    await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('--/05');
+    /* 音乐页（/music/zh/）：03 音乐是当前项，计数 03/05；游戏页（/games/zh/，奇趣重组 PR 2）：05 游戏，计数 05/05 */
     await go(page, '/music/zh/');
     await expect(page.locator('#sgx-nav .sgx-nav-tile[aria-current="page"]')).toHaveAttribute('data-nav', 'music');
-    await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('03/04');
+    await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('03/05');
+    await go(page, '/games/zh/');
+    await expect(page.locator('#sgx-nav .sgx-nav-tile[aria-current="page"]')).toHaveAttribute('data-nav', 'games');
+    await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('05/05');
   });
 
   test('NAVIGATE：点别的站 / 子页点本站关面板后跳过去；已在本站首页点本站只关面板', async ({ page }) => {
