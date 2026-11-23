@@ -1,4 +1,4 @@
-// workers/atlas-core/src/curio/api/music.js
+// workers/atlas-core/src/music/api/music.js
 // 私人音乐的歌单（三层权限见 _music.js；档在 src/music/routes.js ROUTE_ACCESS）。
 // GET  /api/music   public：→ {ok, canManage, albums:[{id, kind:'album'|'single', title, artist, year, cover, tracks:[{id, no, title, duration, artist}]}]}——只有元数据，没有音频地址；
 //                   曲目的 artist = music_artists.name（按 artist_id；0 → ''）（音乐 v1.18 十一 第 1 条）；
@@ -16,11 +16,11 @@
 //                     合并：目标没有头像就把原歌手的头像搬过去（R2 先复制、D1 同一个 batch 写上，复制失败 503 storage），目标有就丢掉原头像。
 //                     合并 / 删掉的歌手头像等 D1 提交成功之后删。GET / POST 的回答多一个 artists（歌手表，listMusic），专辑 / 曲目多 artist_id。
 // 无权限（app.js 守卫）：没有 v6 身份 401 unauthorized、档不够 403 forbidden；写非同源 403 origin。
-import { json, err, methodNotAllowed } from './_lib.js';
-import { readBody } from './_write.js';
-import { viaV6, v6Of, auditRootOp } from './_auth.js';
+import { json, err, methodNotAllowed } from '../../curio/api/_lib.js';
+import { readBody } from '../../curio/api/_write.js';
+import { viaV6, v6Of, auditRootOp } from '../../curio/api/_auth.js';
 import { visibility } from '../../common/visibility.js';
-import { musicOrigin, ensureMusicSchema, listMusic, parseMusicOp, applyMusicOp } from './_music.js';
+import { musicOrigin, ensureMusicSchema, listMusic, parseMusicOp, applyMusicOp } from '../../curio/api/_music.js';
 
 const STATUS = { 'not-found': 404, 'album-not-found': 404, 'into-not-found': 404, limit: 409, 'single-tracks': 409, 'artist-exists': 409, 'artist-has-works': 409, storage: 503 };
 

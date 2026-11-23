@@ -1,4 +1,4 @@
-// workers/atlas-core/src/curio/api/music-upload.js
+// workers/atlas-core/src/music/api/music-upload.js
 // POST /api/music-upload?album=N&kind=track&no=K&title=…&duration=S   body = 音频本身（浏览器直传，不分片）
 // POST /api/music-upload?album=N&kind=cover                           body = 封面图片（浏览器先缩到 1600、转 webp）
 // POST /api/music-upload?artist=N&kind=avatar                         body = 歌手头像（M4，十二 M4 第 2 条：浏览器裁方、≤ 1000、jpeg；只收 jpeg）
@@ -9,9 +9,9 @@
 // R2_MUSIC：music/<专辑>/<曲序>-<时间>.<扩展名>、music/<专辑>/cover-<时间>.<扩展名>；换封面删旧的。
 // R2 写完、D1 写失败：当场删掉刚写的文件（不留孤儿；音乐 v1.18 M1），换封面时旧封面不动。
 // → 曲目 {ok:true, id}；封面 {ok:true}。400 参数不对 / 不是音频图片；404 专辑不在；409 曲目满了（专辑 200 首 limit；单曲已有 1 首 single-full）；413 太大
-import { err, json, methodNotAllowed } from './_lib.js';
-import { sniffImage } from './_image.js';
-import { musicOrigin, ensureMusicSchema, MUSIC_LIMITS, AUDIO_TYPES, trackKey, avatarKey, COVER_EXT } from './_music.js';
+import { err, json, methodNotAllowed } from '../../curio/api/_lib.js';
+import { sniffImage } from '../../curio/api/_image.js';
+import { musicOrigin, ensureMusicSchema, MUSIC_LIMITS, AUDIO_TYPES, trackKey, avatarKey, COVER_EXT } from '../../curio/api/_music.js';
 
 /** R2 写进去了、D1 却没写成：当场删掉，不留没人认的文件（音乐 v1.18 十 M1；错误照旧往上抛 → 500 internal） @param {any} r2 @param {string} key */
 async function dropOrphan(r2, key) {

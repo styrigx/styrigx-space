@@ -39,7 +39,7 @@ function handled() {
   for (const [p, mod] of acc.API_ROUTES) add(p, mod, 'account/src/api/' + (p.startsWith('/api/account/') ? 'account/' + p.slice(13) : p.slice(5)) + '.js');
   out.push({ host: RA.MAIN_HOST, path: '/avatar/:file', methods: ['GET'], generic: false, file: 'account/src/api/avatar-file.js' });
   for (const [p, mod] of curio.API_ROUTES) add('/curio' + p, mod, 'atlas-core/src/curio/api' + p.slice(4) + '.js');
-  /* 音乐：/music/api/*（atlas-core/src/music/routes.js；handler 仍是 curio/api/music*.js）；music 搬家第 4 步起旧 /curio/api/music* 不再挂 */
+  /* 音乐：/music/api/*（atlas-core/src/music/routes.js；handler 在 music/api/music*.js）；music 搬家第 4 步起旧 /curio/api/music* 不再挂 */
   for (const [p, mod] of music.API_ROUTES) add('/music' + p, mod, 'atlas-core/src/curio/api' + p.slice(4) + '.js');
   for (const [p, mod] of daymark.API_ROUTES) add('/daymark' + p, mod, 'atlas-core/src/daymark/api' + p.slice(4) + '.js');
   /* 游戏：/games/api/*（奇趣重组 PR 1；atlas-core/src/games/routes.js，handler 在 games/api/，复用奇趣的数据层与照片规则） */

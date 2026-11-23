@@ -1,10 +1,10 @@
-// workers/atlas-core/src/curio/api/music-stream.js
+// workers/atlas-core/src/music/api/music-stream.js
 // GET / HEAD /api/music-stream?t=<令牌>&id=<曲目>   播放短链（<audio src>）：entry 档（进站会话，app.js 守卫；分享链接作废后下一个请求就 401）+ 令牌有效（_music.js trackForToken：
 //   存在、没过期、曲目属于令牌那张专辑）。令牌格式不对 / 不存在 / 过期 / 曲目不对 → 403 token（不分原因）。
 // 支持单段 Range（拖进度）：bytes=a-b / a- / -n → 206 + Content-Range；没有 Range → 200 整个文件；Range 不合法 → 416。
 // 缓存头只在这里定（STREAM_HEADERS）：Cache-Control: private, no-store + CDN-Cache-Control: no-store（浏览器、边缘都不留，令牌过期 / 回锁后不能再放）；Accept-Ranges: bytes；类型按上传时的 Content-Type + nosniff。
-import { err, methodNotAllowed } from './_lib.js';
-import { ensureMusicSchema, trackForToken, parseRange } from './_music.js';
+import { err, methodNotAllowed } from '../../curio/api/_lib.js';
+import { ensureMusicSchema, trackForToken, parseRange } from '../../curio/api/_music.js';
 
 /** 每个回答（200 / 206 / 416 / HEAD）都带的头：不缓存（浏览器和边缘）、按字节取、类型不猜 */
 const STREAM_HEADERS = Object.freeze({ 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, no-store', 'CDN-Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
