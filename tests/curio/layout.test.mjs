@@ -133,7 +133,7 @@ test('发现：分类 chips、封面卡网格、分页条（排序 最近收藏 
   assert.doesNotMatch(finds, /cu-menu-btn|menu-wrap|class="cu-fab/);
   assert.match(parts, /id="confirm-ok"/);
   assert.match(parts, /id="bk-toast"/);
-  assert.match(findsMain, /\(dict "id" "cu-fab" "k" "touch curio\/finds\/ \+" "d" \$tr\.cmd\.addFind\)/);
+  assert.match(findsMain, /\(dict "id" "cu-fab" "k" "touch curio\/ \+" "d" \$tr\.cmd\.addFind\)/);
   assert.match(findsMain, /\(dict "id" "menu-export" "k" "export" "d" \$tr\.cmd\.export "href" \(printf "%s\?lang=%s" \("curio\/api\/export" \| relURL\) \$lang\) "dl" true\)/);
   assert.match(findsMain, /"sorts" \(slice\s+\(dict "v" "recent" "label" \$tr\.sort\.recent\) \(dict "v" "order" "label" \$tr\.sort\.order\) \(dict "v" "name" "label" \$tr\.sort\.name\)/);
   assert.match(finds, /id="imp-private"[^>]*checked/);

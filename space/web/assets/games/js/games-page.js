@@ -251,7 +251,7 @@ function nxCards(list, g){
   };
 }
 function viewGame(g){
-  var spec = [[T.state, esc(T.status[g.status] || '')]];
+  var spec = [[T.state, '<span class="it-status it-status--' + esc(g.status) + '">' + esc(T.status[g.status] || '') + '</span>']];
   if (g.rating) spec.push([T.rating, '<span class="cy">' + stars(g.rating) + '</span>']);
   if (g.platform) spec.push([T.platform, txt(g.platform)]);
   if (g.edition) spec.push([T.edition, txt(g.edition)]);

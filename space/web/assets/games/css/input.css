@@ -55,21 +55,23 @@
 
 /* ===== 调整顺序窗 #gm-order-wrap（命令链「sort games/」）=====
    开合 / 遮罩用共享外壳 .sgx-qp（顶栏下方铺满、dialog 本身是遮罩、顶栏留在上面可点）+ 共享 modalSheet；这里只定卡片（同 music/css/input.css 的 .sgx-up）：
-   实色、1px 终端线、圆角 16；四边留 --sgx-page-m 悬浮在顶栏下方，最宽 480 居中，高度随内容、最高到底部安全区之上；半档遮罩；
-   开合 = 轻微缩放 + 淡入 240ms（减弱动效只淡入）。桌面：居中，宽 min(560px, 86vw)，离顶栏 10vh（24–96px）。
+   实色、1px 终端线、圆角 16；左右留 --sgx-page-m，最宽 480，高度随内容、最高 82vh；
+   开合 = 轻微缩放 + 淡入 240ms（减弱动效只淡入）。桌面：宽 min(560px, 86vw)。遮罩 / 位置见下（同编辑窗）。
    头部一行：等宽小标题 · ×，下一条细线；列表区自己滚，底部按钮常驻。 */
-.gm-dlg.is-open { background-color: color-mix(in srgb, var(--sgx-scrim) 45%, transparent); }
-.gm-dlg .sgx-qp-sheet { top: var(--sgx-page-m); left: max(var(--sgx-page-m), env(safe-area-inset-left, 0px)); right: max(var(--sgx-page-m), env(safe-area-inset-right, 0px));
-  width: auto; max-width: 480px; max-height: calc(100% - 2 * var(--sgx-page-m) - env(safe-area-inset-bottom, 0px)); margin: 0 auto; padding: 0;
+/* Gray 2026-11-23 定：遮罩和位置统一成编辑窗（#gm-edit-wrap 的 bk-overlay）：铺满整个视口（盖住顶栏）、50% 深色遮罩（同 .bk-overlay-backdrop）、z 50；
+   卡片在视口里垂直、水平都居中（手机也是，不再贴顶栏下沿）。 */
+.gm-dlg { top: 0; z-index: 50; }
+.gm-dlg.is-open { background-color: rgb(0 0 0 / .5); }
+.gm-dlg .sgx-qp-sheet { top: 50%; left: max(var(--sgx-page-m), env(safe-area-inset-left, 0px)); right: max(var(--sgx-page-m), env(safe-area-inset-right, 0px));
+  width: auto; max-width: 480px; max-height: min(82vh, calc(100% - 2 * var(--sgx-page-m) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))); margin: 0 auto; padding: 0;
   display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; border-color: var(--sgx-term-line); background: var(--sgx-mat-solid); -webkit-backdrop-filter: none;
-  transform: translateY(-6px) scale(.97); opacity: 0; transform-origin: 50% 0; transition: transform .24s cubic-bezier(.2,.8,.2,1), opacity .24s cubic-bezier(.2,.8,.2,1); }
+  transform: translateY(calc(-50% + 8px)) scale(.97); opacity: 0; transform-origin: 50% 50%; transition: transform .24s cubic-bezier(.2,.8,.2,1), opacity .24s cubic-bezier(.2,.8,.2,1); }
 @supports (backdrop-filter: blur(1px)) { .gm-dlg .sgx-qp-sheet { backdrop-filter: none; } }
-.gm-dlg.is-open .sgx-qp-sheet { transform: none; opacity: 1; }
-.reduced-motion .gm-dlg .sgx-qp-sheet { transform: none; transition: opacity .12s ease; }
-@media (prefers-reduced-motion: reduce) { .gm-dlg .sgx-qp-sheet { transform: none; transition: opacity .12s ease; } }
-:root[data-sgx-layout="desktop"] .gm-dlg .sgx-qp-sheet { top: max(24px, min(96px, 10vh)); left: 0; right: 0; width: min(560px, 86vw); max-width: none; margin: 0 auto; border-radius: 14px;
-  max-height: calc(100% - 2 * max(24px, min(96px, 10vh))); box-shadow: 0 30px 70px rgba(0,0,0,.28); }
-.dark:root[data-sgx-layout="desktop"] .gm-dlg .sgx-qp-sheet, :root.dark[data-sgx-layout="desktop"] .gm-dlg .sgx-qp-sheet { box-shadow: 0 30px 70px rgba(0,0,0,.45); }
+.gm-dlg.is-open .sgx-qp-sheet { transform: translateY(-50%); opacity: 1; }
+.reduced-motion .gm-dlg .sgx-qp-sheet { transform: translateY(-50%); transition: opacity .12s ease; }
+@media (prefers-reduced-motion: reduce) { .gm-dlg .sgx-qp-sheet { transform: translateY(-50%); transition: opacity .12s ease; } }
+:root[data-sgx-layout="desktop"] .gm-dlg .sgx-qp-sheet { left: 0; right: 0; width: min(560px, 86vw); max-width: none; margin: 0 auto; border-radius: 14px;
+  max-height: min(82vh, calc(100% - 2rem)); box-shadow: 0 30px 80px rgba(0,0,0,.45); }
 /* 手机布局时右下角 AI 浮钮压在卡片底部按钮上（同音乐上传窗的处理）：窗开着就先藏起来 */
 :root:not([data-sgx-layout="desktop"]):has(dialog.gm-dlg[open]) .sgx-tb-ai { opacity: 0; visibility: hidden; pointer-events: none; }
 .gm-dlg-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 16px; border-bottom: 1px solid var(--sgx-term-line); }
@@ -104,3 +106,18 @@
 .gm-ord-btn:not(:disabled):active { background: var(--sgx-state-pressed-bg); }
 .gm-ord-btn:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 :root[data-sgx-layout="desktop"] .gm-ord-t { font-size: 14px; }
+
+/* ===== 列表卡片 / 条目页封面：竖版 3:4（Gray 2026-11-23 定；同裁剪框 COVER_RATIO、主页 [05]），竖封面完整显示，不再被横幅（90 / 150px 高）截断 ===== */
+.it-cc--game .sgx-cc-im, :root[data-sgx-layout="desktop"] .it-cc--game .sgx-cc-im { height: auto; aspect-ratio: 3 / 4; }
+.gm-wrap .sgx-item-im, :root[data-sgx-layout="desktop"] .gm-wrap .sgx-item-im { justify-self: center; width: min(100%, 320px); height: auto; aspect-ratio: 3 / 4; }
+:root[data-sgx-layout="desktop"] .gm-wrap .sgx-item-im { justify-self: start; width: min(100%, 420px); }
+.gm-wrap .sgx-item-im img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+
+/* ===== 状态分颜色（Gray 2026-11-23 定；同主页 [05] 的 .home-alb-a[data-st]）：想玩 蓝 / 在玩 绿 / 通关 橙 / 搁置 灰，用站内色板 token（深浅主题各一套值）。
+   卡片那行原来整行橙（.sgx-cc-k = --sgx-warning），星星保持橙；条目页 spec 表「状态」那格同色 ===== */
+.it-status--want { color: var(--sgx-info); }
+.it-status--playing { color: var(--sgx-success); }
+.it-status--done { color: var(--sgx-warning); }
+.it-status--shelved { color: var(--sgx-text-secondary); }
+/* 桌面版列表卡片的星放大到 14px（Gray 2026-11-23；手机保持行内 11.5px） */
+:root[data-sgx-layout="desktop"] .it-cc--game .it-stars-ro { font-size: 14px; }

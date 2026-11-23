@@ -268,6 +268,8 @@ export function mountHome(o) {
         const st = a.querySelector('[data-gm-status]');
         if (t) t.textContent = it.title || '—';
         if (st) st.textContent = it.status ? tx('game' + it.status.charAt(0).toUpperCase() + it.status.slice(1)) : '';
+        /* 状态分颜色（Gray 2026-11-23）：data-st = want / playing / done / shelved，颜色在 common/css/input.css 的 .home-alb-a[data-st] */
+        if (st) { if (it.status) st.setAttribute('data-st', it.status); else st.removeAttribute('data-st'); }
         if (it.cover) {
           const c = a.querySelector('.home-alb-c');
           const img = document.createElement('img');

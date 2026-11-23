@@ -249,7 +249,7 @@ test('账号已登录（可写）：私密带锁、空分类也在；收藏 → 
   const calls = await mock(page, true);
   await page.goto('/curio/zh/');
   for (const id of ['#cu-fab', '#menu-cats', '#menu-import', '#menu-export']) await expect(page.locator(id)).toBeVisible();
-  await expect(page.locator('#cu-fab .sgx-cmd-k')).toHaveText('touch curio/finds/ +');
+  await expect(page.locator('#cu-fab .sgx-cmd-k')).toHaveText('touch curio/ +');
   await expect(page.locator('#cu-signin')).toBeHidden();
   await expect(page.locator('.cu-cc[data-id="12"] .cu-lock')).toHaveCount(1);
   /* 空的私密分类也有 chip（账号已登录） */

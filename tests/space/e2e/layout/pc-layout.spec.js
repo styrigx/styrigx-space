@@ -36,14 +36,14 @@ for (const vp of PCS) {
       await gotoWide(page, vp);
       await setHomeCards(page, { daymark: true });
       const g = await page.evaluate(() => {
-        const box = (el) => { const r = el.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width }; };
+        const box = (el) => { const r = el.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width, h: r.height }; };
         const logo = box(document.querySelector('#site-nav .sgx-tb-logo'));
         const acts = box(document.querySelector('#site-nav .sgx-tb-acts'));
         return { vw: innerWidth, wrap: box(document.querySelector('.home-wrap')), logo, acts,
           hero: box(document.getElementById('home-hero')), term: box(document.getElementById('about')), /* v5 S7：首屏终端位换成 neofetch about 卡（同宽同位） */
           secs: [...document.querySelectorAll('.home-sec')].map((e) => [e.id, box(e)]),
-          cards: [['w-daymark', document.getElementById('w-daymark')], ['music-albs', document.querySelector('#music .home-albs')], ['curio-finds', document.querySelector('#curio .home-finds')]].map(([id, e]) => [id, box(e)]),
-          rows: ['#curio .home-finds'].map((s) => { const ul = document.querySelector(s); return [s, box(ul.firstElementChild), box(ul.lastElementChild), ul.children.length]; }),
+          cards: [['w-daymark', document.getElementById('w-daymark')], ['music-albs', document.querySelector('#music .home-albs')], ['curio-finds', document.querySelector('#curio .home-finds')], ['games-albs', document.querySelector('#games .home-albs')]].map(([id, e]) => [id, box(e)]),
+          rows: ['#curio .home-finds', '#games .home-albs'].map((s) => { const ul = document.querySelector(s); return [s, box(ul.firstElementChild), box(ul.lastElementChild), ul.children.length]; }),
           alb: box(document.querySelector('#music .home-alb-c')), albs: document.querySelectorAll('#music .home-alb').length,
           gm: box(document.querySelector('#games .home-alb-c')), gms: document.querySelectorAll('#games .home-alb').length,
           sw: document.scrollingElement.scrollWidth };
@@ -60,9 +60,10 @@ for (const vp of PCS) {
       /* [03] 音乐：桌面按六栏宽度排（4 个占位靠左，封面 ≈ 内容栏 / 6），不铺满成四张大图 */
       expect(g.albs).toBe(4);
       expect(Math.abs(g.alb.w - (g.wrap.w - 5 * 16) / 6), `封面宽 ${g.alb.w}`).toBeLessThanOrEqual(1);
-      /* [05] 游戏：同音乐一行（奇趣重组 PR 2） */
+      /* [05] 游戏（Gray 2026-11-23）：四个方块铺满内容栏（同 [04] 四栏、间距 12），竖封面 3:4 */
       expect(g.gms).toBe(4);
-      expect(Math.abs(g.gm.w - g.alb.w), `游戏封面宽 ${g.gm.w}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(g.gm.w - (g.wrap.w - 3 * 12) / 4), `游戏封面宽 ${g.gm.w}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(g.gm.h - g.gm.w * 4 / 3), `游戏封面高 ${g.gm.h}（3:4）`).toBeLessThanOrEqual(1);
       for (const [id, b] of g.secs.concat(g.cards)) {
         expect(Math.abs(b.l - g.wrap.l), `${id} 左缘`).toBeLessThanOrEqual(1);
         expect(Math.abs(b.r - g.wrap.r), `${id} 右缘`).toBeLessThanOrEqual(1);

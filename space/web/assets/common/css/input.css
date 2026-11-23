@@ -6037,6 +6037,15 @@ html.mu-view-only :is(#mp-prev, #mp-next, #mp-d-prev, #mp-d-next, #mp-speed, #mp
 .home-alb-a { display: block; font-family: var(--sgx-font-mono); font-size: 11px; line-height: 1.6; color: var(--sgx-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-alb-a:empty { display: none; }
 @media (hover: hover) and (pointer: fine) { .home-alb:hover .home-alb-c { border-color: var(--sgx-primary); } .home-alb:hover .home-alb-t { color: var(--sgx-primary); } }
+/* [05] 游戏（Gray 2026-11-23 定）：桌面四个方块铺满内容栏（同 [04] 四栏、间距 12，左右缘贴齐），手机两栏；封面竖版 3:4（同游戏页卡片 / 裁剪框，竖封面完整显示）。
+   第二行状态分颜色（同游戏页 .it-status--*）：想玩 = 蓝 --sgx-info、在玩 = 绿 --sgx-success、通关 = 橙 --sgx-warning、搁置 = 灰 --sgx-text-secondary（深浅主题各自一套值，都可读）。 */
+.home-albs--games { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+:root:not([data-sgx-layout="desktop"]) .home-albs--games { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.home-albs--games .home-alb-c { aspect-ratio: 3 / 4; }
+.home-alb-a[data-st="want"] { color: var(--sgx-info); }
+.home-alb-a[data-st="playing"] { color: var(--sgx-success); }
+.home-alb-a[data-st="done"] { color: var(--sgx-warning); }
+.home-alb-a[data-st="shelved"] { color: var(--sgx-text-secondary); }
 /* [02] 日刻：左 2px 强调线 + 大字引句 + 一行小字（稿 .qt；无卡片） */
 .home-qt { display: block; padding: 6px 0 6px 20px; border-left: 2px solid var(--sgx-primary); color: var(--sgx-text-primary); text-decoration: none; border-radius: 0; }
 .home-qt.hidden, .home-qt .hidden { display: none; }

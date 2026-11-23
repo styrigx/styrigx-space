@@ -50,6 +50,16 @@ test('账号未登录：游戏只读（没有新建 / 调整顺序命令）；�
   await expect(page.locator('#gm-list .it-name')).toHaveText(['Hades II', '塞尔达传说 王国之泪']);
   await expect(page.locator('#gm-list [data-game="7"] .it-stars-ro')).toHaveText('★★★★★');
   await expect(page.locator('#gm-list [data-game="7"] .sgx-cc-m')).toHaveText('games · Switch');
+  /* Gray 2026-11-23：卡片封面竖版 3:4（同裁剪框）；状态分颜色（通关 = 橙 --sgx-warning、在玩 = 绿 --sgx-success） */
+  const im = await page.locator('#gm-list [data-game="7"] .sgx-cc-im').boundingBox();
+  expect(Math.abs(im.height - im.width * 4 / 3), `封面 ${im.width}×${im.height} 不是 3:4`).toBeLessThanOrEqual(1);
+  const col = await page.evaluate(() => {
+    const v = (n) => { const e = document.createElement('i'); e.style.color = `var(${n})`; document.body.appendChild(e); const c = getComputedStyle(e).color; e.remove(); return c; };
+    const c = (sel) => getComputedStyle(document.querySelector(sel)).color;
+    return { done: c('#gm-list [data-game="7"] .it-status'), playing: c('#gm-list [data-game="8"] .it-status'), warn: v('--sgx-warning'), ok: v('--sgx-success') };
+  });
+  expect(col.done).toBe(col.warn);
+  expect(col.playing).toBe(col.ok);
   await page.locator('#gm-chips [data-f="playing"]').click();
   await expect(page.locator('#gm-list .it-name')).toHaveText(['Hades II']);
   await expect(page.locator('#gm-fab')).toBeHidden();

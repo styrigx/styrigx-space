@@ -143,7 +143,7 @@
     </ul>
   </section>
 
-  {{/* [05] 游戏 · ls games/（奇趣重组 PR 2：游戏拆成第五个子站 /games/ 后主页的入口，仿 [03] 音乐）：最新几个游戏（封面 + 名字 + 状态），
+  {{/* [05] 游戏 · ls games/（奇趣重组 PR 2：游戏拆成第五个子站 /games/ 后主页的入口，仿 [03] 音乐；Gray 2026-11-23 起桌面四栏铺满、竖封面 3:4、状态分颜色）：最新几个游戏（封面 + 名字 + 状态），
      apps/index.js 运行时取 /games/api/games（进门即可读，私密的服务端不给），按记录 id 从新到旧取前 4 个（不分状态）。
      首帧 4 个「—」占位（默认手柄封面），取到就填上、多的占位删掉；取不到 / 没有游戏保持「—」，都链到游戏页。
      点一个 = 游戏页直达这一款（/games/?game=<id>，zh 走 /games/zh/?game=）。 */}}
@@ -153,7 +153,7 @@
     <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[05] // GAMES</p><h2 class="home-sec-t" id="home-gm-h">{{ $h.games }}</h2></div><a class="home-sec-more" href="{{ $gmHome }}" translate="no">cd games/ →</a></div>
     <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> ls games/</p>
     <p class="sgx-wait home-wait" data-gm-wait role="status"><span aria-hidden="true">› </span>{{ replace $tr.frame.term.fetching "{x}" "games" }}</p>
-    <ul class="home-albs" role="list" data-home-games data-games-href="{{ $gmHome }}">
+    <ul class="home-albs home-albs--games" role="list" data-home-games data-games-href="{{ $gmHome }}">
       {{- range seq 4 }}
       <li><a class="home-alb" href="{{ $gmHome }}" data-gm-slot><span class="home-alb-c">{{ $pad | safeHTML }}</span><span class="home-alb-t" data-gm-title>—</span><small class="home-alb-a" data-gm-status></small></a></li>
       {{- end }}

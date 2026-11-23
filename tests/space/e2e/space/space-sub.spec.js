@@ -166,6 +166,8 @@ test('home [05] games: latest games from /games/api/games fill the row; fewer dr
   const t = pg.locator('#games .home-alb-t');
   await expect(t).toHaveText(['Hades II', 'Celeste', 'Balatro', 'Tunic']);
   await expect(pg.locator('#games .home-alb-a')).toHaveText(['在玩', '想玩', '搁置', '通关']);
+  /* 状态分颜色（Gray 2026-11-23）：data-st 给 CSS 上色（想玩蓝 / 在玩绿 / 通关橙 / 搁置灰） */
+  expect(await pg.locator('#games .home-alb-a').evaluateAll((els) => els.map((e) => e.getAttribute('data-st')))).toEqual(['playing', 'want', 'shelved', 'done']);
   await expect(pg.locator('#games [data-gm-wait]')).toBeHidden();
   expect(await pg.locator('#games a.home-alb').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/games/zh/?game=8', '/games/zh/?game=6', '/games/zh/?game=4', '/games/zh/?game=2']);
   await expect(pg.locator('#games .home-alb img')).toHaveCount(1);
