@@ -63,6 +63,11 @@ export async function runHourly(env, at) {
   return out;
 }
 
+/** 入口兜底（报告修复 PR 5，2026-11-23）：handler 抛错只记错误名，回 500 JSON，不泄栈 */
+const internal = () => new Response(JSON.stringify({ ok: false, error: 'internal' }), {
+  status: 500, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
+});
+
 export default {
   /**
    * @param {Request} request
@@ -70,10 +75,15 @@ export default {
    * @param {{ waitUntil(p: Promise<any>): void }} ctx
    */
   async fetch(request, env, ctx) {
-    const product = productOf(new URL(request.url).pathname);
-    if (product === 'curio' || product === 'music' || product === 'games') return tag(await curio.fetch(request, env, ctx));
-    if (product === 'daymark') return tag(await daymark.fetch(request, env, ctx));
-    return notFound();
+    try {
+      const product = productOf(new URL(request.url).pathname);
+      if (product === 'curio' || product === 'music' || product === 'games') return tag(await curio.fetch(request, env, ctx));
+      if (product === 'daymark') return tag(await daymark.fetch(request, env, ctx));
+      return notFound();
+    } catch (e) {
+      console.error('[atlas] fetch failed', e && /** @type {any} */ (e).name);
+      return internal();
+    }
   },
 
   /** Cron 入口（不挂 Cron，每小时由 status 调 HourlyJob；这里留给手动触发） */
