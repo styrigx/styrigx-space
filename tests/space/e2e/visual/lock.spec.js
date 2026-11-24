@@ -10,7 +10,7 @@ const { blockExternalRequests, freezeTime, expect } = require('../helpers/helper
 const { ENTRY_URL, SEL, gotoLockTerm, lockCmd, lockMode, badLine, lastLine } = require('../helpers/lock-term.cjs');
 
 /* 截图基线：锁屏截图 2026-11 UI 重设计 PR-1 起不比，v5 S5 也不新拍（终端截图在 visual.spec.js 的顶栏 / 主页那几张） */
-const SHOTS = false;
+const SHOTS = true;
 const out = (page) => page.locator(SEL.out);
 const input = (page) => page.locator(SEL.in);
 const ps = (page) => page.locator(SEL.ps);
