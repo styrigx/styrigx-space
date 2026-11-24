@@ -88,8 +88,8 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
             fullPage: false,
             animations: 'disabled',
             /* 遮罩动态区域：门内倒计时数字（P4-2c 起首页时钟、天气已删）；
-               首页 neofetch 的 Built 行是 Hugo 构建时的墙钟（精确到分），生成和对比不是同一次构建，必须盖掉 */
-            mask: [pg.locator('#sgx-credential-countdown .sgx-credential-countdown-text'), pg.locator('[data-about="built"]')],
+               首页 neofetch 的 Built 行是 Hugo 构建时的墙钟（精确到分）、Build 行是提交短 SHA，生成和对比不是同一次构建 / 同一个提交，都盖掉 */
+            mask: [pg.locator('#sgx-credential-countdown .sgx-credential-countdown-text'), pg.locator('[data-about="built"], [data-about="build"]')],
           });
         });
       }
