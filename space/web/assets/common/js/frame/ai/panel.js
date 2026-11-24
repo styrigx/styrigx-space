@@ -641,51 +641,8 @@ export function mountAiChat(dlg, opts) {
     turn.className = 'sgx-ai-turn';
     turn.appendChild(el);
     if (m === live) turn.setAttribute('data-live', '');
-    else if (m.text) {
-      const cards = srcCards(m.text);
-      if (cards) turn.appendChild(cards);
-      turn.appendChild(ops(m));
-    }
+    else if (m.text) turn.appendChild(ops(m));
     return turn;
-  }
-  /**
-   * 来源卡片（设计稿 ai-v1）：回答里出现的站内链接 [标题](/路径)，去重后最多 3 条，卡片 = 路径前两段（blog/post）+ 标题；点了关窗口再跳（同正文里的站内链接）。
-   * 正文里的链接照旧可点；这里只是把站内去处再列一遍。
-   * @param {string} text @returns {HTMLElement|null}
-   */
-  function srcCards(text) {
-    const re = /\[([^\]\n]{1,120})\]\((\/[^)\s]*)\)/g;
-    /** @type {Array<[string, string]>} */
-    const seen = [];
-    let mm;
-    while ((mm = re.exec(text)) && seen.length < 3) {
-      const href = mm[2];
-      if (href.indexOf('//') === 0 || seen.some(function (x) { return x[1] === href; })) continue;
-      seen.push([mm[1], href]);
-    }
-    if (!seen.length) return null;
-    const box = doc.createElement('div');
-    box.className = 'sgx-ai-srcs';
-    for (const [title, href] of seen) {
-      const a = doc.createElement('a');
-      a.className = 'sgx-ai-src';
-      a.href = href;
-      const segs = href.split(/[?#]/)[0].split('/').filter(Boolean).filter(function (x) { return x !== 'zh' && x !== 'en'; });
-      const lab = doc.createElement('code');
-      lab.textContent = segs.slice(0, 2).join('/') || '~';
-      lab.setAttribute('translate', 'no');
-      const ti = doc.createElement('span');
-      ti.textContent = title;
-      a.appendChild(lab);
-      a.appendChild(ti);
-      a.addEventListener('click', function (e) {
-        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-        e.preventDefault();
-        goInternal(href);
-      });
-      box.appendChild(a);
-    }
-    return box;
   }
   /** 建议问题（设计稿 ai-v1 回答下面那排小块）：点一下 = 直接问这一句；回答进行中不显示 */
   function sugRow() {

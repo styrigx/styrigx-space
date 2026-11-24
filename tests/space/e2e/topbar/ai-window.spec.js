@@ -111,7 +111,7 @@ test.describe('AI 窗口（ai-v1，按设计稿）', () => {
     await expect(ai).toHaveAttribute('open', '');
   });
 
-  test('模型胶囊：登了账号能在窗口里换（写 sgx-ai-model，发问带上）；回答下站内链接成来源卡片、建议问题点了就问', async ({ page }) => {
+  test('模型胶囊：登了账号能在窗口里换（写 sgx-ai-model，发问带上）；站内链接只在正文里（不另列来源卡片，ADR-0004 C7）、建议问题点了就问', async ({ page }) => {
     let body = null;
     await go(page, '/zh/status/');
     await page.route('**/api/ai', (r) => {
@@ -130,9 +130,10 @@ test.describe('AI 窗口（ai-v1，按设计稿）', () => {
     await expect(chip).toHaveText(/Gemini Flash/);
     expect(await page.evaluate(() => localStorage.getItem('sgx-ai-model'))).toBe('gf');
     await ai.locator('.sgx-ai-sug').first().click();
-    await expect(ai.locator('.sgx-ai-src')).toHaveCount(1);
-    await expect(ai.locator('.sgx-ai-src code')).toHaveText('blog/post');
-    await expect(ai.locator('.sgx-ai-src')).toContainText('AI 代理协作开发规范白皮书');
+    const link = ai.locator('.sgx-ai-md a', { hasText: 'AI 代理协作开发规范白皮书' });
+    await expect(link).toHaveCount(1);
+    await expect(link).toHaveAttribute('href', '/blog/post/2026-10-11-agent-collaboration-whitepaper-v2/');
+    await expect(ai.locator('.sgx-ai-srcs, .sgx-ai-src')).toHaveCount(0);
     expect(body.q).toBe('最近在听什么');
     expect(body.model).toBe('gf');
   });
