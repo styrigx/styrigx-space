@@ -90,7 +90,7 @@ test('身份审计：白名单、90 天、IP 前缀、uid 可空；不认识的�
   assert.equal(await UA.writeUserAudit(env, { uid: null, command: 'login-fail su styrigx', ok: false, ip: '2001:db8:1:2:3::9' }), true);
   assert.equal(await UA.writeUserAudit(env, { uid: 0, command: 'rm -rf /' }), false);
   assert.equal(await UA.writeUserAudit(env, { uid: 0, command: '' }), false);
-  const rows = all(env, 'SELECT uid, command, ok, ip_prefix, expires_at - ts AS ttl FROM account_user_audit ORDER BY ts, id');
+  const rows = all(env, 'SELECT uid, command, ok, ip_prefix, expires_at - ts AS ttl FROM account_user_audit ORDER BY rowid');
   assert.deepEqual(rows.map((r) => [r.uid, r.command, r.ok, r.ip_prefix, r.ttl]), [
     [0, 'usermod -aG listen alice', 1, '203.0.113.x', 90 * 86400000],
     [null, 'login-fail su styrigx', 0, '2001:db8:1:2::x', 90 * 86400000],
