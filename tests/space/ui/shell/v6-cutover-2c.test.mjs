@@ -80,7 +80,8 @@ test('源码约定：顶栏订阅 who.onV6 → switchPageSession（登录了重�
   assert.match(g, /addEventListener\(SESSION_EVENT, function \(\/\*\* @type \{any\} \*\/ e\) \{ if \(e && e\.detail && e\.detail\.live && e\.detail\.ok\) bindAutoLock\(\); \}\)/);
   assert.match(g, /function checkSessionForAutoLock\(\) \{[\s\S]{0,120}if \(pageState\(\) !== 'valid'\) return;/);
   const ai = rd('space/web/assets/common/js/frame/ai/panel.js');
-  assert.match(ai, /if \(d\.ok\) \{ setLocked\(false\); loadModels\(\); \} else setLocked\(true\);/);
+  /* 2026-11-24 AI 窗口分档：登录了重取 GET /api/ai 定档（模型档 / 索引档 · 无权限），回访客切索引档 · 访客 */
+  assert.match(ai, /if \(d\.ok\) loadModels\(\); else setTier\('guest'\);/);
   const st = rd('space/web/assets/common/js/frame/apps/space-status.js');
   assert.match(st, /window\.addEventListener\('sgx:session'[\s\S]{0,260}if \(d\.ok\) \{ load\(\); return; \}\s*dropCache\(\);\s*data = null;\s*setState\('locked'\);/);
   const core = rd('space/web/assets/common/js/frame/apps/core.js');

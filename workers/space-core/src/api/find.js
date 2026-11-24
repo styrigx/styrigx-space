@@ -6,7 +6,7 @@
  *   1. q 去空白后为空或超过 FIND_Q_MAX 个字符 → 400 bad_request（不进限流、不调 styrigx-ai）
  *   2. 按 IP 限流（core/find-limit.js FIND_LIMITER）→ 429 cooldown + Retry-After + message
  *   3. 经服务绑定 AI_SERVICE 调 styrigx-ai 的 GET /find（同一份 KV 索引读取代码 core/recall.js loadIndexes，60 秒缓存；不调模型）。
- *      新建的内部请求只带 q 和 lang：不转 cookie、不写账号结论头 → styrigx-ai 只回公开条目（它那边也固定不回私密条目）。
+ *      新建的内部请求只带 q、lang 和 mode（mode 只认 recall，别的值丢掉；AI 窗口索引档用，2026-11-24 分档设计稿 §四）：不转 cookie、不写账号结论头 → styrigx-ai 只回公开条目（它那边也固定不回私密条目）。
  * 回答只有公开页面元数据：{ ok, q, results: [{ title, url, site, snippet }] }；索引读不了时 styrigx-ai 回 degraded: true。
  * 网关这边调不到 styrigx-ai（没绑 / 抛错 / 回了非 2xx）同样降级：200 { ok: true, q, results: [], degraded: true }，不回 5xx（终端照常显示）。
  * 为什么是新路径 /api/find 而不是复活 /api/search：/api/search 在 P4-2 退役，部署冒烟和单测都把它当作「已删」核对；
@@ -43,6 +43,7 @@ export async function onRequestGet(context) {
   const target = new URL(AI_BASE + '/find');
   target.searchParams.set('q', q);
   if (lang) target.searchParams.set('lang', lang);
+  if (url.searchParams.get('mode') === 'recall') target.searchParams.set('mode', 'recall');
   let res;
   try {
     res = await svc.fetch(new Request(target.toString(), { method: 'GET' }));

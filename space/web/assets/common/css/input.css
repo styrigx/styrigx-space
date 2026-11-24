@@ -5355,8 +5355,14 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 /* AI 窗口：头部 G 徽标 · Gray AI / 副标题 · 新对话 · 历史 · 头像 · ×；消息区每条回答前一行命令回显（提问 --ask / 回答 grayai … --reply；装饰，读屏不念）；输入框 ask › 前缀 + 方形发送 */
 .sgx-ai .sgx-qp-sheet { gap: 0; padding: 0; }
 .sgx-ai-head { gap: 0; padding: 10px 8px 10px 14px; border-bottom-color: var(--sgx-term-line); }
-.sgx-ai-badge { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-right: 10px; border-radius: 8px;
-  background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 700; }
+/* 头像（2026-11-24 分档设计稿 §三.10）：和顶栏同一张站点头像，圆形 + 主题色环（同账号卡 .sgx-pop-avatar，跟调色板），不加角标；
+   图读不到（ai/panel.js 写 data-fallback、删掉 img）回落原来的 G 徽标 */
+.sgx-ai-badge { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-right: 10px; border-radius: 50%; }
+.sgx-ai-badge-img { display: block; width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: var(--sgx-surface-container-high);
+  box-shadow: 0 0 0 2px var(--sgx-mat-solid), 0 0 0 3.5px var(--sgx-primary); }
+.sgx-ai-badge-g { display: none; }
+.sgx-ai-badge[data-fallback] { border-radius: 8px; background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 700; }
+.sgx-ai-badge[data-fallback] .sgx-ai-badge-g { display: inline; }
 .sgx-ai-tt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .sgx-ai-title { padding: 0; font-family: var(--sgx-font-mono); font-size: 14px; font-weight: 600; line-height: 1.3; letter-spacing: 0; color: var(--sgx-text-primary); }
 .sgx-ai-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 1.3; color: var(--sgx-text-tertiary); }
@@ -5475,15 +5481,30 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { cont
 .sgx-ai-model[aria-disabled="true"] { cursor: default; }
 .sgx-ai-model[aria-disabled="true"] i { display: none; }
 .sgx-ai-model[aria-expanded="true"] { border-color: var(--sgx-primary); color: var(--sgx-primary); }
-/* 没进站（v5 S3）：同一个小矩形里只放锁标（ai/panel.js setLocked） */
-.sgx-ai-model [data-ai-model-lock] { display: none; }
-.sgx-ai-model.is-locked { cursor: pointer; }
-.sgx-ai-model.is-locked [data-ai-model-lock] { display: inline-flex; }
-.sgx-ai-model.is-locked [data-ai-model-name], .sgx-ai-model.is-locked i { display: none; }
+/* 索引档（GET /api/ai 401 / 403，2026-11-24 分档设计稿 §三.9）：同一个小矩形里只放放大镜图标，无文字（ai/panel.js setTier；Gray 2026-11-24 14:41） */
+.sgx-ai-model [data-ai-model-find] { display: none; }
+.sgx-ai-model.is-find { cursor: pointer; }
+.sgx-ai-model.is-find [data-ai-model-find] { display: inline-flex; }
+.sgx-ai-model.is-find [data-ai-model-name], .sgx-ai-model.is-find i { display: none; }
 .sgx-ai-models { display: flex; flex-direction: column; padding: 6px; border-bottom: 1px solid var(--sgx-term-line); }
 .sgx-ai-mopt { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font-family: var(--sgx-font-mono); font-size: 13px; text-align: left; color: var(--sgx-text-secondary); cursor: pointer; }
 .sgx-ai-mopt[aria-checked="true"] { background: var(--sgx-term-sel); color: var(--sgx-primary); }
 .sgx-ai-mopt[aria-checked="true"]::after { content: "✓"; margin-left: auto; }
+/* 索引档胶囊的说明浮层：和模型列表同一位置、同一套样式（.sgx-ai-models），一行说明 + 访客才有的 su 按钮 */
+.sgx-ai-finfo[hidden] { display: none; }
+.sgx-ai-finfo-t { margin: 0; padding: 8px 12px; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.5; color: var(--sgx-text-secondary); }
+.sgx-ai-finfo-su { color: var(--sgx-primary); }
+/* 索引档的回答（§三.3）：结果列表，整条可点（标题 · 站点路径 · 摘要）；0 条一行文案 + 访客的「登录后可问 AI」 */
+.sgx-ai-md > .sgx-ai-finds { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.sgx-ai-find { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-radius: 8px; color: inherit; text-decoration: none; box-shadow: inset 0 0 0 1px var(--sgx-term-line); -webkit-tap-highlight-color: transparent; }
+.sgx-ai-find-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 500; color: var(--sgx-text-primary); }
+.sgx-ai-find-p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--sgx-font-mono); font-size: 11px; color: var(--sgx-primary); }
+.sgx-ai-find-s { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 12px; line-height: 1.45; color: var(--sgx-text-secondary); }
+.sgx-ai-find:focus-visible, .sgx-ai-find-login:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+.sgx-ai-md > .sgx-ai-find-none { margin: 0; color: var(--sgx-text-secondary); }
+.sgx-ai-find-login { margin-top: 8px; min-height: 32px; padding: 0 10px; border: 1px solid var(--sgx-term-line); border-radius: 6px; background: transparent; font: inherit; font-size: 12px; color: var(--sgx-primary); cursor: pointer; }
+/* 历史列表：索引档的问答带一个「搜索」小标记（§三.8） */
+.sgx-ai-hist-tag { flex: none; margin-left: auto; padding: 0 6px; border-radius: 4px; font-size: 11px; line-height: 18px; color: var(--sgx-text-tertiary); box-shadow: inset 0 0 0 1px var(--sgx-term-line); }
 /* 空态的命令回显：欢迎语是 AI 说的话，回显用 grayai 的 --reply，与普通回答行一致（原设计稿 ask --help 是提问者的；Gray 2026-11-09 改；只改文字，样式不变） */
 .sgx-ai-msg[data-greet]::before { content: "grayai@space:~$ --reply"; content: "grayai@space:~$ --reply" / ""; }
 /* 来源卡片 + 建议问题 */
@@ -5491,6 +5512,8 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { cont
 .sgx-ai-sug { min-height: 32px; padding: 0 10px; border: 1px solid var(--sgx-term-line); border-radius: 6px; background: transparent; font: inherit; font-size: 12px; color: var(--sgx-text-secondary); cursor: pointer; }
 @media (hover: hover) and (pointer: fine) {
   .sgx-ai-sug:hover { border-color: var(--sgx-primary); color: var(--sgx-text-primary); }
+  .sgx-ai-find:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); box-shadow: inset 0 0 0 1px var(--sgx-primary); }
+  .sgx-ai-find-login:hover { border-color: var(--sgx-primary); }
   .sgx-ai-mopt:not([aria-checked="true"]):hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
 }
 .sgx-ai-dot { display: inline; margin: 0; }

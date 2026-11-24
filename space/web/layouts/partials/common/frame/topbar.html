@@ -6,7 +6,7 @@
      底边 .sgx-tb-prog 滑页进度条（JS 写 --sgx-prog）；右下角 AI 浮钮 .sgx-tb-ai（打开 AI 窗口）。三个窗口都是非模态 <dialog>、互斥：
      #sgx-nav NAVIGATE：00 主页 01 博客 02 日刻 03 音乐 04 奇趣 05 游戏（当前站「开」态；Gray 2026-11-21 加音乐、重排、编号从 00 起；奇趣重组 PR 2 追加 05 游戏；旧 05 旷野 2026-11-12 删除）→ lang / layout 分段 → share（v5 S6 去掉 lock：上锁走终端 lock / 盾牌）→ STATUS（/api/status）→ systemctl status · Ctrl K 终端 · esc 关闭；
      #sgx-qp  外观：MODE（跟随系统 / 深 / 浅）+ PALETTE（色板列表 + 标题行 reset = 恢复默认）；（2026-11 PR-A：NAVIGATE / 外观都是锚在各自图标下的实色卡，不压暗页面、不毛玻璃）
-     #sgx-ai  AI 窗口：头部 Gray AI · 新对话 · 历史 · 头像（账号页），底部「仅公开内容 · 联系我」（邮箱 = 参数 email）。
+     #sgx-ai  AI 窗口：头部 头像（/avatar/96.webp，读不到回落 G）· Gray AI · 模型胶囊（索引档 = 放大镜）· 新对话 · 历史 · ×，底部「仅公开内容 · 联系我」（邮箱 = 参数 email）。
    参数（dict）：
      lang        页面语言代码（en / zh …）
      tr          共享外壳字符串表（partials/common/tr.html 返回值的 .frame；当前语言叠在英文上，缺键回退英文）——外壳不写任何语言的文案
@@ -127,16 +127,19 @@
 <dialog id="sgx-ai" class="sgx-qp sgx-ai" aria-label="{{ $t.topbar.askAi }}">
   <div class="sgx-qp-sheet" tabindex="-1">
     <div class="sgx-ai-head">
-      <span class="sgx-ai-badge" aria-hidden="true" translate="no">G</span>
+      {{- /* 头像（2026-11-24 分档设计稿 §三.10）：和顶栏同一张站点头像，96 档（参数 avatar 的 192 换成 96：主站 /avatar/96.webp，子站 https://styrigx.com/avatar/96.webp，同一个文件），圆形主题色环，不加 #/$ 角标；读不到回落 G（ai/panel.js 写 data-fallback） */}}
+      <span class="sgx-ai-badge" data-ai-badge aria-hidden="true" translate="no"><img class="sgx-ai-badge-img" src="{{ replace (.avatar | default "/avatar/192.webp") "/192.webp" "/96.webp" }}" alt="" width="30" height="30" decoding="async"><span class="sgx-ai-badge-g">G</span></span>
       <span class="sgx-ai-tt"><p class="sgx-ai-title" translate="no">Gray AI</p><small class="sgx-ai-sub">{{ $t.topbar.aiSub }}</small></span>
       {{- /* 模型（设计稿 ai-v1 的「Gemma 4 ▾」）：显示当前生效的模型；登了账号（canChoose）点开在头部下面展开单选，选中写 sgx-ai-model（同账号页 AI 模型一行）；
-         没进站（v5 S3）：同一个矩形只显示锁标 data-ai-model-lock（.is-locked，ai/panel.js setLocked） */}}
-      <button type="button" class="sgx-ai-model" data-ai-model aria-expanded="false" aria-controls="sgx-ai-models" aria-label="{{ $t.topbar.model }}" hidden><span data-ai-model-lock aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span><span data-ai-model-name translate="no"></span><i aria-hidden="true">▾</i></button>
+         索引档（GET /api/ai 401 / 403，2026-11-24 分档设计稿 §三.9）：同一个矩形只显示放大镜图标 data-ai-model-find（.is-find，无文字，ai/panel.js setTier）；
+         点了在模型列表同一位置弹一行说明 data-ai-finfo */}}
+      <button type="button" class="sgx-ai-model" data-ai-model aria-expanded="false" aria-controls="sgx-ai-models" aria-label="{{ $t.topbar.model }}" hidden><span data-ai-model-find aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><span data-ai-model-name translate="no"></span><i aria-hidden="true">▾</i></button>
       <button type="button" class="sgx-ai-hbtn" data-ai-clear aria-label="{{ $t.topbar.newChat }}" title="{{ $t.topbar.newChat }}">{{ index $i "tb-newchat" | safeHTML }}</button>
       <button type="button" class="sgx-ai-hbtn" data-ai-history aria-expanded="false" aria-label="{{ $t.topbar.history }}" title="{{ $t.topbar.history }}">{{ index $i "tb-history" | safeHTML }}</button>
       <button type="button" class="sgx-ai-hbtn sgx-ai-x" data-ai-close aria-label="{{ $t.topbar.close }}" title="{{ $t.topbar.close }}"><span aria-hidden="true">×</span></button>
     </div>
     <div class="sgx-ai-models" id="sgx-ai-models" role="radiogroup" aria-label="{{ $t.topbar.model }}" data-ai-models hidden></div>
+    <div class="sgx-ai-models sgx-ai-finfo" id="sgx-ai-finfo" data-ai-finfo hidden></div>
     <div class="sgx-ai-hist" data-ai-hist hidden></div>
     <div class="sgx-ai-list" data-ai-list aria-live="polite"></div>
     <form class="sgx-ai-form" data-ai-form>

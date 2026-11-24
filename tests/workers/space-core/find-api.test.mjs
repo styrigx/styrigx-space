@@ -97,6 +97,19 @@ test('转发：GET https://styrigx-ai/find?q=&lang=；不转 cookie、不写账�
   assert.equal(new URL(e2.log[0].url).searchParams.has('lang'), false);
 });
 
+test('转发 mode：只认 recall（透传）；别的值 / 没给都不带', async () => {
+  const e = env();
+  await viaGateway(get('?q=' + encodeURIComponent('最近在听什么') + '&lang=zh&mode=recall'), e);
+  const u = new URL(e.log[0].url);
+  assert.equal(u.searchParams.get('mode'), 'recall');
+  assert.equal(u.searchParams.get('lang'), 'zh');
+  for (const qs of ['?q=muse', '?q=muse&mode=', '?q=muse&mode=RECALL', '?q=muse&mode=private']) {
+    const e2 = env();
+    await viaGateway(get(qs), e2);
+    assert.equal(new URL(e2.log[0].url).searchParams.has('mode'), false, qs);
+  }
+});
+
 test('限流：每 IP 第 11 次 429 cooldown + Retry-After 60 + message；别的 IP 不受影响；只用 FIND_LIMITER', async () => {
   const e = env();
   for (let i = 0; i < 10; i++) assert.equal((await viaGateway(get('?q=muse'), e)).status, 200, '第 ' + (i + 1) + ' 次');

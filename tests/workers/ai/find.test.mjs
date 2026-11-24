@@ -125,3 +125,43 @@ test('最多回 FIND_LIMIT 条', () => {
   const items = Array.from({ length: 30 }, (_, i) => ({ id: 'x' + i, lang: 'en', title: 'muse tip ' + i, url: 'https://styrigx.com/blog/t' + i + '/' }));
   assert.equal(F.findIn([{ site: 'blog', items }], 'muse', 'en').length, F.FIND_LIMIT);
 });
+
+/* mode=recall（2026-11-24 AI 窗口分档·索引直出设计稿 v1.0 §三.4 A）：AI 窗口索引档的问句 */
+test('mode=recall：问句能出结果（不带 mode 全命中是 0 条）；字段同样只有四个；不调模型', async () => {
+  const ai = noAI();
+  const q = encodeURIComponent('主题模式怎么切换');
+  let j = await (await find('?q=' + q + '&lang=zh', { AI: ai, KV_SEARCH_INDEX: full() })).json();
+  assert.deepEqual(j.results, [], '不带 mode：全命中，问句 0 条（行为不变）');
+  j = await (await find('?q=' + q + '&lang=zh&mode=recall', { AI: ai, KV_SEARCH_INDEX: full() })).json();
+  assert.equal(j.ok, true);
+  assert.ok(j.results.length >= 1);
+  assert.equal(j.results[0].url, 'https://styrigx.com/zh/theme/');
+  for (const it of j.results) assert.deepEqual(Object.keys(it).sort(), ['site', 'snippet', 'title', 'url']);
+  assert.doesNotMatch(JSON.stringify(j), /正文很长|深色/);
+  assert.equal(ai.calls, 0);
+});
+
+test('mode=recall：私密条目一律不回（带账号结论头也一样）', async () => {
+  for (const headers of [{}, { 'X-Styrigx-Account-Session': '1' }]) {
+    R._resetCache();
+    const j = await (await find('?q=' + encodeURIComponent('主题账号安全在哪里') + '&mode=recall', { KV_SEARCH_INDEX: full() }, headers)).json();
+    assert.doesNotMatch(JSON.stringify(j.results), /保险箱|account\/secret|主题账号安全/, JSON.stringify(headers));
+    assert.ok(j.results.length >= 1, '公开的「主题」条目照样能中');
+  }
+});
+
+test('mode 不是 recall 当没给：行为和不带 mode 一样（全命中）', async () => {
+  for (const m of ['', 'RECALL', 'search', 'x']) {
+    R._resetCache();
+    const a = await (await find('?q=theme&lang=en&mode=' + m, { KV_SEARCH_INDEX: full() })).json();
+    R._resetCache();
+    const b = await (await find('?q=theme&lang=en', { KV_SEARCH_INDEX: full() })).json();
+    assert.deepEqual(a, b, m);
+  }
+});
+
+test('mode=recall：最多回 FIND_LIMIT 条；全是停用词 0 条', () => {
+  const items = Array.from({ length: 30 }, (_, i) => ({ id: 'x' + i, lang: 'en', title: 'muse tip ' + i, url: 'https://styrigx.com/blog/t' + i + '/' }));
+  assert.equal(F.recallIn([{ site: 'blog', items }], 'any muse tips?', 'en').length, F.FIND_LIMIT);
+  assert.deepEqual(F.recallIn([{ site: 'blog', items }], 'what is this', 'en'), []);
+});

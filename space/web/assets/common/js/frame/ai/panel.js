@@ -30,10 +30,22 @@
  *   链接文字带虚下划线 + ↗（参照 ChatGPT 安卓）；站内链接同页打开（关窗口后跳转），站外新标签 + rel=noopener。
  *   长网址不当链接文字：同一条回答里有 [标题](同一地址) 就用那个标题，否则显示「域名/…」。
  *   2026-11-23 起不收 event: sources（不追加「来源」段）；链接只由模型在正文里给出。旧历史里已存的来源段照原样显示。
+ * - 分档（2026-11-24 AI 窗口分档·索引直出设计稿 v1.0）：GET /api/ai 200 = 模型档（上面这些）；401（没进站）/ 403（进站了但没有 ai-use）= 索引档：
+ *   不调模型，发问走 GET /api/find?q=&lang=&mode=recall（公开、只回公开条目），取前 FIND_SHOW 条渲染成可点列表（标题 · 站点路径 · 摘要）；
+ *   0 条一行固定文案 + 「登录后可问 AI」入口（askSudo；只在 0 条时出现，访客才有）；degraded / 429 各一行固定文案（同终端 find）。
+ *   模型档会话中途 POST /api/ai 回 403 forbidden → 这一问不显示一般错误，当场切索引档、用同一句重问；之后都走索引档，直到 GET /api/ai 再回 200（sgx:session 切换时重取）。
+ *   胶囊三态（§三.9）：模型档 = 模型名（能换时 ▾）；索引档 = 纯放大镜图标（无文字，Gray 2026-11-24 14:41），aria-label「站内搜索（不经 AI）」，
+ *   点了在模型列表同一位置弹一行说明（401 带 su 按钮、403 不带）。索引档的回答存在消息的 find 上，历史列表里这份对话带「搜索」小标记；重开不重新请求。
+ * - 头部头像（§三.10）：G 徽标换成站点头像 /avatar/96.webp（圆形、主题色环）；加载失败回落 G（data-ai-badge 上的 data-fallback）。
  */
 import { KH_EN, frameSection } from '../term/core/strings.js';
 
 export const AI_API = '/api/ai';
+/** 索引档的搜索接口（网关公开，FIND_LIMITER 按 IP 限流；mode=recall = 问句召回，2026-11-24 分档设计稿 §三.4 A） */
+export const FIND_API = '/api/find';
+/** 索引档显示几条（设计稿 §五.2） / 发给 /api/find 的 q 最多几个字（同网关 FIND_Q_MAX） */
+export const FIND_SHOW = 5;
+export const FIND_Q_MAX = 100;
 export const HISTORY_KEY = 'sgx-ai-history';
 export const HISTORY_MAX = 50;
 /** 历史列表最多存几份对话 / 标题取首问前几个字（P4-3 后续 §3.3） */
@@ -78,14 +90,27 @@ const STR_EN = {
   newTab: "(opens in a new tab)",
   sug1: "What have you been listening to?",
   sug2: "Today’s daymark",
-  sug3: "What devices do you use?"
+  sug3: "What devices do you use?",
+  fsug1: "Music",
+  fsug2: "Blog",
+  fsug3: "Games",
+  findLabel: "Site search (no AI)",
+  findGuest: "Site search, no AI. Sign in with su to ask Gray AI",
+  findNoAi: "Site search, no AI. This account doesn’t have AI access",
+  findSu: "su",
+  findNone: "Nothing on this site matched. Try other words",
+  findLogin: "Sign in to ask Gray AI",
+  findDown: "Search is unavailable right now · try again later",
+  findLimited: "Too many searches · try again in a minute",
+  findTag: "Search"
 };
 /** @param {Document} doc @returns {Record<string, string>} */
 function frameStr(doc) {
   return Object.assign({}, STR_EN, frameSection(doc, 'ai'));
 }
 
-/** @typedef {{role: 'user'|'assistant', text: string, ts: number, error?: boolean, rate?: 'up'|'down'}} Msg */
+/** @typedef {{title: string, url: string, site: string, snippet: string}} FindItem */
+/** @typedef {{role: 'user'|'assistant', text: string, ts: number, error?: boolean, rate?: 'up'|'down', find?: {results: FindItem[]}}} Msg */
 /** @typedef {{id: string, title: string, time: number, msgs: Msg[]}} Chat */
 /** @typedef {{cur: string, chats: Chat[]}} Chats */
 
@@ -107,8 +132,47 @@ function cleanMsgs(arr) {
     /** @type {Msg} */
     const x = { role: m.role, text: m.text, ts: typeof m.ts === 'number' ? m.ts : 0 };
     if (m.role === 'assistant' && (m.rate === 'up' || m.rate === 'down')) x.rate = m.rate;
+    if (m.role === 'assistant' && m.find && Array.isArray(m.find.results)) x.find = { results: cleanFind(m.find.results) };
     return x;
   });
+}
+/**
+ * 索引档结果：只留 title / url 是字符串的；按 url 去重（留第一条：奇趣的曲目没有自己的地址，同一个 /music/zh/ 会回好几条，Gray 2026-11-24 14:45），
+ * 再取前 FIND_SHOW 条；四个字段。 @param {any} arr @returns {FindItem[]}
+ */
+export function cleanFind(arr) {
+  if (!Array.isArray(arr)) return [];
+  /** @type {Set<string>} */
+  const seen = new Set();
+  return arr.filter(function (/** @type {any} */ it) {
+    if (!it || typeof it.title !== 'string' || !it.title || typeof it.url !== 'string' || !it.url) return false;
+    /* 整个地址一模一样才算重复：日刻的句子只靠 # 后面区分（/daymark/zh/#flavors/…），不能去掉锚点 */
+    if (seen.has(it.url)) return false;
+    seen.add(it.url);
+    return true;
+  })
+    .slice(0, FIND_SHOW).map(function (/** @type {any} */ it) {
+      return { title: it.title, url: it.url, site: typeof it.site === 'string' ? it.site : '', snippet: typeof it.snippet === 'string' ? it.snippet : '' };
+    });
+}
+/** 结果地址 → 显示用的站内路径（https://styrigx.com/blog/x/ → /blog/x/；同终端 find 的 pathOf） @param {string} u */
+export function findPath(u) {
+  const m = /^https?:\/\/[^/]+(\/[^?#]*)?(\?[^#]*)?(#.*)?$/i.exec(String(u || ''));
+  return m ? (m[1] || '/') + (m[2] || '') + (m[3] || '') : String(u || '');
+}
+/** 这份对话里有没有索引档的回答（历史列表的「搜索」小标记） @param {Msg[]} msgs */
+export function hasFind(msgs) {
+  return msgs.some(function (m) { return !!m.find; });
+}
+/**
+ * GET /api/ai 的状态 → 档：200 = model；401 = guest（索引档 · 访客）；403 = noai（索引档 · 无权限）；别的 = ''（不切档）。
+ * @param {number} status @returns {'model'|'guest'|'noai'|''}
+ */
+export function tierOf(status) {
+  if (status >= 200 && status < 300) return 'model';
+  if (status === 401) return 'guest';
+  if (status === 403) return 'noai';
+  return '';
 }
 /** @param {Msg[]} msgs */
 function lastTs(msgs) {
@@ -434,6 +498,15 @@ export function mountAiChat(dlg, opts) {
     }
   }
   syncContact();
+  /* 头部头像（§三.10）：/avatar/96.webp 读不到就回落 G 徽标（窗口第一次打开才挂载，图可能已经失败过：complete 且没有尺寸 = 失败） */
+  (function () {
+    const badge = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-badge]'));
+    const img = /** @type {HTMLImageElement|null} */ (badge && badge.querySelector('img'));
+    if (!badge || !img) return;
+    const fail = function () { img.remove(); badge.setAttribute('data-fallback', ''); };
+    if (img.complete && !img.naturalWidth && img.getAttribute('src')) { fail(); return; }
+    img.addEventListener('error', fail, { once: true });
+  })();
   const doFetch = o.fetch || window.fetch.bind(window);
   /** @type {Chats} */
   let data = loadChats(o.store);
@@ -624,15 +697,85 @@ export function mountAiChat(dlg, opts) {
   function paintAnswer(tx, text) {
     tx.replaceChildren(renderMd(doc, text, { newTab: t.newTab, onInternal: goInternal }));
   }
+  /**
+   * 索引档的回答（§三.3）：结果列表，每条整条可点（标题 · 站点路径 · 摘要）；站内（同站 / styrigx.com）同窗打开（关窗口后跳转），站外新标签。
+   * 0 条：一行固定文案；访客下面再放「登录后可问 AI」（askSudo，只在 0 条时出现，§五.4）。
+   * @param {HTMLElement} tx @param {Msg} m
+   */
+  function paintFind(tx, m) {
+    tx.replaceChildren();
+    const rs = m.find ? m.find.results : [];
+    if (!rs.length) {
+      const p = doc.createElement('p');
+      p.className = 'sgx-ai-find-none';
+      p.textContent = t.findNone;
+      tx.appendChild(p);
+      if (tier !== 'noai') {
+        const b = doc.createElement('button');
+        b.type = 'button';
+        b.className = 'sgx-ai-find-login';
+        b.setAttribute('data-ai-find-login', '');
+        b.textContent = t.findLogin;
+        b.addEventListener('click', function () { askSudo(doc); });
+        tx.appendChild(b);
+      }
+      return;
+    }
+    const here = typeof location !== 'undefined' ? location : { host: '' };
+    const ol = doc.createElement('ol');
+    ol.className = 'sgx-ai-finds';
+    for (const it of rs) {
+      let u = null;
+      try { u = new URL(it.url, 'https://styrigx.com'); } catch (e) { u = null; }
+      if (!u || (u.protocol !== 'https:' && u.protocol !== 'http:')) continue;
+      const internal = u.host === here.host || u.host === 'styrigx.com';
+      const href = internal ? u.pathname + u.search + u.hash : u.href;
+      const li = doc.createElement('li');
+      const a = doc.createElement('a');
+      a.className = 'sgx-ai-find';
+      a.href = href;
+      const ti = doc.createElement('span');
+      ti.className = 'sgx-ai-find-t';
+      ti.textContent = it.title;
+      const pa = doc.createElement('span');
+      pa.className = 'sgx-ai-find-p';
+      pa.setAttribute('translate', 'no');
+      pa.textContent = findPath(it.url);
+      a.appendChild(ti);
+      a.appendChild(pa);
+      if (it.snippet) {
+        const sn = doc.createElement('span');
+        sn.className = 'sgx-ai-find-s';
+        sn.textContent = it.snippet;
+        a.appendChild(sn);
+      }
+      if (internal) {
+        a.addEventListener('click', function (e) {
+          if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          e.preventDefault();
+          goInternal(href);
+        });
+      } else {
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.setAttribute('aria-label', it.title + ' ' + t.newTab);
+      }
+      li.appendChild(a);
+      ol.appendChild(li);
+    }
+    tx.appendChild(ol);
+  }
   /** @param {Msg} m @returns {HTMLElement} */
   function bubble(m) {
     const el = doc.createElement('div');
     el.className = 'sgx-ai-msg';
     el.setAttribute('data-role', m.role);
     if (m.error) el.setAttribute('data-state', 'error');
+    if (m.find && !m.error) el.setAttribute('data-find', '');
     const md = m.role === 'assistant' && !m.error;
     const tx = doc.createElement('span'); /* 仍是 span（e2e 按 .sgx-ai-msg > span 取正文）；Markdown 时 display:block */
-    if (md) { tx.className = 'sgx-ai-md'; paintAnswer(tx, m.text); }
+    if (md && m.find) { tx.className = 'sgx-ai-md'; paintFind(tx, m); }
+    else if (md) { tx.className = 'sgx-ai-md'; paintAnswer(tx, m.text); }
     else tx.textContent = m.text;
     el.appendChild(tx);
     if (m.role !== 'assistant') return el;
@@ -648,7 +791,8 @@ export function mountAiChat(dlg, opts) {
   function sugRow() {
     const row = doc.createElement('div');
     row.className = 'sgx-ai-sugs';
-    for (const k of ['sug1', 'sug2', 'sug3']) {
+    /* 索引档换成三个关键词（§三.5 / §五.3：音乐 / 博客 / 游戏，Music / Blog / Games，Gray 2026-11-24 14:46 定），点了就搜 */
+    for (const k of (isFind() ? ['fsug1', 'fsug2', 'fsug3'] : ['sug1', 'sug2', 'sug3'])) {
       const q = t[k];
       if (!q) continue;
       const b = doc.createElement('button');
@@ -719,6 +863,14 @@ export function mountAiChat(dlg, opts) {
       tm.className = 'sgx-ai-hist-time';
       tm.textContent = fmtTime(c.time);
       b.appendChild(ti);
+      /* 索引档的问答标成搜索（§三.8） */
+      if (hasFind(c.msgs)) {
+        const tg = doc.createElement('span');
+        tg.className = 'sgx-ai-hist-tag';
+        tg.setAttribute('data-ai-hist-find', '');
+        tg.textContent = t.findTag;
+        b.appendChild(tg);
+      }
       b.appendChild(tm);
       b.addEventListener('click', function () {
         if (busy) return;
@@ -759,8 +911,34 @@ export function mountAiChat(dlg, opts) {
     if (scope) scope.textContent = s === 'private' ? t.scopePrivate : t.scopePublic;
   }
 
-  /** 没进站（接口 401）：模型胶囊换锁标、不发问（见下面「模型」一节 setLocked） */
-  let locked = false;
+  /** 档（§三.1）：'' = 还没读到 GET /api/ai（按模型档发问）；model；guest = 索引档 · 访客（401）；noai = 索引档 · 无权限（403） @type {''|'model'|'guest'|'noai'} */
+  let tier = '';
+  const isFind = function () { return tier === 'guest' || tier === 'noai'; };
+  /**
+   * 索引档问一句：GET /api/find?q=&lang=&mode=recall，结果写进 ans（ans.find + 纯文字 text 供复制）；429 / degraded / 失败 → 返回文案键。
+   * @param {string} q @param {Msg} ans @returns {Promise<string>} '' = 成功
+   */
+  async function runFind(q, ans) {
+    const lang = /^zh/i.test(o.lang || doc.documentElement.lang || '') ? 'zh' : 'en';
+    const qq = [...q].slice(0, FIND_Q_MAX).join('');
+    let j = null;
+    try {
+      const r = await doFetch(FIND_API + '?q=' + encodeURIComponent(qq) + '&lang=' + lang + '&mode=recall', {
+        method: 'GET', credentials: 'same-origin', signal: ctl ? ctl.signal : undefined,
+      });
+      if (r && r.status === 429) return 'findLimited';
+      if (!r || !r.ok) return 'findDown';
+      j = await r.json();
+    } catch (e) {
+      if (e && /** @type {any} */ (e).name === 'AbortError') throw e;
+      return 'findDown';
+    }
+    if (!j || !j.ok || j.degraded || !Array.isArray(j.results)) return 'findDown';
+    const rs = cleanFind(j.results);
+    ans.find = { results: rs };
+    ans.text = rs.length ? rs.map(function (it) { return it.title + ' ' + it.url; }).join('\n') : t.findNone;
+    return '';
+  }
   /**
    * 问一句。redo = 重试：替换这条回答（不追加），历史只带它前面那条提问之前的对话。
    * @param {string} q @param {Msg} [redo]
@@ -769,8 +947,6 @@ export function mountAiChat(dlg, opts) {
     if (busy) return;
     q = q.trim();
     if (!q) return;
-    /* 没进站（v5 S3 三处上锁之一）：不发问，打开终端预填 su ；输入框里的问题留着 */
-    if (locked) { askSudo(doc); return; }
     if (histOpen) showHist(false);
     if ([...q].length > Q_MAX) {
       msgs.push({ role: 'assistant', text: t.tooLong, ts: Date.now(), error: true });
@@ -788,6 +964,7 @@ export function mountAiChat(dlg, opts) {
       ans.ts = Date.now();
       delete ans.error;
       delete ans.rate;
+      delete ans.find;
     } else {
       history = historyForServer(msgs);
       msgs.push({ role: 'user', text: q, ts: Date.now() });
@@ -803,6 +980,19 @@ export function mountAiChat(dlg, opts) {
     if (liveText) liveText.textContent = '› ' + t.thinking;
     ctl = typeof AbortController === 'function' ? new AbortController() : null;
     let failed = '';
+    /* 索引档（§三.3）：不带历史、不带模型，走 /api/find */
+    if (isFind()) {
+      setScope(null);
+      try { failed = await runFind(q, ans); }
+      catch (e) { failed = ''; if (!ans.text) msgs.splice(msgs.indexOf(ans), 1); }
+      ctl = null;
+      if (failed) { ans.text = /** @type {any} */ (t)[failed]; ans.error = true; delete ans.find; }
+      live = null;
+      setBusy(false);
+      persist();
+      render();
+      return;
+    }
     /** @type {Record<string, any>} */
     const payload = { q, lang: o.lang || doc.documentElement.lang || 'en', history };
     let model = loadModel(o.store);
@@ -842,10 +1032,18 @@ export function mountAiChat(dlg, opts) {
     } catch (e) {
       failed = e && /** @type {any} */ (e).name === 'AbortError' ? '' : 'fail';
       if (!failed && !ans.text) msgs.splice(msgs.indexOf(ans), 1);
-    } finally {
-      ctl = null;
     }
-    if (failed === 'unauthorized') setLocked(true);
+    /* 模型档会话中途 403 forbidden（组被撤 / 换了账号，§三.3）：这一问不显示一般错误，当场切索引档、用同一句重问 */
+    if (failed === 'forbidden' && !ans.text) {
+      setTier('noai');
+      setScope(null);
+      try { failed = await runFind(q, ans); }
+      catch (e) { failed = ''; msgs.splice(msgs.indexOf(ans), 1); }
+      if (failed) delete ans.find;
+    }
+    ctl = null;
+    /* 401 照旧：切到索引档 · 访客（胶囊放大镜，说明里有 su），这一问显示「登录后才能问：su」 */
+    if (failed === 'unauthorized') setTier('guest');
     if (failed) {
       if (ans.text) ans.text += '\n\n' + /** @type {any} */ (t)[failed];
       else { ans.text = /** @type {any} */ (t)[failed]; ans.error = true; }
@@ -1014,10 +1212,13 @@ export function mountAiChat(dlg, opts) {
   /* ---------- 模型（设计稿 ai-v1 头部「Gemma 4 ▾」）：GET /api/ai → { default, models, canChoose }（同账号页 AI 模型一行）；
      显示当前生效的模型；canChoose（有账号会话）时点开在头部下面展开单选，选中写 sgx-ai-model 并派发 sgx-settings-changed（云同步跟着走）；
      不能选时只显示、点了不展开；读不到就不显示。
-     没进站（GET / POST /api/ai 回 401；v5 S3 三处上锁之一）：同一个小矩形里换成锁标（.is-locked），点了 / 发问都发 sgx:sudo ---------- */
+     索引档（GET /api/ai 401 / 403，2026-11-24 分档设计稿 §三.9）：同一个小矩形里只放放大镜图标（.is-find，无文字），aria-label「站内搜索（不经 AI）」；
+     点了在模型列表同一位置（data-ai-finfo，同一套样式）弹一行说明：401「…su 登录后可问 AI」+ su 按钮（askSudo），403「…这个账号没有 AI 权限」不带 su。
+     胶囊永远不空；单独一把锁不再用（v5 S3 的锁标退役）。 ---------- */
   const mBtn = /** @type {HTMLButtonElement|null} */ (dlg.querySelector('[data-ai-model]'));
   const mName = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-model-name]'));
   const mList = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-models]'));
+  const fInfo = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-finfo]'));
   /** @type {any} */
   let models = null;
   const modelLabel = mBtn ? mBtn.getAttribute('aria-label') || '' : '';
@@ -1055,23 +1256,55 @@ export function mountAiChat(dlg, opts) {
       mList.appendChild(b);
     }
   }
-  /** @param {boolean} v */
-  function setLocked(v) {
-    locked = v;
-    if (!mBtn) return;
-    mBtn.classList.toggle('is-locked', v);
-    if (v) {
-      mBtn.hidden = false;
-      mBtn.removeAttribute('aria-disabled');
-      mBtn.setAttribute('aria-label', t.locked);
-      showModels(false);
-    } else {
-      mBtn.setAttribute('aria-label', modelLabel);
+  /** 索引档的说明浮层（胶囊下方一行；401 带 su 按钮） @param {boolean} v */
+  function showInfo(v) {
+    if (!fInfo || !mBtn) return;
+    fInfo.hidden = !v;
+    mBtn.setAttribute('aria-expanded', String(v));
+    if (!v) return;
+    fInfo.replaceChildren();
+    const p = doc.createElement('p');
+    p.className = 'sgx-ai-finfo-t';
+    p.textContent = tier === 'guest' ? t.findGuest : t.findNoAi;
+    fInfo.appendChild(p);
+    if (tier === 'guest') {
+      const b = doc.createElement('button');
+      b.type = 'button';
+      b.className = 'sgx-ai-mopt sgx-ai-finfo-su';
+      b.setAttribute('data-ai-finfo-su', '');
+      b.setAttribute('translate', 'no');
+      b.textContent = t.findSu;
+      b.addEventListener('click', function () { showInfo(false); askSudo(doc); });
+      fInfo.appendChild(b);
     }
+  }
+  /** 切档（§三.1）：胶囊三态、建议问题、说明浮层 @param {''|'model'|'guest'|'noai'} v */
+  function setTier(v) {
+    const was = tier;
+    tier = v;
+    const f = isFind();
+    if (mBtn) {
+      mBtn.classList.toggle('is-find', f);
+      if (f) {
+        mBtn.hidden = false;
+        mBtn.removeAttribute('aria-disabled');
+        mBtn.setAttribute('aria-label', t.findLabel);
+        mBtn.setAttribute('aria-controls', 'sgx-ai-finfo');
+        showModels(false);
+      } else {
+        mBtn.setAttribute('aria-label', modelLabel);
+        mBtn.setAttribute('aria-controls', 'sgx-ai-models');
+        if (v === 'model') paintModel();
+      }
+    }
+    showInfo(false);
+    if (f) setScope(null);
+    /* 档变了：建议问题、0 条时的登录入口跟着换（回答进行中不动，答完会整份重画） */
+    if (was !== v && !busy) render();
   }
   function paintModel() {
     const c = curModel();
-    if (!mBtn || !mName || !c || locked) return;
+    if (!mBtn || !mName || !c || isFind()) return;
     mName.textContent = String(c.label || c.id);
     mBtn.hidden = false;
     if (models.canChoose) mBtn.removeAttribute('aria-disabled'); else mBtn.setAttribute('aria-disabled', 'true');
@@ -1080,9 +1313,10 @@ export function mountAiChat(dlg, opts) {
     if (!mBtn) return;
     Promise.resolve().then(function () { return doFetch('/api/ai', { method: 'GET', credentials: 'same-origin' }); })
       .then(function (r) {
-        if (r && r.status === 401) { setLocked(true); return null; }
-        if (r && r.ok) setLocked(false);
-        return r && r.ok ? r.json() : null;
+        /* 200 = 模型档；401 / 403 = 索引档（§三.1，403 以前落到空胶囊）；别的错误不切档 */
+        const v = r ? tierOf(r.status) : '';
+        if (v) setTier(v);
+        return v === 'model' ? r.json() : null;
       })
       .then(function (j) {
         if (!j || !Array.isArray(j.models) || !j.models.length) return;
@@ -1090,17 +1324,17 @@ export function mountAiChat(dlg, opts) {
         paintModel();
       }, function () {});
   }
-  /* 2c：v6 su / exit / lock 之后页面标记就地切（window 'sgx:session'，detail.live）：登录了当场解锁、重取模型（不在 ai 组的问了再回 403 forbidden 文案）；
-     回访客当场上锁。守卫首帧那次没有 live，不管 */
+  /* 2c：v6 su / exit / lock 之后页面标记就地切（window 'sgx:session'，detail.live）：登录了重取 GET /api/ai 定档（有 ai-use = 模型档，没有 = 索引档 · 无权限）；
+     回访客当场切索引档 · 访客。守卫首帧那次没有 live，不管 */
   const win = doc.defaultView || window;
   win.addEventListener('sgx:session', function (/** @type {any} */ e) {
     const d = e && e.detail;
     if (!d || !d.live) return;
-    if (d.ok) { setLocked(false); loadModels(); } else setLocked(true);
+    if (d.ok) loadModels(); else setTier('guest');
   });
   if (mBtn) {
     mBtn.addEventListener('click', function () {
-      if (locked) { askSudo(doc); return; }
+      if (isFind()) { showInfo(fInfo ? fInfo.hidden : false); return; }
       if (!models || !models.canChoose) return;
       showModels(mList ? mList.hidden : false);
     });
@@ -1108,6 +1342,11 @@ export function mountAiChat(dlg, opts) {
   if (mList) {
     mList.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); showModels(false); if (mBtn) mBtn.focus(); }
+    });
+  }
+  if (fInfo) {
+    fInfo.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); showInfo(false); if (mBtn) mBtn.focus(); }
     });
   }
   /* 别的标签页 / 子站改了历史（同源同一份）：下次打开时重读 */
@@ -1118,6 +1357,7 @@ export function mountAiChat(dlg, opts) {
       syncContact();
       loadModels();
       showModels(false);
+      showInfo(false);
       if (!busy) {
         data = loadChats(o.store);
         pickCurrent();

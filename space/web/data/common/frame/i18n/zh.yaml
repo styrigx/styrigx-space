@@ -67,6 +67,19 @@ ai:
   send: 发送
   stop: 停止
   newTab: （在新标签页打开）
+  # 索引档（2026-11-24 AI 窗口分档·索引直出设计稿 v1.0）：建议关键词、胶囊说明、结果文案
+  fsug1: "音乐"
+  fsug2: "博客"
+  fsug3: "游戏"
+  findLabel: 站内搜索（不经 AI）
+  findGuest: 站内搜索，不经 AI。su 登录后可问 AI
+  findNoAi: 站内搜索，不经 AI。这个账号没有 AI 权限
+  findSu: su
+  findNone: 站里没找到相关内容，换个说法试试
+  findLogin: 登录后可问 AI
+  findDown: 搜索暂时不可用 · 稍后再试
+  findLimited: 搜得太频繁了 · 一分钟后再试
+  findTag: 搜索
 # 导航面板（九宫格）：站点名 + 副标题（space/web/data/common/frame/nav-source.json 只留 id / 图标 / 地址）
 nav:
   label: "站点"
