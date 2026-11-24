@@ -80,3 +80,30 @@ export async function recordAttempt(env, kind, bucket, o) {
 export async function clearAttempt(env, kind, bucket) {
   await onDb(env, (d) => d.prepare('DELETE FROM account_attempt_limit WHERE kind = ? AND bucket = ?').bind(kind, bucket).run());
 }
+
+/**
+ * 固定窗口计数（原子）：本窗口第几次 → 和 max 比。窗口过期（expires_at <= now）的行按新窗口重新从 1 数。
+ * 不锁定、不续期：窗口从第一次算起 windowMs，到点自动重开。发 challenge 的单 IP 限速用（core/identity-passkey.js）。
+ * 出错抛错（调用方 fail closed）。
+ * @param {any} env @param {string} kind @param {string} bucket @param {{max:number, windowMs:number}} o
+ * @returns {Promise<{allowed:boolean, count:number, retryAfterMs:number}>}
+ */
+export async function bumpWindow(env, kind, bucket, o) {
+  const now = Date.now();
+  const expired = '(account_attempt_limit.expires_at <= ?3)';
+  const sql =
+    'INSERT INTO account_attempt_limit (kind, bucket, count, strikes, locked_until, window_start, expires_at) VALUES (?1, ?2, 1, 0, 0, ?3, ?3 + ?4) ' +
+    'ON CONFLICT (kind, bucket) DO UPDATE SET ' +
+    'count = CASE WHEN ' + expired + ' THEN 1 ELSE account_attempt_limit.count + 1 END, ' +
+    'window_start = CASE WHEN ' + expired + ' THEN ?3 ELSE account_attempt_limit.window_start END, ' +
+    'expires_at = CASE WHEN ' + expired + ' THEN ?3 + ?4 ELSE account_attempt_limit.expires_at END ' +
+    'RETURNING count, expires_at';
+  const row = await onDb(env, async (d) => {
+    const res = await d.prepare(sql).bind(kind, bucket, now, o.windowMs).first();
+    await sweepExpired(d, 'account_attempt_limit', now);
+    return res;
+  });
+  const count = Number(row && row.count) || 0;
+  const allowed = count > 0 && count <= o.max;
+  return { allowed, count, retryAfterMs: allowed ? 0 : Math.max(0, Number(row && row.expires_at) - now) };
+}

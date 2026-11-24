@@ -266,21 +266,32 @@ export async function rpIdHashOf(rpId) {
 }
 
 /**
- * 存一个一次性 challenge（account_challenge 表），返回 cid（16 字节随机，base64url）。顺手清掉已过期的。出错抛错。
+ * 存一个一次性 challenge（account_challenge 表），返回 cid（16 字节随机，base64url）。先清掉已过期的。出错抛错。
+ * maxOutstanding 给了：未过期的 challenge 已经有这么多就不存，抛 Error('challenge-full')（数和插是同一条语句，不会并发超额）。
  * @param {any} env
  * @param {string} purpose 用途（core/identity-passkey.js 的入口用途）
  * @param {string} challenge 下发给浏览器的 challenge
  * @param {number} ttlSec 有效秒数
+ * @param {{maxOutstanding?:number}} [o]
  * @returns {Promise<string>} cid
  */
-export async function issueChallenge(env, purpose, challenge, ttlSec) {
+export async function issueChallenge(env, purpose, challenge, ttlSec, o) {
   const cid = randB64(16);
   const now = Date.now();
-  await onDb(env, async function (d) {
-    await d.prepare('INSERT INTO account_challenge (id, purpose, challenge, expires_at) VALUES (?, ?, ?, ?)')
-      .bind(cid, String(purpose), String(challenge), now + ttlSec * 1000).run();
+  const cap = o && o.maxOutstanding > 0 ? Math.floor(o.maxOutstanding) : 0;
+  const stored = await onDb(env, async function (d) {
     await sweepExpired(d, 'account_challenge', now);
+    if (!cap) {
+      await d.prepare('INSERT INTO account_challenge (id, purpose, challenge, expires_at) VALUES (?, ?, ?, ?)')
+        .bind(cid, String(purpose), String(challenge), now + ttlSec * 1000).run();
+      return true;
+    }
+    const row = await d.prepare('INSERT INTO account_challenge (id, purpose, challenge, expires_at) SELECT ?1, ?2, ?3, ?4 ' +
+      'WHERE (SELECT COUNT(*) FROM account_challenge WHERE expires_at > ?5) < ?6 RETURNING id')
+      .bind(cid, String(purpose), String(challenge), now + ttlSec * 1000, now, cap).first();
+    return !!row;
   });
+  if (!stored) throw new Error('challenge-full');
   return cid;
 }
 

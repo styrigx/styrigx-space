@@ -42,7 +42,7 @@ import { writeUserAudit } from '../core/user-audit.js';
 import { verifyUserPassword, savePasswordFor, passwordAcceptable } from '../core/identity-auth.js';
 import { issueSession, pushRootLayer, popRootLayer, hasRootLayer, endSession, endSessionByToken, clearSessionCookie as clearSid, renewSession, markerCookie, clearMarkerCookie } from '../core/identity-stack.js';
 import { useradd, userdel, usermod, passwdReset, groupsOf, whoList, userByName } from '../core/user-admin.js';
-import { V6_PURPOSE, v6AssertionChallenge, v6CheckAssertion, v6RegistrationChallenge, v6AddPasskey, v6PasskeyViews, v6DeletePasskey } from '../core/identity-passkey.js';
+import { V6_PURPOSE, challengeGate, v6AssertionChallenge, v6CheckAssertion, v6RegistrationChallenge, v6AddPasskey, v6PasskeyViews, v6DeletePasskey } from '../core/identity-passkey.js';
 import { rpConfig, rpConfigMissing } from '../core/config.js';
 import { sudoTarget, runSudoRoute } from './sudo-route.js';
 import { ticketTarget, issueSudoTicket } from '../core/sudo-ticket.js';
@@ -94,6 +94,22 @@ function credError(e) {
   if (e === 'config') return apiError(503, 'config');
   if (e === 'server') return apiError(503, 'server');
   return apiError(401, 'auth');
+}
+
+/**
+ * 发 challenge 被限速挡下：429 cooldown（带 Retry-After 秒数）；计数出错 503 server。
+ * @param {{error?:string, retryAfterMs?:number}} gate
+ */
+function challengeRefused(gate) {
+  if (gate.error !== 'cooldown') return apiError(503, 'server');
+  const sec = Math.max(1, Math.ceil((gate.retryAfterMs || 0) / 1000));
+  return apiError(429, 'cooldown', undefined, new Headers({ 'Retry-After': String(sec) }));
+}
+
+/** 存 challenge 失败：全表满了 429 cooldown，其他 500 server @param {any} e */
+function challengeIssueError(e) {
+  if (e && e.message === 'challenge-full') return apiError(429, 'cooldown', undefined, new Headers({ 'Retry-After': '60' }));
+  return apiError(500, 'server');
 }
 
 /**
@@ -262,9 +278,11 @@ async function dispatch(c) {
     case 'self-challenge': {
       const rp = rpConfig(env);
       if (!rp) return rpConfigMissing();
+      const gate = await challengeGate(env, ip);
+      if (!gate.ok) return challengeRefused(gate);
       try {
         return ok(await v6AssertionChallenge(env, rp, action === 'su-challenge' ? V6_PURPOSE.su : action === 'sudo-challenge' ? V6_PURPOSE.sudo : V6_PURPOSE.self));
-      } catch (e) { return apiError(500, 'server'); }
+      } catch (e) { return challengeIssueError(e); }
     }
 
     case 'su': {
@@ -379,7 +397,11 @@ async function dispatch(c) {
     case 'passkey-add-challenge': {
       const rp = rpConfig(env);
       if (!rp) return rpConfigMissing();
-      return ok(await v6RegistrationChallenge(env, rp, { uid: identity.uid, name: identity.name }));
+      const gate = await challengeGate(env, ip);
+      if (!gate.ok) return challengeRefused(gate);
+      try {
+        return ok(await v6RegistrationChallenge(env, rp, { uid: identity.uid, name: identity.name }));
+      } catch (e) { return challengeIssueError(e); }
     }
 
     case 'passkey-add': {
