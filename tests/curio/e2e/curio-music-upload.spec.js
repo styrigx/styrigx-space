@@ -9,6 +9,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const { flushRequests } = require('../../space/e2e/helpers/helpers.js');
 
 test.use({ locale: 'zh-CN' });
 
@@ -293,7 +294,8 @@ test('PR-b 并发 2：同时只传两首，其余「等待」；传的那两首�
   await expect(page.locator('#mu-up-go')).toBeDisabled();
   await expect(page.locator('#mu-up-go')).toHaveText('上传中…');
   await expect(page.locator('#mu-up-audio')).toBeDisabled();
-  await page.waitForTimeout(300);
+  /* 前两首都卡在门上：第三首只会在有一首传完后才发。请求冲刷屏障——页面在此之前发出的请求都已到 Playwright，没有第三个 */
+  await flushRequests(page);
   expect(calls.filter((c) => c.start === 'track').length).toBe(2);
   gates[0].res(null);
   await expect.poll(() => calls.filter((c) => c.start === 'track').length).toBe(3);

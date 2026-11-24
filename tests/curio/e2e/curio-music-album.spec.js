@@ -32,18 +32,42 @@ async function mockMusic(page) {
   await page.route('**/api/music-play', (r) => { calls.push({ play: r.request().postDataJSON().album }); return r.fulfill({ json: { ok: false } }); });
   return calls;
 }
+/** 封面横滑的滚动 / 滚动结束按先后编号记下（打开页面前装：?album= 选中时就 smooth 滚过去） */
+async function watchCovers(page) {
+  await page.addInitScript(() => {
+    const w = /** @type {any} */ (window);
+    w.__c8seq = 0; w.__c8scroll = 0; w.__c8end = 0;
+    document.addEventListener('scroll', (e) => { if (e.target && /** @type {any} */ (e.target).id === 'mu-covers') w.__c8scroll = ++w.__c8seq; }, true);
+    document.addEventListener('scrollend', (e) => { if (e.target && /** @type {any} */ (e.target).id === 'mu-covers') w.__c8end = ++w.__c8seq; }, true);
+  });
+}
+/** 横滑停稳：选中那张已居中（或已滚到头），最后一次滚动之后有过 scrollend（一次都没滚也算） */
+const coversSettled = (page) => page.evaluate(() => {
+  const w = /** @type {any} */ (window);
+  const box = /** @type {HTMLElement} */ (document.querySelector('#mu-covers'));
+  const c = box && box.querySelector('.mu-cover.on');
+  if (!c) return false;
+  const r = box.getBoundingClientRect(), q = c.getBoundingClientRect();
+  const diff = q.left + q.width / 2 - (r.left + box.clientWidth / 2), max = box.scrollWidth - box.clientWidth;
+  const landed = Math.abs(diff) <= 1.5 || (diff > 0 && box.scrollLeft >= max - 1) || (diff < 0 && box.scrollLeft <= 1);
+  return landed && w.__c8end >= w.__c8scroll;
+});
 
 test('打开 ?album=<id>：横滑选中那张、详情显示（不自动播放、不改地址）；之后点别的封面不改地址、不加历史', async ({ page }) => {
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e)));
   const calls = await mockMusic(page);
+  await watchCovers(page);
+  /* 横滑停下来的判定是页面里 90ms 的防抖计时器：装假时钟（照常走），停稳后直接拨过去 */
+  await page.clock.install();
   await page.goto('/music/zh/?album=3');
   await expect(page.locator('#mu-album-title')).toHaveText('Ammonia Avenue');
   await expect(page.locator('#mu-album-sub')).toContainText('APP');
   await expect(page.locator('#mu-tracks .mu-track-title')).toHaveText(['Prime Time', "Don't Answer Me", 'Dancing on the Highway']);
   await expect(page.locator('.mu-cover.on')).toHaveAttribute('data-i', '2');
-  /* 横滑停下来的判定（90ms）过后还是这张 */
-  await page.waitForTimeout(500);
+  /* 横滑停下来的判定（90ms 防抖）过后还是这张：等平滑滚动停稳（最后一次 scroll 之后有 scrollend），再把时钟拨过 90ms，防抖回调当场跑完 */
+  await expect.poll(() => coversSettled(page)).toBe(true);
+  await page.clock.runFor(100);
   await expect(page.locator('#mu-album-title')).toHaveText('Ammonia Avenue');
   await expect(page.locator('.mu-cover.on')).toHaveAttribute('data-i', '2');
   await expect(page).toHaveURL(/\/music\/zh\/\?album=3$/);

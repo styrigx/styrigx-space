@@ -244,7 +244,8 @@ test('账号已登录（可写）：长按卡片编辑，删除要确认', async
   const box = await tile.boundingBox();
   await page.mouse.move(box.x + 20, box.y + 20);
   await page.mouse.down();
-  await page.waitForTimeout(700);
+  /* 按住不放，等长按（≈550ms 计时器）真的触发、编辑窗打开，再松手 */
+  await expect(page.locator('#edit-wrap')).toHaveClass(/open/);
   await page.mouse.up();
   await expect(page.locator('#edit-wrap')).toHaveClass(/open/);
   await expect(page.locator('#f-url')).toHaveValue('https://ip.sb/');

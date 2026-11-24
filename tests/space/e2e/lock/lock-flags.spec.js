@@ -5,6 +5,7 @@
  * CI 里各用一次对应构建来跑；其他构建下跳过。
  */
 const { test, expect } = require('@playwright/test');
+const { flushRequests, armNavProbe, nextFrames } = require('../helpers/helpers');
 
 const flagsMode = process.env.SGX_TEST_FLAGS; // 'gate-off' | undefined
 
@@ -33,8 +34,17 @@ test.describe('lock feature flag (lock-gate)', () => {
     await expect(page.locator('#sgx-entry, #sgx-entry-cover')).toHaveCount(0);
     let navigated = false;
     page.on('framenavigated', () => { navigated = true; });
+    /** @type {Promise<unknown>[]} */
+    const identityAsks = [];
+    page.on('request', (r) => { if (new URL(r.url()).pathname === '/api/identity') identityAsks.push(r.response().then((res) => res && res.finished()).catch(() => null)); });
+    const navs = await armNavProbe(page);
     await page.evaluate(() => window.dispatchEvent(new FocusEvent('focus')));
-    await page.waitForTimeout(1500);
+    /* 自动回锁要么同步重载（没有登录标记），要么先问 /api/identity、回来再重载：
+       请求冲刷屏障后，focus 之后发出的问身份请求都已记下；等它们都回来、页面处理完（两帧），再看这份文档上没发起过导航 */
+    await flushRequests(page);
+    await Promise.all(identityAsks);
+    await nextFrames(page, 2);
+    expect(await navs()).toEqual([]);
     expect(navigated).toBe(false);
   });
 });

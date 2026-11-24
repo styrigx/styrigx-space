@@ -2,7 +2,7 @@
  * AI 窗口（重设计 PR-5 ai-v1；原 topbar/acct-sec-pop.spec.js AI 那一组，2026-11-08 按功能拆文件）：× 关窗、桌面浮在浮钮上方、模型胶囊、来源卡片。
  */
 const { test } = require('@playwright/test');
-const { blockExternalRequests, freezeTime, expect } = require('../helpers/helpers');
+const { blockExternalRequests, freezeTime, nextFrames, expect } = require('../helpers/helpers');
 
 async function go(page, path, opts = {}) {
   await blockExternalRequests(page);
@@ -87,7 +87,8 @@ test.describe('AI 窗口（ai-v1，按设计稿）', () => {
     await page.keyboard.press('Escape');
     await expect(term).not.toHaveAttribute('open', '');
     await su();
-    await page.waitForTimeout(400);
+    /* 没有「从 AI 锁来」那一笔：sgx:session 的处理同步返回（不收终端、不退历史哨兵），没有迟到的重开；两帧后看 */
+    await nextFrames(page, 2);
     await expect(ai).not.toHaveAttribute('open', '');
     /* 从 AI 锁来、su 成功：终端收起，AI 窗口重开、锁标没了 */
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: false, live: true } })));
@@ -97,13 +98,17 @@ test.describe('AI 窗口（ai-v1，按设计稿）', () => {
     await expect(term).toHaveAttribute('open', '');
     await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
     authed = true;
-    await page.waitForTimeout(600);
+    /* 终端滑入走完（modalSheet data-state 到 open）再 su，收终端走正常的滑出 + 退哨兵 */
+    await expect(term).toHaveAttribute('data-state', 'open');
     await su();
     await expect(term).not.toHaveAttribute('open', '');
     await expect(ai).toHaveAttribute('open', '');
     await expect(chip).not.toHaveClass(/is-locked/);
     await expect(chip).toHaveText(/Gemma 4/);
-    await page.waitForTimeout(800);
+    /* AI 窗口重开走完（data-state 到 open）、历史里是它自己的哨兵（终端那次 history.back() 的 popstate 已经过去），停住不被关掉 */
+    await expect(ai).toHaveAttribute('data-state', 'open');
+    await expect.poll(() => page.evaluate(() => !!(history.state && history.state.sgxAi))).toBe(true);
+    await expect(ai).toHaveAttribute('open', '');
   });
 
   test('模型胶囊：登了账号能在窗口里换（写 sgx-ai-model，发问带上）；回答下站内链接成来源卡片、建议问题点了就问', async ({ page }) => {

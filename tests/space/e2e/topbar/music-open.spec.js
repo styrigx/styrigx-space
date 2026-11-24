@@ -6,7 +6,7 @@
  * 纯逻辑在 tests/space/ui/topbar/music-open.test.mjs。
  */
 const { test } = require('@playwright/test');
-const { blockExternalRequests, expect } = require('../helpers/helpers');
+const { blockExternalRequests, armNavProbe, openPages, musicHandshakes, expect } = require('../helpers/helpers');
 
 async function go(page, block) {
   await blockExternalRequests(page);
@@ -28,8 +28,13 @@ test('没开就弹、已开切过去（单窗口、不重载）', async ({ page,
   await pop.evaluate(() => { window.__still = 1; });
   let extra = 0;
   context.on('page', () => { extra++; });
+  const handshakes = await musicHandshakes(page);
+  const popNavs = await armNavProbe(pop);
   await page.locator('.sgx-tb-music').click();
-  await page.waitForTimeout(600);
+  /* 交接收尾：握手（如有）都有播放器答了；播放器窗口没发起导航（不重新加载）；窗口数按 CDP 当场数（不等 page 事件） */
+  await handshakes();
+  expect(await popNavs()).toEqual([]);
+  expect(await openPages(page)).toBe(2);
   expect(extra).toBe(0);
   expect(context.pages().length).toBe(2);
   expect(await pop.evaluate(() => window.__still)).toBe(1);

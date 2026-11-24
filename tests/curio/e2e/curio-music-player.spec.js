@@ -4,6 +4,7 @@
 // - 音乐页：有播放器在放时底部迷你播放条（封面、歌名 – 歌手、播放 / 暂停、队列），点它回到播放器；AI 浮钮不压住它；播放器关了就收起
 // - 桌面：左播放右歌词（1440 / 1024），队列是右侧抽屉、⋯ 是按钮下的小浮层
 const { test, expect } = require('@playwright/test');
+const { nextFrames, armNavProbe, openPages, musicHandshakes } = require('../../space/e2e/helpers/helpers.js');
 
 test.use({ locale: 'zh-CN' });
 
@@ -50,17 +51,20 @@ async function openPlayer(page, url) {
   await page.locator('#mp-toggle').click();
   await expect(page.locator('#mp-toggle')).toHaveClass(/is-playing/);
 }
-/** 在翻页区按住横拖 dx（像素），steps 步、每步隔 ms 毫秒 */
+/** 在翻页区按住横拖 dx（像素），steps 步、每步隔 ms 毫秒。
+ * 甩没甩按松手时 Date.now() - 按下时刻算速度：每步之间用假时钟拨 ms（要先 page.clock.install()），不真等 */
 async function drag(page, x, y, dx, steps = 8, ms = 30) {
   await page.mouse.move(x, y);
   await page.mouse.down();
-  for (let i = 1; i <= steps; i++) { await page.mouse.move(x + (dx * i) / steps, y + i); await page.waitForTimeout(ms); }
+  for (let i = 1; i <= steps; i++) { await page.mouse.move(x + (dx * i) / steps, y + i); await page.clock.runFor(ms); }
   await page.mouse.up();
 }
 
 test('手机两页：页点切页；左滑过 22% → 歌词页、右滑回来；拖不够回原页；拖进度条不翻页；没开播前点当前一句也能去歌词页', async ({ page, context }, info) => {
   test.skip(isDesk(info), '桌面两栏并排，不翻页');
   await mockMusic(context);
+  /* 拖动的快慢按页面 Date.now() 算：装假时钟（照常走），drag() 每步拨过去 */
+  await page.clock.install();
   await openPlayer(page);
   const app = page.locator('#mp-app');
   await expect(app).toHaveAttribute('data-page', '0');
@@ -211,7 +215,8 @@ test('列表循环（打磨 6.4 v2 稿）：英文队列模式键 In order → R
   await page.locator('#mp-toggle').click();
   await expect(title).toHaveText('Little Green');
   await page.locator('#mp-next').dispatchEvent('click');
-  await page.waitForTimeout(300);
+  /* 点击处理同步跑完（dispatchEvent 返回时已执行；顺序模式到尾 step() 直接返回）；再等两帧，Promise 回调和重画都已落地 */
+  await nextFrames(page, 2);
   await expect(title).toHaveText('Little Green');
 });
 
@@ -307,8 +312,13 @@ test('音乐页迷你播放条：播放器在放才出现（封面、歌名 – 
   let more = 0;
   context.on('page', () => { more++; });
   await pl.evaluate(() => { window.__same = 1; });
+  const handshakes = await musicHandshakes(page);
+  const plNavs = await armNavProbe(pl);
   await page.locator('#mu-dock-open').click();
-  await page.waitForTimeout(400);
+  /* 交接收尾：握手（如有）都答了；播放器窗口没发起导航（不重新加载）；窗口数按 CDP 当场数 */
+  await handshakes();
+  expect(await plNavs()).toEqual([]);
+  expect(await openPages(page)).toBe(2);
   expect(more).toBe(0);
   expect(await pl.evaluate(() => window.__same)).toBe(1);
   /* 队列键：播放器开自己的队列 */

@@ -10,6 +10,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const T = require('../helpers/account-term.cjs');
+const { nextFrames } = require('../helpers/helpers');
 
 const { mockAccount, openTerm, log, ps, typeLine, mode } = T;
 
@@ -121,7 +122,8 @@ test.describe('自己的通行密钥（v6）', () => {
     await mode(page, 'cmd');
     await expect(log(page).locator('.sgx-at-l').last()).toHaveText('^C');
     expect(await page.evaluate(() => /** @type {any} */ (window).__pkAborted)).toBe(1);
-    await page.waitForTimeout(300);
+    /* abort 是同步 reject 的（假 WebAuthn），之后只剩 Promise 链往下走：再等两帧，页面对这次中止的处理都已落地 */
+    await nextFrames(page, 2);
     await expect(log(page)).not.toContainText('已取消');
     await expect(log(page).locator('.sgx-at-l--er')).toHaveCount(0);
     await mode(page, 'cmd');

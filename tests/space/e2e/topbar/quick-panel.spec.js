@@ -475,8 +475,14 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await page.addInitScript(() => { try { localStorage.setItem('sgx-palette', 'sage'); } catch (e) {} });
     await go(page, '/status/');
     await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
+    /* 等页面真的收到系统深浅变化：这里后建的 matchMedia 监听收到 change 时，页面先建的监听（如果有）已经跑过（同一步按建立先后派发） */
+    await page.evaluate(() => {
+      const w = /** @type {any} */ (window);
+      w.__c8dark = false;
+      matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { w.__c8dark = true; });
+    });
     await page.emulateMedia({ colorScheme: 'dark' });
-    await page.waitForTimeout(100);
+    await page.waitForFunction(() => /** @type {any} */ (window).__c8dark === true);
     await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);

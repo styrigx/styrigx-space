@@ -149,6 +149,8 @@ test('上传一首（不划入专辑）：album.add kind=single、曲序 1、曲
 
 test('音乐页分段：两边都有才显示；单曲列表（小封面 · 歌名 · 歌手 · 时长）；点一行 = 交给播放器（?album=<单曲>&t=0），播放器副标题只显示歌手、单曲区当播放列表放完接下一首（按需签），到尾停；本页不签令牌', async ({ page }) => {
   const calls = await mockMusic(page, [ALBUM, ...SINGLES]);
+  /* 加载时的握手到点是页面按 Date.now() 算的（HANDOFF_WAIT_MS = 300）：装假时钟（照常走），点之前直接拨过去 */
+  await page.clock.install();
   await page.goto('/music/zh/');
   await expect(page.locator('#mu-seg')).toBeVisible();
   await expect(page.locator('#mu-seg [data-sec]')).toHaveText(['专辑', '单曲']);
@@ -165,8 +167,9 @@ test('音乐页分段：两边都有才显示；单曲列表（小封面 · 歌�
   await expect(page.locator('#mu-singles .mu-single-im img')).toHaveCount(1);
   expect(plays(calls)).toEqual([]);
   /* 点第二行：开播放器 ?album=32&t=0，播放器只签它。
-     打磨 6.3：先等加载时的握手到点（HANDOFF_WAIT_MS = 300）——再快的点击要等回答、晚开窗，Chromium 不让新窗口自动播放，这一条要它自己接下一首 */
-  await page.waitForTimeout(350);
+     打磨 6.3：先等加载时的握手到点（HANDOFF_WAIT_MS = 300）——再快的点击要等回答、晚开窗，Chromium 不让新窗口自动播放，这一条要它自己接下一首。
+     时钟拨过 300ms：点的时候 Date.now() - helloAt 已到点，同步开窗 */
+  await page.clock.fastForward(300);
   const [pl] = await Promise.all([page.context().waitForEvent('page'), page.locator('#mu-singles [data-s="1"]').click()]);
   await pl.waitForURL(/\/music\/zh\/player\/\?album=32&t=0$/);
   await expect.poll(() => plays(calls)).toEqual([32]);

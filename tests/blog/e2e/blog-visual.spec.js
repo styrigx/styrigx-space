@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { langBootStayed, armNavProbe, nextFrames } from '../../space/e2e/helpers/helpers.js';
 /* 2026-11 UI 重设计 PR-1：旧截图基线已删除（普通提交，不改历史），新精简基线在重设计最后一个 PR 重拍；
    在那之前不比截图（SHOTS = false），同一用例里的布局 / 行为断言照跑。重拍时改回 true。 */
 const SHOTS = false;
@@ -140,9 +141,14 @@ test.describe('顶栏 v3 布局', () => {
       if (f === page.mainFrame()) navs++;
     });
     await page.goto('/blog/', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(800);
+    /* 跳不跳由 <head> 里同步跑的首帧语言跳转定（lang-boot.js）：跑完没置 __sgxLangGo = 不跳；
+       等 load（页面脚本的初始化都跑过）再记导航次数，再看接下来两帧里没有发起新的导航（Navigation API 的 navigate 同步触发） */
+    expect(await langBootStayed(page)).toBe(true);
+    await page.waitForLoadState('load');
     const settled = navs;
-    await page.waitForTimeout(1500);
+    const navProbe = await armNavProbe(page);
+    await nextFrames(page, 2);
+    expect(await navProbe()).toEqual([]);
     expect(new URL(page.url()).pathname).toBe('/blog/');
     expect(navs, '停在 /blog/ 后不再导航').toBe(settled);
     await ctx.close();

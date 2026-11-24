@@ -198,7 +198,8 @@ test('余响：再抽一句 → 出现回到今日；回到今日恢复今日一
   const box = await page.locator('#dm-echo .dm-text').boundingBox();
   await page.mouse.move(box.x + 20, box.y + 10);
   await page.mouse.down();
-  await page.waitForTimeout(700);
+  /* 按住不放，等长按（≈550ms 计时器）真的触发、复制完弹出提示，再松手 */
+  await expect(page.locator('#bk-toast')).toHaveText('已复制');
   await page.mouse.up();
   await expect(page.locator('#bk-toast')).toHaveText('已复制');
 });
