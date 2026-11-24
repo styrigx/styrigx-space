@@ -5431,7 +5431,7 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { cont
 .sgx-pop-login[hidden], .sgx-pop-list[hidden], .sgx-pop-edit[hidden], .sgx-pop-me[hidden], .sgx-nav-h[hidden], [data-sec-open][hidden], .sgx-ai-model[hidden], .sgx-ai-models[hidden] { display: none; }
 .sgx-pop-login p { margin: 0; }
 .sgx-pop-ps { color: var(--sgx-primary); }
-.sgx-pop-row:focus-visible, .sgx-pop-me-a:focus-visible, .sgx-pop-edit:focus-visible, .sgx-pop-opt:focus-visible, .sgx-ai-model:focus-visible, .sgx-ai-mopt:focus-visible, .sgx-ai-src:focus-visible, .sgx-ai-sug:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+.sgx-pop-row:focus-visible, .sgx-pop-me-a:focus-visible, .sgx-pop-edit:focus-visible, .sgx-pop-opt:focus-visible, .sgx-ai-model:focus-visible, .sgx-ai-mopt:focus-visible, .sgx-ai-sug:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 .sgx-tb-av[aria-expanded="true"] .sgx-tb-avatar { box-shadow: 0 0 0 2px var(--sgx-primary); }
 /* AI 窗口打开方式（Gray 2026-11-08 16:14 定，录屏参照 Mouzan 站；稿 ai-v1 之后讨论定的，以讨论为准）：
    从右下 AI 浮钮展开、向左上长出——transform-origin 在窗口右下、对着浮钮中心（JS 开窗时量好写 --sgx-ai-ox / --sgx-ai-oy：离窗口右缘 / 下缘的距离，
@@ -5487,14 +5487,10 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { cont
 /* 空态的命令回显：欢迎语是 AI 说的话，回显用 grayai 的 --reply，与普通回答行一致（原设计稿 ask --help 是提问者的；Gray 2026-11-09 改；只改文字，样式不变） */
 .sgx-ai-msg[data-greet]::before { content: "grayai@space:~$ --reply"; content: "grayai@space:~$ --reply" / ""; }
 /* 来源卡片 + 建议问题 */
-.sgx-ai-srcs { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-.sgx-ai-src { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 8px 12px; box-sizing: border-box; border: 1px solid var(--sgx-term-line); border-radius: 8px; color: var(--sgx-text-primary); text-decoration: none; font-size: 13px; }
-.sgx-ai-src code { flex: none; font-family: var(--sgx-font-mono); font-size: 11px; color: var(--sgx-primary); }
-.sgx-ai-src span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sgx-ai-sugs { display: flex; flex-wrap: wrap; gap: 6px; }
 .sgx-ai-sug { min-height: 32px; padding: 0 10px; border: 1px solid var(--sgx-term-line); border-radius: 6px; background: transparent; font: inherit; font-size: 12px; color: var(--sgx-text-secondary); cursor: pointer; }
 @media (hover: hover) and (pointer: fine) {
-  .sgx-ai-src:hover, .sgx-ai-sug:hover { border-color: var(--sgx-primary); color: var(--sgx-text-primary); }
+  .sgx-ai-sug:hover { border-color: var(--sgx-primary); color: var(--sgx-text-primary); }
   .sgx-ai-mopt:not([aria-checked="true"]):hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
 }
 .sgx-ai-dot { display: inline; margin: 0; }
