@@ -10,7 +10,7 @@ const test = base.extend({ palette: ['terra', { option: true }] });
 const SHOTS = true;
 
 // One UI 视觉基线：每个页面 × 浅色/深色 × 手机 390×844 / 桌面 1200px。
-// 基线图在 tests/e2e/blog-visual.spec.js-snapshots/，只在 CI 生成（update-snapshots.yml），同版本 Chromium 对比。
+// 基线图在 tests/blog/e2e/blog-visual.spec.js-snapshots/，只在 CI 生成（update-snapshots.yml），同版本 Chromium 对比。
 
 // 抽屉头头像等远程图片：截图前等所有图片解码完，避免有时在、有时空导致基线抖动
 async function imagesReady(page) {
