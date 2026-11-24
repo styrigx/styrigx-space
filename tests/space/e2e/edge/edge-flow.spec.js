@@ -95,10 +95,20 @@ test.beforeEach(async ({ page }) => {
   page.on('requestfailed', (r) => s.delete(r));
 });
 
-/** 塞一个 v6 会话 cookie（sgx-session，同账号 Worker 下发的属性：host-only、HttpOnly、Secure、SameSite=Lax） */
+/** 登录标记 sgx-id=1（账号 Worker 随 sgx-session 一起下发：非 HttpOnly、Secure、SameSite=Lax、值固定 1） */
+const MARKER = { name: 'sgx-id', value: '1', url: MAIN + '/', secure: true, httpOnly: false, sameSite: 'Lax' };
+
+/** 塞一个 v6 会话，和 su 成功后浏览器里一样：sgx-session（host-only、HttpOnly、Secure、SameSite=Lax）+ 登录标记 sgx-id=1。
+ *  以前只塞 sgx-session：页面看不到标记，切回前台时 guard.js 直接当「已退出」重载，whoami 那条路一直没测到。 */
 async function setV6(context) {
-  await context.addCookies([{ name: 'sgx-session', value: await edge.mintV6(), url: MAIN + '/', secure: true, httpOnly: true, sameSite: 'Lax' }]);
+  await context.addCookies([{ name: 'sgx-session', value: await edge.mintV6(), url: MAIN + '/', secure: true, httpOnly: true, sameSite: 'Lax' }, MARKER]);
 }
+
+/** 当前 context 里有没有登录标记 */
+const hasMarker = async (context) => (await context.cookies(MAIN + '/')).some((c) => c.name === 'sgx-id' && c.value === '1');
+
+/** 页面发出的 whoami（POST /api/identity，body action = whoami） */
+const isWhoami = (r) => r.method() === 'POST' && IDENTITY_PATH.test(new URL(r.url()).pathname) && /"action"\s*:\s*"whoami"/.test(r.postData() || '');
 
 /** 当前页的全站终端（v5 S5；v5 S7 起主页也是顶栏打开的窗口 #sgx-term，#home-term 选择器留着无害） */
 const termIn = (page) => page.locator('#home-term-in, #sgx-term[open] #sgx-term-in').first();
@@ -145,15 +155,20 @@ test('R3 已解锁页面（v6 会话）：别的标签页 lock 后，切回来�
   await page.clock.install();
   await page.goto(MAIN + '/');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
-  /* 切走再切回：会话有效 → 不出锁屏 */
+  expect(await hasMarker(context), '登录标记在').toBe(true);
+  /* 切走再切回：有标记 → 问服务端 whoami；会话有效 → 不重载、不出锁屏 */
+  const who1 = page.waitForRequest(isWhoami);
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  expect((await (await who1).response()).status()).toBe(200);
   expect(await lockShownWhenSettled(page)).toBe(false);
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
   /* 另一个标签页 lock（v6：删服务端会话行） */
   const other = await context.newPage();
   await other.goto(MAIN + '/status/');
   const lk = await other.evaluate(() => fetch('/api/identity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'lock' }) }).then((r) => r.status));
   expect(lk).toBe(200);
   await other.close();
+  expect(await hasMarker(context), 'lock 顺手清掉登录标记').toBe(false);
   /* 自动锁检查节流 5 秒（auth/guard.js checkSessionForAutoLock，按 Date.now() 算）：时钟拨过 5.2 秒 */
   await page.clock.fastForward(5200);
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
@@ -162,6 +177,28 @@ test('R3 已解锁页面（v6 会话）：别的标签页 lock 后，切回来�
   await expect(page.locator('#sgx-entry')).toHaveCount(0);
 });
 
+
+test('R3b 标记还在、服务端会话没了（别处删了会话行、标记没清）：切回来问 whoami → 没有身份 → 重载成访客态，whoami 顺手清标记', async ({ page, context }) => {
+  await setV6(context);
+  await page.clock.install();
+  await page.goto(MAIN + '/');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
+  /* 另一个标签页 lock 会清 sgx-session 和标记；把标记补回去，模拟「服务端会话没了、浏览器还留着标记」 */
+  const other = await context.newPage();
+  await other.goto(MAIN + '/status/');
+  expect(await other.evaluate(() => fetch('/api/identity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'lock' }) }).then((r) => r.status))).toBe(200);
+  await other.close();
+  await context.addCookies([MARKER]);
+  await page.clock.fastForward(5200);
+  const who = page.waitForRequest(isWhoami);
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  const res = await (await who).response();
+  expect(res.status()).toBe(200);
+  expect((await res.json()).user).toBe(null);
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked', { timeout: 10000 });
+  await expect(page.locator('#sgx-entry')).toHaveCount(0);
+  expect(await hasMarker(context), 'whoami 没有身份时清掉残留标记').toBe(false);
+});
 
 test('R7 账号 Worker（账号拆分 PR3 起没有公开路由）：头像 / 名片 / 云同步经网关转发到 styrigx-account（数字健康 v6 P4 删除），页面和其他接口仍走网关', async ({ page, context }) => {
   edge.log.length = 0;
