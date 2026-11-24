@@ -1,7 +1,7 @@
-// workers/core/src/api/_store.js
+// workers/atlas-core/src/curio/api/_store.js
 // 奇趣的数据层：表结构、校验、读写。下划线开头：不是接口（路由表见 src/routes.js）。
 //
-// 表（D1 styrigx-curio，迁移 migrations/0001_init.sql，代码里的 CREATE TABLE IF NOT EXISTS 只兜底全新的库）：
+// 表（D1 styrigx-atlas-core，迁移 migrations/0001_curio.sql，代码里的 CREATE TABLE IF NOT EXISTS 只兜底全新的库）：
 //   cats    分类：id、中英文名、是否私密、排序
 //   links   收藏：id、所属分类、网址、中英文名、中英文简介、图标网址、是否私密、排序、时间
 //   imports 导入记录：每次导入的原始文件存在 R2（imports/<时间>-<哈希>.html），这里记 key 和结果

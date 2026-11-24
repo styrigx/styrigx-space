@@ -296,7 +296,7 @@ jobs:
         run: node space/scripts/check/check-worker-routes.mjs
 
       - name: Subsite generated files in sync (blog code tokens)
-        # blog：code-tokens.css ← 色彩角色。奇趣 / 日刻的种子 SQL 随 curio-core / daymark-core 删除（2026-11-14 合并进 atlas-core，数据在 D1，atlas-core 迁移只有结构）。
+        # blog：code-tokens.css ← 色彩角色。奇趣 / 日刻的种子 SQL 随 curio-core / daymark-core 删除（2026-11-14 合并进 atlas-core，数据在 D1，atlas-core 迁移只有结构；快照见 docs/ops/*-seed.sql，CI 不跑）。
         # 2026-11 合站：子站直接用主站的外壳源文件，没有副本和 sgx-shell.lock.json，不再核对 sync-shell
         run: node space/scripts/blog/gen-code-tokens.mjs --check
 

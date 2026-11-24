@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-ARCH-012 |
-| 版本 | 2.0 |
-| 日期 | 2026-11-09 |
+| 版本 | 2.1 |
+| 日期 | 2026-11-24 |
 | 状态 | 现行 |
 | 取代 | `docs/curio/STRUCTURE.md`、`docs/daymark/STRUCTURE.md` |
 
@@ -65,7 +65,7 @@
 
 4.1 迁移文件 `NNNN_snake_case.sql`，已上线的文件 MUST NOT 改名、重新编号或修改；只进不退，新迁移 MUST 兼容旧代码（部署回滚不回滚 D1）。
 
-4.2 现有迁移（`workers/atlas-core/migrations/`）：`0001_curio`、`0002_daymark`，只有结构，等于原两个 Worker 各自旧迁移跑完的结果（数据 2026-11-14 从旧库拷入；`daily_pick.set_by` 取 `'auto'` 或 `'grant'`）。旧迁移和种子脚本随旧目录删除，见 git 历史。
+4.2 现有迁移（`workers/atlas-core/migrations/`）：`0001_curio`、`0002_daymark`，只有结构，等于原两个 Worker 各自旧迁移跑完的结果（数据 2026-11-14 从旧库拷入；`daily_pick.set_by` 取 `'auto'` 或 `'grant'`）。旧迁移随旧目录删除（见 git 历史）；首批种子留在 `docs/ops/curio-seed.sql`、`docs/ops/daymark-seed.sql`，只给空库用，MUST NOT 放进 `migrations/`。
 
 ## 5. 部署
 
