@@ -10,7 +10,7 @@ const { blockExternalRequests, freezeTime, expect } = require('../helpers/helper
 const { ENTRY_URL, SEL, gotoLockTerm, lockCmd, lockMode, badLine, lastLine } = require('../helpers/lock-term.cjs');
 
 /* 截图基线：锁屏截图 2026-11 UI 重设计 PR-1 起不比，v5 S5 也不新拍（终端截图在 visual.spec.js 的顶栏 / 主页那几张） */
-const SHOTS = false;
+const SHOTS = true;
 const out = (page) => page.locator(SEL.out);
 const input = (page) => page.locator(SEL.in);
 const ps = (page) => page.locator(SEL.ps);
@@ -64,7 +64,8 @@ test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () 
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await gotoLockTerm(page);
     await expect(input(page)).toHaveValue('su ');
-    if (SHOTS) await expect(page).toHaveScreenshot('entry-terminal.png', { animations: 'disabled' });
+    /* 页脚「build <sha>」每次构建都不同（生产构建才有），遮罩掉 */
+    if (SHOTS) await expect(page).toHaveScreenshot('entry-terminal.png', { animations: 'disabled', mask: [page.locator('.sgx-foot-build')] });
   });
 
   test('?entry=sudo（旧进站直达，v6 P4 删了 sudo styrigx）：同 ?entry=1，打开终端预填 su ，不跑任何命令', async ({ page }) => {

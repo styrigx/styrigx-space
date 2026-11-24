@@ -352,9 +352,7 @@ jobs:
         run: SGX_TEST_SUITE=edge npx playwright test --config=tests/config/playwright.config.js
 
       - name: Lock screen baseline screenshot
-        # 2026-11 UI 重设计 PR-1：旧截图基线已删除，新精简基线重拍前这一步跳过（lock.spec.js 里 SHOTS = false 也不比截图）；重拍时改回下面这行条件
-        # if: ${{ !cancelled() && steps.prod.outcome == 'success' }}
-        if: ${{ false }}
+        if: ${{ !cancelled() && steps.prod.outcome == 'success' }}
         run: SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot"
 
       - name: Lock flags test (lock-gate off)

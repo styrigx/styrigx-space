@@ -1,11 +1,16 @@
-import { test, expect } from '@playwright/test';
+import { test as base, expect } from '@playwright/test';
+import { setUi } from './helpers/ui-cookie.js';
 import { langBootStayed, armNavProbe, nextFrames } from '../../space/e2e/helpers/helpers.js';
+
+/* 调色板（project option，见 config/playwright.config.js）：light = dustyblue，dark = terra。
+   截图用例在 goto 之前写 sgx-ui cookie {v:2, pal, fs:'standard', rm:0, lang:本页语言}，深浅由调色板决定。 */
+const test = base.extend({ palette: ['terra', { option: true }] });
 /* 2026-11 UI 重设计 PR-1：旧截图基线已删除（普通提交，不改历史），新精简基线在重设计最后一个 PR 重拍；
    在那之前不比截图（SHOTS = false），同一用例里的布局 / 行为断言照跑。重拍时改回 true。 */
-const SHOTS = false;
+const SHOTS = true;
 
 // One UI 视觉基线：每个页面 × 浅色/深色 × 手机 390×844 / 桌面 1200px。
-// 基线图在 tests/e2e/blog-visual.spec.js-snapshots/，只在 CI 生成（update-snapshots.yml），同版本 Chromium 对比。
+// 基线图在 tests/blog/e2e/blog-visual.spec.js-snapshots/，只在 CI 生成（update-snapshots.yml），同版本 Chromium 对比。
 
 // 抽屉头头像等远程图片：截图前等所有图片解码完，避免有时在、有时空导致基线抖动
 async function imagesReady(page) {
@@ -37,12 +42,13 @@ const PAGES = [
 ];
 
 for (const { name, path } of PAGES) {
-  test(`${name} baseline screenshot`, async ({ page }) => {
-    // 固定主题：清掉已存偏好，让 colorScheme 生效
-    await page.addInitScript(() => {
-      try {
-        localStorage.removeItem('navfolio-theme');
-      } catch {}
+  test(`${name} baseline screenshot`, async ({ page, context, baseURL, palette }) => {
+    await setUi(context, baseURL, {
+      v: 2,
+      pal: palette,
+      fs: 'standard',
+      rm: 0,
+      lang: path.startsWith('/blog/zh/') ? 'zh' : 'en',
     });
     await page.goto(path, { waitUntil: 'domcontentloaded' });
     // 等字体与图片稳定
@@ -63,11 +69,6 @@ for (const { name, path } of PAGES) {
 }
 
 test('悬浮顶栏不遮挡首个标题（布局断言）', async ({ page }) => {
-  await page.addInitScript(() => {
-    try {
-      localStorage.removeItem('navfolio-theme');
-    } catch {}
-  });
   // 首页 + 文章页：页面顶部时，首个可见标题的 top 必须 ≥ 顶栏 bottom（对齐 PR-C：首页是页头 .sgx-ph 的大标题「博客_」）
   for (const path of ['/blog/zh/', '/blog/zh/post/2026-10-11-agent-collaboration-whitepaper-v2/']) {
     await page.goto(path, { waitUntil: 'domcontentloaded' });

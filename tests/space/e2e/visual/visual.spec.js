@@ -14,7 +14,7 @@
 const { test } = require('@playwright/test');
 /* 2026-11 UI 重设计 PR-1：旧截图基线已删除（普通提交，不改历史），新精简基线在重设计最后一个 PR 重拍；
    在那之前不比截图（SHOTS = false），同一用例里的布局 / 行为断言照跑。重拍时改回 true。 */
-const SHOTS = false;
+const SHOTS = true;
 const { blockExternalRequests, freezeTime, expect } = require('../helpers/helpers');
 const { mockAccount, V6_USER } = require('../helpers/account-term.cjs');
 
@@ -87,8 +87,9 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           if (SHOTS) await expect(pg).toHaveScreenshot(`${name}.png`, {
             fullPage: false,
             animations: 'disabled',
-            /* 遮罩动态区域：门内倒计时数字（P4-2c 起首页时钟、天气已删） */
-            mask: [pg.locator('#sgx-credential-countdown .sgx-credential-countdown-text')],
+            /* 遮罩动态区域：门内倒计时数字（P4-2c 起首页时钟、天气已删）；
+               首页 neofetch 的 Built 行是 Hugo 构建时的墙钟（精确到分）、Build 行是提交短 SHA，生成和对比不是同一次构建 / 同一个提交，都盖掉 */
+            mask: [pg.locator('#sgx-credential-countdown .sgx-credential-countdown-text'), pg.locator('[data-about="built"], [data-about="build"]')],
           });
         });
       }
