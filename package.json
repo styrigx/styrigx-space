@@ -15,6 +15,8 @@
   "scripts": {
     "build:css": "node space/scripts/build/build-css.cjs --minify",
     "build": "node space/scripts/build/build-css.cjs --minify && hugo --minify --cleanDestinationDir -s space/web",
+    "test": "npm run test:unit && npm run test:sites",
+    "test:unit": "node --test tests/workers/space-core/*.test.mjs tests/workers/account/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy/*.test.mjs \"tests/space/ui/**/*.test.mjs\"",
     "test:sites": "node --test tests/blog/*.test.mjs tests/curio/*.test.mjs tests/daymark/*.test.mjs tests/workers/atlas-core/*.test.mjs"
   },
   "version": "3.0.0",
