@@ -7,7 +7,7 @@
  * - handmade 用例：写端写不出来的（旧 v1、v4 之前写端写的 mode / accent / mat、未知版本、乱码、字段不合法），手写。
  * - 每个用例带读端 space/web/assets/common/js/prefs/ui-cookie-read.js 的期望：read()、resolve(系统浅 / 深)、apply() 后 <html> 的状态。
  *   期望值是这里按契约写死的，不是拿读端自己算的（读端改错了，单测会和夹具对不上）。
- * - 共享外壳（gen-common.mjs）把夹具原样带给子站，子站仓库可以跑同一套断言。
+ * - 子站（tests/curio、tests/daymark、tests/blog）用同一份夹具跑同一套断言。
  *
  * 用法：node space/scripts/gen/gen-ui-cookie-contract.mjs          重新生成
  *       node space/scripts/gen/gen-ui-cookie-contract.mjs --check  只核对（写端产出变了 / 夹具被手改 → exit 1）

@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-SPEC-003 |
-| 版本 | 3.0 |
-| 日期 | 2026-11-12 |
+| 版本 | 3.1 |
+| 日期 | 2026-11-24 |
 | 状态 | 现行 |
 | 取代 | `docs/ui-cookie-contract.md`、`docs/blog/sgx-ui-cookie.md` |
 
@@ -59,7 +59,7 @@ sgx-ui=<base64url(UTF-8 JSON)>; Domain=styrigx.com; Path=/; Max-Age=34560000; Sa
 
 | 字段 | 写端写什么 | 读端接受 | 默认 |
 |---|---|---|---|
-| `pal` | `sgx-palette` 经 `normPal()`（旧撞色 `x<id>` → `<id>`，不认识 → `terra`） | 已知预设 id（22 套） | `terra` |
+| `pal` | `sgx-palette` 经 `normPal()`（旧撞色 `x<id>` → `<id>`，不认识 → `terra`） | 已知预设 id（25 套） | `terra` |
 | `fs` | 固定 `standard`（字体大小设置已删） | `standard` \| `small` \| `large` | `standard` |
 | `rm` | 固定 `0`（减弱动效跟系统 `prefers-reduced-motion`） | 只有数字 `1` 算开 | `0` |
 | `lang` | `sgx-lang` 是已配置的语言（`en` / `zh`）时原样写，否则写 `system` | `^[a-z]{2,3}$` | `system` |
@@ -74,7 +74,7 @@ sgx-ui=<base64url(UTF-8 JSON)>; Domain=styrigx.com; Path=/; Max-Age=34560000; Sa
 
 | 状态 | 规则 |
 |---|---|
-| `class="dark"`、`data-dark` | `pal` 是深套（14 套；8 套浅套不加） |
+| `class="dark"`、`data-dark` | `pal` 是深套（14 套；11 套浅套不加） |
 | `<meta name="color-scheme">` / `<meta name="theme-color">` | 该套的 `light` / `dark` 与底色 |
 | `style.fontSize`、`data-font-size` | `large` → 112.5%，`small` → 87.5%，`standard` 不设 |
 | `data-palette` | `pal`；默认 terra 不写 |
@@ -134,5 +134,6 @@ node --test tests/space/ui/shell/ui-cookie-contract.test.mjs
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| 3.1 | 2026-11-24 | 预设套数改成 25、浅套改成 11 套 |
 | 3.0 | 2026-11-12 | 删 `mode` / `accent` / `mat`；深浅随调色板；默认 terra；`paint()`；首帧清旧键与旧缓存 |
 | 2.0 | 2026-11-09 | 合站后整理 |

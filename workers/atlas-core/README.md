@@ -37,7 +37,7 @@ src/common/visibility.js 公用（组权限 v1.1，ADR-0007）：visibility(cont
 
 `migrations/` 重新起头：`0001_curio.sql` = 奇趣旧迁移 0001+0003+0004+0005 跑完的结构，`0002_daymark.sql` = 日刻旧迁移（不含 0003 种子句子）跑完的结构；只有结构，数据 2026-11-14 从旧库拷入。之后的结构变更接着编号，已上线的文件不改名、不重新编号。
 
-**删表不进 `migrations/`**：`deploy.yml` 部署时会自动对线上库跑 `migrations/` 里没跑过的文件，删数据的 SQL 不能放这里。奇趣重组 PR 3 删设备、电影的 `DROP TABLE devices / movies` + `UPDATE games SET device_id = 0` 在 `docs/ops/2026-11-23-drop-devices-movies.sql`，D1 两表与 R2 照片备份完、Gray 批了再手动执行；`0001_curio.sql` 里这两张表的建表语句是历史，不改（单测按「迁移 + 这份 SQL = 代码里的建表语句」核对）。旧两个目录（含种子迁移）已随旧 Worker 下线删除。
+**删表不进 `migrations/`**：`deploy.yml` 部署时会自动对线上库跑 `migrations/` 里没跑过的文件，删数据的 SQL 不能放这里。奇趣重组 PR 3 删设备、电影的 `DROP TABLE devices / movies` + `UPDATE games SET device_id = 0` 在 `docs/ops/2026-11-23-drop-devices-movies.sql`，D1 两表与 R2 照片备份完、Gray 批了再手动执行；`0001_curio.sql` 里这两张表的建表语句是历史，不改（单测按「迁移 + 这份 SQL = 代码里的建表语句」核对）。旧两个目录（含种子迁移）已随旧 Worker 下线删除；首批种子的快照在 `docs/ops/curio-seed.sql`、`docs/ops/daymark-seed.sql`（只给空库用，同样不进 `migrations/`）。
 
 ## 音乐空记录清理（Janitor）
 

@@ -495,8 +495,6 @@ test('百味专题 · 账号未登录：只含公开句子，空专题不返回'
   assert.deepEqual(o.collections[0].quote_ids, [pri.id, pub.id]);
 });
 
-/* ================= 种子迁移 0003_seed_quotes ================= */
-
 /* ================= 锁定今日一句 + 设为今日（daily_pick，迁移 0004） ================= */
 const TODAY = () => Q.dayInShanghai();
 const pickRow = (db, day = TODAY()) => { const r = db.raw.prepare('SELECT quote_id, set_by FROM daily_pick WHERE day = ?').get(day); return r ? { ...r } : null; };

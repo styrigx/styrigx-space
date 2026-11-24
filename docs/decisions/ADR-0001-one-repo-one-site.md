@@ -41,6 +41,8 @@
 | 2026-11-06 | 根目录分 `space/`（主站 + 基建）与 `atlas/`（子站）两包（#282）；删除 `atlas.styrigx.com` 跳转（#285） |
 | 2026-11-08 | 主站与三子站合成一个 Hugo 站，`atlas/`、`assemble.mjs`、`dist/site/`、各站 `sync-shell.mjs` 删除（#310） |
 | 2026-11-09 | docs 整理：`STRUCTURE.md` 并入 `docs/architecture/repo-structure.md`，`renovate.json` 移入 `.github/` |
+| 2026-11-12 | 卸载 Renovate，删除 `.github/renovate.json`；依赖安全更新改由 Dependabot 处理 |
+| 2026-11-24 | 归档仓库 styrigx-curio / -daymark / -atlas / -blog 内容核对完：有用的都已在本仓库（93006e2 起的历史），首批种子留在 `docs/ops/curio-seed.sql`、`docs/ops/daymark-seed.sql`；这四个仓库计划删除。styrigx-book 保留只读，以后迁成 `/book/` |
 
 ## 4. 后果
 

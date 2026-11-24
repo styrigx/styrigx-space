@@ -1,6 +1,6 @@
 # styrigx 共享 CI（composite actions）
 
-主站 styrigx-space 提供给四个仓库（space / curio / daymark / blog）共用的构建环境步骤。主站自己用 `./.github/actions/<名字>`，子站用 `styrigx/styrigx-space/.github/actions/<名字>@<固定 tag 或完整 SHA>`，**从不引用 main**。
+本仓库 CI 共用的构建环境步骤，workflow 里用 `./.github/actions/<名字>` 引用。（2026-11 合站前也给 curio / daymark / blog 三个子站仓库用，那几个仓库已不再使用，见 docs/decisions/ADR-0001-one-repo-one-site.md。）
 
 | action | 做什么 | 输入 |
 |---|---|---|
@@ -10,8 +10,8 @@
 
 ## 为什么是 composite action，不是 reusable workflow
 
-- 规则集 protect-main 的必需检查按 **job 名** 认：子站是 `build-and-deploy`，主站是 `quality`、`passkey-e2e`。调用 reusable workflow 时检查名会变成「调用方 job / 被调 job」（例如 `build-and-deploy / build`），必需检查永远等不到 `build-and-deploy`，PR 会卡死。composite action 只是 job 里的步骤，job 名、job 数量、`needs`、`if` 都不变。
-- 密钥与 environment 留在各仓库自己的 workflow 里：共享 action 不接收任何密钥、不声明 environment，部署 job 也不用共享 action。reusable workflow 里 environment 要写在被调 workflow 的 job 上，密钥要 `secrets:` 显式传或 `secrets: inherit`，会把密钥流向拆到两个仓库，这里不需要。
+- 规则集 protect-main 的必需检查按 **job 名** 认（`quality`、`passkey-e2e`）。调用 reusable workflow 时检查名会变成「调用方 job / 被调 job」（例如 `quality / build`），必需检查永远等不到 `quality`，PR 会卡死。composite action 只是 job 里的步骤，job 名、job 数量、`needs`、`if` 都不变。
+- 密钥与 environment 留在调用方 workflow 里：共享 action 不接收任何密钥、不声明 environment，部署 job 也不用共享 action。reusable workflow 里 environment 要写在被调 workflow 的 job 上，密钥要 `secrets:` 显式传或 `secrets: inherit`，会把密钥流向拆到两个文件，这里不需要。
 
 ## 发版（打 tag）
 
@@ -19,7 +19,7 @@ tag 用 `vX.Y.Z`，专指「共享 CI 接口版本」，和站点版本（packag
 
 - patch：只改实现、不改输入输出（换 Hugo / Playwright 安装细节、Hugo 小版本升级）
 - minor：加了可选输入或新 action
-- major：删改输入、改默认行为（子站要改 workflow 才能升级）
+- major：删改输入、改默认行为（调用方要改 workflow 才能升级）
 
 带有 `.github/actions/**` 改动的 PR 合入 main 后：
 

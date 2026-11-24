@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-DES-001 |
-| 版本 | 3.0 |
-| 日期 | 2026-11-12 |
+| 版本 | 3.1 |
+| 日期 | 2026-11-24 |
 | 状态 | 现行 |
 | 取代 | `docs/palette-usage.md`（2026-11-06） |
 | 规则版本 | `palette-rules-2`（`space/scripts/gen/gen-common.mjs` `RULES_VERSION`，导出到 `palette-list.json` 的 `rulesVersion`） |
@@ -28,7 +28,7 @@ palette-scheme.js
 25 套（2026-11-12 加柠檬绿 lime、浅青 aqua、丁香 lilac 三套浅套，11 浅 14 深；选择器先深后浅、段内按色相），每套 = **七色：底、面、字、主、辅、第三、点缀**（3.0，2026-11-12）。原来的「单色 / 撞色」两组合并成一个列表，`x*` 撞色 id 删除（旧值 `x<id>` 自动迁到 `<id>`）。默认 **terra（陶土，深套）**。
 
 1.1 **每套只有一个模式**（3.0 起删除深浅模式 `theme-mode` 和自定义主题色 `accent`）：底色 OKLCH L ≥ 0.6 为浅套，否则为深套。
-**8 套浅**：雾霾蓝 dustyblue、冰川蓝 glacier、鼠尾草绿 sage、珊瑚 coral、芥末黄 mustard、香槟金 champagne、干枯玫瑰 dustyrose、奶油白 cream；其余 **14 套深**。
+**11 套浅**：雾霾蓝 dustyblue、冰川蓝 glacier、鼠尾草绿 sage、珊瑚 coral、芥末黄 mustard、香槟金 champagne、干枯玫瑰 dustyrose、奶油白 cream、柠檬绿 lime、浅青 aqua、丁香 lilac；其余 **14 套深**。
 `<html class="dark">` / `color-scheme` / `theme-color` 由当前调色板决定，不读 `prefers-color-scheme`。
 
 1.2 陶土的底 / 面 / 字钉值 `#161412` / `#1d1b19` / `#ece6dc`（`PINS`）；石墨保留冷灰色相。
@@ -192,11 +192,12 @@ palette-scheme.js
 1. `palette-scheme.js` 的 `THEMES` 加 / 改一行（6 个前景从 `FG_POOL` 挑），`space/web/data/common/palette-source.yaml`、`space/web/data/common/features.yaml` 的 palette 选项同步。
 2. `node space/scripts/gen/gen-palettes.mjs --roles`、`node space/scripts/gen/gen-common.mjs`，再各跑一次 `--check`。
 3. 单测 `tests/space/ui/theme/palette-scheme.test.mjs` 会核对：对比度审计全过、中性彩度 ≤ 0.012、danger / success 不变、前景 ink 在 tint 上 ≥4.5:1、
-   填充档 on 色 ≥4.5:1、`SEM` / `PINS` 不被改写、22 套没有手调值、palette-source.yaml / 定稿夹具和 THEMES 一致。
+   填充档 on 色 ≥4.5:1、`SEM` / `PINS` 不被改写、25 套没有手调值、palette-source.yaml / 定稿夹具和 THEMES 一致。
 
 ## 9. 修订记录
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| 3.1 | 2026-11-24 | 套数改成 25（11 浅 14 深），浅套清单补上柠檬绿 lime、浅青 aqua、丁香 lilac |
 | 3.0 | 2026-11-12 | 删除深浅模式与自定义主题色；每套一个模式（8 浅 14 深），默认 terra；七色；语义四色写死；代码高亮固定主题；`palette-rules-2` |
 | 2.0 | 2026-11-09 | 22 套一个列表、三层 token、填充 / ink 拆分 |
