@@ -21,7 +21,7 @@
   },
   "version": "3.0.0",
   "devDependencies": {
-    "@lhci/cli": "^0.15.1",
+    "@lhci/cli": "^0.16.1",
     "@playwright/test": "^1.64.0",
     "@tailwindcss/cli": "4.3.5",
     "http-server": "^14.1.1",
