@@ -71,6 +71,19 @@ ai:
   send: Send
   stop: Stop
   newTab: (opens in a new tab)
+  # 索引档（2026-11-24 AI 窗口分档·索引直出设计稿 v1.0）：建议关键词、胶囊说明、结果文案
+  fsug1: "Music"
+  fsug2: "Blog"
+  fsug3: "Games"
+  findLabel: Site search (no AI)
+  findGuest: Site search, no AI. Sign in with su to ask Gray AI
+  findNoAi: "Site search, no AI. This account doesn’t have AI access"
+  findSu: su
+  findNone: Nothing on this site matched. Try other words
+  findLogin: Sign in to ask Gray AI
+  findDown: Search is unavailable right now · try again later
+  findLimited: Too many searches · try again in a minute
+  findTag: Search
 # 导航面板（九宫格）：站点名 + 副标题（space/web/data/common/frame/nav-source.json 只留 id / 图标 / 地址）
 nav:
   label: "Sites"

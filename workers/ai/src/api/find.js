@@ -10,8 +10,11 @@
  *   200 { ok: true, q, results: [], degraded: true }：KV 读不了 / 一个站的索引都没有（降级，不 500）
  *   400 { ok: false, error: 'bad_request' }：q 为空；400 too-long：q 超过 Q_MAX 个字符
  * 语言：先只看 lang 的条目，一条都没有再放开语言（同 recall.js）。
+ * mode=recall（2026-11-24 AI 窗口分档·索引直出设计稿 v1.0 §三.4 选 A）：给 AI 窗口索引档的问句用，
+ *   打分走 core/recall.js recall（去停用词、按命中多少打分、不要求全中），仍固定 showPrivate: false、最多 FIND_LIMIT 条。
+ *   不带 mode（终端 find）或 mode 是别的值 → 照旧全命中（rank.js search），行为不变。
  */
-import { loadIndexes } from '../core/recall.js';
+import { loadIndexes, recall } from '../core/recall.js';
 import { search } from '../core/rank.js';
 import { json, apiError } from '../lib/http.js';
 
@@ -40,6 +43,16 @@ export function findIn(indexes, q, lang) {
   return hits.map(findItem);
 }
 
+/**
+ * mode=recall：问句召回（recall.js recall 自己先按 lang、没有再放开语言）。私密条目固定不进。
+ * @param {Array<{site: string, items: any[]}>} indexes
+ * @param {string} q
+ * @param {string|undefined} lang
+ */
+export function recallIn(indexes, q, lang) {
+  return recall(indexes, { q, lang, showPrivate: false, limit: FIND_LIMIT }).map(findItem);
+}
+
 /** @param {Request} request @param {any} env */
 export async function onRequestGet(request, env) {
   const url = new URL(request.url);
@@ -48,6 +61,7 @@ export async function onRequestGet(request, env) {
   if ([...q].length > FIND_Q_MAX) return apiError(400, 'too-long');
   const l = url.searchParams.get('lang');
   const lang = l === 'zh' || l === 'en' ? l : undefined;
+  const byRecall = url.searchParams.get('mode') === 'recall';
   let indexes;
   try {
     indexes = await loadIndexes(env);
@@ -56,5 +70,5 @@ export async function onRequestGet(request, env) {
     return json(200, { ok: true, q, results: [], degraded: true });
   }
   if (!indexes.length) return json(200, { ok: true, q, results: [], degraded: true });
-  return json(200, { ok: true, q, results: findIn(indexes, q, lang) });
+  return json(200, { ok: true, q, results: byRecall ? recallIn(indexes, q, lang) : findIn(indexes, q, lang) });
 }
