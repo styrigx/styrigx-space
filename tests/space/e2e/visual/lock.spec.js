@@ -64,7 +64,8 @@ test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () 
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await gotoLockTerm(page);
     await expect(input(page)).toHaveValue('su ');
-    if (SHOTS) await expect(page).toHaveScreenshot('entry-terminal.png', { animations: 'disabled' });
+    /* 页脚「build <sha>」每次构建都不同（生产构建才有），遮罩掉 */
+    if (SHOTS) await expect(page).toHaveScreenshot('entry-terminal.png', { animations: 'disabled', mask: [page.locator('.sgx-foot-build')] });
   });
 
   test('?entry=sudo（旧进站直达，v6 P4 删了 sudo styrigx）：同 ?entry=1，打开终端预填 su ，不跑任何命令', async ({ page }) => {

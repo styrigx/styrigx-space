@@ -45,6 +45,9 @@ jobs:
         run: |
           hugo --minify -s space/web
           SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot" --update-snapshots
+        env:
+          # 和 deploy.yml 的生产构建一样带构建 SHA：页脚的「build <sha>」只在有 SHA 时出现，不带就和 e2e-lock 对比的那份构建布局不同（截图里那段由 lock.spec.js 遮罩）
+          SGX_BUILD_SHA: ${{ github.sha }}
       - name: Test build (same as deploy.yml visual step)
         run: |
           hugo --minify -s space/web
