@@ -17,6 +17,14 @@ export const RESCUE_KEY_SECRET = 'SGX_ACCOUNT_RESCUE_KEY';
 
 /* ---------- 通行密钥 challenge 的有效期（秒，account_challenge） ---------- */
 export const CHALLENGE_TTL = 300;
+/**
+ * 发 challenge 的限速（报告修复 PR 10）：
+ * - 单 IP（http.js ipBucket，IPv6 按 /64）每 60 秒最多发 20 个（su / sudo / self / passkey-add 四个入口共用一个计数），超了 429 cooldown；
+ * - 全表未过期的 challenge 最多 500 个（防 account_challenge 被刷满），满了同样 429 cooldown。
+ * 正常用一次 su / sudo 只发一个；终端连按也到不了 20。zone 规则 ratelimit-zone-web-auth-proxy-per-ip（150 / 10 s）不动，这是它下面的一层。
+ */
+export const CHALLENGE_IP_LIMIT = Object.freeze({ kind: 'v6-challenge-ip', max: 20, windowMs: 60 * 1000 });
+export const CHALLENGE_OUTSTANDING_MAX = 500;
 
 /**
  * WebAuthn 依赖方配置（SGX_RP_ID / SGX_ORIGIN），必须设置、不回落；缺失返回 null。

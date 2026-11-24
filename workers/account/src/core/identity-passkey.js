@@ -12,12 +12,31 @@
  */
 import { onDb } from '../lib/db.js';
 import { randB64, issueChallenge, consumeChallenge, verifyAssertion, rpIdHashOf } from '../lib/webauthn.js';
-import { CHALLENGE_TTL } from './config.js';
+import { CHALLENGE_TTL, CHALLENGE_IP_LIMIT, CHALLENGE_OUTSTANDING_MAX } from './config.js';
+import { ipBucket } from '../lib/http.js';
+import { bumpWindow } from '../lib/attempt-limit.js';
 import { verifyRegistration, passkeyView } from './passkey.js';
 
 /** challenge 用途（account_challenge.purpose；和旧账号的 session / reauth / keys-add / reset-add 分开） */
 /** 通行密钥 challenge 的用途：su、sudo、self（自己改凭据前验证，R-34）、add（注册）各自分开，防止串用 */
 export const V6_PURPOSE = Object.freeze({ su: 'v6-su', sudo: 'v6-sudo', self: 'v6-self', add: 'v6-add' });
+
+/**
+ * 发 challenge 前的单 IP 限速（config.js CHALLENGE_IP_LIMIT：每 60 秒 20 个，四个入口共用）。
+ * 永不抛错：{ ok:true } | { ok:false, error:'cooldown', retryAfterMs } | { ok:false, error:'server' }（计数读写失败 → fail closed）。
+ * @param {any} env @param {string} ip
+ */
+export async function challengeGate(env, ip) {
+  try {
+    const w = await bumpWindow(env, CHALLENGE_IP_LIMIT.kind, ipBucket(ip), { max: CHALLENGE_IP_LIMIT.max, windowMs: CHALLENGE_IP_LIMIT.windowMs });
+    return w.allowed ? { ok: true } : { ok: false, error: 'cooldown', retryAfterMs: w.retryAfterMs };
+  } catch (e) {
+    return { ok: false, error: 'server' };
+  }
+}
+
+/** 存 challenge 时带上全表上限（config.js CHALLENGE_OUTSTANDING_MAX）；满了抛 Error('challenge-full') */
+const ISSUE_OPTS = Object.freeze({ maxOutstanding: CHALLENGE_OUTSTANDING_MAX });
 
 /** @param {any} row */
 function rec(row) {
@@ -38,7 +57,7 @@ export async function listUserPasskeys(env, uid) {
  */
 export async function v6AssertionChallenge(env, rp, purpose) {
   const challenge = randB64(32);
-  const cid = await issueChallenge(env, purpose, challenge, CHALLENGE_TTL);
+  const cid = await issueChallenge(env, purpose, challenge, CHALLENGE_TTL, ISSUE_OPTS);
   return { cid, challenge, rpId: rp.rpId, allowCredentials: [] };
 }
 
@@ -84,7 +103,7 @@ export async function v6RegistrationChallenge(env, rp, user) {
   const keys = await listUserPasskeys(env, user.uid);
   const handle = keys.length ? String(keys[0].row.user_handle) : randB64(32);
   const challenge = randB64(32);
-  const cid = await issueChallenge(env, V6_PURPOSE.add + ':' + user.uid + ':' + handle, challenge, CHALLENGE_TTL);
+  const cid = await issueChallenge(env, V6_PURPOSE.add + ':' + user.uid + ':' + handle, challenge, CHALLENGE_TTL, ISSUE_OPTS);
   return {
     cid, challenge, rpId: rp.rpId, rp: { id: rp.rpId, name: 'Styrigx' },
     user: { id: handle, name: user.name, displayName: 'Sloan Gray' },
