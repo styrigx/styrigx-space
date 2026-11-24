@@ -194,7 +194,7 @@ test('R3b 标记还在、服务端会话没了（别处删了会话行、标记�
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   const res = await (await who).response();
   expect(res.status()).toBe(200);
-  expect((await res.json()).user).toBe(null);
+  /* 没有身份 → guard.js 立刻重载，响应体随导航作废，读不到；下面用「重载成 locked + 标记被清」验证 whoami 的结果 */
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked', { timeout: 10000 });
   await expect(page.locator('#sgx-entry')).toHaveCount(0);
   expect(await hasMarker(context), 'whoami 没有身份时清掉残留标记').toBe(false);
