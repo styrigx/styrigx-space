@@ -28,9 +28,12 @@ export default defineConfig({
         timeout: 30000,
       },
   projects: [
-    { name: 'mobile-light', use: { viewport: { width: 390, height: 844 }, colorScheme: 'light' } },
-    { name: 'mobile-dark', use: { viewport: { width: 390, height: 844 }, colorScheme: 'dark' } },
-    { name: 'desktop-light', use: { viewport: { width: 1200, height: 800 }, colorScheme: 'light' } },
-    { name: 'desktop-dark', use: { viewport: { width: 1200, height: 800 }, colorScheme: 'dark' } },
+    /* palette：自定义 option，只有 blog-visual.spec.js 声明并读它（写 sgx-ui cookie 的 pal）；其他 spec 不读，行为不变。
+       对齐主站 visual.spec：light = dustyblue（浅套），dark = terra（默认深套，也显式写）。
+       深浅只由调色板决定（调色板 v4 不读 prefers-color-scheme），colorScheme 保留，作为「系统深浅不影响页面」的反向保证。 */
+    { name: 'mobile-light', use: { viewport: { width: 390, height: 844 }, colorScheme: 'light', palette: 'dustyblue' } },
+    { name: 'mobile-dark', use: { viewport: { width: 390, height: 844 }, colorScheme: 'dark', palette: 'terra' } },
+    { name: 'desktop-light', use: { viewport: { width: 1200, height: 800 }, colorScheme: 'light', palette: 'dustyblue' } },
+    { name: 'desktop-dark', use: { viewport: { width: 1200, height: 800 }, colorScheme: 'dark', palette: 'terra' } },
   ],
 });
