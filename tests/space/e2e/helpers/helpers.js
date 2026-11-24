@@ -14,6 +14,11 @@
  *                             用来断言「没有发某个请求」；
  *   armNavProbe(page)         在当前文档上记 Navigation API 的 navigate 事件（链接 / location.* / pushState 都会同步触发），
  *                             返回读取函数；用来断言「点了不跳转」。文档已被换掉时读取函数返回 null。
+ *   langBootStayed(page)      首帧语言跳转（lang-boot.js，<head> 里同步跑）已跑完且没跳：用来断言「打开这页不换语言」；
+ *   openPages(page)           这个浏览器上下文里现在有几个页面（CDP Target.getTargets，浏览器同步记账，不等 Playwright 的 page 事件）；
+ *                             用来断言「没开第二个窗口」；
+ *   musicHandshakes(page)     记本页之后发的播放器握手 player-hello，返回等待函数：等到每一次都有播放器回了 player-state
+ *                             （交接 reach() 已收尾，不会再到点开窗）。
  *
  * - setHomeCards(page, { daymark })：模拟首页日刻有没有数据（true = 显示，false = .hidden）。
  *   测试构建（SGX_TEST_NO_WEATHER=1）不输出日刻卡，就在 [03] 日刻分节里补一个同 id 的占位（和真的一样是 .home-qt 引言，
@@ -133,6 +138,8 @@ async function flushRequests(page) {
   const url = new URL('/__c8-barrier__/' + (++barrierSeq), page.url()).href;
   await page.route(url, (r) => r.fulfill({ status: 204, body: '' }), { times: 1 });
   const seen = page.waitForRequest(url);
+  /* 发探针时文档正好被换掉（evaluate 抛错）：先给 seen 挂上空处理，免得它在用例结束时成了没人接的拒绝 */
+  seen.catch(() => {});
   await page.evaluate((u) => { fetch(u, { cache: 'no-store' }).catch(() => {}); }, url);
   await seen;
 }
@@ -154,6 +161,58 @@ async function armNavProbe(page) {
   }).catch(() => null);
 }
 
+/**
+ * 首帧语言跳转跑完且没跳（lang-boot.js 内联在 <head>，同步执行：先置 window.__sgxLangBoot = 1；要跳会先置 window.__sgxLangGo = 1 再 location.replace）。
+ * 页面一旦解析过 <head>，跳不跳就已经定了——不用再等一段时间看地址变不变。
+ * @param {import('@playwright/test').Page} page @returns {Promise<boolean>} true = 跑过且没跳
+ */
+async function langBootStayed(page) {
+  await page.waitForFunction(() => /** @type {any} */ (window).__sgxLangBoot === 1);
+  return page.evaluate(() => !(/** @type {any} */ (window).__sgxLangGo));
+}
+
+/**
+ * 本页所在浏览器上下文里现在有几个页面（标签页 / 弹窗）。window.open 开窗是同步建 target 的，CDP 当场就数得到；
+ * context.on('page') 要等 Playwright 初始化完新页才发，用它数「没开第二个窗口」得干等。只支持 Chromium（各配置都只跑 Chromium）。
+ * @param {import('@playwright/test').Page} page @returns {Promise<number>}
+ */
+async function openPages(page) {
+  const s = await page.context().newCDPSession(page);
+  try {
+    const me = (await s.send('Target.getTargetInfo')).targetInfo;
+    const all = (await s.send('Target.getTargets')).targetInfos;
+    return all.filter((t) => t.type === 'page' && t.browserContextId === me.browserContextId).length;
+  } finally {
+    await s.detach().catch(() => {});
+  }
+}
+
+/**
+ * 交接握手收尾（topbar/panel.js mountMusic reach()，HANDOFF_WAIT_MS）：记下本页之后发的每一次 player-hello（req），
+ * 返回等待函数——等到每一个 req 都收到了播放器的 player-state 回答。
+ * 本函数开的频道对象比页面自己的晚建，同一条消息按建立先后派发（BroadcastChannel 规范），这边收到时页面那边的等待已经了结、到点开窗的计时器已清。
+ * 一次握手都没发（reach() 走了同步那条）也立即通过。
+ * @param {import('@playwright/test').Page} page @returns {Promise<() => Promise<void>>}
+ */
+async function musicHandshakes(page) {
+  await page.evaluate(() => {
+    const w = /** @type {any} */ (window);
+    w.__c8hello = [];
+    w.__c8answered = [];
+    const post = BroadcastChannel.prototype.postMessage;
+    BroadcastChannel.prototype.postMessage = function (m) {
+      if (m && m.type === 'player-hello' && typeof m.req === 'string') w.__c8hello.push(m.req);
+      return post.call(this, m);
+    };
+    const ch = new BroadcastChannel('sgx-music');
+    ch.addEventListener('message', (e) => { const d = e.data; if (d && d.type === 'player-state' && typeof d.req === 'string') w.__c8answered.push(d.req); });
+  });
+  return () => expect.poll(() => page.evaluate(() => {
+    const w = /** @type {any} */ (window);
+    return w.__c8hello.every((/** @type {string} */ r) => w.__c8answered.includes(r));
+  })).toBe(true);
+}
+
 /** 首页日刻卡显隐（见文件头）。2026-11 PR-2 首屏终端起日刻卡在 [02] 日刻分节 #daymark 里（测试构建不输出卡片时补一张占位） */
 async function setHomeCards(page, { daymark }) {
   await page.evaluate((dm) => {
@@ -172,4 +231,4 @@ async function setHomeCards(page, { daymark }) {
   }, !!daymark);
 }
 
-module.exports = { blockExternalRequests, freezeTime, setHomeCards, nextFrames, animationsDone, scrolledTo, flushRequests, armNavProbe, expect };
+module.exports = { blockExternalRequests, freezeTime, setHomeCards, nextFrames, animationsDone, scrolledTo, flushRequests, armNavProbe, langBootStayed, openPages, musicHandshakes, expect };

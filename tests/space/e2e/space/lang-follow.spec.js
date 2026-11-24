@@ -9,7 +9,7 @@
  * - 旧的 /en/… 不再是语言前缀：不跳转，直接 404（删除不 301）
  */
 const { test } = require('@playwright/test');
-const { blockExternalRequests, expect } = require('../helpers/helpers');
+const { blockExternalRequests, langBootStayed, armNavProbe, expect } = require('../helpers/helpers');
 
 test.use({ viewport: { width: 412, height: 915 } });
 
@@ -84,7 +84,8 @@ test('Auto（system）：深链不跳——浏览器英文打开 /zh/status/、�
     await blockExternalRequests(pg);
     await clearLang(pg);
     await pg.goto(path, { waitUntil: 'domcontentloaded' });
-    await pg.waitForTimeout(1500);
+    /* 首帧语言跳转在 <head> 里同步跑完：没置 __sgxLangGo 就是不跳（不用干等看地址） */
+    expect(await langBootStayed(pg), locale + ' ' + path).toBe(true);
     expect(new URL(pg.url()).pathname, locale + ' ' + path).toBe(path);
     await ctx.close();
   }
@@ -114,13 +115,15 @@ test('NAVIGATE 语言行：EN | Auto | 中文；深链上选 Auto 写 sgx-lang=s
   const seg = pg.locator('#sgx-nav [data-qp-langs]');
   await expect(seg.locator('[role="radio"]')).toHaveText(['EN', 'Auto', '中文']);
   await expect(seg.locator('[aria-checked="true"]')).toHaveAttribute('data-qp-lang', 'zh');
+  /* 选 Auto 要跳也是在点击里同步发起（location.*）：点之前记 navigate 事件 */
+  const navs = await armNavProbe(pg);
   await seg.locator('[data-qp-lang="system"]').click();
   await expect(seg.locator('[aria-checked="true"]')).toHaveAttribute('data-qp-lang', 'system');
   expect(await pg.evaluate(() => localStorage.getItem('sgx-lang'))).toBe('system');
-  await pg.waitForTimeout(800);
+  expect(await navs()).toEqual([]);
   expect(new URL(pg.url()).pathname).toBe('/zh/status/');
   await pg.reload({ waitUntil: 'domcontentloaded' });
-  await pg.waitForTimeout(1000);
+  expect(await langBootStayed(pg)).toBe(true);
   expect(new URL(pg.url()).pathname).toBe('/zh/status/');
 });
 
@@ -154,11 +157,12 @@ test.describe('页脚语言链接（桌面）', () => {
     await expect(zh).toHaveAttribute('data-sgx-lang-set', '');
     await zh.click();
     await pg.waitForURL((u) => u.pathname === '/zh/status/', { timeout: 10000 });
-    await pg.waitForTimeout(1000);
+    /* 到了的那一页首帧语言跳转跑完、没再跳（不用干等看会不会弹回） */
+    expect(await langBootStayed(pg)).toBe(true);
     expect(new URL(pg.url()).pathname).toBe('/zh/status/');
     expect(await pg.evaluate(() => localStorage.getItem('sgx-lang'))).toBe('zh');
     await pg.reload({ waitUntil: 'domcontentloaded' });
-    await pg.waitForTimeout(800);
+    expect(await langBootStayed(pg)).toBe(true);
     expect(new URL(pg.url()).pathname).toBe('/zh/status/');
   });
 
@@ -168,7 +172,7 @@ test.describe('页脚语言链接（桌面）', () => {
     await pg.goto('/zh/status/', { waitUntil: 'domcontentloaded' });
     await pg.locator('.sgx-foot-lang a[hreflang="en"]').click();
     await pg.waitForURL((u) => u.pathname === '/status/', { timeout: 10000 });
-    await pg.waitForTimeout(1000);
+    expect(await langBootStayed(pg)).toBe(true);
     expect(new URL(pg.url()).pathname).toBe('/status/');
     expect(await pg.evaluate(() => localStorage.getItem('sgx-lang'))).toBe('en');
   });

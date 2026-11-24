@@ -9,6 +9,7 @@ const { test, expect } = require('@playwright/test');
 /* 浏览器语言中文：跟随系统时停在中文页（夹具外观用例都开在中文页） */
 test.use({ locale: 'zh-CN' });
 const fx = require('../../fixtures/ui-cookie-contract.json');
+const { langBootStayed } = require('../../space/e2e/helpers/helpers.js');
 
 const PAGE = '/curio/zh/404.html';
 const enc = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -84,7 +85,8 @@ test('语言：合法 cookie 带 lang=en → 中文页换到英文同一页（�
   await setCookie(context, enc({ v: 2, mode: 'light', lang: 'system' }));
   /* Auto 不换语言：/curio/#c/2 留在英文（不进 /curio/zh/…；奇趣重组 PR 3 起 #devices 不再转跳设备子页，改用分类 hash） */
   await page.goto('/curio/#c/2');
-  await page.waitForTimeout(500);
+  /* 首帧语言跳转在 <head> 里同步跑完：没置 __sgxLangGo 就是不跳（不用干等看地址） */
+  expect(await langBootStayed(page)).toBe(true);
   await expect(page).toHaveURL(/:\d+\/curio\/#c\/2$/);
 });
 

@@ -7,6 +7,7 @@
 // - 新开的窗口没有用户手势、浏览器拦了自动播放：停在那首、播放键亮着，点一下就放（不另想绕法）
 // - 打磨 6.4（Gray 2026-11-22，改掉 2026-11-21 14:17「不标正在播」）：专辑曲目标出正在播的那首，底部有迷你播放条（见 curio-music-player.spec.js）
 const { test, expect } = require('@playwright/test');
+const { openPages, musicHandshakes } = require('../../space/e2e/helpers/helpers.js');
 
 test.use({ locale: 'zh-CN' });
 
@@ -62,6 +63,8 @@ const spyCmds = (page) => page.evaluate(() => {
 
 test('没开播放器：点「播放整张」开 /music/zh/player/?album=1&t=0（同名单窗口），播放器从第 1 首放；本页不签令牌、不出声', async ({ page, context }) => {
   const calls = await mockMusic(context);
+  /* 加载时的握手到点是页面按 Date.now() 算的（HANDOFF_WAIT_MS = 300）：装假时钟（照常走），下面直接拨过去 */
+  await page.clock.install();
   await page.goto('/music/zh/');
   await expect(page.locator('.mu-cover')).toHaveCount(2);
   /* 本页发出的频道消息：记 postMessage 本身 */
@@ -70,8 +73,8 @@ test('没开播放器：点「播放整张」开 /music/zh/player/?album=1&t=0�
     const o = BroadcastChannel.prototype.postMessage;
     BroadcastChannel.prototype.postMessage = function (m) { if (m && (m.type === 'remote-cmd' || m.type === 'player-hello')) /** @type {any} */ (window).__sent.push(m); return o.call(this, m); };
   });
-  /* 加载时的握手到点（HANDOFF_WAIT_MS = 300） */
-  await page.waitForTimeout(350);
+  /* 加载时的握手到点（HANDOFF_WAIT_MS = 300）：时钟拨过 300ms，点的时候 Date.now() - helloAt 已到点 */
+  await page.clock.fastForward(300);
   const [pl] = await Promise.all([context.waitForEvent('page'), page.locator('#mu-play-all').click()]);
   await pl.waitForURL(/\/music\/zh\/player\/\?album=1&t=0$/);
   expect(await pl.evaluate(() => window.name)).toBe('sgx-music-player');
@@ -108,6 +111,7 @@ test('播放器开着：点别的专辑 / 曲目握手后发 remote-cmd play（t
   await expect.poll(() => plays(calls)).toEqual([1]);
   /* 播放器窗口答 player-hello 之后再点：本页是同一个，窗口按名字找得到 */
   await spyCmds(page);
+  const handshakes = await musicHandshakes(page);
   let more = 0;
   context.on('page', () => { more++; });
   /* 切到第二张（封面横滑 / 点封面），点它的第 2 首 */
@@ -130,7 +134,9 @@ test('播放器开着：点别的专辑 / 曲目握手后发 remote-cmd play（t
     { type: 'remote-cmd', cmd: 'play', i: 1, queue: [31, 32], to: expect.any(String) },
   ]);
   expect(cmds[0].to).toBe(cmds[1].to);
-  await page.waitForTimeout(300);
+  /* 交接收尾：本页发过的握手都有播放器答了（没有到点开窗的计时器还挂着）；窗口数按 CDP 当场数（不等 page 事件） */
+  await handshakes();
+  expect(await openPages(page)).toBe(2);
   expect(more).toBe(0);
   expect(context.pages().length).toBe(2);
 });
@@ -151,7 +157,8 @@ test('只看模式（没进站）：点播放 / 点曲目在页内发 sgx:sudo�
   /* 「播放整张」带 aria-disabled（锁标）：直接派发点击 */
   await page.locator('#mu-play-all').dispatchEvent('click');
   await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
-  await page.waitForTimeout(300);
+  /* 只看模式点播放是同步发 sgx:sudo（不握手、不开窗）：窗口数按 CDP 当场数（不等 page 事件） */
+  expect(await openPages(page)).toBe(1);
   expect(popups).toBe(0);
   expect(new URL(page.url()).pathname).toBe('/music/zh/');
   expect(calls.filter((c) => c.play || c.play401)).toEqual([]);
@@ -166,7 +173,7 @@ test('新窗口被拦自动播放（没有用户手势）：播放器停在那�
     const orig = HTMLMediaElement.prototype.play;
     let first = true;
     HTMLMediaElement.prototype.play = function () {
-      if (first) { first = false; return Promise.reject(new DOMException('play() failed because the user didn\'t interact with the document first.', 'NotAllowedError')); }
+      if (first) { first = false; /** @type {any} */ (window).__c8blocked = true; return Promise.reject(new DOMException('play() failed because the user didn\'t interact with the document first.', 'NotAllowedError')); }
       return orig.call(this);
     };
   });
@@ -175,7 +182,8 @@ test('新窗口被拦自动播放（没有用户手势）：播放器停在那�
   await pl.waitForURL(/\?album=1&t=2$/);
   await expect(pl.locator('#mp-title')).toHaveText('Little Green');
   await expect.poll(() => plays(calls)).toEqual([1]);
-  await pl.waitForTimeout(300);
+  /* 播放器已经试过自动播放、被拦（拒绝的 Promise 已交出去）：之后才看播放键 */
+  await expect.poll(() => pl.evaluate(() => /** @type {any} */ (window).__c8blocked === true)).toBe(true);
   await expect(pl.locator('#mp-toggle')).not.toHaveClass(/is-playing/);
   await expect(pl.locator('#mp-toggle')).toBeEnabled();
   expect(await pl.locator('#mp-audio').evaluate((a) => /** @type {HTMLAudioElement} */ (a).paused)).toBe(true);
@@ -201,6 +209,7 @@ test('手动开的播放器（地址栏直接打开、没有 opener）：音乐�
     const ch = new BroadcastChannel('sgx-music');
     ch.onmessage = (e) => { if (e.data && e.data.type === 'player-state' && e.data.req) /** @type {any} */ (window).__states.push(e.data); };
   });
+  const handshakes = await musicHandshakes(page);
   let more = 0;
   context.on('page', () => { more++; });
   await page.locator('#mu-tracks [data-t="2"]').click();
@@ -224,7 +233,9 @@ test('手动开的播放器（地址栏直接打开、没有 opener）：音乐�
   expect(states.every((m) => m.mine === false && m.id === cmds[0].to)).toBe(true);
   /* 地址没变（没重新加载），没多出窗口 */
   expect(new URL(pl.url()).search).toBe('');
-  await page.waitForTimeout(400);
+  /* 不是本页开的播放器：发了 player-focus 再握一次手确认它还在，没答才到点开窗——等每次握手都答了，再按 CDP 当场数窗口 */
+  await handshakes();
+  expect(await openPages(page)).toBe(2);
   expect(more).toBe(0);
   expect(context.pages().length).toBe(2);
 });
@@ -243,8 +254,14 @@ test('本页开的播放器答 mine = true；给别的播放器的 remote-cmd（
   expect(st.mine).toBe(true);
   expect(typeof st.id).toBe('string');
   /* 给别人的不认 */
-  await page.evaluate(() => { new BroadcastChannel('sgx-music').postMessage({ type: 'remote-cmd', cmd: 'next', to: 'someone-else' }); });
-  await page.waitForTimeout(300);
+  /* 屏障：同一个频道对象随后发一次握手，播放器答了 = 前面那条 remote-cmd 它已经收到、处理过（同一发送方的消息按顺序到） */
+  await page.evaluate(() => new Promise((res) => {
+    const ch = new BroadcastChannel('sgx-music');
+    const req = 'c8-' + Date.now();
+    ch.onmessage = (e) => { if (e.data && e.data.type === 'player-state' && e.data.req === req) { ch.close(); res(undefined); } };
+    ch.postMessage({ type: 'remote-cmd', cmd: 'next', to: 'someone-else' });
+    ch.postMessage({ type: 'player-hello', req });
+  }));
   await expect(pl.locator('#mp-title')).toHaveText('All I Want');
   /* 给自己的认 */
   await page.evaluate((to) => { new BroadcastChannel('sgx-music').postMessage({ type: 'remote-cmd', cmd: 'next', to }); }, st.id);

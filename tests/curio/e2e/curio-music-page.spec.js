@@ -5,6 +5,7 @@
 //   第 3 步起音乐页不出声：点播放 = 交给弹出播放器（没开就开 /music/zh/player/?album=<id>&t=<i>，开着发 remote-cmd play），见 curio-music-handoff.spec.js；
 //   本文件下半是播放器本身（/music/zh/player/）。
 const { test, expect } = require('@playwright/test');
+const { openPages } = require('../../space/e2e/helpers/helpers.js');
 
 /* 语言清理（2026-11-07）起奇趣 / 日刻也「跟随系统」每页都跳（四站同一份首帧跳转 lang-boot.js），Playwright 默认 en-US 会把 /<站>/zh/… 换到英文页。
    本文件的中文用例按中文浏览器跑（同 ui-cookie.spec.js）；要看英文页的地方先明确选英文（同源 localStorage sgx-lang=en），见 chooseLang。 */
@@ -127,7 +128,8 @@ test('音乐（访客，没进站）：奇趣没有 music/ 入口（奇趣重组
   /* aria-disabled="true"：Playwright 当它不可点，直接派发点击（真人点得到，页面接住发 sgx:sudo） */
   await page.locator('#mu-play-all').dispatchEvent('click');
   await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
-  await page.waitForTimeout(300);
+  /* 只看模式点播放是同步发 sgx:sudo（不握手、不开窗）：窗口数按 CDP 当场数（不等 page 事件） */
+  expect(await openPages(page)).toBe(1);
   expect(popups).toBe(0);
   expect(new URL(page.url()).pathname).toBe('/music/zh/');
   expect(calls.filter((c) => c.play401 || c.play).length).toBe(0);
@@ -248,7 +250,9 @@ test('音乐（有权限）：上传窗是 AI 窗口那种悬浮卡片（非模�
   await page.locator('#site-nav [aria-controls="sgx-nav"]').click();
   await expect(dlg).toHaveJSProperty('open', false);
   await expect(page.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
-  await page.waitForTimeout(400);
+  /* 导航面板压了自己的历史哨兵（sgxNav）= 上传窗那次 history.back() 的 popstate 已经过去（modalSheet 等它出栈才补点、才开）：
+     没有还在路上的返回事件能把它关掉 */
+  await expect.poll(() => page.evaluate(() => !!(history.state && history.state.sgxNav))).toBe(true);
   await expect(page.locator('#sgx-nav')).toHaveJSProperty('open', true);
 });
 

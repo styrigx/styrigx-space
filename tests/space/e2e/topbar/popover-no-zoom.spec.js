@@ -9,7 +9,7 @@
  * 另：弹层里的输入框字号不小于 16px（iOS / 部分安卓浏览器聚焦小于 16px 的输入框会自动放大）。
  */
 const { test } = require('@playwright/test');
-const { blockExternalRequests, freezeTime, expect } = require('../helpers/helpers');
+const { blockExternalRequests, freezeTime, nextFrames, animationsDone, expect } = require('../helpers/helpers');
 
 const DESK_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 test.use({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, userAgent: DESK_UA, colorScheme: 'light' });
@@ -24,11 +24,13 @@ async function desktopSite(page) {
   });
 }
 
-/** Esc 关弹层。终端停在某个输入模式时 Esc 先退出当前命令（^C）、再按才关（term.js），所以最多按 3 次 */
+/** Esc 关弹层。终端停在某个输入模式时 Esc 先退出当前命令（^C）、再按才关（term.js），所以最多按 3 次。
+ * 键盘处理是同步的：每按一次等一帧，看弹层（modalSheet data-state）开始收了就不再按，再等它收完 */
 async function escClose(page, dlg) {
-  for (let i = 0; i < 3 && await page.locator(dlg).isVisible(); i++) {
+  const st = () => page.locator(dlg).getAttribute('data-state');
+  for (let i = 0; i < 3 && /^(open|opening)$/.test(String(await st())); i++) {
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(50);
+    await nextFrames(page, 1);
   }
   await expect(page.locator(dlg)).toBeHidden();
 }
@@ -52,7 +54,9 @@ test('桌面版网站 + 放大到 1 倍：打开九宫格 / 快捷设置 / AI，
     /* 按钮在放大后的可视视口外（右边），用脚本点（同真机点到之后的那一步：打开 <dialog>） */
     await page.$eval(btn, (b) => /** @type {HTMLElement} */ (b).click());
     await expect(page.locator(dlg)).toBeVisible();
-    await page.waitForTimeout(350);
+    /* 打开走完：modalSheet 到 open（滑入计时器到点）、动画 / 过渡都结束，再量可视视口 */
+    await expect(page.locator(dlg)).toHaveAttribute('data-state', 'open');
+    await animationsDone(page);
     expect(await vv(page), `${dlg} 打开后可视视口`).toEqual(before);
     expect(await page.evaluate((d) => !!document.activeElement && document.querySelector(d).contains(document.activeElement), dlg), `${dlg} 焦点在弹层里`).toBe(true);
     await escClose(page, dlg);

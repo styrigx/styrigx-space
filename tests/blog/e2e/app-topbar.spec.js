@@ -14,6 +14,7 @@
 //   外观面板只有 MODE + PALETTE；每页底部 tmux 页脚（当前窗口 1:blog）。
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
+import { langBootStayed } from '../../space/e2e/helpers/helpers.js';
 
 /* 预设种子从共享外壳的 palette-list.json 读（主站改种子时不用改测试） */
 const SEEDS = Object.fromEntries(
@@ -486,7 +487,8 @@ test.describe('跟随主站设置（sgx-ui cookie）', () => {
     await page.goto('/blog/zh/#latest', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/blog\/#latest$/);
     await page.goto('/blog/zh/post/2026-10-11-key-spec-whitepaper/', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(300);
+    /* 首帧语言跳转在 <head> 里同步跑完：没置 __sgxLangGo 就是不跳（不用干等看地址） */
+    expect(await langBootStayed(page)).toBe(true);
     expect(new URL(page.url()).pathname).toBe('/blog/zh/post/2026-10-11-key-spec-whitepaper/');
   });
 

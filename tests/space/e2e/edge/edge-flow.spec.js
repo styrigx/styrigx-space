@@ -25,6 +25,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { startEdge, LAUNCH } = require('../helpers/edge-harness.cjs');
+const { flushRequests, nextFrames } = require('../helpers/helpers');
 
 test.use({ launchOptions: { args: LAUNCH.args }, proxy: LAUNCH.proxy, viewport: { width: 412, height: 915 },
   userAgent: 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/27.0 Chrome/125.0.0.0 Mobile Safari/537.36',
@@ -82,6 +83,18 @@ test.beforeEach(async ({ context }) => {
   });
 });
 
+/** 每个页面还在路上的身份请求（终端 / 顶栏 / 自动锁向网关确认身份：/api/identity、/api/account）：lockShownWhenSettled 等它们都回来。
+ *  只认这两个：测试台不接服务状态 Worker，/api/status 一直挂着，不能等「全部请求」 @type {WeakMap<import('@playwright/test').Page, Set<import('@playwright/test').Request>>} */
+const inflight = new WeakMap();
+const IDENTITY_PATH = /^\/api\/(identity|account)(\/|$)/;
+test.beforeEach(async ({ page }) => {
+  const s = new Set();
+  inflight.set(page, s);
+  page.on('request', (r) => { if (IDENTITY_PATH.test(new URL(r.url()).pathname)) s.add(r); });
+  page.on('requestfinished', (r) => s.delete(r));
+  page.on('requestfailed', (r) => s.delete(r));
+});
+
 /** 塞一个 v6 会话 cookie（sgx-session，同账号 Worker 下发的属性：host-only、HttpOnly、Secure、SameSite=Lax） */
 async function setV6(context) {
   await context.addCookies([{ name: 'sgx-session', value: await edge.mintV6(), url: MAIN + '/', secure: true, httpOnly: true, sameSite: 'Lax' }]);
@@ -97,10 +110,20 @@ async function openMethods(page) {
   await expect(page.locator('#sgx-entry')).toHaveCount(0);
 }
 
-async function lockShownWithin(page, ms) {
-  // TODO(C8): 「ms 内进站入口一次都没出现」是静默窗口：终端身份异步向真实网关确认（自动锁检查还有 5 秒节流），
-  // 「确认完、不预填」在页面上没有可观察的状态；要确定性就得在生产代码里加完成标记。保留原等待。
-  await page.waitForTimeout(ms);
+/* 进站入口有没有出现过：等页面安定下来再看——load 之后，页面向网关确认身份的请求都回来了，再等两帧让回调和重画落地
+   （冲刷屏障保证看的时候没有已发出但还没记下的请求）。确认的结果可能是重载（自动回锁），换了文档就等新文档再来一轮。不再固定等一段时间 */
+async function lockShownWhenSettled(page) {
+  const s = inflight.get(page);
+  await expect.poll(async () => {
+    try {
+      await page.waitForLoadState('load');
+      await flushRequests(page);
+      await nextFrames(page, 2);
+      return [...s].map((r) => r.method() + ' ' + new URL(r.url()).pathname);
+    } catch (e) {
+      return ['（换文档中）' + String(e && e.message).slice(0, 80)];
+    }
+  }, { timeout: 15000 }).toEqual([]);
   return page.evaluate(() => window.__sawLock === true || Array.prototype.some.call(document.querySelectorAll('[data-term-in]'), (el) => el.value === 'su '));
 }
 
@@ -113,25 +136,26 @@ test('R1 子站首页带任意查询串也过网关（v5 S3：公开页照常给
   }
   await page.goto(MAIN + '/?x=1');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
-  expect(await lockShownWithin(page, 800)).toBe(false);
+  expect(await lockShownWhenSettled(page)).toBe(false);
 });
 
 test('R3 已解锁页面（v6 会话）：别的标签页 lock 后，切回来要上锁（状态只听服务端）', async ({ page, context }) => {
   await setV6(context);
+  /* 自动锁检查节流 5 秒按页面 Date.now() 算：开页前装假时钟（照常走），到时候直接拨过去 */
+  await page.clock.install();
   await page.goto(MAIN + '/');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
   /* 切走再切回：会话有效 → 不出锁屏 */
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-  expect(await lockShownWithin(page, 800)).toBe(false);
+  expect(await lockShownWhenSettled(page)).toBe(false);
   /* 另一个标签页 lock（v6：删服务端会话行） */
   const other = await context.newPage();
   await other.goto(MAIN + '/status/');
   const lk = await other.evaluate(() => fetch('/api/identity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'lock' }) }).then((r) => r.status));
   expect(lk).toBe(200);
   await other.close();
-  // TODO(C8): 等的是 lock-guard.js checkSessionForAutoLock 的 5 秒节流（按页面 Date.now() 算）过去。这个用例连真实网关，
-  // 中途装 page.clock 会连锁屏 UI 的计时器一起换掉，风险大；生产代码没有可读的节流时刻。保留原等待。
-  await page.waitForTimeout(5200); /* 自动锁检查节流 5 秒 */
+  /* 自动锁检查节流 5 秒（auth/guard.js checkSessionForAutoLock，按 Date.now() 算）：时钟拨过 5.2 秒 */
+  await page.clock.fastForward(5200);
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   /* v5 S3：401 → 重载，服务端画访客态（不画锁屏） */
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked', { timeout: 10000 });

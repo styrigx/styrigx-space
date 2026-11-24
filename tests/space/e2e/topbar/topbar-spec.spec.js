@@ -455,8 +455,11 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('#sgx-nav [data-st-sum]')).toHaveText('● 全部在线');
     await expect(page.locator('#sgx-nav [data-nav-status]')).toHaveAttribute('data-state', 'up');
     const p2 = await page.context().newPage();
+    /* 等 /api/status 的 401 回来、页面处理完（两帧）再看页脚 */
+    const st401 = p2.waitForResponse((r) => new URL(r.url()).pathname === '/api/status');
     await goStatus(p2, '/zh/', (r) => r.fulfill({ status: 401, json: { ok: false } }));
-    await p2.waitForTimeout(1500);
+    await (await st401).finished();
+    await nextFrames(p2, 2);
     await expect(p2.locator('.sgx-foot-st')).toContainText('–/5');
     await expect(p2.locator('#sgx-nav [data-st="space"]')).not.toHaveAttribute('data-up', /./);
   });
