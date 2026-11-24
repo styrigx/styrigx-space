@@ -4,7 +4,7 @@ description: >-
   本 action 不替各仓库决定 Node 版本。install=false 只装 Node 和 npm 缓存，不跑 npm ci。
 inputs:
   node-version:
-    description: Node 版本（如 '22'）；和 node-version-file 二选一
+    description: Node 版本（如 '24'）；和 node-version-file 二选一
     required: false
     default: ''
   node-version-file:

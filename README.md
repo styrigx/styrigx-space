@@ -112,7 +112,7 @@ styrigx-space/
 
 ## 本地开发
 
-需要 Node.js 22（`node:sqlite`）和 Hugo（版本以 [`.github/actions/setup-hugo/action.yml`](.github/actions/setup-hugo/action.yml) 为准）。
+需要 Node.js 24（`node:sqlite` 至少要 22）和 Hugo（版本以 [`.github/actions/setup-hugo/action.yml`](.github/actions/setup-hugo/action.yml) 为准）。
 
 ```bash
 git clone https://github.com/styrigx/styrigx-space.git

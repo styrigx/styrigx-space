@@ -112,7 +112,7 @@ Full details: [SGX-ARCH-002 Repository layout](docs/architecture/repo-structure.
 
 ## Local development
 
-Requires Node.js 22 (`node:sqlite`) and Hugo (version defined in [`.github/actions/setup-hugo/action.yml`](.github/actions/setup-hugo/action.yml)).
+Requires Node.js 24 (`node:sqlite` needs at least 22) and Hugo (version defined in [`.github/actions/setup-hugo/action.yml`](.github/actions/setup-hugo/action.yml)).
 
 ```bash
 git clone https://github.com/styrigx/styrigx-space.git

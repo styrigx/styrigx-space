@@ -9,7 +9,7 @@ permissions:
   contents: write   # 把新基线推回该分支
   actions: write    # 推完后用 GITHUB_TOKEN 触发 deploy.yml
 env:
-  NODE_VERSION: '22'        # 与 deploy.yml 保持一致（Hugo 版本只在 .github/actions/setup-hugo 定义）
+  NODE_VERSION: '24'        # 与 deploy.yml 保持一致（Hugo 版本只在 .github/actions/setup-hugo 定义）
 jobs:
   update:
     runs-on: ubuntu-24.04
