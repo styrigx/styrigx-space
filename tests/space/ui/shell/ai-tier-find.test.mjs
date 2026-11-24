@@ -81,7 +81,8 @@ test('源码约定：索引档走 GET /api/find?…&mode=recall；loadModels 认
   assert.match(tb, /<span data-ai-model-find aria-hidden="true"><svg [^>]*><circle /);
   assert.doesNotMatch(tb, /data-ai-model-lock/);
   assert.match(tb, /data-ai-finfo hidden/);
-  assert.match(tb, /<img class="sgx-ai-badge-img" src="\/avatar\/96\.webp" alt=""/);
+  /* 头像 = 参数 avatar 的 96 档（主站 /avatar/96.webp；子站站内地址规矩是 https://styrigx.com 绝对地址，one-site.test.mjs） */
+  assert.match(tb, /<img class="sgx-ai-badge-img" src="\{\{ replace \(\.avatar \| default "\/avatar\/192\.webp"\) "\/192\.webp" "\/96\.webp" \}\}" alt=""/);
 });
 
 test('建议关键词：音乐 / 博客 / 游戏，Music / Blog / Games（Gray 2026-11-24 14:46）；中英键一致', () => {

@@ -127,8 +127,8 @@
 <dialog id="sgx-ai" class="sgx-qp sgx-ai" aria-label="{{ $t.topbar.askAi }}">
   <div class="sgx-qp-sheet" tabindex="-1">
     <div class="sgx-ai-head">
-      {{- /* 头像（2026-11-24 分档设计稿 §三.10）：和顶栏同一张站点头像 /avatar/96.webp，圆形主题色环，不加 #/$ 角标；读不到回落 G（ai/panel.js 写 data-fallback） */}}
-      <span class="sgx-ai-badge" data-ai-badge aria-hidden="true" translate="no"><img class="sgx-ai-badge-img" src="/avatar/96.webp" alt="" width="30" height="30" decoding="async"><span class="sgx-ai-badge-g">G</span></span>
+      {{- /* 头像（2026-11-24 分档设计稿 §三.10）：和顶栏同一张站点头像，96 档（参数 avatar 的 192 换成 96：主站 /avatar/96.webp，子站 https://styrigx.com/avatar/96.webp，同一个文件），圆形主题色环，不加 #/$ 角标；读不到回落 G（ai/panel.js 写 data-fallback） */}}
+      <span class="sgx-ai-badge" data-ai-badge aria-hidden="true" translate="no"><img class="sgx-ai-badge-img" src="{{ replace (.avatar | default "/avatar/192.webp") "/192.webp" "/96.webp" }}" alt="" width="30" height="30" decoding="async"><span class="sgx-ai-badge-g">G</span></span>
       <span class="sgx-ai-tt"><p class="sgx-ai-title" translate="no">Gray AI</p><small class="sgx-ai-sub">{{ $t.topbar.aiSub }}</small></span>
       {{- /* 模型（设计稿 ai-v1 的「Gemma 4 ▾」）：显示当前生效的模型；登了账号（canChoose）点开在头部下面展开单选，选中写 sgx-ai-model（同账号页 AI 模型一行）；
          索引档（GET /api/ai 401 / 403，2026-11-24 分档设计稿 §三.9）：同一个矩形只显示放大镜图标 data-ai-model-find（.is-find，无文字，ai/panel.js setTier）；
