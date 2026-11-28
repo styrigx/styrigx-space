@@ -2,8 +2,8 @@
  * 预览 / 测试资源统一（Sloan 2026-10-30 定）：所有 Worker 的预览 / 测试资源（KV、D1，以后的 R2）都用同一个 styrigx-test-preview，
  * 不许再出现按 Worker 分的预览资源（styrigx-auth-gateway-preview、styrigx-account-preview 库等）。
  *
- * - 每份 wrangler.toml 的 [env.preview]：D1 只许 styrigx-test-preview（1339bb0b-f9f8-4e3d-b413-ff07ca28ce69），
- *   KV 只许 193b4d68b8ac4c6f8c0ba16b5ea78b14，R2 只许 bucket styrigx-test-preview
+ * - 每份 wrangler.toml 的 [env.preview]：D1 只许 styrigx-test-preview（926d5809-c13b-4816-ad60-1d8160135054），
+ *   KV 只许 afce172dc44841d289d7b64e01c81a01，R2 只许 bucket styrigx-test-preview
  * - 正式块（非 [env.preview]）绝不引用测试资源的 id / 名字
  * - deploy.yml、space/scripts/、atlas/scripts/：wrangler d1 命令只对 styrigx-test-preview 加 --env preview；不出现别的 *-preview 资源名
  *
@@ -17,8 +17,8 @@ const REPO = new URL('../../../', import.meta.url).pathname;
 const read = (p) => readFileSync(REPO + p, 'utf8');
 
 export const TEST_PREVIEW_NAME = 'styrigx-test-preview';
-export const TEST_PREVIEW_D1_ID = '1339bb0b-f9f8-4e3d-b413-ff07ca28ce69';
-export const TEST_PREVIEW_KV_ID = '193b4d68b8ac4c6f8c0ba16b5ea78b14';
+export const TEST_PREVIEW_D1_ID = '926d5809-c13b-4816-ad60-1d8160135054';
+export const TEST_PREVIEW_KV_ID = 'afce172dc44841d289d7b64e01c81a01';
 
 /** 仓库里所有 wrangler.toml：space/web/ 和 workers/<名字>/ */
 function wranglerFiles() {
@@ -109,4 +109,40 @@ test('deploy.yml / scripts：对预览跑的 wrangler d1 命令只碰 styrigx-te
     }
   }
   assert.ok(previewCmds >= 1, 'deploy.yml 至少对测试库跑一次预览迁移');
+});
+
+/* 2026-11-28 测试资源迁出主空间：预览只用测试空间 Styrigx-Test，生产只用主空间 Styrigx。
+   最怕 passkey 预览步骤漏改一处、继续写主空间还表面全绿，所以逐步核对每一处账号 id。 */
+test('deploy.yml：passkey 预览步骤只用测试空间账号 id，其余（含 Pages 生产守卫）只用主空间', async () => {
+  const { createRequire } = await import('node:module');
+  const yaml = createRequire(import.meta.url)('js-yaml');
+  const raw = read('.github/workflows/deploy.yml');
+  assert.doesNotMatch(raw, /secrets\.CLOUDFLARE_ACCOUNT_ID\b/, '旧名 CLOUDFLARE_ACCOUNT_ID 不再引用');
+  const wf = yaml.load(raw);
+  const MAIN = 'secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID';
+  const TEST = 'secrets.CLOUDFLARE_STYRIGX_TEST_ACCOUNT_ID';
+  const GUARD = 'Guard - no private vars on Pages production';
+  let testRefs = 0;
+  for (const [name, job] of Object.entries(wf.jobs)) {
+    for (const st of job.steps || []) {
+      const s = JSON.stringify(st);
+      const preview = name === 'passkey-e2e' && st.name !== GUARD;
+      if (preview) {
+        assert.ok(!s.includes(MAIN + ' '), name + ' / ' + st.name + '：预览步骤不许用主空间账号 id');
+        if (s.includes(TEST)) testRefs++;
+        if (/pages\/projects\/|--project-name=/.test(s)) assert.match(s, /styrigx-space-test/, st.name + '：预览只碰 styrigx-space-test');
+      } else {
+        assert.ok(!s.includes(TEST), name + ' / ' + st.name + '：生产步骤不许用测试空间账号 id');
+      }
+    }
+  }
+  assert.ok(testRefs >= 6, '预览的检查 secret / 清库 / 确保项目 / 写 secret / 迁移 / 部署 / e2e 都用测试空间');
+  const guard = wf.jobs['passkey-e2e'].steps.find((st) => st.name === GUARD);
+  assert.equal(guard.env.CF_ACCOUNT_ID, '${{ ' + MAIN + ' }}', '守卫读主空间的生产项目');
+});
+
+test('space/web/wrangler.toml [env.preview]：origin / RP ID 在测试空间的预览项目上', () => {
+  const t = read('space/web/wrangler.toml');
+  assert.match(t, /^SGX_ORIGIN = "https:\/\/passkey-e2e\.styrigx-space-test\.pages\.dev"$/m);
+  assert.match(t, /^SGX_RP_ID = "passkey-e2e\.styrigx-space-test\.pages\.dev"$/m);
 });

@@ -7,7 +7,7 @@
 # 部署在 space/web/ 目录下执行：npx wrangler pages deploy public --project-name=styrigx-space
 #
 # preview 环境只给 passkey-e2e 用：CI 把网关打包成 _worker.js 覆盖进 public/，
-# 在 passkey-e2e.styrigx-space.pages.dev 上跑网关的同一份代码，连测试专用 D1 styrigx-test-preview，绝不碰正式数据。
+# 在 passkey-e2e.styrigx-space-test.pages.dev 上跑网关的同一份代码，连测试专用 D1 styrigx-test-preview，绝不碰正式数据。
 # 预览的私密值（测试密钥）由 CI 每次部署前写入，不进 toml。
 
 name = "styrigx-space"
@@ -18,8 +18,8 @@ pages_build_output_dir = "public"
 [env.preview.vars]
 # 网关缺 SGX_ENV 时按生产处理（只认 styrigx.com）；预览必须显式写 preview 才能在 pages.dev 地址上跑
 SGX_ENV = "preview"
-SGX_ORIGIN = "https://passkey-e2e.styrigx-space.pages.dev"
-SGX_RP_ID = "passkey-e2e.styrigx-space.pages.dev"
+SGX_ORIGIN = "https://passkey-e2e.styrigx-space-test.pages.dev"
+SGX_RP_ID = "passkey-e2e.styrigx-space-test.pages.dev"
 SGX_SITE = "space"
 
 # 预览只绑 D1（2026-10-27 起网关不再用 KV）。
@@ -34,11 +34,11 @@ SGX_SITE = "space"
 [[env.preview.d1_databases]]
 binding = "D1_SPACE"
 database_name = "styrigx-test-preview"
-database_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"
+database_id = "926d5809-c13b-4816-ad60-1d8160135054"
 migrations_dir = "../../workers/space-core/migrations"
 migrations_table = "d1_migrations_core"
 
 [[env.preview.d1_databases]]
 binding = "D1_ACCOUNT"
 database_name = "styrigx-test-preview"
-database_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"
+database_id = "926d5809-c13b-4816-ad60-1d8160135054"

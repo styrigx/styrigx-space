@@ -318,7 +318,7 @@ test('deploy.yml：6 个 Worker job 都是「记线上版本 → 部署 → (核
     assert.equal(last['working-directory'], cfg.dir, name);
     for (const st of [sn, last]) {
       assert.equal(st.env.CLOUDFLARE_API_TOKEN, '${{ secrets.' + cfg.secret + ' }}', name + ': same token as deploy');
-      assert.equal(st.env.CLOUDFLARE_ACCOUNT_ID, '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}', name);
+      assert.equal(st.env.CLOUDFLARE_ACCOUNT_ID, '${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}', name);
     }
     for (const d of steps.filter(isDeploy)) assert.equal(d.with.apiToken, '${{ secrets.' + cfg.secret + ' }}', name + ': deploy token');
     const verify = steps.findIndex((s) => typeof s.run === 'string' && s.run.includes('worker-verify'));
@@ -346,9 +346,9 @@ test('deploy.yml：Pages 记 canonical deployment → 部署 → 冒烟（含首
   for (const st of [steps[snap], last]) assert.equal(st.env.CLOUDFLARE_API_TOKEN, '${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}');
 });
 
-test('deploy.yml：回滚不加新 secret（只用各 job 原有的部署 token 和 CLOUDFLARE_ACCOUNT_ID）', () => {
+test('deploy.yml：回滚不加新 secret（只用各 job 原有的部署 token 和两个空间的账号 id）', () => {
   /* STYRIGX_AI_DEPLOY：deploy-ai-worker 的部署 token（2026-11-05 由 STYRIGX_SEARCH_INDEX_DEPLOY 拆出改名，Cloudflare 上 styrigx-ai-deploy） */
-  const allowed = new Set(['CLOUDFLARE_ACCOUNT_ID', 'STYRIGX_SPACE_PAGES_DEPLOY', 'STYRIGX_AI_DEPLOY', ...Object.values(WORKER_JOBS).map((c) => c.secret)]);
+  const allowed = new Set(['CLOUDFLARE_STYRIGX_ACCOUNT_ID', 'CLOUDFLARE_STYRIGX_TEST_ACCOUNT_ID', 'STYRIGX_SPACE_PAGES_DEPLOY', 'STYRIGX_AI_DEPLOY', ...Object.values(WORKER_JOBS).map((c) => c.secret)]);
   const used = new Set([...readFileSync(path.join(REPO, '.github/workflows/deploy.yml'), 'utf8').matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1]));
   for (const s of used) assert.ok(allowed.has(s), 'unexpected secret ' + s);
 });

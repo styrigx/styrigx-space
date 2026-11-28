@@ -13,7 +13,7 @@
 
 1.2 命名约定：站点 = Pages 项目 + `<站>-core` Worker + 同名 D1（`styrigx-space` / `styrigx-space-core`；奇趣、日刻共用 `styrigx-atlas-core`）。绑定名 = `<类型前缀>_<存放的内容>`（`D1_QUOTES`、`R2_PHOTOS`、`KV_SEARCH_INDEX`）。
 
-1.3 预览 / 测试资源所有 Worker 只用一个 `styrigx-test-preview`（`tests/workers/space-core/preview-resources.test.mjs` 守卫）。
+1.3 预览 / 测试资源所有 Worker 只用一个 `styrigx-test-preview`（`tests/workers/space-core/preview-resources.test.mjs` 守卫）。2026-11-28 起它和预览 Pages 项目 `styrigx-space-test` 都在测试空间 Styrigx-Test，主空间 Styrigx 只放生产资源；测试跑满免费额度只影响测试空间。
 
 1.4 Cloudflare 后台的账单 / 付款页面不在自动化操作范围内。
 
@@ -21,7 +21,8 @@
 
 | 项目 | 构建产物 | 绑定 |
 |---|---|---|
-| `styrigx-space` | `space/web/public` | 生产：无；`preview` 环境：`D1_SPACE`、`D1_ACCOUNT` → `styrigx-test-preview`（只给 passkey-e2e） |
+| `styrigx-space` | `space/web/public` | 生产：无（主空间） |
+| `styrigx-space-test` | `space/web/public` | 测试空间，只给 passkey-e2e：`preview` 环境 `D1_SPACE`、`D1_ACCOUNT` → `styrigx-test-preview`；CI 首跑自动创建 |
 
 ## 3. Workers
 
@@ -47,7 +48,7 @@
 | `styrigx-status` | `D1_UPTIME_MONITOR`、`D1_CLOUDFLARE_USAGE`（status） | `status_*` 表。迁移表 `d1_migrations_status` |
 | `styrigx-atlas-core` | `D1_FINDS`、`D1_GAMES`、`D1_MUSIC`、`D1_QUOTES`（atlas-core，同一个库；设备、电影的绑定奇趣重组 PR 3 删了） | 收藏、游戏、音乐；句子、专题、`daily_pick` |
 | `styrigx-proxy` | `D1_PROXY`（proxy-rules） | 代理订阅：`meta`（公钥、令牌哈希与封存的令牌、UA）、`sources`（机场链接与节点密文、成品 age 密文）、`lock` |
-| `styrigx-test-preview` | 各 Worker 的 `env.preview` | 预览 / 测试共用 |
+| `styrigx-test-preview` | 各 Worker 的 `env.preview` | 预览 / 测试共用（在测试空间 Styrigx-Test） |
 
 ### 4.2 KV
 

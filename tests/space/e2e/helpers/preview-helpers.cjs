@@ -2,7 +2,7 @@
  * 预览站（真实网关 + 账号 Worker，组合入口 preview-worker.js）E2E 的共享 helper：passkey.spec.js、account-passkey.spec.js 共用。
  *
  * 环境变量（CI 的 passkey-e2e job 注入；本地没配时整组跳过，CI 里缺了直接失败）：
- * - SGX_TEST_BASE：预览站地址（https://passkey-e2e.styrigx-space.pages.dev，或 PR 运行的本地模拟器）
+ * - SGX_TEST_BASE：预览站地址（https://passkey-e2e.styrigx-space-test.pages.dev，或 PR 运行的本地模拟器）
  * - SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_D1_ID：写预览 D1（D1 REST query；requireCf）
  * - SGX_TEST_CF_API：只在模拟预览站（preview-emulator.cjs：本地，或 CI 里 pull_request 的运行）时设，把 Cloudflare REST 指到本机
  *
