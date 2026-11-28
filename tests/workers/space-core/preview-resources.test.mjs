@@ -2,7 +2,7 @@
  * 预览 / 测试资源统一（Sloan 2026-10-30 定）：所有 Worker 的预览 / 测试资源（KV、D1，以后的 R2）都用同一个 styrigx-test-preview，
  * 不许再出现按 Worker 分的预览资源（styrigx-auth-gateway-preview、styrigx-account-preview 库等）。
  *
- * - 每份 wrangler.toml 的 [env.preview]：D1 只许 styrigx-test-preview（926d5809-c13b-4816-ad60-1d8160135054），
+ * - 每份 wrangler.toml 的 [env.preview]：D1 只许 styrigx-test-preview（43a59672-58f2-451c-8a4c-6067f93b2e0b），
  *   KV 只许 afce172dc44841d289d7b64e01c81a01，R2 只许 bucket styrigx-test-preview
  * - 正式块（非 [env.preview]）绝不引用测试资源的 id / 名字
  * - deploy.yml、space/scripts/、atlas/scripts/：wrangler d1 命令只对 styrigx-test-preview 加 --env preview；不出现别的 *-preview 资源名
@@ -17,7 +17,7 @@ const REPO = new URL('../../../', import.meta.url).pathname;
 const read = (p) => readFileSync(REPO + p, 'utf8');
 
 export const TEST_PREVIEW_NAME = 'styrigx-test-preview';
-export const TEST_PREVIEW_D1_ID = '926d5809-c13b-4816-ad60-1d8160135054';
+export const TEST_PREVIEW_D1_ID = '43a59672-58f2-451c-8a4c-6067f93b2e0b';
 export const TEST_PREVIEW_KV_ID = 'afce172dc44841d289d7b64e01c81a01';
 
 /** 仓库里所有 wrangler.toml：space/web/ 和 workers/<名字>/ */

@@ -100,7 +100,7 @@ id = "afce172dc44841d289d7b64e01c81a01"
 [[env.preview.d1_databases]]
 binding = "D1_ACCOUNT"
 database_name = "styrigx-test-preview"
-database_id = "926d5809-c13b-4816-ad60-1d8160135054"
+database_id = "43a59672-58f2-451c-8a4c-6067f93b2e0b"
 migrations_dir = "migrations"
 migrations_table = "d1_migrations_account"
 

@@ -88,7 +88,7 @@ test('wrangler.toml：styrigx-account、不开公开地址、没有路由、唯�
   assert.doesNotMatch(preview, /PLACEHOLDER/);
   assert.match(preview, /\[\[env\.preview\.kv_namespaces\]\]\nbinding = "KV_PROFILE"\nid = "afce172dc44841d289d7b64e01c81a01"/);
   for (const b of ['D1_ACCOUNT']) {
-    assert.match(preview, new RegExp('\\[\\[env\\.preview\\.d1_databases\\]\\]\\nbinding = "' + b + '"\\ndatabase_name = "styrigx-test-preview"\\ndatabase_id = "926d5809-c13b-4816-ad60-1d8160135054"\\nmigrations_dir = "migrations"\\nmigrations_table = "d1_migrations_account"'), b);
+    assert.match(preview, new RegExp('\\[\\[env\\.preview\\.d1_databases\\]\\]\\nbinding = "' + b + '"\\ndatabase_name = "styrigx-test-preview"\\ndatabase_id = "43a59672-58f2-451c-8a4c-6067f93b2e0b"\\nmigrations_dir = "migrations"\\nmigrations_table = "d1_migrations_account"'), b);
   }
 });
 

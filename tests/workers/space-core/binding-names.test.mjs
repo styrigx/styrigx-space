@@ -79,7 +79,7 @@ test('账号 Worker 正式 / 预览：只有一个 D1 绑定 D1_ACCOUNT（styrig
   assert.equal(pm.KV_PROFILE, 'afce172dc44841d289d7b64e01c81a01', '预览 KV = 测试专用 namespace');
   assert.equal(pm.KV_SETTINGS_SYNC, undefined);
   /* 预览 D1 = 测试库 styrigx-test-preview（2026-10-29），绝不是正式库 */
-  assert.equal(pm.D1_ACCOUNT, '926d5809-c13b-4816-ad60-1d8160135054');
+  assert.equal(pm.D1_ACCOUNT, '43a59672-58f2-451c-8a4c-6067f93b2e0b');
   assert.notEqual(pm.D1_ACCOUNT, m.D1_ACCOUNT);
 });
 
@@ -96,7 +96,7 @@ test('搜索 / 监测：KV_SEARCH_INDEX（P4-2b 起只在 ai）、D1_UPTIME_MONI
 });
 
 test('预览统一用测试资源（2026-10-29）：站点核心 / 账号的预览 D1 都是 styrigx-test-preview，迁移记录表各不相同，CI 两套迁移都跑', () => {
-  const TEST_D1 = '926d5809-c13b-4816-ad60-1d8160135054';
+  const TEST_D1 = '43a59672-58f2-451c-8a4c-6067f93b2e0b';
   const files = { 'space/web/wrangler.toml': 'workers/space-core/wrangler.toml', 'workers/account/wrangler.toml': null };
   /* 每个文件预览块用到的迁移记录表（进站 v3 L2b：站点核心一份基线、记录表 d1_migrations_core，同正式） */
   const WANT_TABLES = { 'space/web/wrangler.toml': ['d1_migrations_core'], 'workers/account/wrangler.toml': ['d1_migrations_account'] };
