@@ -226,7 +226,7 @@ test('deploy.yml：status 部署核对后跑闸门（在最后的回滚步骤之
   const g = steps[gi];
   assert.match(g.run, /^node space\/scripts\/check\/health-gate\.mjs --sites ai --baseline-until "\$BASELINE_UNTIL"$/);
   assert.equal(g.env.CLOUDFLARE_API_TOKEN, '${{ secrets.STYRIGX_STATUS_DEPLOY }}');
-  assert.equal(g.env.CLOUDFLARE_ACCOUNT_ID, '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}');
+  assert.equal(g.env.CLOUDFLARE_ACCOUNT_ID, '${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}');
   assert.equal(g['continue-on-error'], undefined, '闸门失败要让 job 红');
   assert.equal(g.env.BASELINE_UNTIL, '${{ needs.deploy-ai-worker.outputs.started_at }}');
   assert.deepEqual(job.outputs, { health_verdict: '${{ steps.health.outputs.verdict }}', health_failed: '${{ steps.health.outputs.failed }}' });

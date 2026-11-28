@@ -83,7 +83,10 @@ quality + passkey-e2e
 | `deploy-atlas-core` | `STYRIGX_ATLAS_CORE_DEPLOY` |
 | `deploy-proxy-worker` | `STYRIGX_PROXY_DEPLOY` |
 | `build-and-deploy`（及 passkey 预览） | `STYRIGX_SPACE_PAGES_DEPLOY` |
-| 全部 | `CLOUDFLARE_ACCOUNT_ID` |
+| 全部生产作业、passkey 作业里的「Pages 生产无私密变量」守卫 | `CLOUDFLARE_STYRIGX_ACCOUNT_ID`（主空间 Styrigx） |
+| passkey 真实预览（预览项目、预览 D1） | `CLOUDFLARE_STYRIGX_TEST_ACCOUNT_ID`（测试空间 Styrigx-Test） |
+
+7.1a 账号 id 的 secret 按平台命名（`CLOUDFLARE_<空间>_ACCOUNT_ID`），部署 token 按产品命名（`STYRIGX_<产品>_DEPLOY`），两类故意不同。`STYRIGX_SPACE_PAGES_DEPLOY` 的账号范围同时覆盖两个空间。
 
 7.2 token 的值由拥有者在 Cloudflare 创建 / 轮换并填入 GitHub；自动化流程 MUST NOT 读取或打印 token 值。
 

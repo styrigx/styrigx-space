@@ -574,7 +574,9 @@ jobs:
     #   github.event_name != 'pull_request' 的步骤，和改动前一样）。模拟器测不到真实 D1、Pages 打包和真实绑定，
     #   所以 PR 的通过不顶替真实预览：main 的每次 push（只改文档 / 样式的除外）照跑真实预览，不再复用 PR 运行的结果。
     # 两条路都只用每次运行在 runner 上现生成的测试凭证（进站凭证、账号根密钥、pepper；真实预览另加 Ed25519 钥匙对），绝不用生产 secret，也不存 GitHub Secrets。
-    # 真实预览只用仓库级的 CLOUDFLARE_ACCOUNT_ID 与 STYRIGX_SPACE_PAGES_DEPLOY（部署预览、写预览 D1）。
+    # 真实预览只用仓库级的 CLOUDFLARE_STYRIGX_TEST_ACCOUNT_ID（测试空间 Styrigx-Test）与 STYRIGX_SPACE_PAGES_DEPLOY（部署预览、写预览 D1）。
+    # 2026-11-28 测试资源迁出主空间：预览 Pages 项目 styrigx-space-test、预览 D1 / KV 都在 Styrigx-Test，主空间 Styrigx 只放生产；
+    # 本 job 里只有最后的「Pages 生产无私密变量」守卫读主空间（CLOUDFLARE_STYRIGX_ACCOUNT_ID）。
     # 外部 fork 的 PR 不跑（同仓库分支的 PR 照跑）。
     # 不等 quality（2026-11-04 CI 拆分）：两条路都自己构建，不用 quality 的产物；GitHub 的 needs 不能按事件区分，所以 main 上也不等。
     # 部署作业照旧同时 needs quality 和 passkey-e2e，没过检查的提交仍然不会上线；main 上只是共享预览可能在 quality 出结果前先部署（测试凭证、预览 D1，不碰生产）。
@@ -692,7 +694,7 @@ jobs:
         # PR 走本地模拟器，不用 Cloudflare secret，不检查。
         if: github.event_name != 'pull_request'
         env:
-          HAS_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+          HAS_ACCOUNT: ${{ secrets.CLOUDFLARE_STYRIGX_TEST_ACCOUNT_ID != '' }}
           HAS_PAGES_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY != '' }}
         run: |
           ok=0
@@ -731,7 +733,7 @@ jobs:
         # 库 id 只认 space/web/wrangler.toml [env.preview] 的 D1_SPACE，且断言它不是正式网关的库。D1 REST 要这个 token 有 D1 编辑。
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         env:
-          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_TEST_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
         run: node space/scripts/check/kv-budget.mjs reset-preview
 
@@ -806,6 +808,37 @@ jobs:
           grep -q "X-SGX-Runtime" space/web/public/_worker.js
           grep -q "sgx-session" space/web/public/_worker.js
 
+      - name: Ensure preview Pages project (test account)
+        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
+        # 预览 Pages 项目 styrigx-space-test 在测试空间 Styrigx-Test：没有就建（直传项目，不连 Git；production_branch 只是占位，预览只部署 passkey-e2e 分支），
+        # 有就跳过。建完核对它的 pages.dev 子域就是 space/web/wrangler.toml [env.preview] SGX_RP_ID 的上级（通行密钥绑 origin），对不上让 CI 红。
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_TEST_ACCOUNT_ID }}
+          CF_PAGES_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, sys, tomllib, urllib.request, urllib.error
+          env = os.environ
+          base = f"https://api.cloudflare.com/client/v4/accounts/{env['CF_ACCOUNT_ID']}/pages/projects"
+          hdr = {"Authorization": f"Bearer {env['CF_PAGES_TOKEN']}", "Content-Type": "application/json"}
+          rp = tomllib.load(open("space/web/wrangler.toml", "rb"))["env"]["preview"]["vars"]["SGX_RP_ID"]
+          want = rp.split(".", 1)[1]
+          def call(url, data=None, method="GET"):
+              return json.load(urllib.request.urlopen(urllib.request.Request(url, data=data, method=method, headers=hdr), timeout=30))
+          try:
+              r = call(base + "/styrigx-space-test")
+              print("preview project exists")
+          except urllib.error.HTTPError as e:
+              if e.code != 404:
+                  print(f"FAIL: HTTP {e.code}", file=sys.stderr); sys.exit(1)
+              r = call(base, json.dumps({"name": "styrigx-space-test", "production_branch": "main"}).encode(), "POST")
+              print("preview project created")
+          sub = r["result"]["subdomain"]
+          print("subdomain:", sub)
+          if sub != want:
+              print(f"FAIL: subdomain {sub} != {want} (space/web/wrangler.toml SGX_RP_ID)", file=sys.stderr); sys.exit(1)
+          PYEOF
+
       - name: Set preview test secrets (preview only)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 只写 preview 环境（PATCH deployment_configs.preview），绝不碰 production。
@@ -814,7 +847,7 @@ jobs:
         # 和两把旧恢复钥匙（代码不读它们；预览环境里以前写过的旧测试值不删也不被读）。命名 v2 起预览不再写 SGX_ACCOUNT_ROOT_KEY（账号代码不读它；以前写过的旧测试值不删也不被读）。
         # 账号拆分 PR3 起预览不再写 SGX_ROOT_KEY（网关代码不读它）；预览环境里以前写过的旧值是以前某次运行的测试值，不删也不被读。
         env:
-          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_TEST_ACCOUNT_ID }}
           CF_PAGES_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
         run: |
           python3 - <<'PYEOF'
@@ -834,7 +867,7 @@ jobs:
               "SGX_ORIGIN": plain(pv["SGX_ORIGIN"]),
           }}}}).encode()
           req = urllib.request.Request(
-              f"https://api.cloudflare.com/client/v4/accounts/{env['CF_ACCOUNT_ID']}/pages/projects/styrigx-space",
+              f"https://api.cloudflare.com/client/v4/accounts/{env['CF_ACCOUNT_ID']}/pages/projects/styrigx-space-test",
               data=body, method="PATCH",
               headers={"Authorization": f"Bearer {env['CF_PAGES_TOKEN']}", "Content-Type": "application/json"})
           try:
@@ -861,7 +894,7 @@ jobs:
           npx --yes "wrangler@$WRANGLER_VERSION" d1 execute styrigx-test-preview --remote --env preview --command "SELECT 'space-core' AS worker, name, applied_at FROM d1_migrations_core UNION ALL SELECT 'account', name, applied_at FROM d1_migrations_account ORDER BY 1, 2"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_TEST_ACCOUNT_ID }}
 
       - name: Write preview deploy marker
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
@@ -877,20 +910,21 @@ jobs:
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_TEST_ACCOUNT_ID }}
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           workingDirectory: space/web
-          command: pages deploy public --project-name=styrigx-space --branch=passkey-e2e --commit-dirty=true
+          command: pages deploy public --project-name=styrigx-space-test --branch=passkey-e2e --commit-dirty=true
 
       - name: Wait until preview alias serves this deployment
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
-        # 别名 passkey-e2e.styrigx-space.pages.dev 刚部署后有一段时间仍会把部分请求路由到上一次部署。
+        # 别名（space/web/wrangler.toml [env.preview] SGX_ORIGIN，passkey-e2e.styrigx-space-test.pages.dev）刚部署后有一段时间仍会把部分请求路由到上一次部署。
         # 上一次部署是上一次运行生成的 Ed25519 钥匙 / SpaceKey（PR1.5 首跑时还连着旧预览库），
         # 请求混着打到两次部署就会出现 {"error":"session"}、轮询变慢、限速计数分散（2026-10-29 run 40904956665 两次 attempt）。
         # 连续 10 次读到本次标记才开跑；最多等约 240 秒，超时让 CI 红（不带着混合路由跑测试）。
         run: |
           want="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          url="https://passkey-e2e.styrigx-space.pages.dev/images/e2e-deploy.txt"
+          origin="$(python3 -c 'import tomllib; print(tomllib.load(open("space/web/wrangler.toml","rb"))["env"]["preview"]["vars"]["SGX_ORIGIN"])')"
+          url="$origin/images/e2e-deploy.txt"
           ok=0; got=""
           for i in $(seq 1 120); do
             got="$(curl -fsS -H 'Cache-Control: no-cache' "$url?n=$i-$RANDOM" 2>/dev/null | tr -d '\r\n' || true)"
@@ -910,7 +944,7 @@ jobs:
         env:
           SGX_TEST_SUITE: passkey
           SGX_TEST_CF_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
-          SGX_TEST_CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SGX_TEST_CF_ACCOUNT: ${{ secrets.CLOUDFLARE_STYRIGX_TEST_ACCOUNT_ID }}
         run: |
           eval "$(python3 - <<'PYEOF'
           import shlex, tomllib
@@ -928,7 +962,7 @@ jobs:
         # 要用 Cloudflare secret 读 Pages 项目：PR 运行不碰 Cloudflare，只在 main / 手动运行查（只改文档 / 样式时也查）
         if: github.event_name != 'pull_request'
         env:
-          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           CF_PAGES_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
         run: |
           python3 - <<'PYEOF'
@@ -1007,14 +1041,14 @@ jobs:
         continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
         run: node space/scripts/deploy/deploy-rollback.mjs pages-snapshot --project styrigx-space
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           workingDirectory: space/web
           command: pages deploy public --project-name=styrigx-space --commit-dirty=true
@@ -1139,7 +1173,7 @@ jobs:
         if: failure() && steps.live.outputs.deployment != ''
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.deployment }}
         run: node space/scripts/deploy/deploy-rollback.mjs pages-rollback --project styrigx-space --to "$PREVIOUS"
 
@@ -1177,7 +1211,7 @@ jobs:
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           workingDirectory: workers/status
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: d1 migrations apply styrigx-status --remote
@@ -1190,14 +1224,14 @@ jobs:
         working-directory: workers/status
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy status Worker (styrigx-status)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           workingDirectory: workers/status
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
@@ -1208,7 +1242,7 @@ jobs:
         working-directory: workers/status
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
@@ -1221,7 +1255,7 @@ jobs:
         id: health
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           BASELINE_UNTIL: ${{ needs.deploy-ai-worker.outputs.started_at }}
         run: node space/scripts/check/health-gate.mjs --sites ai --baseline-until "$BASELINE_UNTIL"
 
@@ -1232,7 +1266,7 @@ jobs:
         working-directory: workers/status
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
@@ -1292,7 +1326,7 @@ jobs:
         working-directory: workers/ai
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AI_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Record deploy start
@@ -1306,7 +1340,7 @@ jobs:
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_AI_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           workingDirectory: workers/ai
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
@@ -1328,7 +1362,7 @@ jobs:
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_AI_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           workingDirectory: workers/ai
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy --config wrangler.nokey.toml
@@ -1338,7 +1372,7 @@ jobs:
         working-directory: workers/ai
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AI_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
@@ -1347,7 +1381,7 @@ jobs:
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_AI_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           workingDirectory: workers/ai
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: kv key put site:space --path=${{ runner.temp }}/search-space.json --binding=KV_SEARCH_INDEX --remote
@@ -1358,7 +1392,7 @@ jobs:
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_AI_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           workingDirectory: workers/ai
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: kv key put site:blog --path=${{ runner.temp }}/search-blog.json --binding=KV_SEARCH_INDEX --remote
@@ -1370,7 +1404,7 @@ jobs:
         working-directory: workers/ai
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AI_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
@@ -1397,7 +1431,7 @@ jobs:
         working-directory: workers/ai
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AI_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           PREVIOUS: ${{ needs.deploy-ai-worker.outputs.previous }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
@@ -1430,7 +1464,7 @@ jobs:
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_PROXY_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           workingDirectory: workers/proxy
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: d1 migrations apply styrigx-proxy --remote
@@ -1443,14 +1477,14 @@ jobs:
         working-directory: workers/proxy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_PROXY_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy proxy rules Worker (styrigx-proxy)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_PROXY_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           workingDirectory: workers/proxy
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
@@ -1493,7 +1527,7 @@ jobs:
         working-directory: workers/proxy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_PROXY_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
@@ -1528,7 +1562,7 @@ jobs:
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_ATLAS_CORE_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           workingDirectory: workers/atlas-core
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: d1 migrations apply styrigx-atlas-core --remote
@@ -1540,7 +1574,7 @@ jobs:
         working-directory: workers/atlas-core
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ATLAS_CORE_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy Atlas core Worker (styrigx-atlas-core)
@@ -1548,7 +1582,7 @@ jobs:
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_ATLAS_CORE_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           workingDirectory: workers/atlas-core
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
@@ -1557,7 +1591,7 @@ jobs:
         working-directory: workers/atlas-core
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ATLAS_CORE_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
@@ -1603,7 +1637,7 @@ jobs:
         working-directory: workers/atlas-core
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ATLAS_CORE_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
@@ -1638,7 +1672,7 @@ jobs:
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           workingDirectory: workers/space-core
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: d1 migrations apply D1_SPACE --remote
@@ -1647,7 +1681,7 @@ jobs:
         working-directory: workers/space-core
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
         run: |
           set -u
           out=$(npx --yes "wrangler@$WRANGLER_VERSION" d1 execute D1_SPACE --remote --json --command "SELECT 'core:' || name AS n FROM d1_migrations_core UNION ALL SELECT 'table:' || name FROM sqlite_master WHERE type = 'table'")
@@ -1670,14 +1704,14 @@ jobs:
         working-directory: workers/space-core
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy space core Worker (styrigx-space-core)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           workingDirectory: workers/space-core
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
@@ -1685,7 +1719,7 @@ jobs:
       - name: Verify routes (styrigx.com/* → styrigx-space-core, no separate share routes)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
         run: node space/scripts/check/verify-core-routes.mjs
 
       - name: Smoke test production /api/* and pages (must be served by the Worker)
@@ -1789,7 +1823,7 @@ jobs:
         working-directory: workers/space-core
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
@@ -1828,7 +1862,7 @@ jobs:
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           workingDirectory: workers/account
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: d1 migrations apply styrigx-account --remote
@@ -1841,14 +1875,14 @@ jobs:
         working-directory: workers/account
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy account Worker (styrigx-account)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           workingDirectory: workers/account
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
@@ -1858,7 +1892,7 @@ jobs:
         working-directory: workers/account
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
@@ -1898,7 +1932,7 @@ jobs:
         working-directory: workers/account
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_STYRIGX_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 

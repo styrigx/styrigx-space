@@ -2,7 +2,7 @@
  * passkey-e2e 预览的组合入口（只给 CI 和本地模拟器用，绝不部署成正式 Worker；账号拆分 PR3）。
  *
  * 正式环境是两个 Worker：网关 styrigx-space-core 经服务绑定 ACCOUNT（AccountService）/ ACCOUNT_VERIFIER（AccountVerifier）
- * 调账号 Worker styrigx-account。预览只有一个 Pages 项目（passkey-e2e.styrigx-space.pages.dev），它的 _worker.js 只能是一个脚本，
+ * 调账号 Worker styrigx-account。预览只有一个 Pages 项目（测试空间 Styrigx-Test 的 styrigx-space-test，passkey-e2e.styrigx-space-test.pages.dev），它的 _worker.js 只能是一个脚本，
  * 所以这里把两边仓库里的真实代码装进同一个脚本：
  * - 网关那一半 = workers/space-core/src/app.js 的 default.fetch（剥头、门、转发表、锁屏接口全是正式代码）；
  * - 账号那一半 = workers/account/src/rpc/account-service.js 的 serviceFetch（AccountService.fetch 的实现）和 rpc/account-verifier.js 的

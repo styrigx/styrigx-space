@@ -86,9 +86,9 @@ test('wrangler.toml：styrigx-account、不开公开地址、没有路由、唯�
   assert.doesNotMatch(toml, /styrigx-account-preview/);
   assert.doesNotMatch(preview, /b20701f5f48e498e897bc6f0bd81643f|03f60d23-9c2f-4f3d-a692-764ccaac6f5d/);
   assert.doesNotMatch(preview, /PLACEHOLDER/);
-  assert.match(preview, /\[\[env\.preview\.kv_namespaces\]\]\nbinding = "KV_PROFILE"\nid = "193b4d68b8ac4c6f8c0ba16b5ea78b14"/);
+  assert.match(preview, /\[\[env\.preview\.kv_namespaces\]\]\nbinding = "KV_PROFILE"\nid = "afce172dc44841d289d7b64e01c81a01"/);
   for (const b of ['D1_ACCOUNT']) {
-    assert.match(preview, new RegExp('\\[\\[env\\.preview\\.d1_databases\\]\\]\\nbinding = "' + b + '"\\ndatabase_name = "styrigx-test-preview"\\ndatabase_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"\\nmigrations_dir = "migrations"\\nmigrations_table = "d1_migrations_account"'), b);
+    assert.match(preview, new RegExp('\\[\\[env\\.preview\\.d1_databases\\]\\]\\nbinding = "' + b + '"\\ndatabase_name = "styrigx-test-preview"\\ndatabase_id = "43a59672-58f2-451c-8a4c-6067f93b2e0b"\\nmigrations_dir = "migrations"\\nmigrations_table = "d1_migrations_account"'), b);
   }
 });
 
